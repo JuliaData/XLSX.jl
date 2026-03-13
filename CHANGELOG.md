@@ -4,7 +4,9 @@ All notable changes to this package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-# [v0.11.0](**Add URL**)
+## Unreleased
+This release introduces significant new functionality as set out below.
+
 There are almost no changes in existing functional APIs in v0.11.0 compared with v0.10.4. Those changes that have been made are described briefly here.
 
 ### Breaking changes
@@ -13,7 +15,7 @@ There is only one breaking change in this version:
 - `infer_eltypes` now defaults to `true` (e.g. in `gettable` and `readtable`). This is the more common use case but,
   if it is not *your* use case, you will need explicitly to set `infer_eltypes = false` in the relevant functions.
 
-I don't think there are any other breaking changes.
+All other changes either introduce new functionality (documented elsewhere) or relate to internals only.
 
 ### New Functions
 A number of new functions have been added compared with v0.10.4.
