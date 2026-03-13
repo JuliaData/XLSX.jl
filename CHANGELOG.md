@@ -93,7 +93,7 @@ New functionality that has been added has brought the following additional depen
 In addition, the test suite now has dependencies on `CSV.jl`,  `Distributions.jl` and `StyledStrings.jl`.
 
 ### Precompilation
-v0.11.0 now makes use of `PrecompileTools.jl` (initially only in a small way).## Unreleased
+v0.11.0 now makes use of `PrecompileTools.jl` (initially only in a small way).
 
 ## [v0.10.4](https://github.com/JuliaData/XLSX.jl/tree/v0.10.4) - 2024-09-29
 
