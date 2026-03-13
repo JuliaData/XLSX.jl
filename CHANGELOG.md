@@ -4,12 +4,94 @@ All notable changes to this package will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## Unreleased
+# [v0.11.0](**Add URL**)
+There are almost no changes in existing functional APIs in v0.11.0 compared with v0.10.4. Those changes that have been made are described briefly here.
 
-### BREAKING
+### Breaking changes
+There is only one breaking change in this version:
 
 - `infer_eltypes` now defaults to `true` (e.g. in `gettable` and `readtable`). This is the more common use case but,
   if it is not *your* use case you will need explicitly to set `infer_eltypes = false` in the relevant functions.
+
+I don't think there are any other breaking changes.
+
+### New Functions
+A number of new functions have been added compared with v0.10.4.
+
+These include 18 new functions to support formatting of cells and cell values together with functions to copy or delete a sheet, to merge cells and to add new defined names for cells or cell ranges. In addition, it is now also possible to assign `AnnotatedStrings` (from [StyledStrings.jl](https://github.com/JuliaLang/StyledStrings.jl)) to cells to create content using Excel's rich text formatting.
+
+A new function, `XLSXFile`, is provided that takes a `Tables.jl` compatible table and creates a new `XLSXFile` object for writing and which can act as a sink for functions such as `CSV.read`.
+
+A new function, `renamesheet!` is created to replace `rename!` for consistency in naming with `addsheet!`, `copysheet!` and `deletesheet!` and to avoid potential name conflicts when exported (e.g. with `DataFrames.rename!`). However, the existing function `XLSX.rename!` is retained (but not exported) to avoid a breaking change.
+
+Two new functions, `gettransposedtable` and `readtransposedtable`, mirror `gettable` and `readtable` for worksheet tables that have data organised in rows rather than columns.
+
+Some additional convenience functions have also been added to streamline functions that were already available (such as `newxlsx`, `savexlsx`).
+
+A wide range of additional indexing options is now widely supported by most functions. Most functions now support indexing rows and columns using vectors, ranges and step ranges and will accept a colon.
+
+### Exported Functions
+Most useful functions are now public, and can be used without the `XLSX.` prefix. The following function names are now exported:
+
+- Files and worksheets
+    `XLSXFile`, `readxlsx`, `openxlsx`, `opentemplate`, `newxlsx`, `writexlsx`, `savexlsx`,
+    `Worksheet`, `sheetnames`, `sheetcount`, `hassheet`,
+    `addsheet!`, `renamesheet!`, `copysheet!`, `deletesheet!` 
+
+- Cells & data
+    `CellRef`, `row_number`, `column_number`, `eachtablerow`,
+    `readdata`, `getdata`, `gettable`, `readtable`, `readto`,
+    `gettransposedtable`, `readtransposedtable`,
+    `writetable`, `writetable!`,
+    `setFormula`,
+    `addDefinedName`
+
+- Formats
+    `setFormat`, `setFont`, `setBorder`, `setFill`, `setAlignment`,
+    `setUniformFormat`, `setUniformFont`, `setUniformBorder`, `setUniformFill`, `setUniformAlignment`, `setUniformStyle`,
+    `setConditionalFormat`,
+    `getRichTextFormat`
+    `setColumnWidth`, `setRowHeight`,
+    `getMergedCells`, `isMergedCell`, `getMergedBaseCell`, `mergeCells`
+
+The iterator `XLSX.eachrow` has retained the XLSX prefix to avoid making a breaking change. However, `Base.eachrow` now refers to `XLSX.eachrow` for `XLSX.Worksheet` data types, meaning that  `eachrow` can be used without qualification, too.
+
+### Fixed issues
+
+This release addresses the following issues:
+https://github.com/felipenoris/XLSX.jl/issues/52, https://github.com/felipenoris/XLSX.jl/issues/61, https://github.com/felipenoris/XLSX.jl/issues/63, https://github.com/felipenoris/XLSX.jl/issues/80, https://github.com/felipenoris/XLSX.jl/issues/88, https://github.com/felipenoris/XLSX.jl/issues/120, https://github.com/felipenoris/XLSX.jl/issues/147, https://github.com/felipenoris/XLSX.jl/issues/148, https://github.com/felipenoris/XLSX.jl/issues/150, https://github.com/felipenoris/XLSX.jl/issues/155, https://github.com/felipenoris/XLSX.jl/issues/156, https://github.com/felipenoris/XLSX.jl/issues/159, https://github.com/felipenoris/XLSX.jl/issues/165, https://github.com/felipenoris/XLSX.jl/issues/172, https://github.com/felipenoris/XLSX.jl/issues/179, https://github.com/felipenoris/XLSX.jl/issues/184, https://github.com/felipenoris/XLSX.jl/issues/189, https://github.com/felipenoris/XLSX.jl/issues/190, https://github.com/felipenoris/XLSX.jl/issues/198, https://github.com/felipenoris/XLSX.jl/issues/222, https://github.com/felipenoris/XLSX.jl/issues/224, https://github.com/felipenoris/XLSX.jl/issues/232, https://github.com/felipenoris/XLSX.jl/issues/234, https://github.com/felipenoris/XLSX.jl/issues/235, https://github.com/felipenoris/XLSX.jl/issues/238, https://github.com/felipenoris/XLSX.jl/issues/239, https://github.com/felipenoris/XLSX.jl/issues/241, https://github.com/felipenoris/XLSX.jl/issues/243, https://github.com/felipenoris/XLSX.jl/issues/251, https://github.com/felipenoris/XLSX.jl/issues/252, https://github.com/felipenoris/XLSX.jl/issues/253, https://github.com/felipenoris/XLSX.jl/issues/258, https://github.com/felipenoris/XLSX.jl/issues/259, https://github.com/felipenoris/XLSX.jl/issues/260, https://github.com/felipenoris/XLSX.jl/issues/275, https://github.com/felipenoris/XLSX.jl/issues/276, https://github.com/felipenoris/XLSX.jl/issues/277, https://github.com/felipenoris/XLSX.jl/issues/278, https://github.com/felipenoris/XLSX.jl/issues/281, https://github.com/felipenoris/XLSX.jl/issues/284, https://github.com/felipenoris/XLSX.jl/issues/299, https://github.com/felipenoris/XLSX.jl/issues/301, https://github.com/felipenoris/XLSX.jl/issues/305, https://github.com/felipenoris/XLSX.jl/issues/308,  https://github.com/felipenoris/XLSX.jl/issues/311, https://github.com/felipenoris/XLSX.jl/issues/314, https://github.com/felipenoris/XLSX.jl/issues/316, https://github.com/felipenoris/XLSX.jl/issues/324, https://github.com/felipenoris/XLSX.jl/issues/331, https://github.com/felipenoris/XLSX.jl/issues/335, https://github.com/felipenoris/XLSX.jl/issues/338, https://github.com/felipenoris/XLSX.jl/issues/342.
+
+### Documentation
+The documentation for this package has been extended substantially to cover the new functionality and all changes are (should be) reflected therein. In particular, a detailed guide to using the new formatting functions has been added.
+
+### Internal changes
+A number of changes to package internals have been made. Specifically, changes have been made to the following data `struct`s:
+
+- `SheetRowStreamIteratorState`
+- `WorksheetCacheIteratorState`
+- `WorksheetCache`
+- `XLSXFile`
+- `Workbook`
+- `Worksheet`
+- `SheetRow`
+- `Cell`
+
+In particular, the internal memory configuration of an `XLSXFile` object and its components have been changed significantly, nearly halving the package's memory footprint.
+
+### Changed dependencies
+v0.11.0 has now fully migrated to `ZipArchives.jl` whereas v0.10.4 relied upon both this and `ZipFiles.jl`. In addition, xml support is now from `XML.jl` rather than `EzXML.jl`.
+
+The use of `AnnotatedStrings` is supported through a package extension. This requires StyledStrings.jl to be in the active environment. 
+
+New functionality that has been added has brought the following additional dependencies compared with v0.10.4:
+- `Colors.jl`
+- `UUIDs.jl`
+- `Random.jl`
+
+In addition, the test suite now has dependencies on `CSV.jl`,  `Distributions.jl` and `StyledStrings.jl`.
+
+### Precompilation
+v0.11.0 now makes use of `PrecompileTools.jl` (initially only in a small way).## Unreleased
 
 ## [v0.10.4](https://github.com/JuliaData/XLSX.jl/tree/v0.10.4) - 2024-09-29
 
