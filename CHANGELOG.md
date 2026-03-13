@@ -11,7 +11,7 @@ There are almost no changes in existing functional APIs in v0.11.0 compared with
 There is only one breaking change in this version:
 
 - `infer_eltypes` now defaults to `true` (e.g. in `gettable` and `readtable`). This is the more common use case but,
-  if it is not *your* use case you will need explicitly to set `infer_eltypes = false` in the relevant functions.
+  if it is not *your* use case, you will need explicitly to set `infer_eltypes = false` in the relevant functions.
 
 I don't think there are any other breaking changes.
 
