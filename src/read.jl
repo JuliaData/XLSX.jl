@@ -149,8 +149,8 @@ function fix_datestamp!(xf::XLSXFile)
     return nothing
 end
 
-include_dependency(joinpath(@__DIR__, "blank.xlsx"))
-const BLANK_XLSX_DATA = read(joinpath(@__DIR__, "blank.xlsx"))
+include_dependency(joinpath(@__DIR__, "data", "blank.xlsx"))
+const BLANK_XLSX_DATA = read(joinpath(@__DIR__, "data", "blank.xlsx"))
 
 function open_empty_template(
     sheetname::AbstractString="";

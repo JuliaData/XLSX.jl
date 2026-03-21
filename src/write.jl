@@ -1110,8 +1110,8 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     nothing
 end
 
-include_dependency(joinpath(@__DIR__, "sheet_template.xml"))
-const SHEET_TEMPLATE_XML_DATA = read(joinpath(@__DIR__, "sheet_template.xml"))
+include_dependency(joinpath(@__DIR__, "data", "sheet_template.xml"))
+const SHEET_TEMPLATE_XML_DATA = read(joinpath(@__DIR__, "data", "sheet_template.xml"))
 
 """
     addsheet!(wb::Workbook, [name::AbstractString=""]) --> ::Worksheet

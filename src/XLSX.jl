@@ -69,7 +69,7 @@ PCT.@setup_workload begin
     PCT.@compile_workload begin
         # all calls in this block will be precompiled, regardless of whether
         # they belong to your package or not (on Julia 1.8 and higher)
-        f=openxlsx(joinpath(@__DIR__, "blank.xlsx"), mode="rw")
+        f=openxlsx(joinpath(@__DIR__, "data", "blank.xlsx"), mode="rw")
         f[1]["A1:Z26"] = "hello World"
         openxlsx(s, mode="w") do xf
             xf[1][1:26, 1:26] = pi

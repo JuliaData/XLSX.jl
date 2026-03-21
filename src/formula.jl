@@ -1,5 +1,5 @@
-include_dependency(joinpath(@__DIR__, "metadata.xml"))
-const METADATA_XML_DATA = read(joinpath(@__DIR__, "metadata.xml"))
+include_dependency(joinpath(@__DIR__, "data", "metadata.xml"))
+const METADATA_XML_DATA = read(joinpath(@__DIR__, "data", "metadata.xml"))
 
 const RGX_FORMULA_SHEET_CELL = r"!\$?[A-Z]+\$?[0-9]" # to recognise sheetcell references like "otherSheet!A1"
 
