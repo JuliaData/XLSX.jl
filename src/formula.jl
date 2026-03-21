@@ -1,8 +1,5 @@
-#----------------------------------------------------------------------------------------------------
-# metadata.xml should perhaps better be a package artifact. Put it here in the meantime.
-const metadata = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray"><metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes><futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata><cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>"""
-#-----------------------------------------------------------------------------------------------------
+include_dependency(joinpath(@__DIR__, "metadata.xml"))
+const METADATA_XML_DATA = read(joinpath(@__DIR__, "metadata.xml"))
 
 const RGX_FORMULA_SHEET_CELL = r"!\$?[A-Z]+\$?[0-9]" # to recognise sheetcell references like "otherSheet!A1"
 
@@ -616,8 +613,7 @@ function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::St
         ref = cellname(cellref) * ":" * cellname(cellref)
         cm = "1"
         if !haskey(xf.files, "xl/metadata.xml") # add metadata.xml on first use of a dynamicArray formula
-            #            xf.data["xl/metadata.xml"] = XML.Node(XML.Raw(read(joinpath(_relocatable_data_path(), "metadata.xml"))))
-            xf.data["xl/metadata.xml"] = parse(metadata, XML.Node)
+            xf.data["xl/metadata.xml"] = XML.Node(XML.Raw(copy(METADATA_XML_DATA)))
             xf.files["xl/metadata.xml"] = true # set file as read
             add_override!(xf, "/xl/metadata.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml")
             rId = add_relationship!(get_workbook(xf), "metadata.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata")

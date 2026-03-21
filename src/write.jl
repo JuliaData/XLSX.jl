@@ -1110,6 +1110,9 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     nothing
 end
 
+include_dependency(joinpath(@__DIR__, "sheet_template.xml"))
+const SHEET_TEMPLATE_XML_DATA = read(joinpath(@__DIR__, "sheet_template.xml"))
+
 """
     addsheet!(wb::Workbook, [name::AbstractString=""]) --> ::Worksheet
     addsheet!(xf::XLSXFile, [name::AbstractString=""]) --> ::Worksheet
@@ -1121,10 +1124,9 @@ See also [renamesheet!](@ref), [copysheet!](@ref), [deletesheet!](@ref)
 
 """
 addsheet!(xl::XLSXFile, name::AbstractString="")::Worksheet = addsheet!(get_workbook(xl), name)::Worksheet
-function addsheet!(wb::Workbook, name::AbstractString=""; relocatable_data_path::String=_relocatable_data_path())::Worksheet
-    file_sheet_template = joinpath(relocatable_data_path, "sheet_template.xml")
-    !isfile(file_sheet_template) && throw(XLSXError("Couldn't find template file $file_sheet_template."))
-    bytes = read(file_sheet_template)
+function addsheet!(wb::Workbook, name::AbstractString=""; sheet_template_data::Vector{UInt8}=SHEET_TEMPLATE_XML_DATA)::Worksheet
+    # Copy so the global SHEET_TEMPLATE_DATA isn't accidentally changed
+    bytes = copy(sheet_template_data)
     f, _ = skipNode(XML.Raw(bytes), "sheetData")
     xdoc = XML.Node(XML.Raw(f))
 

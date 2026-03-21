@@ -111,10 +111,6 @@ opentemplate(source::Union{AbstractString,IO})::XLSXFile = open_or_read_xlsx(sou
 
 @inline open_xlsx_template(source::Union{AbstractString,IO})::XLSXFile = open_or_read_xlsx(source, true, true, true)
 
-function _relocatable_data_path(; path::AbstractString=Artifacts.artifact"XLSX_relocatable_data")
-    return path
-end
-
 """
     newxlsx([sheetname::AbstractString]; update_timestamp::Bool) :: XLSXFile
 
@@ -153,15 +149,15 @@ function fix_datestamp!(xf::XLSXFile)
     return nothing
 end
 
+include_dependency(joinpath(@__DIR__, "blank.xlsx"))
+const BLANK_XLSX_DATA = read(joinpath(@__DIR__, "blank.xlsx"))
+
 function open_empty_template(
     sheetname::AbstractString="";
-    path::AbstractString=_relocatable_data_path(),
+    empty_template_data::Vector{UInt8}=BLANK_XLSX_DATA,
     update_timestamp::Bool=true
 )::XLSXFile
-
-    empty_excel_template = joinpath(path, "blank.xlsx")
-    !isfile(empty_excel_template) && throw(XLSXError("Couldn't find template file $empty_excel_template."))
-    xf = open_xlsx_template(empty_excel_template)
+    xf = open_xlsx_template(IOBuffer(empty_template_data))
     xf[1].cache.is_full = true
 
     if sheetname != ""
