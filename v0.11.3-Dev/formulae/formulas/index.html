@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Using Formulas · XLSX.jl</title><meta name="title" content="Using Formulas · XLSX.jl"/><meta property="og:title" content="Using Formulas · XLSX.jl"/><meta property="twitter:title" content="Using Formulas · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../../formatting/cellFormatting/">Cell formats</a></li><li><a class="tocitem" href="../../formatting/conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../../formatting/widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../../formatting/mergedCells/">Merged cells</a></li></ul></li><li class="is-active"><a class="tocitem" href>Using Formulas</a><ul class="internal"><li><a class="tocitem" href="#Using-a-simple-formula"><span>Using a simple formula</span></a></li><li><a class="tocitem" href="#Referenced-formulas"><span>Referenced formulas</span></a></li><li><a class="tocitem" href="#External-references"><span>External references</span></a></li><li><a class="tocitem" href="#Newer-functions"><span>Newer functions</span></a></li><li><a class="tocitem" href="#Spill-ranges"><span>Spill ranges</span></a></li></ul></li><li><a class="tocitem" href="../../examples/">Examples</a></li><li><a class="tocitem" href="../../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../api/files/">Files and worksheets</a></li><li><a class="tocitem" href="../../api/data/">Cells and data</a></li><li><a class="tocitem" href="../../api/formats/">Formats</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Using Formulas</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Using Formulas</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/formulae/formulas.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Using-Formulas"><a class="docs-heading-anchor" href="#Using-Formulas">Using Formulas</a><a id="Using-Formulas-1"></a><a class="docs-heading-anchor-permalink" href="#Using-Formulas" title="Permalink"></a></h1><p><code>XLSX.jl</code> provides two functions allowing direct access to cell formulas, <a href="../../api/data/#XLSX.getFormula">XLSX.getFormula</a> and <a href="../../api/data/#XLSX.setFormula">setFormula</a>.</p><h2 id="Using-a-simple-formula"><a class="docs-heading-anchor" href="#Using-a-simple-formula">Using a simple formula</a><a id="Using-a-simple-formula-1"></a><a class="docs-heading-anchor-permalink" href="#Using-a-simple-formula" title="Permalink"></a></h2><p>Find the formula in a cell using the <a href="../../api/data/#XLSX.getFormula">XLSX.getFormula</a> function. This returns a string representation  of the function used in the specified cell (e.g. <code>&quot;=A1+B1&quot;</code>). For most standard functions, this is the  same as the representation of the same formula in the Excel formula bar (but see the section on Newer  Functions (below) for exceptions).</p><p>Similarly, set a formula in a cell using the <a href="../../api/data/#XLSX.setFormula">setFormula</a> function, entering the function  exactly as it would appear in the Excel formula bar.</p><p>To set a formula, it must be a valid Excel formula and written in US english with  a comma separator. Cell references may be absolute or relative references in either  the row or the column or both (e.g. <code>\$A\$2</code>). No validation of the specified  formula is made by <code>XLSX.jl</code> and the formula will be accepted as given.</p><p>For example:</p><pre><code class="language-julia hljs">julia&gt; using XLSX
+
+julia&gt; f=newxlsx()
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+               Sheet1 1x1           A1:A1        
+
+julia&gt; s=f[1]
+1×1 Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; s[1:4, 1]=1:4
+1:4
+
+julia&gt; setFormula(s, &quot;A5&quot;, &quot;=sum(A1:A4)&quot;) # function names are case insensitive. Excel converts them all to uppercase.
+&quot;=sum(A1:A4)&quot;
+
+julia&gt; XLSX.getFormula(s, &quot;A5&quot;)
+&quot;=sum(A1:A4)&quot;</code></pre><p><img src="../../images/simpleFormula.png" alt="image|320x500"/></p><p>Special characters need escaping in the usual way, so that absolute references must be written as,  for example, <code>\$A\$1</code>. Similarly, when entering text strings into formulas, quotation marks need  to be escaped. For example:</p><pre><code class="language-julia hljs">julia&gt; setFormula(s, &quot;B1&quot;, &quot;=hyperlink(\&quot;https://www.bbc.co.uk/news\&quot;, \&quot;BBC News\&quot;)&quot;)
+&quot;=hyperlink(\&quot;https://www.bbc.co.uk/news\&quot;, \&quot;BBC News\&quot;)&quot;
+
+julia&gt; XLSX.getFormula(s, &quot;B1&quot;)
+&quot;=hyperlink(\&quot;https://www.bbc.co.uk/news\&quot;, \&quot;BBC News\&quot;)&quot;</code></pre><p><img src="../../images/hyperlinkFormula.png" alt="image|320x500"/></p><p>Valid formulae of arbitrary complexity and degree of nesting are supported.</p><pre><code class="language-julia hljs">julia&gt; setFormula(s, &quot;B1&quot;, &quot;=MID(A1, FIND(\&quot;-\&quot;,A1)+1, FIND(\&quot;-\&quot;,A1, FIND(\&quot;-\&quot;,A1)))&quot;)
+&quot;=MID(A1, FIND(\&quot;-\&quot;,A1)+1, FIND(\&quot;-\&quot;,A1, FIND(\&quot;-\&quot;,A1)))&quot;
+
+julia&gt; setFormula(s, &quot;B2&quot;, &quot;AND(ROUNDDOWN(A1,0)-TODAY()&gt;(7-WEEKDAY(TODAY())),ROUNDDOWN(A1,0)-TODAY()&lt;(15-WEEKDAY(TODAY())))&quot;)
+&quot;AND(ROUNDDOWN(A1,0)-TODAY()&gt;(7-WEEKDAY(TODAY())),ROUNDDOWN(A1,0)-TODAY()&lt;(15-WEEKDAY(TODAY())))&quot;</code></pre><p>Since <code>XLSX.jl</code> does not and cannot replicate all the functions built in to Excel,  setting a formula in a cell does not permit the cell&#39;s value to be re-calculated  within <code>XLSX.jl</code>. Instead, although the formula is properly added to the cell, the  value is set to <code>missing</code>. However, the saved <code>XLSXFile</code> is set to force Excel to  re-calculate on opening.</p><pre><code class="language-julia hljs">julia&gt; using XLSX
+
+julia&gt; f=newxlsx(&quot;setting formulas&quot;)
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+     setting formulas 1x1           A1:A1        
+
+
+julia&gt; s=f[1]
+1×1 Worksheet: [&quot;setting formulas&quot;](A1:A1) 
+
+julia&gt; s[&quot;A2:A10&quot;]=1
+1
+
+julia&gt; s[&quot;A1:J1&quot;]=1
+1
+
+julia&gt; setFormula(s, &quot;B2:J10&quot;, &quot;=A2+B1&quot;) # adds formulae but cannot update calculated values
+
+julia&gt; s[:]
+10×10 Matrix{Any}:
+ 1  1         1         1         1         1         1         1         1         1
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+ 1   missing   missing   missing   missing   missing   missing   missing   missing   missing
+
+# formulae are there for when the saved file is opened in Excel.
+julia&gt; XLSX.getFormula(s, &quot;B2&quot;)
+&quot;=A2+B1&quot;
+
+julia&gt; XLSX.getFormula(s, &quot;J10&quot;)
+&quot;=I10+J9&quot;</code></pre><h2 id="Referenced-formulas"><a class="docs-heading-anchor" href="#Referenced-formulas">Referenced formulas</a><a id="Referenced-formulas-1"></a><a class="docs-heading-anchor-permalink" href="#Referenced-formulas" title="Permalink"></a></h2><p>If a contiguous range is specfied, <a href="../../api/data/#XLSX.setFormula">setFormula</a> will usually create a  <code>ReferencedFormula</code>. This is the same as Excel would use if using drag fill to  copy a formula into a range of cells.</p><p>The first cell in the range (reference cell) contains the formula and the other  cells in the range contain a reference to the reference cell. The formula  returned by <a href="../../api/data/#XLSX.getFormula">XLSX.getFormula</a> will be adjusted appropriately to allow for the offset  from the reference cell. This will match what is shown in the formula bar for  this cell in Excel.</p><pre><code class="language-julia hljs">julia&gt; s[1:4, 1]=1:4
+1:4
+
+julia&gt; setFormula(s, &quot;B1&quot;, &quot;=A1&quot;)
+&quot;=A1&quot;
+
+julia&gt; setFormula(s, &quot;B2:B4&quot;, &quot;=B1+A2&quot;) # creates a running total
+&quot;=B1+A2&quot;
+
+julia&gt; XLSX.getFormula(s, &quot;B2&quot;)
+&quot;=B1+A2&quot;
+
+julia&gt; XLSX.getFormula(s, &quot;B4&quot;) # returned formula is adjusted for offset
+&quot;=B3+A4&quot;</code></pre><p>Unlike with conventional functions, dynamic array functions (e.g. <code>SORT</code> or <code>UNIQUE</code>) should not be put into a <code>ReferencedFormula</code> and neither should functions that refer to  cells in other sheets. When functions of this type are identified, they will instead be  duplicated individually in each cell in the given range (but with relative cell references  appropriately adjusted). This is an internal process that should be transparent  to the user.</p><h2 id="External-references"><a class="docs-heading-anchor" href="#External-references">External references</a><a id="External-references-1"></a><a class="docs-heading-anchor-permalink" href="#External-references" title="Permalink"></a></h2><p>An existing formula may contain references to cells in external workbooks, in the form <code>[index]SheetName!A1</code> where <code>index</code> is an integer providing an internal Excel reference  to the external workbook. <a href="../../api/data/#XLSX.getFormula">XLSX.getFormula</a> can be used to obtain the file name of the external  reference using the keyword option <code>get_external_refs=true</code> to replace the index with the  actual workbook path (as stored in the workbook&#39;s externalReferences). By default, <code>get_external_refs=false</code> and the formula is returned unchanged.</p><pre><code class="language-julia hljs">julia&gt; XLSX.getFormula(s, &quot;B1&quot;)
+&quot;[1]Sheet1!\$A\$1&quot;
+
+julia&gt; XLSX.getFormula(s, &quot;B1&quot;; get_external_refs=true)
+&quot;[https://d.docs.live.net/.../Documents/Julia/XLSX/linked-2.xlsx]Sheet1!\$A\$1&quot;</code></pre><p>It is not currently possible to use <code>setFormula</code> to create a formula that references a worksheet  in an external file.</p><h2 id="Newer-functions"><a class="docs-heading-anchor" href="#Newer-functions">Newer functions</a><a id="Newer-functions-1"></a><a class="docs-heading-anchor-permalink" href="#Newer-functions" title="Permalink"></a></h2><p>Microsoft continues to add new functions to Excel with increasing complexity. Some of these are not represented straightforwardly in the internal xml files using the representation shown in  the formula bar like &quot;traditional&quot; formulas are. Instead, these need function prefixes when  written to file. For example:</p><pre><code class="language-julia hljs">julia&gt; s[1:5, 1]=rand(5)
+5-element Vector{Float64}:
+ 0.2781977934853824
+ 0.3063671990614626
+ 0.44046282567557327
+ 0.38515484505427067
+ 0.37629936008012144
+
+julia&gt; setFormula(s, &quot;A6&quot;, &quot;sum(A1:A5)&quot;) # traditional function
+&quot;sum(A1:A5)&quot;
+
+julia&gt; setFormula(s, &quot;B1&quot;, &quot;sort(A1:A5)&quot;) # needs a prefix. `setFormula` adds this transparently to the user.
+&quot;_xlfn.SORT(A1:A5)&quot;
+
+julia&gt; setBorder(s, &quot;A6&quot;;top=[&quot;style&quot;=&gt;&quot;double&quot;])
+1
+
+julia&gt; writexlsx(&quot;mytest.xlsx&quot;, f, overwrite=true)
+&quot;C:\\Users\\...\\Julia\\XLSX\\mytest.xlsx&quot;</code></pre><p>The prefix is not shown by Excel in the formula bar, but it is needed in the internal xml file. <a href="../../api/data/#XLSX.setFormula">setFormula</a> adds this prefix automatically. A dummy <code>ref</code> xml attribute is also created  by <a href="../../api/data/#XLSX.setFormula">setFormula</a> and will be properly calculated on opening when Excel determines the spill range.</p><p><img src="../../images/sortPrefix.png" alt="image|320x500"/></p><pre><code class="nohighlight hljs">&lt;c r=&quot;B1&quot; cm=&quot;1&quot;&gt;
+  &lt;f t=&quot;array&quot; ref=&quot;B1:B1&quot;&gt;_xlfn.SORT(A1:A5)&lt;/f&gt; # prefix `_xlfn.` and `t` and `ref` attributes required by Excel
+&lt;/c&gt;
+
+&lt;c r=&quot;A6&quot; s=&quot;1&quot;&gt;
+  &lt;f&gt;sum(A1:A5)&lt;/f&gt; # simple representation as shown in the formula bar
+&lt;/c&gt;</code></pre><p>The functions <code>GROUPBY</code> and <code>PIVOTBY</code> need an aggregation function as their 3rd/4th argument respectively.  Currently only simple aggregator functions are supported (e.g. <code>SUM</code>, <code>AVERAGE</code>, <code>COUNT</code>, <code>COUNTA</code>,  <code>MIN</code>, <code>MAX</code>, <code>MEDIAN</code>, <code>PRODUCT</code>, <code>STDEV</code>, <code>STDEVP</code>, <code>VAR</code> and <code>VARP</code>) by default (i.e. with <code>raw=false</code>).</p><p>More complex versions of theses functions and some of the other newer Excel functions are  not easy to parse. For example, Excel&#39;s <code>LAMBDA</code> function is not well supported (in  <code>GROUPBY</code>/<code>PIVOTBY</code> or otherwise). Moreover, as Microsoft adds more new functions in future that  require a prefix or that generate a spill range (or both), <a href="../../api/data/#XLSX.setFormula">setFormula</a> may not recognise them  automatically.</p><p>For these cases, a keyword option, <code>raw</code>, is provided (default=<code>false</code>), allowing the internal xml  representation of a function (which may differ significantly from its representation in the formula  bar) to be entered directly. This allows any arbitrary future function to be added using <a href="../../api/data/#XLSX.setFormula">setFormula</a>.  An additional keyword, <code>spill</code> (default=<code>nothing</code>), can be used to tell <a href="../../api/data/#XLSX.setFormula">setFormula</a> that the raw  function will create a spill range (or to force it not to). The simplest way to determine the raw  representation of any arbitrary function is to create it in Excel and then to inspect the resulting  xml file. For example:</p><pre><code class="language-julia hljs">setFormula(f[1], &quot;H21&quot;, &quot;_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)&quot;; raw=true)
+# setFormula recognises the `GROUPBY` function so, in this case, it is not necessary to specify `spill=true`
+</code></pre><h2 id="Spill-ranges"><a class="docs-heading-anchor" href="#Spill-ranges">Spill ranges</a><a id="Spill-ranges-1"></a><a class="docs-heading-anchor-permalink" href="#Spill-ranges" title="Permalink"></a></h2><p>Some functions, such as <code>SORT</code> or <code>UNIQUE</code>, will return multiple values and Excel will &quot;spill&quot; these  into a spill range the extent of which depends on the data on which the function is operating. Generally, <a href="../../api/data/#XLSX.setFormula">setFormula</a> will handle this transparently and create a cell formula that spills when  needed by adding an attribute <code>t=&quot;array&quot;</code> to the cell in the internal xml file. For example</p><pre><code class="language-julia hljs">julia&gt; s[1:5, 1]=rand(5)
+5-element Vector{Float64}:
+ 0.1826020207094764
+ 0.8336742268414907
+ 0.773953482649498
+ 0.9739450126819114
+ 0.6627007761343171
+
+julia&gt; s[1:5, 2]=&quot;&quot; # make sure these aren&#39;t EmptyCells so spill range can be formatted
+&quot;&quot;
+
+julia&gt; setFormula(s, &quot;B1&quot;, &quot;=sort(A1:A5)&quot;) # cell B1 contains the formula but the result spills down to B5
+&quot;=_xlfn.SORT(A1:A5)&quot;
+
+julia&gt; setFormat(s, &quot;A1:B5&quot;;format=&quot;Number&quot;)
+-1</code></pre><p><img src="../../images/simpleSpill.png" alt="image|320x500"/></p><p>Even simple formulas can be made to spill in recent versions of Excel. For example, any cell  given the formula <code>&quot;=A1:A5&quot;</code> would produce a 5-element result and would spill to fill 5 cells.</p><p>You may include a spill range in a formula using the base cell name with a <code>#</code> suffix, and  this is treated as a reference to the full spill range. For example, to add an extra column  to the above table, use <code>setFormula(s, &quot;C1&quot;, &quot;=2*B1#&quot;)</code> just as in Excel. The result will  spill to fill cells <code>C1:C5</code>.</p><p>If a function Excel expects to return a spill range does not have attribute <code>t=&quot;array&quot;</code> set,  Excel will automatically create an &quot;implicit intersection&quot; when it opens the file by adding  an <code>@</code> prefix to the function name. The @ symbol tells Excel to return a single  value from a range or array, based on the context of the formula. For example, if a formula  references a column of values but is entered in a single cell, Excel uses @ to pick the value  from the same row as the formula.</p><p>For most formulas, <a href="../../api/data/#XLSX.setFormula">setFormula</a> will determine the correct attribute value for <code>t</code>. In cases  where it doesn&#39;t (usually when using <code>raw=true</code>), it is possible to force the formula to indicate  (to Excel) that it spills using the <code>spill=true</code> keyword option as described above. Similarly, in  the unlikely event that <a href="../../api/data/#XLSX.setFormula">setFormula</a> might choose to create a spill function incorrectly, this can  be prevented with <code>spill=false</code>.</p><p>Only rarely in complex, nested formulae involving cell range references, aggregator functions and/or  dynamic array functions, and for any function that spills as a direct result of using a  named cell range, should it be necessary to use the <code>raw</code> keyword option described above.</p><div class="admonition is-info" id="Note-38850db4d455d10e"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-38850db4d455d10e" title="Permalink"></a></header><div class="admonition-body"><p>Excel is often very fussy about the internal structure of an xlsx file but the resulting error messages (when Excel tries to open a file it considers malformed) may be somewhat cryptic.  If there is an error in the formula you enter, it may not be clear what it is from the error  Excel produces (as shown below). A safe fall back may be to test the formula in Excel itself and copy/paste  it into julia. Alternatively, copy the formula directly from the xml representation of a working  Excel file and use the <code>raw=true</code> keyword option (and <code>spill=true</code> if the function used creates  a spill range).</p><p>For example:</p><pre><code class="language-julia hljs">
+julia&gt; f=newxlsx()
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+            Sheet1 1x1           A1:A1        
+
+julia&gt; f[1][1:3, 1]=collect(1:3)
+3-element Vector{Int64}:
+1
+2
+3
+
+julia&gt; setFormula(f[1], &quot;B1&quot;, &quot;=max(A1:A3&quot;) # missing closing parenthesis in the formula
+&quot;=max(A1:A3&quot;
+
+julia&gt; XLSX.getFormula(f[1], &quot;B1&quot;)
+&quot;=max(A1:A3&quot;
+
+
+julia&gt; writexlsx(&quot;mytest.xlsx&quot;, f, overwrite=true)
+&quot;C:\\Users\\...\\Julia\\XLSX\\mytest.xlsx&quot;
+</code></pre><p><img src="../../images/problemContent.png" alt="image|320x500"/> <img src="../../images/ExcelRepairs.png" alt="image|320x500"/></p></div></div></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../formatting/mergedCells/">« Merged cells</a><a class="docs-footer-nextpage" href="../../examples/">Examples »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 1 April 2026 08:18">Wednesday 1 April 2026</span>. Using Julia version 1.12.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
