@@ -1,6 +1,6 @@
 name: CI
 on:
-#  workflow_dispatch:  # <-- Add this to allow manual execution
+ workflow_dispatch:  # <-- Add this to allow manual execution
   pull_request:
     branches:
       - master
