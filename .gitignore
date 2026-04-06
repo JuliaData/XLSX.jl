@@ -5,3 +5,4 @@ Manifest.toml
 docs/Manifest.toml
 .vscode
 *.gz
+.claude

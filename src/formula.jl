@@ -662,7 +662,7 @@ function get_external_workbook_path(xf::XLSXFile, id::Int)
         haskey(atts, "r:id") || throw(XLSXError("Something wrong here!"))
         rId = atts["r:id"]
         # now need a second lookup of this further r:id
-        altUrls = XML.children(xmlroot(xf, "xl/externalLinks/_rels/$(basename(rel)).rels")[end])
+        altUrls = xml_elements(xml_root_element(xmlroot(xf, "xl/externalLinks/_rels/$(basename(rel)).rels")))
         for c in altUrls
             atts = XML.attributes(c)
             if haskey(atts, "Id") && atts["Id"] == rId

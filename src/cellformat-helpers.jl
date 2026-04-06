@@ -113,8 +113,9 @@ const EXCEL_COLUMN_WIDTH_PADDING = 0.7109375
 #
 
 function copynode(o::XML.Node)
-    n = XML.Node(o.nodetype, o.tag, o.attributes, o.value, isnothing(o.children) ? nothing : [copynode(x) for x in o.children])
-    return n
+    attrs = isnothing(o.attributes) ? nothing : copy(o.attributes)
+    children = isnothing(o.children) ? nothing : XML.Node{String}[copynode(x) for x in o.children]
+    return XML.Node{String}(o.nodetype, o.tag, attrs, o.value, children)
 end
 function do_sheet_names_match(ws::Worksheet, rng::T) where {T<:Union{SheetCellRef,AbstractSheetCellRange}}
     if ws.name == rng.sheet
@@ -140,7 +141,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
                 if isnothing(attributes[a])
                     cnode = XML.Element(a)
                 else
-                    cnode = XML.Node(XML.Element, a, OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
+                    cnode = XML.Node{String}(XML.Element, a, Pair{String,String}[], nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node{String}}() : nothing)
                     for (k, v) in attributes[a]
                         cnode[k] = v
                     end
@@ -152,7 +153,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
                 if isnothing(attributes[a])
                     cnode = XML.Element(a)
                 else
-                    cnode = XML.Node(XML.Element, a, OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
+                    cnode = XML.Node{String}(XML.Element, a, Pair{String,String}[], nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node{String}}() : nothing)
                     color = XML.Element("color")
                     for (k, v) in attributes[a]
                         if k == "style" && v != "none"
@@ -179,7 +180,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
                 if isnothing(attributes[a])
                     cnode = XML.Element(a)
                 else
-                    cnode = XML.Node(XML.Element, a, OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
+                    cnode = XML.Node{String}(XML.Element, a, Pair{String,String}[], nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node{String}}() : nothing)
                     patternfill = XML.Element("patternFill")
                     fgcolor = XML.Element("fgColor")
                     bgcolor = XML.Element("bgColor")
@@ -391,14 +392,14 @@ function get_new_formatId(wb::Workbook, format::String)::Int
         if isnothing(j) # There are no existing custom formats
             return styles_add_numFmt(wb, format)
         else
-            existing_elements_count = length(XML.children(xroot[i][j]))
+            existing_elements_count = length(xml_elements(xroot[i][j]))
             if parse(Int, xroot[i][j]["count"]) != existing_elements_count
                 throw(XLSXError("Wrong number of font elements found: $existing_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
             end
 
             format_node = XML.Element("numFmt";
                 numFmtId=string(existing_elements_count + PREDEFINED_NUMFMT_COUNT),
-                formatCode=XLSX.escape(format)
+                formatCode=format
             )
 
             return styles_add_cell_attribute(wb, format_node, "numFmts") + PREDEFINED_NUMFMT_COUNT
@@ -445,7 +446,7 @@ function update_template_xf(ws::Worksheet, allXfNodes::Vector{XML.Node}, existin
     old_cell_xf = styles_cell_xf(allXfNodes, Int(existing_style.id))
     new_cell_xf = copynode(old_cell_xf)
     if isnothing(new_cell_xf.children)
-        new_cell_xf=XML.Node(new_cell_xf, alignment)
+        new_cell_xf = XML.Node{String}(XML.Element, XML.tag(new_cell_xf), new_cell_xf.attributes, nothing, XML.Node{String}[alignment])
     elseif length(XML.children(new_cell_xf)) == 0
         push!(new_cell_xf, alignment)
     else
@@ -464,13 +465,13 @@ end
 function styles_add_cell_attribute(wb::Workbook, new_att::XML.Node, att::String)::Int
     xroot = styles_xmlroot(wb)
     i, j = get_idces(xroot, "styleSheet", att)
-    existing_elements_count = length(XML.children(xroot[i][j]))
+    existing_elements_count = length(xml_elements(xroot[i][j]))
     if parse(Int, xroot[i][j]["count"]) != existing_elements_count
         throw(XLSXError("Wrong number of elements elements found: $existing_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
     end
 
     # Check new_att doesn't duplicate any existing att. If yes, use that rather than create new.
-    for (k, node) in enumerate(XML.children(xroot[i][j]))
+    for (k, node) in enumerate(xml_elements(xroot[i][j]))
         if XML.tag(new_att) == "numFmt" # mustn't compare numFmtId attribute for formats
             if node["formatCode"] == new_att["formatCode"]
                 return k - 1 # CellDataFormat is zero-indexed
@@ -1070,7 +1071,7 @@ function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML
     if first                           # Get the attribute of the first cell in the range.
         newid = f(ws, cellref; kw...)
         new_alignment = getAlignment(ws, cellref).alignment["alignment"]
-        alignment_node = XML.Node(XML.Element, "alignment", new_alignment, nothing, nothing)
+        alignment_node = XML.Node{String}(XML.Element, "alignment", isnothing(new_alignment) ? Pair{String,String}[] : Pair{String,String}[k => v for (k,v) in new_alignment], nothing, nothing)
         first = false
     else                               # Apply the same attribute to the rest of the cells in the range.
         if cell.style == UInt64(0)
@@ -1280,12 +1281,12 @@ function update_sharedString_font(ws::Worksheet, cell::Cell;
 
     is = parse(str_formatted, XML.Node)[1] # Convert to XML.Node for ease of handling
 
-    all_r = filter(z -> z.tag == "r", XML.children(is))
+    all_r = filter(z -> XML.tag(z) == "r", XML.children(is))
     run_elements = reduce(vcat, [XML.children(z) for z in all_r])
-    rPr_elements=filter(z -> z.tag == "rPr", run_elements) # rPr elements
+    rPr_elements = filter(z -> XML.tag(z) == "rPr", run_elements) # rPr elements
 
     t=String[] # text elements
-    for i in filter(z -> z.tag == "t", run_elements)
+    for i in filter(z -> XML.tag(z) == "t", run_elements)
         push!(t, XML.is_simple(i[1]) ? XML.simple_value(i[1]) : XML.value(i[1]))
     end
 
@@ -1297,7 +1298,7 @@ function update_sharedString_font(ws::Worksheet, cell::Cell;
 
         for att in XML.children(rPr) # first copy existing attributes
             for i in 1:length(atts)
-                if att.tag == atts[i]
+                if XML.tag(att) == atts[i]
                     new_rPr[i] = att
                 end
             end
@@ -1332,7 +1333,7 @@ function update_sharedString_font(ws::Worksheet, cell::Cell;
         if !isnothing(rPr.children)
             empty!(rPr.children)
             foreach(new_rPr) do element 
-                element.tag != "DeleteMe" && push!(rPr.children, element)
+                XML.tag(element) != "DeleteMe" && push!(rPr.children, element)
             end
         end
     end
@@ -1380,7 +1381,7 @@ function update_sharedString_font(ws::Worksheet, cell::Cell;
         for r in 1:length(all_r)
             if t[r] != ")___DeleteMe___(" # signals a merged <r> element to be skipped
                 write(new_r, "  <r>\n")
-                r > inc_first && write(new_r, XML.write(rPr_elements[r-inc_first];depth=3) * "\n")
+                r > inc_first && write(new_r, XML.write(rPr_elements[r-inc_first]) * "\n")
                 write(new_r, "    <t" * (needs_preserve(t[r]) ? " xml:space=\"preserve\"" : "") * ">" *t[r] * "</t>\n")
                 write(new_r, "  </r>\n")
             end

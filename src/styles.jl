@@ -80,10 +80,10 @@ function styles_xmlroot(workbook::Workbook)
             styles_root = xmlroot(get_xlsxfile(workbook), styles_target)
 
             # check root node name for styles.xml
-            if get_default_namespace(styles_root[end]) != SPREADSHEET_NAMESPACE_XPATH_ARG
-                throw(XLSXError("Unsupported styles XML namespace $(get_default_namespace(styles_root[end]))."))
+            if get_default_namespace(xml_root_element(styles_root)) != SPREADSHEET_NAMESPACE_XPATH_ARG
+                throw(XLSXError("Unsupported styles XML namespace $(get_default_namespace(xml_root_element(styles_root)))."))
             end
-            XML.tag(styles_root[end]) != "styleSheet" && throw(XLSXError("Malformed package. Expected root node named `styleSheet` in `styles.xml`."))
+            XML.tag(xml_root_element(styles_root)) != "styleSheet" && throw(XLSXError("Malformed package. Expected root node named `styleSheet` in `styles.xml`."))
             workbook.styles_xroot = styles_root
         else
             throw(XLSXError("Styles not found for this workbook."))
@@ -138,11 +138,11 @@ function styles_add_numFmt(wb::Workbook, format_code::AbstractString)::Integer
         numfmts = numfmts[1]
     end
 
-    existing_numFmt_elements_count = length(XML.children(numfmts))
+    existing_numFmt_elements_count = length(xml_elements(numfmts))
     fmt_code = existing_numFmt_elements_count + PREDEFINED_NUMFMT_COUNT
     new_fmt = XML.Element("numFmt";
-        numFmtId=fmt_code,
-        formatCode=XLSX.escape(format_code)
+        numFmtId=string(fmt_code),
+        formatCode=format_code
     )
     push!(numfmts, new_fmt)
     return fmt_code
@@ -169,7 +169,7 @@ const DATETIME_CODES = ["d", "m", "yy", "h", "s", "a/p", "am/pm"]
 function remove_formatting(code)
     # this regex should cover all the formatting cases found here(colors/conditionals/quotes/spacing):
     # https://support.office.com/en-us/article/create-or-delete-a-custom-number-format-78f2a361-936b-4c03-8772-09fab54be7f4
-    ignoredformatting = r"""\[.{2,}?\]|&quot;.+?&quot;|_.|\\.|\*."""x # Had to add ? to "&quot;.+&quot;" to make it work. Don't understand what made this necessary!
+    ignoredformatting = r"""\[.{2,}?\]|".+?"|_.|\\.|\*."""x
     replace(code, ignoredformatting => "")
 end
 
@@ -278,7 +278,7 @@ function styles_get_cellXf_with_numFmtId(allXfNodes::Vector{XML.Node}, numFmtId:
 end
 
 function styles_add_cell_xf(wb::Workbook, attributes::Dict{String,String})::CellDataFormat
-    new_xf = XML.Node(XML.Element, "xf", OrderedDict{String,String}(), nothing, nothing)
+    new_xf = XML.Node{String}(XML.Element, "xf", Pair{String,String}[], nothing, nothing)
     for k in keys(attributes)
         new_xf[k] = attributes[k]
     end
@@ -288,12 +288,12 @@ end
 function styles_add_cell_xf(wb::Workbook, new_xf::XML.Node)::CellDataFormat
     xroot = styles_xmlroot(wb)
     i, j = get_idces(xroot, "styleSheet", "cellXfs")
-    existing_cellxf_elements_count = length(XML.children(xroot[i][j]))
+    existing_cellxf_elements_count = length(xml_elements(xroot[i][j]))
     if parse(Int, xroot[i][j]["count"]) != existing_cellxf_elements_count
         throw(XLSXError("Wrong number of xf elements found: $existing_cellxf_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
     end
     # Check new_xf doesn't duplicate any existing xf. If yes, use that rather than create new.
-    for (k, node) in enumerate(XML.children(xroot[i][j]))
+    for (k, node) in enumerate(xml_elements(xroot[i][j]))
         if node == new_xf
             return CellDataFormat(k - 1) # CellDataFormat is zero-indexed
         end

@@ -183,13 +183,13 @@ end
 
 function get_node_paths(node::XML.Node)
     XML.nodetype(node) != XML.Document && throw(XLSXError("Something wrong here!"))
-    default_ns = get_default_namespace(node[end])
-    xpaths = Vector{xpath}()
+    default_ns = get_default_namespace(xml_root_element(node))
+    xpaths = Vector{XPathInfo}()
     get_node_paths!(xpaths, node, default_ns, "")
     return xpaths
 end
 
-function get_node_paths!(xpaths::Vector{xpath}, node::XML.Node, default_ns, path)
+function get_node_paths!(xpaths::Vector{XPathInfo}, node::XML.Node, default_ns, path)
     for c in XML.children(node)
         if XML.nodetype(c) ∉ [XML.Declaration, XML.Comment, XML.Text]
             node_tag = XML.tag(c)
@@ -197,7 +197,7 @@ function get_node_paths!(xpaths::Vector{xpath}, node::XML.Node, default_ns, path
                 node_tag = default_ns * ":" * node_tag
             end
             npath = path * "/" * node_tag
-            push!(xpaths, xpath(c, npath))
+            push!(xpaths, XPathInfo(c, npath))
             if length(XML.children(c)) > 0
                 get_node_paths!(xpaths, c, default_ns, npath)
             end
@@ -267,7 +267,7 @@ end
 function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{UInt8}}
     sheet = getsheet(wb, sheet_no)
     doc = copynode(get_worksheet_xml_document(sheet))
-    xroot = doc[end]
+    xroot = xml_root_element(doc)
 
     # check namespace and root node name
     get_default_namespace(xroot) != SPREADSHEET_NAMESPACE_XPATH_ARG && throw(XLSXError("Unsupported Spreadsheet XML namespace $(get_default_namespace(xroot))."))
@@ -547,7 +547,7 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
             else
                 v = string(v.value)
             end
-            dn_node = XML.Element("definedName", name=last(k), localSheetId=first(k) - 1, XML.Text(v))
+            dn_node = XML.Element("definedName", name=last(k), localSheetId=string(first(k) - 1), XML.Text(v))
             push!(definedNames, dn_node)
         end
         wbdoc[i][j] = definedNames # Add the new definedNames block to the workbook's xml file
@@ -559,7 +559,7 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
     unlink(doc[i][j], ("sheets", "sheet"))
     sheets_element = XML.Element("sheets")
     for s in wb.sheets
-        sheet_element = XML.Element("sheet"; name=XLSX.escape(s.name))
+        sheet_element = XML.Element("sheet"; name=s.name)
         sheet_element["sheetId"] = s.sheetId
         sheet_element["r:id"] = s.relationship_id
         push!(sheets_element, sheet_element)
@@ -1087,11 +1087,11 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     name ∈ sheetnames(xf) && throw(XLSXError("Sheetname $name is already in use."))
 
     # updates XML
-    xroot = xmlroot(xf, "xl/workbook.xml")[end]
+    xroot = xml_root_element(xmlroot(xf, "xl/workbook.xml"))
     for node in XML.children(xroot)
         if XML.tag(node) == "sheets"
 
-            for sheet_node in XML.children(node)
+            for sheet_node in xml_elements(node)
                 if sheet_node["name"] == ws.name
                     # assign new name
                     sheet_node["name"] = name
@@ -1124,9 +1124,8 @@ addsheet!(xl::XLSXFile, name::AbstractString="")::Worksheet = addsheet!(get_work
 function addsheet!(wb::Workbook, name::AbstractString=""; relocatable_data_path::String=_relocatable_data_path())::Worksheet
     file_sheet_template = joinpath(relocatable_data_path, "sheet_template.xml")
     !isfile(file_sheet_template) && throw(XLSXError("Couldn't find template file $file_sheet_template."))
-    bytes = read(file_sheet_template)
-    f, _ = skipNode(XML.Raw(bytes), "sheetData")
-    xdoc = XML.Node(XML.Raw(f))
+    xml_str = read(file_sheet_template, String)
+    xdoc, _ = splitNode(xml_str, "sheetData")
 
     new_cache = XLSX.WorksheetCache(
         true,
@@ -1219,13 +1218,12 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
 
     # if copied sheet is the currently selected sheet, do not copy this attribute over.
     # The original sheet will remain the only selected sheet.
-    for c in XML.children(xdoc[end])
-        if c.tag=="sheetViews"
+    for c in XML.children(xml_root_element(xdoc))
+        if XML.tag(c) == "sheetViews"
             for c2 in XML.children(c)
-                if c2.tag=="sheetView"
-                    atts=XML.attributes(c2)
-                    if haskey(atts, "tabSelected")
-                        atts["tabSelected"]="0"
+                if XML.tag(c2) == "sheetView"
+                    if haskey(c2, "tabSelected")
+                        c2["tabSelected"] = "0"
                     end
                 end
             end
@@ -1304,7 +1302,7 @@ function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, s
     sheetId = max(current_sheet_ids...) + 1
 
     # generate a unique ID for the new sheet
-    xdoc[2]["xr:uid"] = "{" * uppercase(string(UUIDs.uuid4(wb.package.uuid_rng))) * "}"
+    xml_root_element(xdoc)["xr:uid"] = "{" * uppercase(string(UUIDs.uuid4(wb.package.uuid_rng))) * "}"
 
     # generate a unique name for the XML
     local xml_filename::String
@@ -1344,7 +1342,7 @@ end
 
 add_override!(wb::Workbook, part::String, content::String) = add_override!(get_xlsxfile(wb), part, content)
 function add_override!(xf::XLSXFile, part::String, content::String) 
-    ctype_root = xmlroot(xf, "[Content_Types].xml")[end]
+    ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
     XML.tag(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
     override_node = XML.Element("Override";
         PartName=part,
@@ -1532,7 +1530,7 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     end
 
     # update [Content_Types].xml
-    ctype_root = xmlroot(get_xlsxfile(wb), "[Content_Types].xml")[end]
+    ctype_root = xml_root_element(xmlroot(get_xlsxfile(wb), "[Content_Types].xml"))
     XML.tag(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
     cont = XML.children(ctype_root)
     let idx = 0

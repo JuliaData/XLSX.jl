@@ -56,7 +56,7 @@ function update_worksheet_cfx!(allcfs, cfx, ws, rng)
     matchcfs = filter(x -> x["sqref"] == string(rng), allcfs)   # Match range with existing conditional formatting blocks.
     l = length(matchcfs)
     if l == 0                                                   # No existing conditional formatting blocks for this range so create a new one.
-        new_cf = XML.Element("conditionalFormatting"; sqref=rng)
+        new_cf = XML.Element("conditionalFormatting"; sqref=string(rng))
         push!(new_cf, cfx)
         add_cf_to_XML(ws, new_cf)                               # Add the new conditional formatting block to the worksheet XML.
     elseif l == 1                                               # Existing conditional formatting block found for this range so add new rule to that block.
@@ -181,7 +181,7 @@ function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
             println(XML.write(xroot[i][j]))
         =#
     else
-        existing_dxf_elements_count = length(XML.children(xroot[i][j]))
+        existing_dxf_elements_count = length(xml_elements(xroot[i][j]))
 
         if parse(Int, xroot[i][j]["count"]) != existing_dxf_elements_count
             throw(XLSXError("Wrong number of xf elements found: $existing_cellxf_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
@@ -189,7 +189,7 @@ function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
     end
 
     #   Don't reuse duplicates here. Always create new!
-    existingdx = XML.children(xroot[i][j])
+    existingdx = xml_elements(xroot[i][j])
     dxfs = unlink(xroot[i][j], ("dxfs", "dxf")) # Create the new <dxfs> Node
     if length(existingdx) > 0
         for c in existingdx

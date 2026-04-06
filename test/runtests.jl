@@ -2,7 +2,6 @@
 import XLSX
 import Tables
 using Test, Dates, XML
-using OrderedCollections: OrderedDict
 import DataFrames, Random
 import Distributions as Dist
 import CSV
@@ -2538,7 +2537,7 @@ end
         @test id(datestyle) == UInt64(2)
 
         @test XLSX.styles_get_cellXf_with_numFmtId(wb, numfmt) == numstyle
-        @test XLSX.styles_numFmt_formatCode(wb, string(numfmt)) == "\$* #,##0.00;\$* (#,##0.00);\$* &quot;-&quot;??;[Magenta]@"
+        @test XLSX.styles_numFmt_formatCode(wb, string(numfmt)) == "\$* #,##0.00;\$* (#,##0.00);\$* \"-\"??;[Magenta]@"
         @test numstyle isa XLSX.CellDataFormat
         @test !isempty(numstyle)
         @test id(numstyle) == UInt64(3)
@@ -4874,9 +4873,9 @@ end
             max_val="95"
         )
         @test XML.tag(XLSX.get_x14_icon("3Triangles")) == "x14:cfRule"
-        @test XML.attributes(XLSX.get_x14_icon("3Stars")) == OrderedDict("type" => "iconSet", "priority" => "1", "id" => "XXXX-xxxx-XXXX")
+        @test Dict(XML.attributes(XLSX.get_x14_icon("3Stars"))) == Dict("type" => "iconSet", "priority" => "1", "id" => "XXXX-xxxx-XXXX")
         @test length(XML.children(XLSX.get_x14_icon("5Boxes"))) == 1
-        @test typeof(XLSX.get_x14_icon("Custom")) == XML.Node
+        @test XLSX.get_x14_icon("Custom") isa XML.Node
     end
 
     @testset "cellIs" begin

@@ -350,7 +350,8 @@ Implementations: SheetRowStreamIterator, WorksheetCache.
 abstract type SheetRowIterator end
 
 mutable struct SheetRowStreamIteratorState
-    next_rownode::Union{Nothing, XML.LazyNode} # Worksheet row being processed
+    row_nodes::Vector{XML.LazyNode}  # All row nodes from sheetData
+    row_index::Int                    # Index of the next row to process
     rowcells::Dict{Int,Cell}
     lock::ReentrantLock
 end
@@ -594,7 +595,7 @@ end
 
 struct ReadFile
     node::Union{Nothing,XML.Node}
-    raw::Union{Nothing,XML.Raw}
+    raw::Union{Nothing,String}
     bin::Union{Nothing,Vector{UInt8}}
     name::String
 end
@@ -684,11 +685,11 @@ struct DataTable
     end
 end
 
-struct xpath
+struct XPathInfo
     node::XML.Node
     path::String
 
-    function xpath(node::XML.Node, path::String)
+    function XPathInfo(node::XML.Node, path::String)
         new(node, path)
     end
 end

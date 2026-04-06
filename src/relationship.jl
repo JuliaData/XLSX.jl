@@ -58,7 +58,7 @@ function has_relationship_by_type(wb::Workbook, _type_::String)::Bool
 end
 
 function get_package_relationship_root(xf::XLSXFile)::XML.Node
-    xroot = xmlroot(xf, "_rels/.rels")[end]
+    xroot = xml_root_element(xmlroot(xf, "_rels/.rels"))
     XML.tag(xroot) != "Relationships" && throw(XLSXError("Malformed XLSX file $(xf.source). _rels/.rels root node name should be `Relationships`. Found $(XML.tag(xroot))."))
     if ("" => "http://schemas.openxmlformats.org/package/2006/relationships") ∉ get_namespaces(xroot)
         throw(XLSXError("Unexpected namespace at workbook relationship file: `$(get_namespaces(xroot))`."))
@@ -67,7 +67,7 @@ function get_package_relationship_root(xf::XLSXFile)::XML.Node
 end
 
 function get_workbook_relationship_root(xf::XLSXFile)::XML.Node
-    xroot = xmlroot(xf, "xl/_rels/workbook.xml.rels")[end]
+    xroot = xml_root_element(xmlroot(xf, "xl/_rels/workbook.xml.rels"))
     XML.tag(xroot) != "Relationships" && throw(XLSXError("Malformed XLSX file $(xf.source). xl/_rels/workbook.xml.rels root node name should be `Relationships`. Found $(XML.tag(xroot))."))
     if ("" => "http://schemas.openxmlformats.org/package/2006/relationships") ∉ get_namespaces(xroot)
         throw(XLSXError("Unexpected namespace at workbook relationship file: `$(get_namespaces(xroot))`."))
@@ -114,15 +114,17 @@ function delete_relationships!(xf::XLSXFile, rel::Relationship)
     #TODO renumber worksheet files in relationships - if necessary.
 
     xroot = xmlroot(xf, "xl/_rels/workbook.xml.rels")
+    root_el = xml_root_element(xroot)
 
-    c=XML.children(xroot[end])
-    d = findfirst(r -> r["Target"] == rel.Target, c)
+    c=XML.children(root_el)
+    d = findfirst(r -> XML.nodetype(r) == XML.Element && r["Target"] == rel.Target, c)
     deleteat!(c, d)
     new_rels=XML.Element("Relationships",  xmlns="http://schemas.openxmlformats.org/package/2006/relationships")
-    for child in c
+    for child in xml_elements(root_el)
         push!(new_rels, child)
     end
-    xroot[end]=new_rels
+    root_idx = findfirst(n -> XML.nodetype(n) == XML.Element, XML.children(xroot))
+    xroot[root_idx]=new_rels
     xf.data["xl/_rels/workbook.xml.rels"]=xroot
 
 end

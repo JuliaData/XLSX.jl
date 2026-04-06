@@ -12,7 +12,6 @@ import Tables
 import Unicode
 import UUIDs
 import XML
-using OrderedCollections: OrderedDict
 import ZipArchives
 
 import PrecompileTools as PCT    # this is a small dependency.
@@ -39,6 +38,9 @@ export
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells
   
 const SPREADSHEET_NAMESPACE_XPATH_ARG = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+xml_elements(node) = filter(n -> XML.nodetype(n) == XML.Element, XML.children(node))
+xml_root_element(doc) = last(xml_elements(doc))
 const EXCEL_MAX_COLS = 16_384     # total columns supported by Excel per sheet
 const EXCEL_MAX_ROWS = 1_048_576  # total rows supported by Excel per sheet (including headers)
 

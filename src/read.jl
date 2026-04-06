@@ -448,7 +448,7 @@ function parse_relationships!(xf::XLSXFile)
 
     # package level relationships
     xroot = get_package_relationship_root(xf)
-    for el in XML.children(xroot)
+    for el in xml_elements(xroot)
         push!(xf.relationships, Relationship(el))
     end
     isempty(xf.relationships) && throw(XLSXError("Relationships not found in _rels/.rels!"))
@@ -456,7 +456,7 @@ function parse_relationships!(xf::XLSXFile)
     # workbook level relationships
     wb = get_workbook(xf)
     xroot = get_workbook_relationship_root(xf)
-    for el in XML.children(xroot)
+    for el in xml_elements(xroot)
         push!(wb.relationships, Relationship(el))
     end
     isempty(wb.relationships) && throw(XLSXError("Relationships not found in xl/_rels/workbook.xml.rels"))
@@ -466,7 +466,7 @@ end
 
 # Updates xf.workbook from xf.data[\"xl/workbook.xml\"]
 function parse_workbook!(xf::XLSXFile)
-    xroot = xmlroot(xf,"xl/workbook.xml")[end]
+    xroot = xml_root_element(xmlroot(xf,"xl/workbook.xml"))
     chn = XML.children(xroot)
     XML.tag(xroot) != "workbook" && throw(XLSXError("Malformed xl/workbook.xml. Root node name should be 'workbook'. Got '$(XML.tag(xroot))'."))
 
@@ -505,7 +505,7 @@ function parse_workbook!(xf::XLSXFile)
     for node in chn
         if XML.tag(node) == "sheets"
 
-            for sheet_node in XML.children(node)
+            for sheet_node in xml_elements(node)
                 XML.tag(sheet_node) != "sheet" && throw(XLSXError("Unsupported node $(XML.tag(sheet_node)) in node $(XML.tag(node)) in 'xl/workbook.xml'."))
                 worksheet = Worksheet(xf, sheet_node)
                 push!(sheets, worksheet)
@@ -612,7 +612,7 @@ function get_wb_ext_refs(xf::XLSXFile)
     xroot = xmlroot(xf, "xl/workbook.xml")
     i, j = get_idces(xroot, "workbook", "externalReferences")
     if !isnothing(j)
-        for (i, ref) in enumerate(XML.children(xroot[i][j]))
+        for (i, ref) in enumerate(xml_elements(xroot[i][j]))
             ext_refs[i] = ref["r:id"]
         end
     end
@@ -622,9 +622,9 @@ end
 # delete Override PartName=calcChain since this was never loaded (#31)
 function remove_calcChain!(xf::XLSXFile)
     xf.data["[Content_Types].xml"]
-    ctype_root = xmlroot(xf, "[Content_Types].xml")[end]
+    ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
     for (i, c) in enumerate(XML.children(ctype_root))
-        if c.tag == "Override" && haskey(c.attributes, "PartName") && c.attributes["PartName"]=="/xl/calcChain.xml"
+        if XML.tag(c) == "Override" && haskey(c, "PartName") && c["PartName"]=="/xl/calcChain.xml"
             deleteat!(ctype_root.children, i)
             break
         end
@@ -661,44 +661,40 @@ function strip_bom_and_lf!(bytes::Vector{UInt8})
     end
 end
 
-function skipNode(r::XML.Raw, skipnode::String) # separate rows or ssts to speed up reading of large files
-#    new = Vector{UInt8}() # original data with <sheetData> or <sst> node removed
-#    skipped = Vector{UInt8}() # just the <sheetData> or <sst> node and its children
-    new = IOBuffer() # original data with <sheetData> or <sst> node removed
-    skipped = IOBuffer() # just the <sheetData> or <sst> node and its children
-    n = XML.next(r)
-    write(new, n.data[n.pos:n.pos+n.len])
+function splitNode(xml_str::String, skipnode::String)
+    doc = parse(xml_str, XML.Node)
+    root = xml_root_element(doc)
 
-    while first(XML.get_name(n.data, n.pos)) != skipnode # Retain everything before the <sheetData> or <sst> node
-        n = XML.next(n)
-        write(new, n.data[n.pos:n.pos+n.len])
+    # Find the target node and extract its content
+    target_idx = nothing
+    for (i, child) in enumerate(XML.children(root))
+        if XML.tag(child) == skipnode
+            target_idx = i
+            break
+        end
     end
 
-    if skipnode == "sheetData" # Add parents for <row> or <sst> elements to the excerpted data
-        write(skipped, "<worksheet>")
-        write(skipped, "<sheetData>")
-    elseif skipnode == "sst"
-        write(skipped, "<sst>")
+    if isnothing(target_idx)
+        return doc, ""
+    end
+
+    target = root[target_idx]
+
+    # Build wrapper XML from the target element and its children
+    skipped = XML.write(target)
+    if skipnode == "sheetData"
+        skipped = "<worksheet>" * skipped * "</worksheet>"
+    end
+
+    # Replace with empty self-closing element (preserving attributes)
+    attrs = XML.attributes(target)
+    if isnothing(attrs) || isempty(attrs)
+        root[target_idx] = XML.Element(skipnode)
     else
-        throw(XLSXError("Unknown skipnode $skipnode."))
+        empty!(target.children)
     end
-    sdepth = n.depth
-    n = XML.next(n)
-    while n !== nothing && n.depth > sdepth # Put all children of <sheetData> or <sst> into the excerpted data
-        write(skipped, n.data[n.pos:n.pos+n.len])
-        n = XML.next(n)
-    end
-    while n !== nothing # Retain everything after the <sheetData> or <sst> node
-        write(new, n.data[n.pos:n.pos+n.len])
-        n = XML.next(n)
-    end
-    if skipnode == "sheetData"  # close parents for <row> or <sst> elements in the excerpted data
-        write(skipped, "</sheetData>")
-        write(skipped, "</worksheet>")
-    elseif skipnode == "sst"
-        write(skipped, "</sst>")
-    end
-    return take!(new), take!(skipped)
+
+    return doc, skipped
 end
 
 function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, channel_size::Int=1 << 8)
@@ -763,7 +759,8 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
                         rid = get_relationship_id_by_target(wb, file.name)
                         for sheet in wb.sheets
                             if sheet.relationship_id == rid
-                                first_cache_fill!(sheet, XML.LazyNode(file.raw), Threads.nthreads())
+                                lznode = parse(file.raw, XML.LazyNode)
+                                first_cache_fill!(sheet, lznode, Threads.nthreads())
                             end
                         end
                     end
@@ -798,15 +795,16 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String)
         try
             bytes = ZipArchives.zip_readentry(zip_io, filename)
             if !startswith(filename, "customXml") && (endswith(filename, ".xml") || endswith(filename, ".rels"))
-                if occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", filename)
-                    strip_bom_and_lf!(bytes)
-                    skipnode = filename == "xl/sharedStrings.xml" ? "sst" : "sheetData"
-                    f, s = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
-                    node = XML.Node(XML.Raw(f))
-                    raw = XML.Raw(s)
+                strip_bom_and_lf!(bytes)
+                xml_str = String(bytes)
+                if filename == "xl/sharedStrings.xml"
+                    node = parse(xml_str, XML.Node)
+                    raw = xml_str
+                elseif occursin(r"xl/worksheets/sheet\d+\.xml", filename)
+                    node, raw = splitNode(xml_str, "sheetData")
+                    raw = isempty(raw) ? nothing : raw
                 else
-                    strip_bom_and_lf!(bytes)
-                    node = XML.Node(XML.Raw(bytes))
+                    node = parse(xml_str, XML.Node)
                 end
             else
                 bin = bytes                
@@ -833,12 +831,13 @@ function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.
         try
             bytes = ZipArchives.zip_readentry(zip_io, filename)
             strip_bom_and_lf!(bytes)
-            if occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", filename)
-                skipnode = filename == "xl/sharedStrings.xml" ? "sst" : "sheetData"
-                f, _ = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
-                xf.data[filename] = XML.Node(XML.Raw(f))
+            xml_str = String(bytes)
+            if filename == "xl/sharedStrings.xml"
+                xf.data[filename] = parse(xml_str, XML.Node)
+            elseif occursin(r"xl/worksheets/sheet\d+\.xml", filename)
+                xf.data[filename], _ = splitNode(xml_str, "sheetData")
             else
-                xf.data[filename] = XML.Node(XML.Raw(bytes))
+                xf.data[filename] = parse(xml_str, XML.Node)
             end
             xf.files[filename] = true # set file as read
         catch err

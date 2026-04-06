@@ -24,7 +24,7 @@ function create_new_sst(wb::Workbook, sst::SharedStringTable)
         add_relationship!(wb, "sharedStrings.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings")
 
         # add Content Type <Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" PartName="/xl/sharedStrings.xml"/>
-        ctype_root = xmlroot(get_xlsxfile(wb), "[Content_Types].xml")[end]
+        ctype_root = xml_root_element(xmlroot(get_xlsxfile(wb), "[Content_Types].xml"))
         XML.tag(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
         override_node = XML.Element("Override";
             ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml",
@@ -106,50 +106,74 @@ function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; myloc
 end
 
 function sst_load!(workbook::Workbook)
-    chunksize=1000
+    chunksize = 1000
     sst = get_sst(workbook)
     if !sst.is_loaded
 
         relationship_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
         if has_relationship_by_type(workbook, relationship_type)
-            sst_chan = stream_ssts(open_internal_file_stream(get_xlsxfile(workbook), "xl/sharedStrings.xml")[end], chunksize)
+            doc = open_internal_file_stream(get_xlsxfile(workbook), "xl/sharedStrings.xml")
+            sst_root = xml_root_element(doc)  # <sst> element
+            sst_chan = stream_ssts(sst_root, chunksize)
             load_sst_table!(workbook, sst_chan, Threads.nthreads())
             init_sst_index(sst)
-            
+
             return
         end
 
         throw(XLSXError("Shared Strings Table not found for this workbook."))
     end
 end
-@inline _is_tag(n::String, tag::String) = n == tag
-@inline _is_tag(n::Nothing, tag::String) = false
- function produce_sstchunks(out, n, ssts, chunksize)
-    i = 0           # Position within current chunk
-    global_idx = 0  # Global position in SST table
-   
-    while !isnothing(n)
-        if _is_tag(n.tag, "si")
+function produce_sstchunks(out, sst_root::XML.LazyNode, ssts, chunksize)
+    i = 0
+    global_idx = 0
+
+    for child in XML.children(sst_root)
+        if XML.tag(child) == "si"
             i += 1
             global_idx += 1
-            ssts[i] = SstToken(n, global_idx)  # ← Use global index
+            ssts[i] = SstToken(child, global_idx)
         end
         if i >= chunksize
             put!(out, copy(ssts))
-            i = 0  # Reset chunk position, but global_idx keeps going
+            i = 0
         end
-        n = XML.next(n)
     end
     if i > 0
         put!(out, copy(ssts[1:i]))
     end
 end
 
-function stream_ssts(n::XML.LazyNode, chunksize::Int; channel_size::Int=1 << 8)
-    n = XML.next(n)
+function stream_ssts(sst_root::XML.LazyNode, chunksize::Int; channel_size::Int=1 << 8)
     ssts = Vector{SstToken}(undef, chunksize)
     Channel{Vector{SstToken}}(channel_size) do out
-        produce_sstchunks(out, n, ssts, chunksize)
+        produce_sstchunks(out, sst_root, ssts, chunksize)
+    end
+end
+
+# Convert a LazyNode to a Node for serialization
+function materialize(ln::XML.LazyNode)::XML.Node{String}
+    nt = XML.nodetype(ln)
+    if nt in (XML.Text, XML.CData, XML.Comment, XML.DTD)
+        return XML.Node{String}(nt, nothing, nothing, XML.value(ln), nothing)
+    elseif nt == XML.Declaration
+        a = XML.attributes(ln)
+        attrs = isnothing(a) ? nothing : Pair{String,String}[p for p in a]
+        return XML.Node{String}(nt, nothing, attrs, nothing, nothing)
+    elseif nt == XML.ProcessingInstruction
+        return XML.Node{String}(nt, XML.tag(ln), nothing, XML.value(ln), nothing)
+    elseif nt == XML.Element
+        a = XML.attributes(ln)
+        attrs = isnothing(a) ? nothing : Pair{String,String}[p for p in a]
+        ch = XML.children(ln)
+        children = isempty(ch) ? nothing : XML.Node{String}[materialize(c) for c in ch]
+        return XML.Node{String}(nt, XML.tag(ln), attrs, nothing, children)
+    elseif nt == XML.Document
+        ch = XML.children(ln)
+        children = isempty(ch) ? nothing : XML.Node{String}[materialize(c) for c in ch]
+        return XML.Node{String}(nt, nothing, nothing, nothing, children)
+    else
+        error("Unknown node type: $nt")
     end
 end
 
@@ -159,11 +183,9 @@ function process_sst(sst::SstToken)
 
     if XML.nodetype(el) != XML.Text
         XML.tag(el) != "si" && throw(XLSXError("Unsupported node $(XML.tag(el)) in sst table."))
-        sst = Sst(XML.write(el), i)
+        sst = Sst(XML.write(materialize(el)), i)
         return sst
-
     end
-
 end
 
  function load_sst_table!(wb::Workbook, chan::Channel, nthreads::Int)
@@ -217,7 +239,7 @@ end
 function unformatted_text(el::XML.LazyNode) :: String
     io = IOBuffer()
     gather_strings!(io, el)
-    s = XLSX.unescape(String(take!(io)))
+    s = String(take!(io))
     return s
 end
 
@@ -256,7 +278,7 @@ end
 @inline function sst_unformatted_string(wb::Workbook, index::Int64)::String
     sst_load!(wb)
     uss = get_sst(wb).shared_strings[index+1]
-    return unformatted_text(parse(XML.LazyNode, uss))
+    return unformatted_text(parse(uss, XML.LazyNode))
 end
 
 @inline sst_unformatted_string(xl::XLSXFile, index::Int64) :: String = sst_unformatted_string(get_workbook(xl), index)
@@ -633,8 +655,8 @@ end
 
 # Create a RichTextString from a shared string with multiple runs (or nothing if a simple text)
 function getRichTextString(xml_string::String)::Union{RichTextString, Nothing}
-    doc = parse(XML.Node, xml_string)
-    si = doc[end]
+    doc = parse(xml_string, XML.Node)
+    si = xml_root_element(doc)
     
     # Check for rich text runs <r> elements
     runs = [child for child in XML.children(si) if XML.tag(child) == "r"]

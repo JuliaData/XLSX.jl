@@ -68,7 +68,7 @@ end
 
 # Extracts the unformatted text from an inlineStr "is" XML element as a <si> XML string.
 function _build_si_xml(child)::String
-    inner = join(XML.write.(XML.children(child)), "\n")
+    inner = join(XML.write.(materialize.(XML.children(child))), "\n")
     return "<si>\n  $inner\n</si>"
 end
 
@@ -120,7 +120,7 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
             if tag == "v"
                 ch = XML.children(child)
                 isempty(ch) && continue
-                v = XLSX.unescape(XML.value(ch[1]))
+                v = XML.value(ch[1])
                 datatype, value = process_tv(wb, t, v, num_style; mylock)
             elseif tag == "f"
                 if get_xlsxfile(wb).is_writable
@@ -141,10 +141,10 @@ function parse_formula_from_element(c_child_element)::AbstractFormula
 
     # Extract formula string
     formula_string = if XML.is_simple(c_child_element)
-        XLSX.unescape(XML.simple_value(c_child_element))
+        XML.simple_value(c_child_element)
     else
         text_nodes = filter(x -> XML.nodetype(x) == XML.Text, XML.children(c_child_element))
-        isempty(text_nodes) ? "" : XLSX.unescape(XML.value(text_nodes[1]))
+        isempty(text_nodes) ? "" : XML.value(text_nodes[1])
     end
 
     a = XML.attributes(c_child_element)
@@ -424,29 +424,15 @@ function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Workshee
             return nothing, sst_count
         end
     =#
-    # unthreaded cell extraction is (exceedingly marginally) slower but no lock conflicts introduced.
-
-    # debug
-    # @assert row.tag == "row" "Not a row node"
-
     sst_count = 0
 
-    d = row.depth
-
-    cellnode = XML.next(row)
-
-    while !isnothing(cellnode) && cellnode.depth > d
-        if cellnode.tag == "c" # This is a cell
-            cell = Cell(cellnode, ws; mylock) # construct an XLSX.Cell from an XML.LazyNode
+    for child in XML.children(row)
+        if XML.tag(child) == "c"
+            cell = Cell(child, ws; mylock)
             sst_count += cell.datatype == CT_STRING ? 1 : 0
             rowcells[column_number(cell)] = cell
         end
-        cellnode = XML.next(cellnode)
-    end
-    if !isnothing(cellnode) && cellnode.tag == "row" # have reached the beginning of next row
-        return cellnode, sst_count
-    else                                             # no more rows
-        return nothing, sst_count
     end
 
+    return sst_count
 end
