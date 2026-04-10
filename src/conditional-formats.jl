@@ -1450,7 +1450,7 @@ function setCfCellIs(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=())
     if isnothing(value)
         value = all(ismissing.(ws[rng])) ? nothing : string(sum(skipmissing(ws[rng])) / count(!ismissing, ws[rng]))
     end
-    cfx = XML.Element("cfRule"; type="cellIs", dxfId=string(Int(dxid.id)))
+    cfx = XML.Element("cfRule"; type="cellIs", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
@@ -1542,7 +1542,7 @@ function setCfContainsText(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
     end
     formula = replace(formula, "__txt__" => value, "__CR__" => string(first(rng)))
 
-    cfx = XML.Element("cfRule"; type=type, dxfId=string(Int(dxid.id)))
+    cfx = XML.Element("cfRule"; type=type, dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
@@ -1616,7 +1616,7 @@ function setCfTop10(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()):
 
     percent = ""
     bottom = ""
-    cfx = XML.Element("cfRule"; type="top10", dxfId=string(Int(dxid.id)))
+    cfx = XML.Element("cfRule"; type="top10", dxfId=string(dxid.id))
     if operator == "topN"
     elseif operator == "topN%"
         percent = "1"
@@ -1700,25 +1700,25 @@ function setCfAboveAverage(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
     dxid = Add_Cf_Dx(wb, new_dx)
 
     if operator == "aboveAverage"
-        cfx = XML.Element("cfRule"; type=operator, dxfId=string(Int(dxid.id)), priority="1")
+        cfx = XML.Element("cfRule"; type=operator, dxfId=string(dxid.id), priority="1")
     elseif operator == "aboveEqAverage"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", equalAverage="1")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", equalAverage="1")
     elseif operator == "plus1StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", stdDev="1")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="1")
     elseif operator == "plus2StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", stdDev="2")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="2")
     elseif operator == "plus3StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", stdDev="3")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="3")
     elseif operator == "belowAverage"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", aboveAverage="0")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0")
     elseif operator == "belowEqAverage"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", aboveAverage="0", equalAverage="1")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", equalAverage="1")
     elseif operator == "minus1StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", aboveAverage="0", stdDev="1")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="1")
     elseif operator == "minus2StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", aboveAverage="0", stdDev="2")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="2")
     elseif operator == "minus3StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(Int(dxid.id)), priority="1", aboveAverage="0", stdDev="3")
+        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="3")
     else
         throw(XLSXError("Invalid operator: $operator. Valid options are: `aboveAverage`, `aboveEqAverage`, `plus1sStdDev`, `plus2StdDev`, `plus3StdDev`, `belowAverage`, `belowEqAverage`, `minus1StdDev`, `minus2StdDev`, `minus3StdDev`."))
     end
@@ -1794,7 +1794,7 @@ function setCfTimePeriod(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("cfRule"; type="timePeriod", dxfId=string(Int(dxid.id)))
+    cfx = XML.Element("cfRule"; type="timePeriod", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
@@ -1875,7 +1875,7 @@ function setCfContainsBlankErrorUniqDup(ws::Worksheet, rng::CellRange; allkws::D
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("cfRule"; type=operator, dxfId=string(Int(dxid.id)))
+    cfx = XML.Element("cfRule"; type=operator, dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
@@ -1941,7 +1941,7 @@ function setCfFormula(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("cfRule"; type="expression", dxfId=string(Int(dxid.id)))
+    cfx = XML.Element("cfRule"; type="expression", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"

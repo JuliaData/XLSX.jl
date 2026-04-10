@@ -1,5 +1,5 @@
 
-SharedStringTable() = SharedStringTable(Vector{String}(), Dict{String, Int64}(), false)
+SharedStringTable() = SharedStringTable(Vector{String}(), Vector{String}(), Dict{String, Int64}(), false)
 
 @inline get_sst(wb::Workbook) = wb.sst
 @inline get_sst(xl::XLSXFile) = get_sst(get_workbook(xl))
@@ -45,7 +45,7 @@ function add_to_sst!(ss::SharedStringTable, si_xml::String)::Int64
     # No match found, add new entry
     new_idx = length(ss.shared_strings)  # 0-based index
     push!(ss.shared_strings, si_xml)
-
+    push!(ss.unformatted, unformatted_text(parse(si_xml, XML.LazyNode)))
     ss.index[si_xml] = new_idx
 
 #    if new_idx ∉ get_shared_string_index(ss, si_xml)
@@ -106,125 +106,28 @@ function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; myloc
 end
 
 function sst_load!(workbook::Workbook)
-    chunksize = 1000
     sst = get_sst(workbook)
     if !sst.is_loaded
-
-        relationship_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
-        if has_relationship_by_type(workbook, relationship_type)
-            doc = open_internal_file_stream(get_xlsxfile(workbook), "xl/sharedStrings.xml")
-            sst_root = xml_root_element(doc)  # <sst> element
-            sst_chan = stream_ssts(sst_root, chunksize)
-            load_sst_table!(workbook, sst_chan, Threads.nthreads())
-            init_sst_index(sst)
-
-            return
+        has_sst(workbook) || throw(XLSXError("Shared Strings Table not found for this workbook."))
+        doc = open_internal_file_stream(get_xlsxfile(workbook), "xl/sharedStrings.xml")
+        sst_root = xml_root_element(doc)
+        empty!(sst.shared_strings)
+        empty!(sst.unformatted)
+        uc = get(sst_root, "uniqueCount", nothing)
+        if !isnothing(uc)
+            n = parse(Int, uc)
+            sizehint!(sst.shared_strings, n)
+            sizehint!(sst.unformatted, n)
         end
-
-        throw(XLSXError("Shared Strings Table not found for this workbook."))
-    end
-end
-function produce_sstchunks(out, sst_root::XML.LazyNode, ssts, chunksize)
-    i = 0
-    global_idx = 0
-
-    for child in XML.children(sst_root)
-        if XML.tag(child) == "si"
-            i += 1
-            global_idx += 1
-            ssts[i] = SstToken(child, global_idx)
-        end
-        if i >= chunksize
-            put!(out, copy(ssts))
-            i = 0
-        end
-    end
-    if i > 0
-        put!(out, copy(ssts[1:i]))
-    end
-end
-
-function stream_ssts(sst_root::XML.LazyNode, chunksize::Int; channel_size::Int=1 << 8)
-    ssts = Vector{SstToken}(undef, chunksize)
-    Channel{Vector{SstToken}}(channel_size) do out
-        produce_sstchunks(out, sst_root, ssts, chunksize)
-    end
-end
-
-# Convert a LazyNode to a Node for serialization
-function materialize(ln::XML.LazyNode)::XML.Node{String}
-    nt = XML.nodetype(ln)
-    if nt in (XML.Text, XML.CData, XML.Comment, XML.DTD)
-        return XML.Node{String}(nt, nothing, nothing, XML.value(ln), nothing)
-    elseif nt == XML.Declaration
-        a = XML.attributes(ln)
-        attrs = isnothing(a) ? nothing : Pair{String,String}[p for p in a]
-        return XML.Node{String}(nt, nothing, attrs, nothing, nothing)
-    elseif nt == XML.ProcessingInstruction
-        return XML.Node{String}(nt, XML.tag(ln), nothing, XML.value(ln), nothing)
-    elseif nt == XML.Element
-        a = XML.attributes(ln)
-        attrs = isnothing(a) ? nothing : Pair{String,String}[p for p in a]
-        ch = XML.children(ln)
-        children = isempty(ch) ? nothing : XML.Node{String}[materialize(c) for c in ch]
-        return XML.Node{String}(nt, XML.tag(ln), attrs, nothing, children)
-    elseif nt == XML.Document
-        ch = XML.children(ln)
-        children = isempty(ch) ? nothing : XML.Node{String}[materialize(c) for c in ch]
-        return XML.Node{String}(nt, nothing, nothing, nothing, children)
-    else
-        error("Unknown node type: $nt")
-    end
-end
-
-function process_sst(sst::SstToken)
-    el = sst.n
-    i = sst.idx
-
-    if XML.nodetype(el) != XML.Text
-        XML.tag(el) != "si" && throw(XLSXError("Unsupported node $(XML.tag(el)) in sst table."))
-        sst = Sst(XML.write(materialize(el)), i)
-        return sst
-    end
-end
-
- function load_sst_table!(wb::Workbook, chan::Channel, nthreads::Int)
-    sst_table = get_sst(wb)
-    sst_table.is_loaded = true
-    sst_results = Channel{Vector{Sst}}(1 << 8)
-    all_ssts = Vector{Tuple{Int,Sst}}()
-   
-    consumer = @async begin
-        for ssts in sst_results        
-            for sst in ssts
-                push!(all_ssts, (sst.idx, sst))
-            end
-        end    
-        sort!(all_ssts, by = x -> x[1])
-   
-        empty!(sst_table.shared_strings)
-        empty!(sst_table.index)
-
-        for (i, sst) in all_ssts
-            push!(sst_table.shared_strings, sst.formatted)
-            sst_table.index[sst.formatted] = i - 1   # 0-based
-        end
-
-    end
-   
-    # Producer tasks
-    @sync for _ in 1:nthreads
-        Threads.@spawn begin
-            for ssts in chan
-                # ssts is already a chunk - just process it
-                processed = [process_sst(tok) for tok in ssts]
-                put!(sst_results, processed)
+        for child in XML.eachchildnode(sst_root)
+            if XML.nodetype(child) == XML.Element && XML.tag(child) == "si"
+                push!(sst.shared_strings, XML.write(child))
+                push!(sst.unformatted, unformatted_text(child))
             end
         end
+        sst.is_loaded = true
+        init_sst_index(sst)
     end
-   
-    close(sst_results)
-    wait(consumer)
 end
 
 # Checks whether this workbook has a Shared String Table.
@@ -277,8 +180,7 @@ end
 # `index` starts at 0.
 @inline function sst_unformatted_string(wb::Workbook, index::Int64)::String
     sst_load!(wb)
-    uss = get_sst(wb).shared_strings[index+1]
-    return unformatted_text(parse(uss, XML.LazyNode))
+    return get_sst(wb).unformatted[index+1]
 end
 
 @inline sst_unformatted_string(xl::XLSXFile, index::Int64) :: String = sst_unformatted_string(get_workbook(xl), index)

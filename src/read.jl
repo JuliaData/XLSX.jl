@@ -798,7 +798,7 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String)
                 strip_bom_and_lf!(bytes)
                 xml_str = String(bytes)
                 if filename == "xl/sharedStrings.xml"
-                    node = parse(xml_str, XML.Node)
+                    node = XML.Element("sst")  # placeholder; SST is loaded via sst_load!
                     raw = xml_str
                 elseif occursin(r"xl/worksheets/sheet\d+\.xml", filename)
                     node, raw = splitNode(xml_str, "sheetData")
@@ -833,7 +833,7 @@ function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.
             strip_bom_and_lf!(bytes)
             xml_str = String(bytes)
             if filename == "xl/sharedStrings.xml"
-                xf.data[filename] = parse(xml_str, XML.Node)
+                xf.data[filename] = XML.Element("sst")  # placeholder; SST is loaded via sst_load!
             elseif occursin(r"xl/worksheets/sheet\d+\.xml", filename)
                 xf.data[filename], _ = splitNode(xml_str, "sheetData")
             else

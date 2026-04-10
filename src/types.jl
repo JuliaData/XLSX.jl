@@ -410,16 +410,9 @@ end
 #------------------------------------------------------------------------------ sharedStrings
 mutable struct SharedStringTable
     shared_strings::Vector{String}
+    unformatted::Vector{String}
     index::Dict{String, Int64} # for search optimisation. Tuple of indices to handle hash collisions.
     is_loaded::Bool
-end
-struct SstToken
-    n::XML.LazyNode
-    idx::Int
-end
-struct Sst
-    formatted::String
-    idx::Int
 end
 
 const ValidRichTextAttributes = [:bold, :italic, :under, :strike, :vertAlign, :color, :size, :name]

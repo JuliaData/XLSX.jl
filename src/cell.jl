@@ -68,8 +68,8 @@ end
 
 # Extracts the unformatted text from an inlineStr "is" XML element as a <si> XML string.
 function _build_si_xml(child)::String
-    inner = join(XML.write.(materialize.(XML.children(child))), "\n")
-    return "<si>\n  $inner\n</si>"
+    inner = join((XML.write(c) for c in XML.children(child)))
+    return "<si>$inner</si>"
 end
 
 # Parses a style string to (UInt32, Int) for use as style and num_style.
