@@ -7026,6 +7026,12 @@ end
         XLSX.setFormula(f[1], "G10", "_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)"; raw=true)
         @test XLSX.get_formula_from_cache(sheet, XLSX.CellRef("G10")) == XLSX.Formula("_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)", "array", "G10:G10", nothing)
     end
+
+    @testset "type inference in `eachtablerow`" begin
+        f = XLSX.readxlsx(joinpath(data_directory, "general.xlsx"))
+        df = XLSX.eachtablerow(f["lookup"], "B:J") |> DataFrames.DataFrame
+        @test eltype.(eachcol(df)) == [Int64, String, Int64, Any, Int64, String, Any, Int64, Int64]
+    end
 end
 
 @testset "stream iterator" begin

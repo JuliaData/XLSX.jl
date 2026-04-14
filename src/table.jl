@@ -78,7 +78,17 @@ function normalizename(name::String)::Symbol
 end
 
 """
-    eachtablerow(sheet, [columns]; [first_row], [column_labels], [header], [stop_in_empty_row], [stop_in_row_function], [keep_empty_rows], [normalizenames]) -> TableRowIterator
+    eachtablerow(sheet, 
+                [columns]; 
+                [first_row], 
+                [column_labels], 
+                [header], 
+                [stop_in_empty_row], 
+                [stop_in_row_function], 
+                [keep_empty_rows], 
+                [normalizenames],
+                [missing_strings]
+    ) -> TableRowIterator
 
 Constructs an iterator of table rows. Each element of the iterator is of type `TableRow`.
 
@@ -116,6 +126,10 @@ If `normalizenames=true`, then column names with spaces or that start with numbe
 valid Julia identifiers. This is useful when you want to access columns via dot-access or getproperty, like `file.col1`. The 
 identifier that comes after the `.` must be valid, so spaces or identifiers starting with numbers aren't allowed.
 (Based on CSV.jl's `CSV.normalizename`.)
+
+`missing_strings` can be used to specify strings that should be interpreted  
+as `missing` values in the resulting table. `missing_strings` can be a single 
+string or a vector of strings. The default value is `missing_strings=nothing`.
 
 Example code:
 ```
@@ -459,6 +473,29 @@ function infer_eltype(v::Vector{Any})
 end
 
 infer_eltype(v::Vector{T}) where T = T
+
+
+# Address issue 225
+#Tables.columnaccess(::Type{<:XLSX.TableRowIterator}) = true # Not needed, it seems.
+function typed_column(v::Vector{Any})
+    T = XLSX.infer_eltype(v)
+    result = Vector{T}(undef, length(v))
+    for (i, x) in enumerate(v)
+        result[i] = x
+    end
+    return result
+end
+function Tables.columns(tr::XLSX.TableRowIterator)
+    schema = Tables.schema(tr)
+    names = schema.names
+    rows = Tables.rows(tr)
+    collected = collect(rows)
+    if isempty(collected)
+        return NamedTuple{names}(map(_ -> Any[], names))
+    end
+    cols = Tables.columntable(collected)
+    return map(v -> typed_column(Vector{Any}(v)), cols)
+end
 
 function check_table_data_dimension(data::Vector)
     isempty(data) && return

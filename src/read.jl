@@ -69,7 +69,7 @@ function check_for_xlsx_file_format(source::IO, label::AbstractString="input")
         return
     elseif header == XLS_FILE_HEADER # either an old XLS file or a password protected XLSX file
         if is_encrypted_xlsx(source) # Issue #251
-            throw(XLSXError("`$label` looks like a password protected XLSX file. This package does not support password protected files."))
+            throw(XLSXError("`$label` looks like a password protected XLSX file. This package does not support password protected files. Consider using XLSXDecrypt.jl to decrypt the file first."))
         else
             throw(XLSXError("`$label` looks like an old XLS file (not XLSX). This package does not support XLS file format."))
         end
@@ -992,8 +992,9 @@ end
 ```
 
 `enable_cache` is a boolean that determines whether cell data are loaded 
-into the worksheet cache on reading.
-The default behavior is `enable_cache=false`.
+into the worksheet cache on reading. `readtable` with `enable_cache=true` 
+is faster than with `enable_cache=false` for large files, but uses more 
+memory. The default behavior is `enable_cache=true`.
 
 `keep_empty_rows` determines whether rows where all column values are equal 
 to `missing` are kept (`true`) or dropped (`false`) from the resulting table. 
@@ -1022,7 +1023,7 @@ function readtable(source::Union{AbstractString,IO};
     infer_eltypes::Bool=true, 
     stop_in_empty_row::Bool=true, 
     stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=false, 
+    enable_cache::Bool=true, 
     keep_empty_rows::Bool=false, 
     normalizenames::Bool=false, 
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
@@ -1039,7 +1040,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     infer_eltypes::Bool=true, 
     stop_in_empty_row::Bool=true, 
     stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=false, 
+    enable_cache::Bool=true, 
     keep_empty_rows::Bool=false, 
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
@@ -1057,7 +1058,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     infer_eltypes::Bool=true, 
     stop_in_empty_row::Bool=true, 
     stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=false, 
+    enable_cache::Bool=true, 
     keep_empty_rows::Bool=false, 
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
@@ -1075,7 +1076,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     infer_eltypes::Bool=true, 
     stop_in_empty_row::Bool=true, 
     stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=false, 
+    enable_cache::Bool=true, 
     keep_empty_rows::Bool=false, 
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
