@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Conditional formats · XLSX.jl</title><meta name="title" content="Conditional formats · XLSX.jl"/><meta property="og:title" content="Conditional formats · XLSX.jl"/><meta property="twitter:title" content="Conditional formats · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../cellFormatting/">Cell formats</a></li><li class="is-active"><a class="tocitem" href>Conditional formats</a><ul class="internal"><li><a class="tocitem" href="#Applying-conditional-formats"><span>Applying conditional formats</span></a></li><li><a class="tocitem" href="#Static-conditional-formats"><span>Static conditional formats</span></a></li><li><a class="tocitem" href="#Dynamic-conditional-formats"><span>Dynamic conditional formats</span></a></li><li><a class="tocitem" href="#Cell-references-in-conditional-formats"><span>Cell references in conditional formats</span></a></li></ul></li><li><a class="tocitem" href="../widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../mergedCells/">Merged cells</a></li></ul></li><li><a class="tocitem" href="../../formulae/formulas/">Using Formulas</a></li><li><a class="tocitem" href="../../examples/">Examples</a></li><li><a class="tocitem" href="../../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../api/files/">Files and worksheets</a></li><li><a class="tocitem" href="../../api/data/">Cells and data</a></li><li><a class="tocitem" href="../../api/formats/">Formats</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Formatting Guide</a></li><li class="is-active"><a href>Conditional formats</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Conditional formats</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/formatting/conditionalFormatting.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Conditional-formats"><a class="docs-heading-anchor" href="#Conditional-formats">Conditional formats</a><a id="Conditional-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Conditional-formats" title="Permalink"></a></h1><h2 id="Applying-conditional-formats"><a class="docs-heading-anchor" href="#Applying-conditional-formats">Applying conditional formats</a><a id="Applying-conditional-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Applying-conditional-formats" title="Permalink"></a></h2><p>In Excel, a conditional format is a format that is applied if the content of a cell meets some criterion  but not otherwise. Such conditional formatting is generally straightforward to apply using the  <code>setAttribute()</code> functions or the <code>setConditionalFormat()</code> function described here.</p><div class="admonition is-info" id="Note-82ce11f425fafbda"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-82ce11f425fafbda" title="Permalink"></a></header><div class="admonition-body"><p>In Excel, conditional formats are dynamic. If the cell values change, the formats are updated based  on application of the condition to the new values.</p><p>The examples of conditional formatting given here are a mix of static and dynamic formats.</p><p>Static conditional formats apply formatting based on the current cell values at the time the format  is set, but the formats are then static regardless of updates to cell values. They can be updated  by re-running the conditional formatting functions described but otherwise remain unchanged. Static  formats are created by applying the <code>setAttribute()</code> functions described above.</p><p>Dynamic conditional formatting, using the native Excel conditional format functionality, is possible  using the <code>setConditionalFormat()</code> function, giving access to all of Excel&#39;s options. </p></div></div><h2 id="Static-conditional-formats"><a class="docs-heading-anchor" href="#Static-conditional-formats">Static conditional formats</a><a id="Static-conditional-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Static-conditional-formats" title="Permalink"></a></h2><p>As an example, a simple function to set true values in a range to use a bold green font color and  false values to use a bold red color a could be defined as follows:</p><pre><code class="language-julia hljs">function trueorfalse(sheet, rng) # Use green or red font for true or false respectively
+    for c in rng
+        if !ismissing(sheet[c]) &amp;&amp; sheet[c] isa Bool
+            XLSX.setFont(sheet, c, bold=true, color = sheet[c] ? &quot;FF548235&quot; : &quot;FFC00000&quot;)
+        end
+    end
+end</code></pre><p>Applying this function over any range will conditionally color cells green or red if they are  true or false respectively:</p><pre><code class="language-julia hljs">trueorfalse(sheet, XLSX.CellRange(&quot;E3:L6&quot;))</code></pre><p>Similarly, a function can be defined that fills any cells containing missing values with a grey  color and have diagonal borders applied:</p><pre><code class="language-julia hljs">function blankmissing(sheet, rng) # Fill with grey and apply both diagonal borders on cells
+    for c in rng                  # with missing values
+        if ismissing(sheet[c])
+            XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;lightgrey&quot;)
+            XLSX.setBorder(sheet, c; diagonal = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+           end
+    end
+end</code></pre><p>This can then be applied to a range of cells to conditionally apply the format:</p><pre><code class="language-julia hljs">blankmissing(sheet, XLSX.CellRange(&quot;B3:L6&quot;))</code></pre><h2 id="Dynamic-conditional-formats"><a class="docs-heading-anchor" href="#Dynamic-conditional-formats">Dynamic conditional formats</a><a id="Dynamic-conditional-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Dynamic-conditional-formats" title="Permalink"></a></h2><p>XLSX.jl provides a function to create native Excel conditional formats that will be saved  as part of an <code>XLSXFile</code> and which will update dynamically if the values in the cell range  to which the formatting is applied are subsequently updated.</p><p><code>XLSX.setConditionalFormat(sheet, CellRange, :type; kwargs...)</code></p><p>Excel uses a range of <code>:type</code> values to describe these conditional formats and the same values  are used here, as follows:</p><ul><li><code>:cellIs</code></li><li><code>:top10</code></li><li><code>:aboveAverage</code></li><li><code>:containsText</code></li><li><code>:notContainsText</code></li><li><code>:beginsWith</code></li><li><code>:endsWith</code></li><li><code>:timePeriod</code></li><li><code>:containsErrors</code></li><li><code>:notContainsErrors</code></li><li><code>:containsBlanks</code></li><li><code>:notContainsBlanks</code></li><li><code>:uniqueValues</code></li><li><code>:duplicateValues</code></li><li><code>:expression</code></li><li><code>:dataBar</code></li><li><code>:colorScale</code></li><li><code>:iconSet</code></li></ul><p>Use of these different <code>:type</code>s is illustrated in the following sections. For more details on the range of <code>:type</code> values and their associated keyword  options, refer to <a href="../../api/formats/#XLSX.setConditionalFormat">XLSX.setConditionalFormat()</a>.</p><h3 id="Cell-Value"><a class="docs-heading-anchor" href="#Cell-Value">Cell Value</a><a id="Cell-Value-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-Value" title="Permalink"></a></h3><p>It is possible to format each cell in a range when the cell&#39;s value meets a specified condition using one  of a number of built-in cell format options or using custom formatting. This group of formatting options  represents the greatest range of conditional formatting options available in Excel and are probably the most  often used. All the functions of <code>Highlight Cells Rules</code> and <code>Top/Bottom Rules</code> are provided.</p><p><img src="../../images/cell1.png" alt="image|320x500"/> <img src="../../images/blank.png" alt="image|100x500"/> <img src="../../images/cell2.png" alt="image|320x500"/></p><p>The following <code>:type</code> values are used to set conditional formats by making direct comparisons to a cell&#39;s value:</p><ul><li><code>:cellIs</code></li><li><code>:top10</code></li><li><code>:aboveAverage</code></li><li><code>:containsText</code></li><li><code>:notContainsText</code></li><li><code>:beginsWith</code></li><li><code>:endsWith</code></li><li><code>:timePeriod</code></li><li><code>:containsErrors</code></li><li><code>:notContainsErrors</code></li><li><code>:containsBlanks</code></li><li><code>:notContainsBlanks</code></li><li><code>:uniqueValues</code></li><li><code>:duplicateValues</code></li></ul><p>Each of these formatting types needs a set of keyword options to fully define its operation.  This can be exemplified by considering the <code>:cellIs</code> type. Like the other conditional formats  in this group, <code>:cellIs</code> needs an <code>operator</code> keyword to define the test to use to determine  whether or not to apply the formatting. Valid <code>operator</code> values for <code>:cellIs</code> are:</p><ul><li><code>greaterThan</code>     (cell &gt;  <code>value</code>)</li><li><code>greaterEqual</code>    (cell &gt;= <code>value</code>)</li><li><code>lessThan</code>        (cell &lt;  <code>value</code>)</li><li><code>lessEqual</code>       (cell &lt;= <code>value</code>)</li><li><code>equal</code>           (cell == <code>value</code>)</li><li><code>notEqual</code>        (cell != <code>value</code>)</li><li><code>between</code>         (cell between <code>value</code> and <code>value2</code>)</li><li><code>notBetween</code>      (cell not between <code>value</code> and <code>value2</code>)</li></ul><p>Each of these needs the keyword <code>value</code> to be specified and, for <code>between</code> and <code>notBetween</code>, <code>value2</code>  must also be specified.</p><p>Like all the cell value formatting types, <code>:cellIs</code> can use one of six built-in Excel formats, as  illustrated here for the <code>greaterThan</code> comparison.</p><p><img src="../../images/cellvalue-formats.png" alt="image|320x500"/></p><p>These six built-in formatting options are available by name in XLSX.jl by specifying the <code>dxStyle</code>  keyword with one of the following values:</p><ul><li><code>redfilltext</code></li><li><code>yellowfilltext</code></li><li><code>greenfilltext</code></li><li><code>redfill</code> </li><li><code>redtext</code></li><li><code>redborder</code></li></ul><p>Thus, for example, to create a simple <code>XLSXFile</code> from scratch and then apply some  <code>:cellIs</code> conditional formats to its cells:</p><pre><code class="language-julia hljs">julia&gt; columns = [ [1, 2, 3, 4], [&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;], [10.2, 20.3, 30.4, 40.5] ]
+3-element Vector{Vector}:
+ [1, 2, 3, 4]
+ [&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;]
+ [10.2, 20.3, 30.4, 40.5]
+
+julia&gt; colnames = [ &quot;integers&quot;, &quot;strings&quot;, &quot;floats&quot; ]
+3-element Vector{String}:
+ &quot;integers&quot;
+ &quot;strings&quot;
+ &quot;floats&quot;
+
+julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; XLSX.writetable!(s, columns, colnames)
+
+julia&gt; s[1:5, 1:3]
+5×3 Matrix{Any}:
+  &quot;integers&quot;  &quot;strings&quot;    &quot;floats&quot;
+ 1            &quot;Hey&quot;      10.2
+ 2            &quot;You&quot;      20.3
+ 3            &quot;Out&quot;      30.4
+ 4            &quot;There&quot;    40.5
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A5&quot;, :cellIs;       # Cells with a value &gt; 2 to have red text and light red fill.
+                    operator=&quot;greaterThan&quot;,
+                    value=&quot;2&quot;,
+                    dxStyle=&quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:B5&quot;, :containsText; # Cells with text containing &quot;u&quot; to have green text and light green fill.
+                    value=&quot;u&quot;,
+                    dxStyle=&quot;greenfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C2:C5&quot;, :top10;        # Cells with values in the top 10% of values in the range to have a red border.
+                    operator =&quot;topN%&quot;,
+                    value=&quot;10&quot;
+                    dxStyle=&quot;redborder&quot;)
+0
+</code></pre><p><img src="../../images/simple-cellvalue-example.png" alt="image|320x500"/></p><p>Alternatively, it is possible to specify custom format options to match the options offered in Excel  under the <code>Custom Format...</code> option:</p><p><img src="../../images/custom-formats.png" alt="image|320x500"/></p><div class="admonition is-info" id="Note-c84163987f9ec323"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-c84163987f9ec323" title="Permalink"></a></header><div class="admonition-body"><p>In the image above, the font name and size selectors are greyed out.  Excel limits  the formatting attributes that can be set in a conditional format. It is not  possible to set the size or name of a font and neither is it possible to set any  of the cell alignment attributes. Diagonal borders cannot be set either.</p><p>Although it is not a limitation of Excel, for simplicity this function sets all the  border attributes for each side of a cell to be the same.</p></div></div><p>For example, starting with the same simple <code>XLSXFile</code> as above, we can apply the following custom formats:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A5&quot;, :cellIs;
+                   operator=&quot;greaterThan&quot;,
+                   value=&quot;2&quot;,
+                   font=[&quot;color&quot; =&gt; &quot;coral&quot;, &quot;bold&quot;=&gt;&quot;true&quot;],
+                   fill=[&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;cornsilk&quot;],
+                   border=[&quot;style&quot;=&gt;&quot;dashed&quot;, &quot;color&quot;=&gt;&quot;orangered4&quot;],
+                   format=[&quot;format&quot;=&gt;&quot;0.000&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:B5&quot;, :containsText;
+                    value=&quot;u&quot;,
+                    font=[&quot;color&quot; =&gt; &quot;steelblue4&quot;, &quot;italic&quot;=&gt;&quot;true&quot;],
+                    fill=[&quot;pattern&quot;=&gt;&quot;darkTrellis&quot;, &quot;fgColor&quot;=&gt;&quot;lawngreen&quot;, &quot;bgColor&quot;=&gt;&quot;cornsilk&quot;],
+                    border=[&quot;style&quot;=&gt;&quot;double&quot;, &quot;color&quot;=&gt;&quot;magenta3&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C2:C5&quot;, :top10;
+                    operator =&quot;topN%&quot;,
+                    value=&quot;10&quot;,
+                    font=[&quot;color&quot; =&gt; &quot;magenta3&quot;, &quot;strike&quot;=&gt;&quot;true&quot;],
+                    fill=[&quot;pattern&quot;=&gt;&quot;lightVertical&quot;, &quot;fgColor&quot;=&gt;&quot;lawngreen&quot;, &quot;bgColor&quot;=&gt;&quot;cornsilk&quot;],
+                    border=[&quot;style&quot;=&gt;&quot;double&quot;, &quot;color&quot;=&gt;&quot;cyan&quot;])
+0
+
+julia&gt; XLSX.getConditionalFormats(s)
+3-element Vector{Pair{XLSX.CellRange, NamedTuple}}:
+ C2:C5 =&gt; (type = &quot;top10&quot;, priority = 3)
+ B2:B5 =&gt; (type = &quot;containsText&quot;, priority = 2)
+ A2:A5 =&gt; (type = &quot;cellIs&quot;, priority = 1)
+</code></pre><p><img src="../../images/custom-cellvalue-example.png" alt="image|320x500"/></p><p>Each of the conditional format <code>type</code>s in the cell value group take similar keyword options but  the specific details vary for each. For more details, refer to <a href="../../api/formats/#XLSX.setConditionalFormat">XLSX.setConditionalFormat()</a>.</p><h3 id="Expressions"><a class="docs-heading-anchor" href="#Expressions">Expressions</a><a id="Expressions-1"></a><a class="docs-heading-anchor-permalink" href="#Expressions" title="Permalink"></a></h3><p>It is possible to use an Excel formula directly to determine whether to apply a conditional format.  Any expression that evaluates to true or false can be used.</p><p><img src="../../images/expression.png" alt="image|320x500"/></p><p>For example, to compare one column with another and apply a conditional format accordingly:</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+               Sheet1 1x1           A1:A1        
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; XLSX.writetable!(s, [rand(10), rand(10), rand(10), rand(10)], [&quot;col1&quot;, &quot;col2&quot;, &quot;col3&quot;, &quot;col4&quot;])
+
+julia&gt; s[:]
+11×4 Matrix{Any}:
+  &quot;col1&quot;     &quot;col2&quot;     &quot;col3&quot;     &quot;col4&quot;
+ 0.810579   0.13742    0.0146856  0.654739
+ 0.169043   0.623955   0.713874   0.103253
+ 0.198619   0.19622    0.0818595  0.863316
+ 0.353214   0.0949461  0.961917   0.812889
+ 0.343781   0.0957323  0.061183   0.822921
+ 0.34115    0.243949   0.527914   0.758945
+ 0.161748   0.744446   0.119521   0.52732
+ 0.39707    0.284588   0.501409   0.374944
+ 0.327938   0.191197   0.943983   0.755799
+ 0.0314949  0.560541   0.526068   0.45253
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A10&quot;, :expression; formula = &quot;A2&gt;B2&quot;, dxStyle = &quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C2:D10&quot;, :expression; formula = &quot;C2&gt;\$B2&quot;, dxStyle = &quot;greenfilltext&quot;)
+0</code></pre><p><img src="../../images/simpleComparison.png" alt="image|320x500"/></p><p>Column A uses relative referencing. Columns C and D use an absolute reference for the column but not the  row of the comparison reference.</p><p>The following example uses absolute references on rows and compares the average of each column with the  average of the preceding column.</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; XLSX.writetable!(s, [rand(10).*1000, rand(10).*1000, rand(10).*1000, rand(10).*1000], [&quot;2022&quot;, &quot;2023&quot;, &quot;2024&quot;, &quot;2025&quot;])
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:D11&quot;, :expression; formula = &quot;average(B\$2:B\$11) &gt; average(A\$2:A\$11)&quot;, dxStyle = &quot;greenfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:D11&quot;, :expression; formula = &quot;average(B\$2:B\$11) &lt; average(A\$2:A\$11)&quot;, dxStyle = &quot;redfilltext&quot;)
+0</code></pre><p><img src="../../images/averageComparison.png" alt="image|320x500"/></p><p>(Row 13 above is the average of each column, calculated in Excel)</p><p>When a formula uses relative references, the relative position (offset) of the reference to the base cell in the  range to which the condition is applied is used consistently throughout the range. This is illustrated in the following example:</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; for i=1:10; for j=1:10; s[i, j] = i*j; end; end
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:E5&quot;, :expression; formula = &quot;E5 &lt; 50&quot;, dxStyle = &quot;redfilltext&quot;)
+0</code></pre><p><img src="../../images/relativeComparison.png" alt="image|320x500"/></p><p>The format applied in cell <code>A1</code> is determined by comparison of cell <code>E5</code> to the value 50. In <code>B2</code> it is  based on cell <code>F6</code>, in <code>C3</code>, on cell <code>G7</code> and so on throughtout the range.</p><p>Text based comparisons in Excel are not case sensitive by default, but can be forced to be so:</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; s[1:3,1:3]=&quot;HELLO WORLD&quot;
+&quot;HELLO WORLD&quot;
+
+julia&gt; s[&quot;A1&quot;] = &quot;Hello World&quot;
+&quot;Hello World&quot;
+
+julia&gt; s[&quot;B2&quot;] = &quot;Hello World&quot;
+&quot;Hello World&quot;
+
+julia&gt; s[&quot;C3&quot;] = &quot;Hello World&quot;
+&quot;Hello World&quot;
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A3&quot;, :expression; formula = &quot;A1=\&quot;hello world\&quot;&quot;, dxStyle = &quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B1:B3&quot;, :expression; formula = &quot;B1=\&quot;HELLO WORLD\&quot;&quot;, dxStyle = &quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C1:C3&quot;, :expression; formula = &quot;exact(\&quot;Hello World\&quot;, C1)&quot;, dxStyle = &quot;greenfilltext&quot;)
+0</code></pre><p><img src="../../images/caseSensitiveComparison.png" alt="image|320x500"/></p><h3 id="Data-Bar"><a class="docs-heading-anchor" href="#Data-Bar">Data Bar</a><a id="Data-Bar-1"></a><a class="docs-heading-anchor-permalink" href="#Data-Bar" title="Permalink"></a></h3><p>A <code>:dataBar</code> conditional format can be applied to a range of cells. In Excel there are twelve built-in data bars available, but it is possible  to customise many elements of these.</p><p><img src="../../images/dataBars.png" alt="image|320x500"/></p><p>In XLSX.jl, the twelve built-in data bars are named as follows  (layout follows image)</p><table><tr><th style="text-align: center"></th><th style="text-align: center"></th><th style="text-align: center"></th><th style="text-align: center"></th></tr><tr><td style="text-align: center">Gradient fill</td><td style="text-align: center">bluegrad</td><td style="text-align: center">greengrad</td><td style="text-align: center">redgrad</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">orangegrad</td><td style="text-align: center">lightbluegrad</td><td style="text-align: center">purplegrad</td></tr><tr><td style="text-align: center">Solid fill</td><td style="text-align: center">blue</td><td style="text-align: center">green</td><td style="text-align: center">red</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">orange</td><td style="text-align: center">lightblue</td><td style="text-align: center">purple</td></tr></table><p>Choose one of these data bars by name using the <code>databar</code> keyword. If no <code>databar</code>  is specified, <code>bluegrad</code> is the default choice. For example</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+               Sheet1 1x1           A1:A1        
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; s[1:10, 1]=1:10
+1:10
+
+julia&gt; s[1:10, 3]=1:10
+1:10
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A10&quot;, :dataBar) # Defaults to `databar=&quot;bluegrad&quot;`
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C1:C10&quot;, :dataBar; databar=&quot;orange&quot;)
+0
+</code></pre><p><img src="../../images/simpleDataBar.png" alt="image|320x500"/></p><p>All of the options provided by Excel can be adjusted using the provided keyword options. </p><p><img src="../../images/dataBarOptions.png" alt="image|320x500"/></p><p><img src="../../images/negAndAxisOptions.png" alt="image|320x500"/></p><p>For example, the end points of the bar scale can be defined by setting the <code>min_type</code> and <code>max_type</code>  keywords to <code>num</code> (for an absolute number value), <code>percent</code>,  <code>percentile</code>, <code>formula</code> or <code>min</code> or <code>max</code>.  The default type is <code>automatic</code>.</p><p>For the first three type options, a value must also be given by setting <code>min_val</code>, <code>max_val</code>. The value may be taken from a cell by setting <code>min_val</code>, <code>max_val</code> to a cell reference. When the type is  set to <code>formula</code>, any valid formula yielding a value can be given. Cell references must use absolute referencing. Types <code>min</code> and <code>max</code> set the scale endpoints to be exactly the minimum and maximum values of the data in the  cell range whereas using <code>automatic</code> allows Excel flexibility to make minor adjustments to these endpoints,  e.g. to improve appearance.</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; s[1:10, 5]=1:10
+1:10
+
+julia&gt; s[1:10, 1]=1:10
+1:10
+
+julia&gt; s[1:10, 3]=1:10
+1:10
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A10&quot;, :dataBar)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C1:C10&quot;, :dataBar; databar=&quot;purple&quot;, min_type=&quot;num&quot;, max_type=&quot;num&quot;, min_val=&quot;2&quot;, max_val=&quot;8&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;E1:E10&quot;, :dataBar; databar=&quot;greengrad&quot;, min_type=&quot;percent&quot;, max_type=&quot;percent&quot;, min_val=&quot;35&quot;, max_val=&quot;65&quot;)
+0</code></pre><p><img src="../../images/minmaxDataBar.png" alt="image|320x500"/></p><p>Choose whether to hide values using <code>showVal=&quot;false&quot;</code>, convert a gradient fill to solid (or vice versa)  with <code>gradient=&quot;false&quot;</code> (<code>gradient=&quot;true&quot;</code>) and add borders to data bars with <code>borders=&quot;true&quot;</code>.</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A10&quot;, :dataBar)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C1:C10&quot;, :dataBar, showVal=&quot;false&quot;, gradient=&quot;false&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;E1:E10&quot;, :dataBar; databar=purple,  borders=&quot;true&quot;, gradient=&quot;true&quot;)
+0</code></pre><p><img src="../../images/borderAndGrad.png" alt="image|320x500"/></p><p>Change bar colors using <code>fill_col=</code> and border colors using <code>border_col=</code>. Colors are specified using an 8-digit hexadecimal as <code>&quot;FFRRGGBB&quot;</code> or using any named color from <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p>By default, negative values are shown with red bars and borders. Override these defaults by setting <code>sameNegFill = &quot;true&quot;</code>and <code>sameNegBorders=&quot;true&quot;</code> to use the same colors as positive bars. Alternatively, to use any available color, set <code>neg_fill_col=</code> and <code>neg_border_col=</code>.</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A11&quot;, :dataBar)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C1:C11&quot;, :dataBar; sameNegFill=&quot;true&quot;, sameNegBorders=&quot;true&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;E1:E11&quot;, :dataBar; fill_col=&quot;cyan&quot;, border_col=&quot;blue&quot;, neg_fill_col=&quot;lemonchiffon1&quot;, neg_border_col=&quot;goldenrod4&quot;)
+0
+</code></pre><p><img src="../../images/customColors.png" alt="image|320x500"/></p><p>By default, Excel positions the axis automatically, based on the range of the cell data.  Control the location of the axis using <code>axis_pos = &quot;middle&quot;</code> to locate it in the middle  of the column width or <code>axis_pos = &quot;none&quot;</code> to remove the axis. Excel chooses the direction  of the bars according to the context of the cell data. Force (postive) bars to go <code>leftToRight</code>  or <code>rightToLeft</code> using the <code>direction</code> key word. Change the color of the axis with <code>axis_col</code>.</p><pre><code class="language-julia hljs">julia&gt; s[1:10, 1]=1:10
+1:10
+
+julia&gt; s[1:10,3]=-5:4
+-5:4
+
+julia&gt; s[1:10,5]=1:10
+1:10
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A10&quot;, :dataBar)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C1:C10&quot;, :dataBar; direction=&quot;rightToLeft&quot;, axis_pos=&quot;middle&quot;, axis_col=&quot;magenta&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;E1:E10&quot;, :dataBar; direction=&quot;leftToRight&quot;, min_type=&quot;num&quot;, min_val=&quot;-5&quot;, axis_pos=&quot;none&quot;)
+0
+</code></pre><p><img src="../../images/axisOptions.png" alt="image|320x500"/></p><h3 id="Color-Scale"><a class="docs-heading-anchor" href="#Color-Scale">Color Scale</a><a id="Color-Scale-1"></a><a class="docs-heading-anchor-permalink" href="#Color-Scale" title="Permalink"></a></h3><p>It is possible to apply a <code>:colorScale</code> formatting type to a range of cells. In Excel there are twelve built-in color scales available, but it is possible to create  custom color scales, too.</p><p><img src="../../images/colorScales.png" alt="image|320x500"/></p><p>In XLSX.jl, the twelve built-in scales are named by their end/mid/start colors as follows  (layout follows image)</p><table><tr><th style="text-align: center"></th><th style="text-align: center"></th><th style="text-align: center"></th><th style="text-align: center"></th></tr><tr><td style="text-align: center">greenyellowred</td><td style="text-align: center">redyellowgreen</td><td style="text-align: center">greenwhitered</td><td style="text-align: center">redwhitegreen</td></tr><tr><td style="text-align: center">bluewhitered</td><td style="text-align: center">redwhiteblue</td><td style="text-align: center">whitered</td><td style="text-align: center">redwhite</td></tr><tr><td style="text-align: center">greenwhite</td><td style="text-align: center">whitegreen</td><td style="text-align: center">greenyellow</td><td style="text-align: center">yellowgreen</td></tr></table><p>The default colorscale is <code>greenyellow</code>. To use a different built-in color scale,  specify the name using the keyword <code>colorscale</code>, thus:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A1:F12&quot;, :colorScale) # Defaults to the `greenyellow` built-in scale.
+0
+
+julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A13:C18&quot;, :colorScale; colorscale=&quot;whitered&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;D13:F18&quot;, :colorScale; colorscale=&quot;bluewhitered&quot;)
+0</code></pre><p>A custom color scale may be defined by the colors at each end of the scale and (optionally) by some  mid-point color, too. Colors can be specified using hex RGB values or by name using any of the colors in <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p>In Excel, the colorScale options (for a 3 color scale) look like this:</p><p><img src="../../images/colorScaleOptions.png" alt="image|320x500"/></p><p>The end points (and optional mid-point) can be defined using an absolute number (<code>num</code>), a <code>percent</code>,  a <code>percentile</code> or as a <code>min</code> or <code>max</code>. For the first three options, a value must also be given. The value may be taken from a cell by setting <code>min_val</code>, <code>mid_val</code> or <code>max_val</code> to a cell reference. Thus, you can apply a custom 3-color scale using, for example:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A13:F22&quot;, :colorScale;
+            min_type=&quot;num&quot;, 
+            min_val=&quot;2&quot;,
+            min_col=&quot;tomato&quot;,
+            mid_type=&quot;num&quot;,
+            mid_val=&quot;6&quot;, 
+            mid_col=&quot;lawngreen&quot;,
+            max_type=&quot;num&quot;,
+            max_val=&quot;10&quot;,
+            max_col=&quot;cadetblue&quot;
+        )
+0</code></pre><p><img src="../../images/custom-colorscale.png" alt="image|320x500"/></p><h3 id="Icon-Set"><a class="docs-heading-anchor" href="#Icon-Set">Icon Set</a><a id="Icon-Set-1"></a><a class="docs-heading-anchor-permalink" href="#Icon-Set" title="Permalink"></a></h3><p>It is possible to apply an <code>:iconSet</code> formatting type to a range of cells. In Excel there are twenty built-in icon sets available, but it is possible to  create a custom icon set from the 52 built-in icons, too.</p><p><img src="../../images/iconSets.png" alt="image|320x500"/></p><p>In XLSX.jl, the twenty built-in icon sets are named as follows  (layout follows image)</p><table><tr><th style="text-align: center"></th><th style="text-align: center"></th><th style="text-align: center"></th></tr><tr><td style="text-align: center">Directional</td><td style="text-align: center">3Arrows</td><td style="text-align: center">3ArrowsGray</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">3Triangles</td><td style="text-align: center">4ArrowsGray</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">4Arrows</td><td style="text-align: center">5ArrowsGray</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">5Arrows</td><td style="text-align: center"></td></tr><tr><td style="text-align: center">Shapes</td><td style="text-align: center">3TrafficLights</td><td style="text-align: center">3TrafficLights2</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">3Signs</td><td style="text-align: center">4TrafficLights</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">4BlackToRed</td><td style="text-align: center"></td></tr><tr><td style="text-align: center">Indicators</td><td style="text-align: center">3Symbols</td><td style="text-align: center">3Symbols2</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">3Flags</td><td style="text-align: center"></td></tr><tr><td style="text-align: center">Ratings</td><td style="text-align: center">3Stars</td><td style="text-align: center">4Ratings</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">5Quarters</td><td style="text-align: center">5Ratings</td></tr><tr><td style="text-align: center"></td><td style="text-align: center">5Boxes</td><td style="text-align: center"></td></tr></table><p>Choose one of these icon sets by name using the <code>iconset</code> keyword. If no <code>iconset</code>  is specified, <code>3TrafficLights</code> is the default choice. For example</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+               Sheet1 1x1           A1:A1        
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; s[1:10, 1]=1:10
+1:10
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A10&quot;, :iconSet)
+0</code></pre><p><img src="../../images/basicIconSet.png" alt="image|320x500"/></p><p>All of the options to control an iconSet in Excel are available. The iconSet options  (for a 4-icon set) look like this:</p><p><img src="../../images/iconSetOptions.png" alt="image|320x500"/></p><p>Each icon set includes a default set of thresholds defining which symbol to use. These  relate the cell value to the range of values in the cell range to which the conditional  format is being applied. This can be illustrated (for a 4-icon set) as follows:</p><pre><code class="nohighlight hljs"> Range     ┌─────────────────┬─────────────────┬─────────────────┬────────────────┐   Range
+ Minimum -&gt;│     Icon 1      │     Icon 2      │     Icon 3      │     Icon 4     │&lt;- Maximum
+                         `min_val`         `mid_val`         `max_val`
+                         threshold         threshold         threshold</code></pre><p>The starting value for the first icon is always the minimum value of the range, and the stopping value for the last icon is always the maximum value in the range. No cells will have values for  which an icon cannot be assigned. The internal thresholds for transition from one icon to the  next are defined (in a 3-icon set) by <code>min_val</code> and <code>max_val</code>. In a 4-icon set, an additional  threshold, <code>mid-val</code>, is required and in a 5-icon set, <code>mid2_val</code> is needed as well.</p><p>The type of these thresholds can be defined in terms of <code>percent</code> (of the range), <code>percentile</code>  or simply with a <code>num</code> (number) (e.g. as <code>min_type=&quot;percent&quot;</code>). For each threshold,  the value can either be given as a number (as a String) or as a simple cell reference.  Alternatively, specifying the type as <code>formula</code> allows the value to be determined by any  valid Excel formula.</p><div class="admonition is-info" id="Note-a739ed03f877af25"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-a739ed03f877af25" title="Permalink"></a></header><div class="admonition-body"><p>Cell references used to define threshold values in an iconSet MUST always be given as absolute  cell references (e.g. <code>&quot;\$A\$4&quot;</code>). Relative references should not be used.</p></div></div><p>Using the example above, change both the type and value of the thresholds like this:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A10&quot;, :iconSet;
+            min_type=&quot;num&quot;, max_type=&quot;num&quot;, 
+            min_val=&quot;2&quot;, max_val=&quot;9&quot;)
+0</code></pre><p><img src="../../images/newValIconSet.png" alt="image|320x500"/></p><p>To suppress the values in cells and just show the icons, use <code>showVal=&quot;false&quot;</code>, to reverse the icon ordering  use <code>reverse=&quot;true&quot;</code> and to change the default comparison from <code>&gt;=</code> to <code>&gt;</code> set <code>min_gte=&quot;false&quot;</code> (and  equivalent for mid, mid2 and max):</p><pre><code class="language-julia hljs">julia&gt; XLSX.writetable!(s, [collect(1:10), collect(1:10), collect(1:10), collect(1:10)],
+            [&quot;normal&quot;, &quot;showVal=\&quot;false\&quot;&quot;, &quot;reverse=\&quot;true\&quot;&quot;, &quot;min_gte=\&quot;false\&quot;&quot;])
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A11&quot;, :iconSet;
+            min_type=&quot;num&quot;,  max_type=&quot;num&quot;,
+            min_val=&quot;3&quot;,     max_val=&quot;8&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:B11&quot;, :iconSet;
+            min_type=&quot;num&quot;,  max_type=&quot;num&quot;,
+            min_val=&quot;3&quot;,     max_val=&quot;8&quot;,
+            showVal=&quot;false&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C2:C11&quot;, :iconSet;
+            min_type=&quot;num&quot;,  max_type=&quot;num&quot;,
+            min_val=&quot;3&quot;,     max_val=&quot;8&quot;,
+            reverse=&quot;true&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;D2:D11&quot;, :iconSet;
+            min_type=&quot;num&quot;,  max_type=&quot;num&quot;,
+            min_val=&quot;3&quot;,     max_val=&quot;8&quot;,
+            min_gte=&quot;false&quot;, max_gte=&quot;false&quot;)
+0</code></pre><p><img src="../../images/showValIcons.png" alt="image|320x500"/></p><p>Create a custom icon set by specifying <code>iconset=&quot;Custom&quot;</code>. The icons to use in the custom set are  defined with <code>icon_list</code> keyword, which takes a vector of integers defining which of the 52 built  in icons to use. Use of the val and type keywords dictate the number of icons to use. If <code>mid_type</code>  and <code>mid_val</code> are both defined, but not <code>mid2_val</code> or <code>mid2_type</code>, then a 4-icon set will be used.  If both sets of keywords are defined, a 5-icon set is used and if neither is set, a 3-icon set will  be used.</p><p>This is illustrated with code below, which produces a key defining which integer to use  in <code>icon_list</code> to represent any desired icon:</p><pre><code class="language-julia hljs">using XLSX
+f=XLSX.newxlsx()
+s=f[1]
+for i = 0:3
+    for j=1:13
+        s[i+1,j]=i*13+j
+    end
+end
+for j=1:13
+     XLSX.setConditionalFormat(s, 1:4, j, :iconSet; # Create a custom 4-icon set in each column.
+        iconset=&quot;Custom&quot;,
+        icon_list=[j, 13+j, 26+j, 39+j],
+        min_type=&quot;percent&quot;, mid_type=&quot;percent&quot;, max_type=&quot;percent&quot;,
+        min_val=&quot;25&quot;, mid_val=&quot;50&quot;, max_val=&quot;75&quot;
+        )
+end
+XLSX.setColumnWidth(s, 1:13, width=6.4)
+XLSX.setRowHeight(s, 1:4, height=27.75)
+XLSX.setAlignment(s, &quot;A1:M4&quot;, horizontal=&quot;center&quot;, vertical=&quot;center&quot;)
+XLSX.setBorder(s, &quot;A1:M4&quot;, allsides = [&quot;style&quot;=&gt;&quot;thin&quot;,&quot;color&quot;=&gt;&quot;black&quot;])
+XLSX.writexlsx(&quot;iconKey.xlsx&quot;, f, overwrite=true)</code></pre><p><img src="../../images/iconKey.png" alt="image|320x500"/></p><p>Specifying too few icons in <code>icon_list</code> throws an error while any extra will simply be ignored.</p><h2 id="Cell-references-in-conditional-formats"><a class="docs-heading-anchor" href="#Cell-references-in-conditional-formats">Cell references in conditional formats</a><a id="Cell-references-in-conditional-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-references-in-conditional-formats" title="Permalink"></a></h2><h3 id="Cell-Ranges"><a class="docs-heading-anchor" href="#Cell-Ranges">Cell Ranges</a><a id="Cell-Ranges-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-Ranges" title="Permalink"></a></h3><p>Cell ranges for conditional formats are always absolute refences. The specified range to which a  conditional format is to be applied is always treated as being based upon absolute cell references  so that, for example</p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A2:C5&quot;, :colorScale; colorscale=&quot;greenyellow&quot;)</code></pre><p>will be converted automatically to the range &quot;<span>$</span>A<span>$</span>2:<span>$</span>C<span>$</span>5&quot; by Excel itself. There is therefore no need to specify  absolute cell ranges when calling <code>setCondtionalFormat()</code></p><h3 id="Relative-and-absolute-cell-references"><a class="docs-heading-anchor" href="#Relative-and-absolute-cell-references">Relative and absolute cell references</a><a id="Relative-and-absolute-cell-references-1"></a><a class="docs-heading-anchor-permalink" href="#Relative-and-absolute-cell-references" title="Permalink"></a></h3><p>Cell references used to specify <code>value</code> or <code>value2</code> or in any <code>formula</code> (for <code>:expression</code> type  conditional formats only) may be either absolute or relative. As in Excel, an absolute reference  is defined using a <code>$</code> prefix to either or both the row or the column part of the cell reference  but here the <code>$</code> must be appropriately escaped. Thus:</p><pre><code class="language-julia hljs">value = &quot;B2&quot;          # relative reference
+value = &quot;\$B\$2&quot;      # (escaped) absolute reference</code></pre><p>The cell used in a comparison is adjusted for each cell in the range if a relative reference is used. This is  illustrated in the following example. Cells in column A are referenced to column B using a relative reference, meaning <code>A2</code> is compared with <code>B2</code> but <code>A3</code> is compared with <code>B3</code> and so on until <code>A5</code> is compared with <code>B5</code>. In contrast, column B is referenced to cell <code>C2</code> using an absolute reference. Each cell in column B is compared  with cell <code>C2</code>.</p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; col1=rand(5)
+5-element Vector{Float64}:
+ 0.6283728884101448
+ 0.7516580026008692
+ 0.2738854683970795
+ 0.13517788102005834
+ 0.4659468387663539
+
+julia&gt; col2=rand(5)
+5-element Vector{Float64}:
+ 0.7582186445697804
+ 0.739539172599636
+ 0.4389109821689414
+ 0.14156225872248773
+ 0.10715394525726485
+
+julia&gt; XLSX.writetable!(s, [col1, col2],[&quot;col1&quot;, &quot;col2&quot;])
+
+julia&gt; s[&quot;C2&quot;]=0.5
+0.5
+
+julia&gt; s[:]
+6×3 Matrix{Any}:
+  &quot;col1&quot;    &quot;col2&quot;    missing
+ 0.628373  0.758219  0.5
+ 0.751658  0.739539   missing
+ 0.273885  0.438911   missing
+ 0.135178  0.141562   missing
+ 0.465947  0.107154   missing
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A6&quot;, :cellIs; operator=&quot;greaterThan&quot;, value=&quot;B2&quot;, dxStyle=&quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:B6&quot;, :cellIs; operator=&quot;greaterThan&quot;, value=&quot;\$C\$2&quot;, dxStyle=&quot;greenfilltext&quot;)
+0
+</code></pre><p><img src="../../images/relative-CellRef.png" alt="image|320x500"/></p><div class="admonition is-info" id="Note-a5c3d411f3ad0343"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-a5c3d411f3ad0343" title="Permalink"></a></header><div class="admonition-body"><p>It is not possible to use relative cell references in conditional format types <code>:dataBar</code>,  <code>:colorScale</code> or <code>:iconSet</code>.</p></div></div><div class="admonition is-info" id="Note-3f22871fb3d453ba"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-3f22871fb3d453ba" title="Permalink"></a></header><div class="admonition-body"><p>Excel permits cell references to cells in other sheets for comparisons in conditional formats (e.g. &quot;OtherSheet!A1&quot;), but this is handled differently internally than references within the  same sheet. This functionality is not universally implemented in XLSX.jl yet. </p></div></div><h3 id="Overlaying-conditional-formats"><a class="docs-heading-anchor" href="#Overlaying-conditional-formats">Overlaying conditional formats</a><a id="Overlaying-conditional-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Overlaying-conditional-formats" title="Permalink"></a></h3><p>It is possible to overlay multiple conditional formats over each other in a  cell range or even in different, overlapping cell ranges. Starting with a table of  integers, we can apply three different conditional formats sequentially. Excel applies  these in priority order (priority 1 is higher priority than priority 2) which is the  same as the order in which they were defined with <code>setConditionalFormat</code>.</p><pre><code class="language-julia hljs">julia&gt; s[1:5, 1:3]
+5×3 Matrix{Any}:
+   &quot;first&quot;    &quot;middle&quot;    &quot;last&quot;
+  1         15           9
+ 12          6          10
+  3         17          11
+ 14          8           2
+
+julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A2:C5&quot;, :colorScale; colorscale=&quot;greenyellowred&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:C5&quot;, :top10;
+                    operator =&quot;topN&quot;,
+                    value=&quot;3&quot;,
+                    font=[&quot;color&quot;=&gt;&quot;magenta3&quot;, &quot;strike&quot;=&gt;&quot;true&quot;],
+                    fill=[&quot;pattern&quot;=&gt;&quot;lightVertical&quot;, &quot;fgColor&quot;=&gt;&quot;lawngreen&quot;, &quot;bgColor&quot;=&gt;&quot;cornsilk&quot;],
+                    border=[&quot;style&quot;=&gt;&quot;double&quot;, &quot;color&quot;=&gt;&quot;cyan&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A5&quot;, :cellIs;
+                   operator=&quot;lessThan&quot;,
+                   value=&quot;2&quot;,
+                   font=[&quot;color&quot;=&gt;&quot;coral&quot;, &quot;bold&quot;=&gt;&quot;true&quot;],
+                   fill=[&quot;pattern&quot;=&gt;&quot;lightHorizontal&quot;, &quot;fgColor&quot;=&gt;&quot;cornsilk&quot;],
+                   border=[&quot;style&quot;=&gt;&quot;dashed&quot;, &quot;color&quot;=&gt;&quot;orangered4&quot;])
+0
+
+julia&gt; XLSX.getConditionalFormats(s)
+3-element Vector{Pair{XLSX.CellRange, NamedTuple}}:
+ A2:A5 =&gt; (type = &quot;cellIs&quot;, priority = 3)
+ A2:C5 =&gt; (type = &quot;colorScale&quot;, priority = 1)
+ A2:C5 =&gt; (type = &quot;top10&quot;, priority = 2)
+</code></pre><p><img src="../../images/multiple-cellvalue-example.png" alt="image|320x500"/></p><p>When applying multiple overlayed formats, it is possible to make the formatting stop if any cell meets  one of the conditions, so that lower proirity conditional formats are not applied to that cell. This is  achieved with the <code>stopIfTrue</code> keyword. It is not possible to apply <code>stopIfTrue</code> to <code>:dataBar</code>,  <code>:colorScale</code> or <code>:iconSet</code> types.</p><p>The example below illustrates how <code>stopIfTrue</code> is used to stop further conditional formats from being  applied to cells to which red borders are applied:</p><pre><code class="language-julia hljs">julia&gt; s[1:5, 1:3]
+5×3 Matrix{Any}:
+   &quot;first&quot;    &quot;middle&quot;    &quot;last&quot;
+  1         15           9
+ 12          6          10
+  3         17          11
+ 14          8           2
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:C5&quot;, :cellIs; # No further conditions will be evaluated if this condition is met.
+                    operator =&quot;greaterThan&quot;,
+                    value=&quot;9&quot;,
+                    stopIfTrue=&quot;true&quot;,
+                    dxStyle = &quot;redborder&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:C5&quot;, :top10;  # Won&#39;t apply if the max value in the range is &gt; 9.
+                    operator =&quot;topN&quot;,
+                    value=&quot;1&quot;,
+                    dxStyle = &quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:C5&quot;, :colorScale; colorscale=&quot;greenyellow&quot;) # Won&#39;t apply to any cell with a value &gt; 9
+0</code></pre><p><img src="../../images/stop-if-true.png" alt="image|320x500"/></p><p>Overlaying the same three conditional formats without setting the <code>stopIfTrue</code> option  will result in the following, instead:</p><p><img src="../../images/no-stop-if-true.png" alt="image|320x500"/></p><p>It is possible to overlay <code>:colorScale</code>s, <code>:dataBar</code>s and <code>:iconSet</code>s in the same or  overlapping cell ranges.</p><pre><code class="language-juliaf newxlsx hljs">julia&gt; 
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; XLSX.writetable!(s, [rand(10),rand(10),rand(10),rand(10),rand(10),rand(10),rand(10)],[&quot;col1&quot;,&quot;col2&quot;,&quot;col3&quot;,&quot;col4&quot;,&quot;col5&quot;,&quot;col6&quot;,&quot;col7&quot;])
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A5:E8&quot;, :dataBar; direction=&quot;rightToLeft&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C5:G8&quot;, :iconSet; iconset=&quot;5Arrows&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C2:E11&quot;, :colorScale; colorscale=&quot;greenyellowred&quot;)
+0
+
+julia&gt; XLSX.setFormat(s, &quot;A2:G11&quot;; format=&quot;#0.00&quot;)
+-1
+</code></pre><p><img src="../../images/moreMixed.png" alt="image|320x500"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../cellFormatting/">« Cell formats</a><a class="docs-footer-nextpage" href="../widthAndHeight/">Column width and row height »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 14 April 2026 22:10">Tuesday 14 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Cell formats · XLSX.jl</title><meta name="title" content="Cell formats · XLSX.jl"/><meta property="og:title" content="Cell formats · XLSX.jl"/><meta property="twitter:title" content="Cell formats · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><span class="tocitem">Formatting Guide</span><ul><li class="is-active"><a class="tocitem" href>Cell formats</a><ul class="internal"><li><a class="tocitem" href="#Excel-formatting"><span>Excel formatting</span></a></li><li><a class="tocitem" href="#Setting-format-attributes-of-a-cell"><span>Setting format attributes of a cell</span></a></li><li><a class="tocitem" href="#Formatting-multiple-cells-at-once"><span>Formatting multiple cells at once</span></a></li><li><a class="tocitem" href="#Copying-formatting-attributes"><span>Copying formatting attributes</span></a></li><li><a class="tocitem" href="#Rich-text-formats"><span>Rich text formats</span></a></li></ul></li><li><a class="tocitem" href="../conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../mergedCells/">Merged cells</a></li></ul></li><li><a class="tocitem" href="../../formulae/formulas/">Using Formulas</a></li><li><a class="tocitem" href="../../examples/">Examples</a></li><li><a class="tocitem" href="../../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../api/files/">Files and worksheets</a></li><li><a class="tocitem" href="../../api/data/">Cells and data</a></li><li><a class="tocitem" href="../../api/formats/">Formats</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Formatting Guide</a></li><li class="is-active"><a href>Cell formats</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Cell formats</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/formatting/cellFormatting.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Cell-formats"><a class="docs-heading-anchor" href="#Cell-formats">Cell formats</a><a id="Cell-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-formats" title="Permalink"></a></h1><h2 id="Excel-formatting"><a class="docs-heading-anchor" href="#Excel-formatting">Excel formatting</a><a id="Excel-formatting-1"></a><a class="docs-heading-anchor-permalink" href="#Excel-formatting" title="Permalink"></a></h2><p>Each cell in an Excel spreadsheet may refer to an Excel <code>style</code>. Multiple cells can  refer to the same <code>style</code> and therefore have a uniform appearance. A <code>style</code> defines the cell&#39;s <code>alignment</code> directly (as part of the <code>style</code> definition), but it may also  refer to further formatting definitions for <code>font</code>, <code>fill</code>, <code>border</code> and number <code>format</code>.  Multiple <code>style</code>s may each refer to the same <code>fill</code> definition or the same <code>font</code>  definition, etc, and therefore share these formatting characteristics. This hierarchy can be shown like this:</p><pre><code class="nohighlight hljs">                `Cell`
+                  │
+               `Style` =&gt; `Alignment`
+                  │
+  ┌──────────┬────┴─────┬─────────┐
+  │          │          │         │
+`font`     `fill`    `border`  `format`</code></pre><p>A family of setter functions is provided to set each of the formatting characteristics  Excel uses. These are applied to cells, and the functions deal with the relationships  between the individual characteristics, the overarching <code>style</code> and the cell(s) themselves.</p><h2 id="Setting-format-attributes-of-a-cell"><a class="docs-heading-anchor" href="#Setting-format-attributes-of-a-cell">Setting format attributes of a cell</a><a id="Setting-format-attributes-of-a-cell-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-format-attributes-of-a-cell" title="Permalink"></a></h2><p>Set the font attributes of a cell using <a href="../../api/formats/#XLSX.setFont"><code>XLSX.setFont</code></a>. For example, to set cells <code>A1</code> and  <code>A5</code> in the <code>general</code> sheet of a workbook to specific <code>font</code> values, use:</p><pre><code class="language-julia hljs">
+julia&gt; using XLSX
+
+julia&gt; f=XLSX.opentemplate(&quot;general.xlsx&quot;)
+XLSXFile(&quot;general.xlsx&quot;) containing 13 Worksheets
+            sheetname size          range        
+-------------------------------------------------
+              general 10x6          A1:F10       
+               table3 5x6           A2:F6        
+               table4 4x3           E12:G15
+                table 12x8          A2:H13
+               table2 5x3           A1:C5
+                empty 1x1           A1:A1
+               table5 6x1           C3:C8
+               table6 8x2           B1:C8
+               table7 7x2           B2:C8
+               lookup 4x9           B2:J5
+         header_error 3x4           B2:E4
+       named_ranges_2 4x5           A1:E4
+         named_ranges 14x6          A2:F15
+
+julia&gt; s=f[&quot;general&quot;]
+10×6 XLSX.Worksheet: [&quot;general&quot;](A1:F10)
+
+julia&gt; XLSX.setFont(s, &quot;A1&quot;; name=&quot;Arial&quot;, size=24, color=&quot;blue&quot;, bold=true)
+2
+
+julia&gt; XLSX.setFont(s, &quot;A5&quot;; name=&quot;Arial&quot;, size=24, color=&quot;blue&quot;, bold=true)
+2</code></pre><p>The function returns the <code>fontId</code> that has been used to define this combination  of attributes.</p><p>There are more <code>font</code> attributes that can be set. Setting attributes for a cell  that already has some, merges the new attributes with the old. Thus:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setFont(s, &quot;A5&quot;; italic=true, under=&quot;double&quot;, bold=false)
+3</code></pre><p>will over-ride the <code>bold</code> setting that was previously defined and add a double  underline and make the font italic. However, the color, font name and size will  all remain unchanged from before. This new combination of attributes is unique,  so a new <code>fontId</code> has been created.</p><p>Font colors (and colors in any of the other formatting functions) can be set using a  hex RGB value or by name using any of the colors provided by <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p>The other set attribute functions behave in similar ways. See <a href="../../api/formats/#XLSX.setBorder"><code>XLSX.setBorder</code></a>,  <a href="../../api/formats/#XLSX.setFill"><code>XLSX.setFill</code></a>, <a href="../../api/formats/#XLSX.setFormat"><code>XLSX.setFormat</code></a> and <a href="../../api/formats/#XLSX.setAlignment"><code>XLSX.setAlignment</code></a>.</p><h2 id="Formatting-multiple-cells-at-once"><a class="docs-heading-anchor" href="#Formatting-multiple-cells-at-once">Formatting multiple cells at once</a><a id="Formatting-multiple-cells-at-once-1"></a><a class="docs-heading-anchor-permalink" href="#Formatting-multiple-cells-at-once" title="Permalink"></a></h2><h3 id="Applying-setAttribute-to-multiple-cells"><a class="docs-heading-anchor" href="#Applying-setAttribute-to-multiple-cells">Applying <code>setAttribute</code> to multiple cells</a><a id="Applying-setAttribute-to-multiple-cells-1"></a><a class="docs-heading-anchor-permalink" href="#Applying-setAttribute-to-multiple-cells" title="Permalink"></a></h3><p>Each of the setter functions can be applied to multiple cells at once using cell-ranges,  row- or column-ranges or non-contiguous ranges. Additionally, indexing can use integer indices for rows and columns, vectors of index values, unit- or step-ranges. This makes  it easy to apply formatting to many cells at once.</p><p>Thus, for example:</p><pre><code class="language-julia hljs">
+julia&gt; using XLSX
+
+julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; s[1:100, 1:100] = &quot;&quot; # Ensure these aren&#39;t `EmptyCell`s.
+&quot;&quot;
+
+julia&gt; XLSX.setFont(s, &quot;A1:CV100&quot;; name=&quot;Arial&quot;, size=24, color=&quot;blue&quot;, bold=true)
+-1                          # Returns -1 on a range.
+
+julia&gt; XLSX.setBorder(s, &quot;A1:CV100&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+-1
+
+julia&gt; XLSX.setAlignment(s, [10, 50, 90], 1:100; wrapText=true) # Wrap text in the specified rows.
+-1
+
+julia&gt;  XLSX.setAlignment(s, 1:100, 2:2:100; rotation=90) # Rotate text 90° every second column in the first 100 rows.
+-1</code></pre><p>It is even possible to use defined names to index these functions:</p><pre><code class="language-julia hljs">
+julia&gt; XLSX.addDefinedName(s, &quot;my_name&quot;, &quot;A1,B20,C30&quot;) # Define a non-contiguous named range.
+XLSX.DefinedNameValue(Sheet1!A1,Sheet1!B20,Sheet1!C30, Bool[1, 1, 1])
+
+julia&gt; XLSX.setFill(s, &quot;my_name&quot;; pattern=&quot;solid&quot;, fgColor=&quot;coral&quot;)
+-1</code></pre><p>When setting format attributes over a range of cells as decribed, the new attributes are merged  with existing on a cell by cell basis. If you set the font name on a range of cells that previously  all had different font colors, the color differences will persist even as the font name is applied  to the range consistently.</p><h3 id="Setting-uniform-attributes"><a class="docs-heading-anchor" href="#Setting-uniform-attributes">Setting uniform attributes</a><a id="Setting-uniform-attributes-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-uniform-attributes" title="Permalink"></a></h3><p>Sometimes it is useful to be able to apply a fully consistent set of format attributes to a range of  cells, over-riding any pre-existing differences. This is the purpose of the <code>setUniformAttribute</code>  family of functions. These functions update the attributes of the first cell in the range and then  apply the relevant attribute Id to the rest of the cells in the range. Thus:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setUniformBorder(s, &quot;A1:CV100&quot;; allsides = [&quot;color&quot; =&gt; &quot;green&quot;], diagonal = [&quot;direction&quot;=&gt;&quot;both&quot;, &quot;color&quot;=&gt;&quot;red&quot;])
+2 # This is the `borderId` that has now been uniformly applied to every cell.</code></pre><p>This sets the border color in cell <code>A1</code> to be green and adds red diagonal lines across the cell.  It then applies all the <code>Border</code> attributes of cell <code>A1</code> uniformly to all the other cells in the range,  overriding their previous attributes.</p><p>All the format setter functions have <code>setUniformAttribute</code> versions, too. See <a href="../../api/formats/#XLSX.setUniformBorder"><code>XLSX.setUniformBorder</code></a>,  <a href="../../api/formats/#XLSX.setUniformFill"><code>XLSX.setUniformFill</code></a>, <a href="../../api/formats/#XLSX.setUniformFormat"><code>XLSX.setUniformFormat</code></a> and <a href="../../api/formats/#XLSX.setUniformAlignment"><code>XLSX.setUniformAlignment</code></a>.</p><h3 id="Setting-uniform-styles"><a class="docs-heading-anchor" href="#Setting-uniform-styles">Setting uniform styles</a><a id="Setting-uniform-styles-1"></a><a class="docs-heading-anchor-permalink" href="#Setting-uniform-styles" title="Permalink"></a></h3><p>It is possible to use each of the <code>setUniformAttribute</code> functions in turn to ensure every possible  attribute is consistently applied to a range of cells. However, if perfect uniformity is required,  then <code>setUniformStyle</code> is considerably more efficient. It will simply take the <code>styleId</code> of the  first cell in the range and apply it uniformly to each cell in the range. This ensures that all  of font, fill, border, format, and alignment are all completely consistent across the range:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setUniformStyle(s, &quot;A1:CV100&quot;) # set all formatting attributes to be uniformly the same as cell A1.
+7    # this is the `styleId` that has now been applied to all cells in the range</code></pre><h3 id="Illustrating-the-different-approaches"><a class="docs-heading-anchor" href="#Illustrating-the-different-approaches">Illustrating the different approaches</a><a id="Illustrating-the-different-approaches-1"></a><a class="docs-heading-anchor-permalink" href="#Illustrating-the-different-approaches" title="Permalink"></a></h3><p>To illustrate the differences between applying <code>setAttribute</code>, <code>setUniformAttribute</code> and <code>setUinformStyle</code>, consider the following worksheet, which has very hetrogeneous formatting across the three cells:</p><p><img src="../../images/multicell.png" alt="image|320x500"/></p><p>We can apply <code>setBorder()</code> to add a top border to each cell:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setBorder(s, &quot;B2,D2,F2&quot;; top=[&quot;style&quot;=&gt;&quot;thick&quot;, &quot;color&quot;=&gt;&quot;red&quot;])
+-1</code></pre><p>This merges the new top border definition with the other, existing border attributes, to get</p><p><img src="../../images/multicell2.png" alt="image|320x500"/></p><p>Alternatively, we can apply <code>setUniformBorder()</code>, which will update the borders of cell <code>B2</code>  and then apply all the border attributes of <code>B2</code> to the other cells, overwriting the previous  settings:</p><pre><code class="language-julia hljs">julia&gt; XLSX.setUniformBorder(s, &quot;B2,D2,F2&quot;; top=[&quot;style&quot;=&gt;&quot;thick&quot;, &quot;color&quot;=&gt;&quot;red&quot;])
+4</code></pre><p>This makes the border formatting entirely consistent across the cells but leaves the other formatting  attributes (font, fill, format, alignment) as they were.</p><p><img src="../../images/multicell3.png" alt="image|320x500"/></p><p>Finally, we can set <code>B2</code> to have the formatting we want, and then apply a uniform style to all three cells.</p><pre><code class="language-julia hljs">julia&gt; XLSX.setBorder(s, &quot;B2&quot;; top=[&quot;style&quot;=&gt;&quot;thick&quot;, &quot;color&quot;=&gt;&quot;red&quot;])
+4
+
+julia&gt; XLSX.setUniformStyle(s, &quot;B2,D2,F2&quot;)
+19</code></pre><p>Which results in all formatting attributes being entirely consistent across the cells.</p><p><img src="../../images/multicell4.png" alt="image|320x500"/></p><h3 id="Performance-differences-between-methods"><a class="docs-heading-anchor" href="#Performance-differences-between-methods">Performance differences between methods</a><a id="Performance-differences-between-methods-1"></a><a class="docs-heading-anchor-permalink" href="#Performance-differences-between-methods" title="Permalink"></a></h3><p>To illustrtate the relative performance of these three methods, applied to a million cells:</p><pre><code class="language-julia hljs">using XLSX
+function setup()
+    f = XLSX.newxlsx()
+    s = f[1]
+    s[1:1000, 1:1000] = pi
+    return f
+end
+do_format(f) = XLSX.setFormat(f[1], 1:1000, 1:1000; format=&quot;0.0000&quot;)
+do_uniform_format(f) = XLSX.setUniformFormat(f[1], 1:1000, 1:1000; format=&quot;0.0000&quot;)
+function do_format_styles(f)
+    XLSX.setFormat(f[1], &quot;A1&quot;; format=&quot;0.0000&quot;)
+    XLSX.setUniformStyle(f[1], 1:1000, 1:1000)
+end
+function timeit()
+    f = setup()
+    do_format(f)
+    do_uniform_format(f)
+    do_format_styles(f)
+    f = setup()
+    print(&quot;Using `setFormat`        : &quot;)
+    @time do_format(f)
+    f = setup()
+    print(&quot;Using `setUniformFormat` : &quot;)
+    @time do_uniform_format(f)
+    f = setup()
+    print(&quot;Using `setUniformStyle` : &quot;)
+    @time do_format_styles(f)
+    return f
+end
+f=timeit()</code></pre><p>which yields the following timings:</p><pre><code class="nohighlight hljs">Using `setFormat`        :  10.966803 seconds (256.00 M allocations: 19.771 GiB, 18.81% gc time)
+Using `setUniformFormat` :   2.222868 seconds (31.00 M allocations: 1.137 GiB, 19.48% gc time)
+Using `setUniformStyles` :   0.519658 seconds (14.00 M allocations: 416.587 MiB)</code></pre><p>The same test, using the more involved <code>setBorder</code> function</p><pre><code class="language-julia hljs">do_format(f) = XLSX.setBorder(f[1], 1:1000, 1:1000;
+        left     = [&quot;style&quot; =&gt; &quot;dotted&quot;, &quot;color&quot; =&gt; &quot;FF000FF0&quot;],
+        right    = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;firebrick2&quot;],
+        top      = [&quot;style&quot; =&gt; &quot;thick&quot;,  &quot;color&quot; =&gt; &quot;FF230000&quot;],
+        bottom   = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;goldenrod3&quot;],
+        diagonal = [&quot;style&quot; =&gt; &quot;dotted&quot;, &quot;color&quot; =&gt; &quot;FF00D4D4&quot;, &quot;direction&quot; =&gt; &quot;both&quot;]
+    )</code></pre><p>gives</p><pre><code class="nohighlight hljs">Using `setBorder`        :  29.536010 seconds (759.00 M allocations: 64.286 GiB, 22.01% gc time)
+Using `setUniformBorder` :   2.052018 seconds (31.00 M allocations: 1.197 GiB, 13.18% gc time)
+Using `setUniformStyles` :   0.599491 seconds (14.00 M allocations: 416.586 MiB, 15.20% gc time)</code></pre><p>If maintaining heterogeneous formatting attributes is not important, it is more efficient to  apply <code>setUinformAttribute</code> functions rather than <code>setAttribute</code> functions, especially on large  cell ranges, and more efficient still to use <code>setUniformStyle</code>.</p><h2 id="Copying-formatting-attributes"><a class="docs-heading-anchor" href="#Copying-formatting-attributes">Copying formatting attributes</a><a id="Copying-formatting-attributes-1"></a><a class="docs-heading-anchor-permalink" href="#Copying-formatting-attributes" title="Permalink"></a></h2><p>It is possible to use non-contiguous ranges to copy format attributes from any cell to any other cells,  whether you are also updating the source cell&#39;s format or not.</p><pre><code class="language-julia hljs">julia&gt; XLSX.setBorder(s, &quot;BB50&quot;; allsides = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;yellow&quot;])
+3 # Cell BB50 now has the border format I want!
+
+julia&gt; XLSX.setUniformBorder(s, &quot;BB50,A1:CV100&quot;) # Make cell BB50 the first (reference) cell in a non-contiguous range.
+3
+
+julia&gt; XLSX.setUniformStyle(s, &quot;BB50,A1:CV100&quot;) # Or if I want to apply all formatting attributes from BB50 to the range.
+11</code></pre><h2 id="Rich-text-formats"><a class="docs-heading-anchor" href="#Rich-text-formats">Rich text formats</a><a id="Rich-text-formats-1"></a><a class="docs-heading-anchor-permalink" href="#Rich-text-formats" title="Permalink"></a></h2><p>Text in a cell can have font formats applied to any substring element as in this example:</p><p><img src="../../images/complexFontFormats.png" alt="image|320x500"/></p><p>This is referred to here as rich text formatting.</p><p>These rich text formats are stored separately from the cell Style and over-ride any Style-based formatting.</p><h3 id="Creating-a-rich-text-cell-value"><a class="docs-heading-anchor" href="#Creating-a-rich-text-cell-value">Creating a rich text cell value</a><a id="Creating-a-rich-text-cell-value-1"></a><a class="docs-heading-anchor-permalink" href="#Creating-a-rich-text-cell-value" title="Permalink"></a></h3><p>It is possible to create a rich text value in a cell in two ways: using an <code>XLSX.RichTextString</code> or using a <code>StyledString</code> from StyledStrings.jl. If the latter, <code>StyledString</code>s are translated to <code>RichTextStrings</code> before being written to cells.</p><h4 id="Using-RichTextStrings"><a class="docs-heading-anchor" href="#Using-RichTextStrings">Using RichTextStrings</a><a id="Using-RichTextStrings-1"></a><a class="docs-heading-anchor-permalink" href="#Using-RichTextStrings" title="Permalink"></a></h4><p>A rich text string includes formatting that changes for different substring elements of the string. Each substring element is described as a <code>RichTextRun</code>, and multiple <code>RichTextRuns</code> together form a <code>RichTextString</code>. A <code>RichTextRun</code> can describe any or all of the following font attributes: <code>:bold</code>, <code>:italic</code>, <code>:under</code>, <code>:strike</code>, <code>:vertAlign</code>, <code>:color</code>, <code>:size</code>, <code>:name</code>. These attributes have the same effect as described in <a href="../../api/formats/#XLSX.setFont"><code>XLSX.setFont</code></a>, but, unlike <code>setFont</code>, they do not apply to the whole cell, they only apply to the current rich text run substring.</p><p>Thus,</p><pre><code class="nohighlight hljs">julia&gt; rtf1=XLSX.RichTextRun(&quot;Hello&quot;, [:color =&gt; &quot;red&quot;, :size =&gt; 24])
+RichTextRun (&quot;Hello&quot;  [:color =&gt; &quot;red&quot;, :size =&gt; 24])
+
+julia&gt; rtf2=XLSX.RichTextRun(&quot;o&quot;, [:color =&gt; &quot;green&quot;, :size =&gt; 24, :vertAlign =&gt; &quot;superscript&quot;])
+RichTextRun (&quot;o&quot;  [:color =&gt; &quot;green&quot;, :size =&gt; 24, :vertAlign =&gt; &quot;superscript&quot;])
+
+julia&gt; rtf3=XLSX.RichTextRun(&quot; Kitt&quot;, [:color =&gt; &quot;blue&quot;, :size =&gt; 14])
+RichTextRun (&quot; Kitt&quot;  [:color =&gt; &quot;blue&quot;, :size =&gt; 14])
+
+julia&gt; rtf4=XLSX.RichTextRun(&quot;y&quot;, [:color =&gt; &quot;green&quot;, :size =&gt; 14, :vertAlign =&gt; &quot;subscript&quot;])
+RichTextRun (&quot;y&quot;  [:color =&gt; &quot;green&quot;, :size =&gt; 14, :vertAlign =&gt; &quot;subscript&quot;])
+
+julia&gt; rt = XLSX.RichTextString(rtf1, rtf2, rtf3, rtf4)
+RichTextString: &quot;Helloo Kitty&quot;
+ containing 4 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Hello&quot;                  [:color =&gt; &quot;red&quot;, :size =&gt; 24]
+ &quot;o&quot;                      [:color =&gt; &quot;green&quot;, :size =&gt; 24, :vertAlign =&gt; &quot;superscript&quot;]
+ &quot; Kitt&quot;                  [:color =&gt; &quot;blue&quot;, :size =&gt; 14]
+ &quot;y&quot;                      [:color =&gt; &quot;green&quot;, :size =&gt; 14, :vertAlign =&gt; &quot;subscript&quot;]
+
+julia&gt; s[&quot;A1&quot;] = rt
+RichTextString: &quot;Helloo Kitty&quot;
+ containing 4 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Hello&quot;                  [:color =&gt; &quot;red&quot;, :size =&gt; 24]
+ &quot;o&quot;                      [:color =&gt; &quot;green&quot;, :size =&gt; 24, :vertAlign =&gt; &quot;superscript&quot;]
+ &quot; Kitt&quot;                  [:color =&gt; &quot;blue&quot;, :size =&gt; 14]
+ &quot;y&quot;                      [:color =&gt; &quot;green&quot;, :size =&gt; 14, :vertAlign =&gt; &quot;subscript&quot;]       </code></pre><p><img src="../../images/richTextString.png" alt="image|320x500"/></p><p>A <code>RichTextString</code> with only a single run will be converted to a simple text string with font attributes set through <code>setFont</code>.</p><p>For more information, refer to <a href="../../api/formats/#XLSX.RichTextString"><code>XLSX.RichTextString</code></a>.</p><h4 id="Using-StyledStrings"><a class="docs-heading-anchor" href="#Using-StyledStrings">Using StyledStrings</a><a id="Using-StyledStrings-1"></a><a class="docs-heading-anchor-permalink" href="#Using-StyledStrings" title="Permalink"></a></h4><p>An XLSX.jl package extension provides support for <code>AnnotatedStrings</code> from StyledStrings.jl when that package is being used in the current environment. For example:</p><pre><code class="nohighlight hljs">julia&gt; using StyledStrings, XLSX
+
+julia&gt; f = newxlsx()
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+julia&gt; s = f[1]
+1×1 Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; s[&quot;A1&quot;] = styled&quot;{yellow:hello} {blue:there}&quot;
+&quot;hello there&quot;
+
+julia&gt; s[&quot;A2&quot;] = styled&quot;The {bold:{italic:quick {(foreground=#cd853f):brown} fox} jumps over the {(foreground=#FFC000):lazy} dog}&quot;
+&quot;The quick brown fox jumps over the lazy dog&quot;
+
+julia&gt; XLSX.getRichTextString(s, &quot;A1&quot;)
+RichTextString: &quot;hello there&quot;
+ containing 3 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;hello&quot;                  [:color =&gt; &quot;FFE5A509&quot;, :size =&gt; 12.0]
+ &quot; &quot;                      [:size =&gt; 12.0]
+ &quot;there&quot;                  [:color =&gt; &quot;FF195EB3&quot;, :size =&gt; 12.0]
+
+
+julia&gt; XLSX.getRichTextString(s, &quot;A2&quot;)
+RichTextString: &quot;The quick brown fox jumps over the lazy dog&quot;
+ containing 7 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;The &quot;                   [:size =&gt; 12.0]
+ &quot;quick &quot;                 [:bold =&gt; true, :italic =&gt; true, :size =&gt; 12.0]
+ &quot;brown&quot;                  [:bold =&gt; true, :color =&gt; &quot;FFCD853F&quot;, :italic =&gt; true, :size =&gt; …]
+ &quot; fox&quot;                   [:bold =&gt; true, :italic =&gt; true, :size =&gt; 12.0]
+ &quot; jumps over the &quot;       [:bold =&gt; true, :size =&gt; 12.0]
+ &quot;lazy&quot;                   [:bold =&gt; true, :color =&gt; &quot;FFFFC000&quot;, :size =&gt; 12.0]
+ &quot; dog&quot;                   [:bold =&gt; true, :size =&gt; 12.0]
+</code></pre><p><img src="../../images/styledString.png" alt="image|320x500"/></p><p>For more information on the use of styled strings, refer to the documentation for the <a href="https://github.com/JuliaLang/StyledStrings.jl">StyledStrings.jl</a> package.</p><div class="admonition is-info" id="Note-f557674b10741dd7"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-f557674b10741dd7" title="Permalink"></a></header><div class="admonition-body"><p>The use of <code>AnnotatedStrings</code> requires Julia v1.11 or higher</p></div></div><h3 id="Updating-a-rich-text-cell-value"><a class="docs-heading-anchor" href="#Updating-a-rich-text-cell-value">Updating a rich text cell value</a><a id="Updating-a-rich-text-cell-value-1"></a><a class="docs-heading-anchor-permalink" href="#Updating-a-rich-text-cell-value" title="Permalink"></a></h3><p>The <code>setFont</code>, <code>setUniformFont</code> and <code>setUniformStyle</code> functions operate at the cell level and cannot apply  formatting at a substring level. Instead, using any of these functions will remove from a cell&#39;s rich text format  any attributes that these functions are themselves applying or updating on the whole cell, but will leave the remaining  rich text format attributes in place.</p><p>For example, to remove the underlining in column B from the &quot;Hello Kitty&quot; example, above:</p><pre><code class="language-julia hljs">julia&gt; setFont(s, &quot;B&quot;; under=&quot;none&quot;)
+-1</code></pre><p><img src="../../images/complexNoUnder.png" alt="image|320x500"/></p><p>The underlining has been removed, but the other rich text formats remain in place.</p><p>Applying <code>setUniformFont</code> to a range of cells will remove those elements of the rich text format that are now being applied  to the whole cell so that those elements become uniform. Any other heterogeneity arising from rich text formats  (which over-ride Style-based formatting) will remain.</p><p>For example:</p><pre><code class="language-julia hljs">julia&gt; setUniformFont(s, &quot;A1:F2&quot;; color=&quot;orange&quot;)
+23</code></pre><p><img src="../../images/complexUniformColor.png" alt="image|320x500"/></p><p>Similarly, applying <code>setUniformStyle</code> to a range of cells will remove those elements of the rich text format that are now being applied to the whole cells so that those elements become uniform. Any other heterogeneity arising from rich text formats will remain.</p><p>Rich text formats only affect the font settings; other elements of the style (number format, borders, fill, alignment) will be unaffected and will be applied uniformly to the range.</p><p>To illustrate, starting from the initial Excel file above, and using <code>setUniformStyle</code> to apply the Style in cell <code>A1</code> to the cells <code>D1:F2</code>:</p><pre><code class="language-julia hljs">julia&gt; setFont(s, &quot;A1&quot;; size=20) # make sure cell A1 has the formatting we want
+22
+
+julia&gt; XLSX.getFont(s, &quot;A1&quot;) # just to illustrate the cell A1 Style&#39;s font attributes
+XLSX.CellFont(22, Dict{String, Union{Nothing, Dict{String, String}}}(&quot;name&quot; =&gt; Dict(&quot;val&quot; =&gt; &quot;Aptos Narrow&quot;), &quot;sz&quot; =&gt; Dict(&quot;val&quot; =&gt; &quot;20&quot;), &quot;color&quot; =&gt; Dict(&quot;theme&quot; =&gt; &quot;1&quot;)), &quot;1&quot;)
+
+julia&gt; setUniformStyle(s, &quot;A1,D1:F2&quot;) # apply cell A1&#39;s Style to cells D1:F2
+1</code></pre><p><img src="../../images/complexUniformStyle.png" alt="image|320x500"/></p><p>The Style for cell <code>A1</code> has a specified font, size and color. These have been uniformly applied to the range <code>D1:F2</code>, but the other rich text attributes (in this case, bold, italic, underline, super- and sub-script) retain the original heterogeneity.</p><p>If the first cell in the specified range has no defined Style (<code>s=&quot;&quot;</code>), all cells will be given the same undefined style and any rich text formatting will remain unchanged.</p><p>In Excel, subscript and superscript formatting to a substring (for example) can only be made using this kind of rich text formatting, and cannot be set at cell level (neither in Excel nor in <code>setFont</code>). Retaining rich text format heterogeneity in the ways described here preserves these string formatting elements through format changes.</p><p>To clear any rich text formatting and remove the heterogeneity it introduces, simply copy the cells over themselves. This strips out all rich text formatting information from the cells, leaving only the cell content and Style-base formating. For example, for arbitrary cells:</p><pre><code class="language-julia hljs">julia&gt; for row=1:2, col=1:6; s[row,col] = s[row,col]; end</code></pre><p>or, for tabular data:</p><pre><code class="language-julia hljs">julia&gt; writetable!(s, gettable(s, &quot;A:F&quot;; header=false); write_columnnames=false)</code></pre><p><img src="../../images/complexNone.png" alt="image|320x500"/></p><p>An <code>XLSXFile</code> must be opened in write mode for rich text formatting to be editable, otherwise an error is thrown.</p><p>There is no way in XLSX.jl to edit the individual runs of a rich text value. To make changes to individual runs beyond what <code>setFont</code> can achieve, it is neseccary to overwrite the cell with a new <code>RichTextString</code> or <code>AnnotatedString</code>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../tutorial/">« Tutorial</a><a class="docs-footer-nextpage" href="../conditionalFormatting/">Conditional formats »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 14 April 2026 22:10">Tuesday 14 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
