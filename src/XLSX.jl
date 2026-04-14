@@ -5,13 +5,13 @@ import Base.convert
 import Base.Threads
 import Colors
 import Dates
-import Mmap
 import Printf.@printf
 import Random
 import Tables
 import Unicode
 import UUIDs
 import XML
+using OrderedCollections: OrderedDict
 import ZipArchives
 
 import PrecompileTools as PCT    # this is a small dependency.

@@ -648,7 +648,7 @@ end
 xlsx_encode(::Worksheet, val::Missing) = (CT_EMPTY, UInt64(0))
 xlsx_encode(::Worksheet, val::Bool) = (CT_BOOL, UInt64(val))
 xlsx_encode(::Worksheet, val::Float64) = (CT_FLOAT, reinterpret(UInt64, val))
-xlsx_encode(::Worksheet, val::Int) = (CT_INT, reinterpret(UInt64, Int64(val)))
+xlsx_encode(::Worksheet, val::Int64) = (CT_INT, reinterpret(UInt64, val))
 xlsx_encode(ws::Worksheet, val::Dates.Date) = (CT_DATE, reinterpret(UInt64, date_to_excel_value(val, isdate1904(get_xlsxfile(ws)))))
 xlsx_encode(ws::Worksheet, val::Dates.DateTime) = (CT_DATETIME, reinterpret(UInt64, datetime_to_excel_value(val, isdate1904(get_xlsxfile(ws)))))
 xlsx_encode(::Worksheet, val::Dates.Time) = (CT_TIME, reinterpret(UInt64, time_to_excel_value(val)))
@@ -919,7 +919,7 @@ function setdata!(sheet::Worksheet, rows::UnitRange{T}, col::Integer, data::Abst
     setdata!(sheet, anchor_cell_ref, data, 1)
 end
 
-function setdata!(sheet::Worksheet, ref_or_rng::AbstractString, matrix::Array{T,2}) where {T}
+function setdata!(sheet::Worksheet, ref_or_rng::AbstractString, matrix::AbstractArray{T,2}) where {T}
     if is_valid_cellrange(ref_or_rng)
         setdata!(sheet, CellRange(ref_or_rng), matrix)
     elseif is_valid_cellname(ref_or_rng)
@@ -929,17 +929,18 @@ function setdata!(sheet::Worksheet, ref_or_rng::AbstractString, matrix::Array{T,
     end
 end
 
-function setdata!(sheet::Worksheet, ref::CellRef, matrix::Array{T,2}) where {T}
-    rows, cols = size(matrix)
+# Generalise to AbstractArray (#158)
+function setdata!(sheet::Worksheet, ref::CellRef, matrix::AbstractArray{T,2}) where {T}
+    row_ax, col_ax = axes(matrix)
     anchor_row = row_number(ref)
     anchor_col = column_number(ref)
 
-    @inbounds for c in 1:cols, r in 1:rows
-        setdata!(sheet, anchor_row + r - 1, anchor_col + c - 1, matrix[r, c])
+    @inbounds for c in col_ax, r in row_ax
+        setdata!(sheet, anchor_row + (r - first(row_ax)), anchor_col + (c - first(col_ax)), matrix[r, c])
     end
 end
 
-function setdata!(sheet::Worksheet, rng::CellRange, matrix::Array{T,2}) where {T}
+function setdata!(sheet::Worksheet, rng::CellRange, matrix::AbstractArray{T,2}) where {T}
     size(rng) != size(matrix) && throw(XLSXError("Target range $rng size ($(size(rng))) must be equal to the input matrix size ($(size(matrix)))"))
     setdata!(sheet, rng.start, matrix)
 end
@@ -1132,10 +1133,10 @@ function addsheet!(wb::Workbook, name::AbstractString=""; sheet_template_data::V
 
     new_cache = XLSX.WorksheetCache(
         true,
-        Dict{Int64,Dict{Int64,XLSX.Cell}}(),
-        Int64[],
+        Dict{Int,Dict{Int,XLSX.Cell}}(),
+        Int[],
         Dict{Int,Union{Float64,Nothing}}(),
-        Dict{Int64,Int64}(),
+        Dict{Int,Int}(),
         SheetRowStreamIterator(get_xlsxfile(wb)[1]), # Dummy - not needed because using full cache.
         nothing,
         false

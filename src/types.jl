@@ -222,12 +222,14 @@ Union{String, Missing, Float64, Int, Bool, Dates.Date, Dates.Time, Dates.DateTim
     `.xlsx` file.
 
 """
-const CellConcreteType = Union{String, Missing, Float64, Int, Bool, Dates.Date, Dates.Time, Dates.DateTime}
+const CellConcreteType = Union{String, Missing, Float64, Int64, Bool, Dates.Date, Dates.Time, Dates.DateTime}
 
 # CellValue is a Julia type of a value read from a Spreadsheet.
 struct CellValue
     value::CellConcreteType
     styleid::AbstractCellDataFormat
+    CellValue(value::CellConcreteType, styleid::AbstractCellDataFormat) = new(value, styleid)
+    CellValue(value::Integer, styleid::AbstractCellDataFormat) = new(Int64(value), styleid)
 end
 
 #=
@@ -549,6 +551,7 @@ mutable struct Workbook
     sst::SharedStringTable # shared string table
     buffer_styles_is_float::Dict{Int, Bool}      # cell style -> true if is float
     buffer_styles_is_datetime::Dict{Int, Bool}   # cell style -> true if is datetime
+    styles_lock::ReentrantLock # Prevent race conditions when accessing Styles
     workbook_names::Dict{String, DefinedNameValue} # definedName
     worksheet_names::Dict{Tuple{Int, String}, DefinedNameValue} # definedName. (sheetId, name) -> value.
     styles_xroot::Union{XML.Node, Nothing}
@@ -640,6 +643,7 @@ struct TableRowIterator{I<:SheetRowIterator}
     stop_in_empty_row::Bool
     stop_in_row_function::Union{Nothing, Function}
     keep_empty_rows::Bool
+    missing_strings::Set{String} # issue 90
 end
 
 struct TableRow

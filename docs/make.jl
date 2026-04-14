@@ -25,7 +25,13 @@ makedocs(
     checkdocs=:none,
 )
 
+
 deploydocs(
     repo = "github.com/JuliaData/XLSX.jl.git",
     target = "build",
+    versions = [
+        "stable" => "v^",
+        "dev" => "dev"
+    ],
 )
+

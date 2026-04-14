@@ -140,7 +140,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
                 if isnothing(attributes[a])
                     cnode = XML.Element(a)
                 else
-                    cnode = XML.Node(XML.Element, a, XML.OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
+                    cnode = XML.Node(XML.Element, a, OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
                     for (k, v) in attributes[a]
                         cnode[k] = v
                     end
@@ -152,7 +152,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
                 if isnothing(attributes[a])
                     cnode = XML.Element(a)
                 else
-                    cnode = XML.Node(XML.Element, a, XML.OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
+                    cnode = XML.Node(XML.Element, a, OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
                     color = XML.Element("color")
                     for (k, v) in attributes[a]
                         if k == "style" && v != "none"
@@ -179,7 +179,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
                 if isnothing(attributes[a])
                     cnode = XML.Element(a)
                 else
-                    cnode = XML.Node(XML.Element, a, XML.OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
+                    cnode = XML.Node(XML.Element, a, OrderedDict{String,String}(), nothing, tag ∈ ["border", "fill"] ? Vector{XML.Node}() : nothing)
                     patternfill = XML.Element("patternFill")
                     fgcolor = XML.Element("fgColor")
                     bgcolor = XML.Element("bgColor")
@@ -1213,7 +1213,7 @@ end
 get_colorant(color_symb::Symbol) = get_colorant(String(color_symb))
 function get_colorant(color_string::String)
     try
-        c = Colors.parse(Colors.Colorant, color_string)
+        c = parse(Colors.Colorant, color_string)
         rgb = Colors.hex(c, :RRGGBB)
         return "FF" * rgb
     catch

@@ -558,8 +558,8 @@ function parse_workbook!(xf::XLSXFile)
                             defined_value = missing
                         end
                         isabs = false
-                    elseif tryparse(Int, defined_value_string) !== nothing
-                        defined_value = parse(Int, defined_value_string)
+                    elseif tryparse(Int64, defined_value_string) !== nothing
+                        defined_value = parse(Int64, defined_value_string)
                         isabs = false
                     elseif tryparse(Float64, defined_value_string) !== nothing
                         defined_value = parse(Float64, defined_value_string)
@@ -931,7 +931,8 @@ end
         [stop_in_row_function],
         [enable_cache],
         [keep_empty_rows],
-        [normalizenames]
+        [normalizenames],
+        [missing_strings]
     ) -> DataTable
 
 Returns tabular data from a spreadsheet as a struct `XLSX.DataTable`.
@@ -960,6 +961,11 @@ will generate column labels. The default value is `header=true`.
 Use `column_labels` to specify names for the header of the table.
 
 Use `normalizenames=true` to normalize column names to valid Julia identifiers.
+
+Use `missing_strings` to specify strings that should be interpreted as 
+`missing` values in the resulting table. `missing_strings` can be a single 
+string (e.g. "N/A") or a vector of strings (e.g. ["N/A", "NULL"]). 
+The default value is `missing_strings=nothing`.
 
 Use `infer_eltypes=true` to get `data` as a `Vector{Any}` of typed vectors.
 The default value is `infer_eltypes=true`.
@@ -1005,33 +1011,77 @@ julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"))
 
 See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref).
 """
-function readtable(source::Union{AbstractString,IO}; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=false, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false, 
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     c = openxlsx(source; enable_cache) do xf
-        gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+        gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     end
     return c
 end
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=false, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     c = openxlsx(source; enable_cache) do xf
-        gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+        gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     end
     return c
 end
 
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=false, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     c = openxlsx(source; enable_cache) do xf
-        gettable(getsheet(xf, sheet), columns; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+        gettable(getsheet(xf, sheet), columns; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     end
     return c
 end
 
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=false, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     if is_valid_column_range(range)
         range = ColumnRange(range)
     else
         throw(XLSXError("The columns argument must be a valid column range."))
     end
-    return readtable(source, sheet, range; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, enable_cache, keep_empty_rows, normalizenames)
+    return readtable(source, sheet, range; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, enable_cache, keep_empty_rows, normalizenames, missing_strings)
 end
 
 """
@@ -1048,7 +1098,8 @@ end
         [stop_in_row_function],
         [enable_cache],
         [keep_empty_rows],
-        [normalizenames]
+        [normalizenames],
+        [missing_strings]
     ) -> sink
 
 Read and parse an Excel worksheet, materializing directly using the 

@@ -223,7 +223,7 @@ function rereference_formulae(ws::Worksheet, cell::Cell)
     end
 end
 
-function rereference_formulae(ws::Worksheet, oldcell::Cell, f::AbstractFormula, newrng::CellRange, newid::Int64)
+function rereference_formulae(ws::Worksheet, oldcell::Cell, f::AbstractFormula, newrng::CellRange, newid::Int)
     wb = get_workbook(ws)
     oldform = f.formula
     oldunhandled = f.unhandled

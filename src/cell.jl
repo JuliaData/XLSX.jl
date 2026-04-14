@@ -255,25 +255,25 @@ end
 
 const EXCEL_DATE_OFFSET_1904 = 695056
 const EXCEL_DATE_OFFSET_1900 = 693594
-const NANOSECONDS_PER_DAY    = 86_400 * 1_000_000_000
+const NANOSECONDS_PER_DAY    = Int64(86_400) * Int64(1_000_000_000)
 
 # Converts Excel number to Time.
 # x must be in [0, 1), where 1 represents one full day.
 # The decimal part of a floating point number represents the time fraction of a day.
 function excel_value_to_time(x::Float64)::Dates.Time
     0.0 <= x < 1.0 || throw(XLSXError("A value must be in [0, 1) to be converted to time. Got $x"))
-    return Dates.Time(Dates.Nanosecond(round(Int, x * NANOSECONDS_PER_DAY)))
+    return Dates.Time(Dates.Nanosecond(round(Int64, x * NANOSECONDS_PER_DAY)))
 end
 
 time_to_excel_value(x::Dates.Time)::Float64 = Dates.value(x) / NANOSECONDS_PER_DAY
 
 # Converts Excel number to Date. See also XLSX.isdate1904.
-function excel_value_to_date(x::Int, is1904::Bool)::Dates.Date
+function excel_value_to_date(x::Integer, is1904::Bool)::Dates.Date
     offset = is1904 ? EXCEL_DATE_OFFSET_1904 : EXCEL_DATE_OFFSET_1900
     return Dates.Date(Dates.rata2datetime(x + offset))
 end
 
-function date_to_excel_value(date::Dates.Date, is1904::Bool)::Int
+function date_to_excel_value(date::Dates.Date, is1904::Bool)::Int64
     offset = is1904 ? EXCEL_DATE_OFFSET_1904 : EXCEL_DATE_OFFSET_1900
     return Dates.datetime2rata(date) - offset
 end
@@ -283,9 +283,9 @@ end
 # See also XLSX.isdate1904.
 function excel_value_to_datetime(x::Float64, is1904::Bool)::Dates.DateTime
     x >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $x"))
-    dt_part = trunc(Int, x)
+    dt_part = trunc(Int64, x)
     # Round to nearest second to absorb float precision drift
-    hr_ns = round(Int, (x - dt_part) * NANOSECONDS_PER_DAY / 1_000_000_000) * 1_000_000_000
+    hr_ns = round(Int64, (x - dt_part) * NANOSECONDS_PER_DAY / 1_000_000_000) * 1_000_000_000
     return excel_value_to_date(dt_part, is1904) + Dates.Time(Dates.Nanosecond(hr_ns))
 end
 
@@ -305,7 +305,7 @@ function _parse_excel_datetime(v::AbstractString, is1904::Bool)
             (excel_value_to_time(time_value), CT_TIME) :
             (excel_value_to_datetime(time_value, is1904), CT_DATETIME)
     else
-        return excel_value_to_date(parse(Int, v), is1904), CT_DATE
+        return excel_value_to_date(parse(Int64, v), is1904), CT_DATE
     end
 end
 

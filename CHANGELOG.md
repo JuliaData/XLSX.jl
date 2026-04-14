@@ -5,6 +5,15 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- Add support for custom missing strings (issue #90)
+- Widen `setdata!` to accept an AbstractArray (issue #158)
+- Fix intermittent bug with race condition when reading styles
+
+## [v0.11.2](https://github.com/JuliaData/XLSX.jl/tree/v0.11.2) - 2026-04-01
+Bug-fix to support 32-bit Julia
+
+## [v0.11.1](https://github.com/JuliaData/XLSX.jl/tree/v0.11.1) - 2026-03-30
+Minor bug-fix to get the StyledStrings extension working in Julia v1.14
 
 ## [v0.11.0](https://github.com/JuliaData/XLSX.jl/tree/v0.11.0) - 2026-03-23
 This release introduces significant new functionality as set out below.

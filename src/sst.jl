@@ -253,15 +253,15 @@ end
 
 # Looks for a string inside the Shared Strings Table (sst).
 # `index` starts at 0.
-@inline function sst_unformatted_string(wb::Workbook, index::Int)::String
+@inline function sst_unformatted_string(wb::Workbook, index::Int64)::String
     sst_load!(wb)
     uss = get_sst(wb).shared_strings[index+1]
     return unformatted_text(parse(XML.LazyNode, uss))
 end
 
-@inline sst_unformatted_string(xl::XLSXFile, index::Int) :: String = sst_unformatted_string(get_workbook(xl), index)
-@inline sst_unformatted_string(ws::Worksheet, index::Int) :: String = sst_unformatted_string(get_xlsxfile(ws), index)
-@inline sst_unformatted_string(target::Union{Workbook, XLSXFile, Worksheet}, index_str::String) :: String = sst_unformatted_string(target, parse(Int, index_str))
+@inline sst_unformatted_string(xl::XLSXFile, index::Int64) :: String = sst_unformatted_string(get_workbook(xl), index)
+@inline sst_unformatted_string(ws::Worksheet, index::Int64) :: String = sst_unformatted_string(get_xlsxfile(ws), index)
+@inline sst_unformatted_string(target::Union{Workbook, XLSXFile, Worksheet}, index_str::String) :: String = sst_unformatted_string(target, parse(Int64, index_str))
 
 # init the index table
 function init_sst_index(sst::SharedStringTable)
@@ -393,7 +393,7 @@ function Base.show(io::IO, rts::RichTextString)
             s=" "
         else
             # Convert pairs to "key=value"
-            parts = (":"*string(k) * " => " * sprint(show, v) for (k,v) in run.atts)
+            parts = (":"*string(k) * " => " * sprint(show, v) for (k,v) in sort(collect(run.atts), by=first))
 
             s = join(parts, ", ")
 
@@ -503,7 +503,7 @@ function Base.show(io::IO, run::RichTextRun)
     if isnothing(run.atts)
         s = " "
     else
-        parts = (":"*string(k) * " => " * sprint(show, v) for (k,v) in run.atts)
+        parts = (":"*string(k) * " => " * sprint(show, v) for (k,v) in sort(collect(run.atts), by=first))
         s = join(parts, ", ")
 
         # Truncate if too long

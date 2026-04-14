@@ -138,8 +138,17 @@ function eachtablerow(
     stop_in_empty_row::Bool=true,
     stop_in_row_function::Union{Nothing,Function}=nothing,
     keep_empty_rows::Bool=false,
-    normalizenames::Bool=false
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )::TableRowIterator
+
+    ms = if isnothing(missing_strings)
+        Set{String}()
+    elseif missing_strings isa AbstractString
+        Set{String}([missing_strings])
+    else
+        Set{String}(missing_strings)
+    end
 
     # Validate column_labels length early, before any work is done
     column_range = convert(ColumnRange, cols)
@@ -176,11 +185,11 @@ function eachtablerow(
 
     first_data_row = header ? first_row + 1 : first_row
 
-    return TableRowIterator(sheet, Index(column_range, column_labels), first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows)
+    return TableRowIterator(sheet, Index(column_range, column_labels), first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, ms)
 end
 
-function TableRowIterator(sheet::Worksheet, index::Index, first_data_row::Int, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, keep_empty_rows::Bool=false)
-    return TableRowIterator(eachrow(sheet), index, first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows)
+function TableRowIterator(sheet::Worksheet, index::Index, first_data_row::Int, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, keep_empty_rows::Bool=false, missing_strings::Set{String}=Set{String}())
+    return TableRowIterator(eachrow(sheet), index, first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, missing_strings)
 end
 
 # Detects the contiguous column range starting from `columns_ordered[ci]`
@@ -206,7 +215,8 @@ function eachtablerow(
     stop_in_empty_row::Bool=true,
     stop_in_row_function::Union{Nothing,Function}=nothing,
     keep_empty_rows::Bool=false,
-    normalizenames::Bool=false
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )::TableRowIterator
 
     if isnothing(first_row)
@@ -214,7 +224,7 @@ function eachtablerow(
     end
 
     # Bundle shared kwargs to avoid repetition in recursive calls
-    shared_kwargs = (; column_labels, header, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+    shared_kwargs = (; column_labels, header, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 
     for r in eachrow(sheet)
         if row_number(r) < first_row || (isempty(r) && !keep_empty_rows)
@@ -278,12 +288,21 @@ Base.iterate(r::TableRow, state) = _iterate_tablerow(r, iterate(table_column_num
 
 Base.getindex(r::TableRow, x) = getdata(r, x)
 
-function TableRow(table_row::Int, index::Index, sheet_row::SheetRow)
+# Helper — apply missing_strings substitution to a single cell value
+@inline function _apply_missing_strings(val, ms::Set{String})
+    isempty(ms) && return val
+    val isa String && val in ms && return missing
+    return val
+end
+
+function TableRow(table_row::Int, index::Index, sheet_row::SheetRow,
+                  missing_strings::Set{String}=Set{String}())
     ws = get_worksheet(sheet_row)
 
     cell_values = map(table_column_numbers(index)) do table_column_number
         sheet_column = table_column_to_sheet_column_number(index, table_column_number)
-        getdata(ws, getcell(sheet_row, sheet_column))
+        val = getdata(ws, getcell(sheet_row, sheet_column))
+        _apply_missing_strings(val, missing_strings)
     end
 
     return TableRow(table_row, index, cell_values)
@@ -351,8 +370,9 @@ function _skip_empty_rows(itr::TableRowIterator, sheet_row, sheet_row_iterator_s
 end
 
 # Constructs and returns a data TableRow and its successor state.
-function _return_table_row(itr::TableRowIterator, table_row_index::Int, actual_row::Int, sheet_row, sheet_row_iterator_state)
-    table_row = TableRow(table_row_index, itr.index, sheet_row)
+function _return_table_row(itr::TableRowIterator, table_row_index::Int,
+                           actual_row::Int, sheet_row, sheet_row_iterator_state)
+    table_row = TableRow(table_row_index, itr.index, sheet_row, itr.missing_strings)  # ← pass ms
     _should_stop(itr, table_row) && return nothing
     newstate = TableRowIteratorState(table_row_index, actual_row, sheet_row_iterator_state, 0, nothing)
     return table_row, newstate
@@ -487,6 +507,7 @@ const _TABLE_KWARGS = """
     stop_in_row_function::Union{Function,Nothing}=nothing,
     keep_empty_rows::Bool=false,
     normalizenames::Bool=false
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 """
 
 
@@ -501,7 +522,8 @@ const _TABLE_KWARGS = """
         [stop_in_empty_row],
         [stop_in_row_function],
         [keep_empty_rows],
-        [normalizenames]
+        [normalizenames],
+        [missing_strings]
     ) -> DataTable
 
 Returns data from a spreadsheet as a struct `XLSX.DataTable` which
@@ -527,6 +549,10 @@ will generate column labels. The default value is `header=true`.
 Use `column_labels` as a vector of symbols to specify names for the header of the table.
 
 Use `normalizenames=true` to normalize column names to valid Julia identifiers.
+
+Use `missing_strings` to specify strings that should be interpreted as `missing` 
+values in the resulting table. `missing_strings` can be a single string or a 
+vector of strings. The default value is `missing_strings=nothing`.
 
 Use `infer_eltypes=true` to get `data` as a `Vector{Any}` of typed vectors.
 The default value is `infer_eltypes=true`.
@@ -576,10 +602,12 @@ function gettable(sheet::Worksheet, cols::Union{ColumnRange,AbstractString};
     first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true,
     infer_eltypes::Bool=true, stop_in_empty_row::Bool=true,
     stop_in_row_function::Union{Function,Nothing}=nothing,
-    keep_empty_rows::Bool=false, normalizenames::Bool=false)
+    keep_empty_rows::Bool=false, normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
 
     itr = eachtablerow(sheet, cols; first_row, column_labels, header,
-                        stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+                        stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     return gettable(itr; infer_eltypes)
 end
 
@@ -587,10 +615,12 @@ function gettable(sheet::Worksheet;
     first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true,
     infer_eltypes::Bool=true, stop_in_empty_row::Bool=true,
     stop_in_row_function::Union{Function,Nothing}=nothing,
-    keep_empty_rows::Bool=false, normalizenames::Bool=false)
+    keep_empty_rows::Bool=false, normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
 
     itr = eachtablerow(sheet; first_row, column_labels, header,
-                        stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+                        stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     return gettable(itr; infer_eltypes)
 end
 
@@ -699,7 +729,7 @@ column_labels will be preferred and the first column of the table will
 be ignored.
 
 Use `normalizenames=true` to normalize column names to valid Julia identifiers. 
-The default is `normalizenames=false`
+The default is `normalizenames=false`.
 
 # Examples
 

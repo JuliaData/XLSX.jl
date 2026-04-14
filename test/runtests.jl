@@ -2,6 +2,7 @@
 import XLSX
 import Tables
 using Test, Dates, XML
+using OrderedCollections: OrderedDict
 import DataFrames, Random
 import Distributions as Dist
 import CSV
@@ -46,8 +47,8 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
     @test ef_Book1["Sheet1"].name == "Sheet1"
     @test ef_Book1[1].name == "Sheet1"
 
-    @test XLSX.sst_unformatted_string(ef_Book1.workbook, 0) == "B2" # index is 0-based
-    @test XLSX.sst_unformatted_string(ef_Book1, 0) == "B2"
+    @test XLSX.sst_unformatted_string(ef_Book1.workbook, Int64(0)) == "B2" # index is 0-based
+    @test XLSX.sst_unformatted_string(ef_Book1, Int64(0)) == "B2"
     @test XLSX.sst_unformatted_string(ef_Book1, "0") == "B2"
 
     @test !XLSX.has_relationship_by_type(ef_Book1.workbook, "invalid_type")
@@ -1044,7 +1045,7 @@ end
     ints = f["int"][:]
     for n in ints
         if !ismissing(n)
-            @test isa(n, Int)
+            @test isa(n, Int64)
         end
     end
 
@@ -1326,7 +1327,7 @@ end
 
     check_test_data(data, test_data)
 
-    @test XLSX.infer_eltype(data[1]) == Int
+    @test XLSX.infer_eltype(data[1]) == Int64
     @test XLSX.infer_eltype(data[2]) == Union{Missing,String}
     @test XLSX.infer_eltype(data[3]) == Date
     @test XLSX.infer_eltype(data[4]) == Union{Missing,String}
@@ -1336,13 +1337,13 @@ end
     @test XLSX.infer_eltype(Vector{Float64}()) == Float64
     @test XLSX.infer_eltype(Vector{Any}()) == Any
     @test XLSX.infer_eltype([1, "1", 10.2]) == Any
-    @test XLSX.infer_eltype([1, 10]) == Int64
+    @test XLSX.infer_eltype([1, 10]) == Int
     @test XLSX.infer_eltype([1.0, 10.0]) == Float64
     @test XLSX.infer_eltype([1, 10.2]) == Float64 # Promote mixed int/float columns to float (#192)
 
     dtable_inferred = XLSX.gettable(s, infer_eltypes=true)
     data_inferred, col_names = dtable_inferred.data, dtable_inferred.column_labels
-    @test eltype(data_inferred[1]) == Int
+    @test eltype(data_inferred[1]) == Int64
     @test eltype(data_inferred[2]) == Union{Missing,String}
     @test eltype(data_inferred[3]) == Date
     @test eltype(data_inferred[4]) == Union{Missing,String}
@@ -1893,6 +1894,45 @@ end
     @testset "normalizenames" begin
         test_data = ["hello", "Hello 1", "123", Symbol("name")]
         @test XLSX.normalizename.(test_data) == [:hello, :Hello_1, :_123, :name]
+
+        data = Vector{Any}()
+        push!(data, [:sym1, :sym2, :sym3])
+        push!(data, [1.0, 2.0, 3.0])
+        push!(data, ["abc", "DeF", "gHi"])
+        push!(data, [true, true, false])
+        cols = ["1 col", "col \$2", "local", "col:4"]
+
+        XLSX.writetable("mytest.xlsx", data, cols; overwrite=true)
+        df = DataFrames.DataFrame(XLSX.readtable("mytest.xlsx", "Sheet1", normalizenames=true))
+        @test DataFrames.names(df) == Any["_1_col", "col_2", "_local", "col_4"]
+
+    end
+
+    @testset "missing_strings" begin # issue #90
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings="N/A", stop_in_empty_row=false)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [1, 2, 3, missing, 4, 5]
+        test_data[2] = [4, 5, 6, "Null", 7, 8]
+        check_test_data(t.data, test_data)
+
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings="Null", stop_in_empty_row=false)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [1, 2, 3, "N/A", 4, 5]
+        test_data[2] = [4, 5, 6, missing, 7, 8]
+        check_test_data(t.data, test_data)
+
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings=["Null", "N/A"], stop_in_empty_row=false)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [1, 2, 3, missing, 4, 5]
+        test_data[2] = [4, 5, 6, missing, 7, 8]
+        check_test_data(t.data, test_data)
+
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings=["Null", "N/A"], stop_in_empty_row=false, keep_empty_rows=true)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [missing, 1, 2, 3, missing, missing, 4, 5]
+        test_data[2] = [missing, 4, 5, 6, missing, missing, 7, 8]
+        check_test_data(t.data, test_data)
+
     end
 
     @testset "Read DataFrame" begin
@@ -1927,20 +1967,6 @@ end
 
     end
 
-    @testset "normalizenames" begin # Issue #260
-
-        data = Vector{Any}()
-        push!(data, [:sym1, :sym2, :sym3])
-        push!(data, [1.0, 2.0, 3.0])
-        push!(data, ["abc", "DeF", "gHi"])
-        push!(data, [true, true, false])
-        cols = ["1 col", "col \$2", "local", "col:4"]
-
-        XLSX.writetable("mytest.xlsx", data, cols; overwrite=true)
-        df = DataFrames.DataFrame(XLSX.readtable("mytest.xlsx", "Sheet1", normalizenames=true))
-        @test DataFrames.names(df) == Any["_1_col", "col_2", "_local", "col_4"]
-
-    end
 end
 
 @testset "Write" begin
@@ -4877,7 +4903,7 @@ end
             max_val="95"
         )
         @test XML.tag(XLSX.get_x14_icon("3Triangles")) == "x14:cfRule"
-        @test XML.attributes(XLSX.get_x14_icon("3Stars")) == XML.OrderedDict("type" => "iconSet", "priority" => "1", "id" => "XXXX-xxxx-XXXX")
+        @test XML.attributes(XLSX.get_x14_icon("3Stars")) == OrderedDict("type" => "iconSet", "priority" => "1", "id" => "XXXX-xxxx-XXXX")
         @test length(XML.children(XLSX.get_x14_icon("5Boxes"))) == 1
         @test typeof(XLSX.get_x14_icon("Custom")) == XML.Node
     end
