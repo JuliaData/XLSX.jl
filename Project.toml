@@ -25,7 +25,6 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 StyledStringsSstsExt = "StyledStrings"
 
 [compat]
-Artifacts = "1"
 CSV = "0.10.15"
 Colors = "0.13.0"
 Distributions = "0.25.0"
