@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Cells and data · XLSX.jl</title><meta name="title" content="Cells and data · XLSX.jl"/><meta property="og:title" content="Cells and data · XLSX.jl"/><meta property="twitter:title" content="Cells and data · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../tutorial/">Tutorial</a></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../../formatting/cellFormatting/">Cell formats</a></li><li><a class="tocitem" href="../../formatting/conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../../formatting/widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../../formatting/mergedCells/">Merged cells</a></li></ul></li><li><a class="tocitem" href="../../formulae/formulas/">Using Formulas</a></li><li><a class="tocitem" href="../../examples/">Examples</a></li><li><a class="tocitem" href="../../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../files/">Files and worksheets</a></li><li class="is-active"><a class="tocitem" href>Cells and data</a><ul class="internal"><li><a class="tocitem" href="#Cell-referencing"><span>Cell referencing</span></a></li><li><a class="tocitem" href="#Cell-data"><span>Cell data</span></a></li><li><a class="tocitem" href="#Cell-formulas"><span>Cell formulas</span></a></li><li><a class="tocitem" href="#Defined-names"><span>Defined names</span></a></li></ul></li><li><a class="tocitem" href="../formats/">Formats</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">API Reference</a></li><li class="is-active"><a href>Cells and data</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Cells and data</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/api/data.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Cells-and-data"><a class="docs-heading-anchor" href="#Cells-and-data">Cells and data</a><a id="Cells-and-data-1"></a><a class="docs-heading-anchor-permalink" href="#Cells-and-data" title="Permalink"></a></h1><h2 id="Cell-referencing"><a class="docs-heading-anchor" href="#Cell-referencing">Cell referencing</a><a id="Cell-referencing-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-referencing" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.CellRef"><a class="docstring-binding" href="#XLSX.CellRef"><code>XLSX.CellRef</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">CellRef(n::AbstractString)
+CellRef(row::Int, col::Int)</code></pre><p>A <code>CellRef</code> represents a cell location given by row and column identifiers.</p><p><code>CellRef(&quot;B6&quot;)</code> indicates a cell located at column <code>2</code> and row <code>6</code>.</p><p>These row and column integers can also be passed directly to the <code>CellRef</code> constructor: <code>CellRef(6,2) == CellRef(&quot;B6&quot;)</code>.</p><p>Finally, a convenience macro <code>@ref_str</code> is provided: <code>ref&quot;B6&quot; == CellRef(&quot;B6&quot;)</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">cn = XLSX.CellRef(&quot;AB1&quot;)
+println( XLSX.row_number(cn) ) # will print 1
+println( XLSX.column_number(cn) ) # will print 28
+println( string(cn) ) # will print out AB1
+println( cellname(cn) ) # will print out AB1
+
+cn = XLSX.CellRef(1, 28)
+println( XLSX.row_number(cn) ) # will print 1
+println( XLSX.column_number(cn) ) # will print 28
+println( string(cn) ) # will print out AB1
+println( cellname(cn) ) # will print out AB1
+
+cn = XLSX.ref&quot;AB1&quot;
+println( XLSX.row_number(cn) ) # will print 1
+println( XLSX.column_number(cn) ) # will print 28
+println( string(cn) ) # will print out AB1
+println( cellname(cn) ) # will print out AB1</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/types.jl#L7-L41">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.row_number"><a class="docstring-binding" href="#XLSX.row_number"><code>XLSX.row_number</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">row_number(c::CellRef) :: Int</code></pre><p>Returns the row number of a given cell reference.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/cellref.jl#L320-L324">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.column_number"><a class="docstring-binding" href="#XLSX.column_number"><code>XLSX.column_number</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">column_number(c::CellRef) :: Int</code></pre><p>Returns the column number of a given cell reference.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/cellref.jl#L327-L331">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.eachrow"><a class="docstring-binding" href="#XLSX.eachrow"><code>XLSX.eachrow</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">eachrow(sheet)</code></pre><p>Creates a row iterator for a worksheet.</p><p>Base.eachrow(sheet::Worksheet) is defined as a synonym of XLSX.eachrow(sheet::Worksheet)</p><p>Example: Query all cells from columns 1 to 4.</p><pre><code class="language-julia hljs">left = 1  # 1st column
+right = 4 # 4th column
+for sheetrow in eachrow(sheet)
+    for column in left:right
+        cell = XLSX.getcell(sheetrow, column)
+
+        # do something with cell
+    end
+end</code></pre><div class="admonition is-info" id="Note-f9de0c91746b898"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-f9de0c91746b898" title="Permalink"></a></header><div class="admonition-body"><p>The <code>eachrow</code> row iterator will not return any row that  consists entirely of <code>EmptyCell</code>s. These empty rows are not  represented in the .xlsx file and are therefore not seen by the  iterator. The <code>length(eachrow(sheet))</code> function returns  the number of rows that are not entirely empty and will, in any  case, only succeed if the worksheet cache is in use.</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/stream.jl#L259-L289">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.eachtablerow"><a class="docstring-binding" href="#XLSX.eachtablerow"><code>XLSX.eachtablerow</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">eachtablerow(sheet, 
+            [columns]; 
+            [first_row], 
+            [column_labels], 
+            [header], 
+            [stop_in_empty_row], 
+            [stop_in_row_function], 
+            [keep_empty_rows], 
+            [normalizenames],
+            [missing_strings]
+) -&gt; TableRowIterator</code></pre><p>Constructs an iterator of table rows. Each element of the iterator is of type <code>TableRow</code>.</p><p><code>header</code> is a boolean indicating whether the first row of the table is a table header.</p><p>If <code>header == false</code> and no <code>column_labels</code> were supplied, column names will be generated following the column names found in the Excel file.</p><p>The <code>columns</code> argument is a column range, as in <code>&quot;B:E&quot;</code>. If <code>columns</code> is not supplied, the column range will be inferred by the non-empty contiguous cells in the first row of the table.</p><p>The user can replace column names by assigning the optional <code>column_labels</code> input variable with a <code>Vector{Symbol}</code>.</p><p><code>stop_in_empty_row</code> is a boolean indicating whether an empty row marks the end of the table. If <code>stop_in_empty_row=false</code>, the iterator will continue to fetch rows until there&#39;s no more rows in the Worksheet. The default behavior is <code>stop_in_empty_row=true</code>. Empty rows may be returned by the iterator when <code>stop_in_empty_row=false</code>.</p><p><code>stop_in_row_function</code> is a Function that receives a <code>TableRow</code> and returns a <code>Bool</code> indicating if the end of the table was reached. The row that satisfies <code>stop_in_row_function</code> is excluded from the table.</p><p>Example for <code>stop_in_row_function</code>:</p><pre><code class="language-julia hljs">function stop_function(r)
+    v = r[:col_label]
+    return !ismissing(v) &amp;&amp; v == &quot;unwanted value&quot;
+end</code></pre><p><code>keep_empty_rows</code> determines whether rows where all column values are equal to <code>missing</code> are kept (<code>true</code>) or skipped (<code>false</code>) by the row iterator. <code>keep_empty_rows</code> never affects the <em>bounds</em> of the iterator; the number of rows read from a sheet is only affected by <code>first_row</code>, <code>stop_in_empty_row</code> and <code>stop_in_row_function</code> (if specified). <code>keep_empty_rows</code> is only checked once the first and last row of the table have been determined, to see whether to keep or drop empty rows between the first and the last row.</p><p><code>normalizenames</code> controls whether column names will be &quot;normalized&quot; to valid Julia identifiers. By default, this is <code>false</code>. If <code>normalizenames=true</code>, then column names with spaces or that start with numbers will be adjusted with underscores to become  valid Julia identifiers. This is useful when you want to access columns via dot-access or getproperty, like <code>file.col1</code>. The  identifier that comes after the <code>.</code> must be valid, so spaces or identifiers starting with numbers aren&#39;t allowed. (Based on CSV.jl&#39;s <code>CSV.normalizename</code>.)</p><p><code>missing_strings</code> can be used to specify strings that should be interpreted   as <code>missing</code> values in the resulting table. <code>missing_strings</code> can be a single  string or a vector of strings. The default value is <code>missing_strings=nothing</code>.</p><p>Example code:</p><pre><code class="language-julia hljs">for r in XLSX.eachtablerow(sheet)
+    # r is a `TableRow`. Values are read using column labels or numbers.
+    rn = XLSX.row_number(r) # `TableRow` row number.
+    v1 = r[1] # will read value at table column 1.
+    v2 = r[:COL_LABEL2] # will read value at column labeled `:COL_LABEL2`.
+end</code></pre><p>See also <a href="#XLSX.gettable"><code>XLSX.gettable</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/table.jl#L80-L145">source</a></section></details></article><h2 id="Cell-data"><a class="docs-heading-anchor" href="#Cell-data">Cell data</a><a id="Cell-data-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-data" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.readdata"><a class="docstring-binding" href="#XLSX.readdata"><code>XLSX.readdata</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">readdata(source, sheet, ref)
+readdata(source, sheetref)</code></pre><p>Return a scalar, vector or matrix with values from a spreadsheet file. &#39;ref&#39; can be a defined name, a cell reference or a cell, column, row  or non-contiguous range.</p><p>See also <a href="#XLSX.getdata"><code>XLSX.getdata</code></a>.</p><p><strong>Examples</strong></p><p>These function calls are equivalent.</p><pre><code class="language-julia hljs">julia&gt; XLSX.readdata(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;, &quot;A2:B4&quot;)
+3×2 Array{Any,2}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;
+
+julia&gt; XLSX.readdata(&quot;myfile.xlsx&quot;, 1, &quot;A2:B4&quot;)
+3×2 Array{Any,2}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;
+
+julia&gt; XLSX.readdata(&quot;myfile.xlsx&quot;, &quot;mysheet!A2:B4&quot;)
+3×2 Array{Any,2}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;</code></pre><p>Non-contiguous ranges return vectors of Array{Any, 2} with an entry for every non-contiguous (comma-separated)  element in the range.</p><pre><code class="language-julia hljs">julia&gt; XLSX.readdata(&quot;customXml.xlsx&quot;, &quot;Mock-up&quot;, &quot;Location&quot;) # `Location` is a `definedName` for a non-contiguous range
+4-element Vector{Matrix{Any}}:
+ [&quot;Here&quot;;;]
+ [missing;;]
+ [missing;;]
+ [missing;;]</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/read.jl#L988-L1034">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getdata"><a class="docstring-binding" href="#XLSX.getdata"><code>XLSX.getdata</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getdata(sheet, ref)
+getdata(sheet, row, column)</code></pre><p>Returns a scalar, matrix or a vector of matrices with values from  a spreadsheet.</p><p><code>ref</code> can be a cell reference or a range or a valid defined name.</p><p>If <code>ref</code> is a single cell, a scalar is returned.</p><p>Most ranges are rectangular and will return a 2-D matrix  (<code>Array{AbstractCell, 2}</code>). For row and column ranges, the  extent of the range in the other dimension is determined by  the worksheet&#39;s dimension.</p><p>A non-contiguous range (which may not be rectangular) will return  a vector of <code>Array{AbstractCell, 2}</code> matrices with one element for  each non-contiguous (comma separated) element in the range.</p><p>Indexing in a <code>Worksheet</code> will dispatch to <code>getdata</code> method.</p><p><strong>Example</strong></p><pre><code class="language-julia hljs">julia&gt; f = XLSX.readxlsx(&quot;myfile.xlsx&quot;)
+
+julia&gt; sheet = f[&quot;mysheet&quot;] # Worksheet
+
+julia&gt; matrix = sheet[&quot;A1:B4&quot;] # CellRange
+
+julia&gt; matrix = sheet[&quot;A:B&quot;] # Column range
+
+julia&gt; matrix = sheet[&quot;1:4&quot;] # Row range
+
+julia&gt; matrix = sheet[&quot;Contiguous&quot;] # Named range
+
+julia&gt; matrix = sheet[1:30, 1] # use unit ranges to define rows and/or columns
+
+julia&gt; matrix = sheet[[1, 2, 3], 1] # vectors of integers to define rows and/or columns
+
+julia&gt; vector = sheet[&quot;A1:A4,C1:C4,G5&quot;] # Non-contiguous range
+
+julia&gt; vector = sheet[&quot;Location&quot;] # Non-contiguous named range
+
+julia&gt; scalar = sheet[2, 2] # Cell &quot;B2&quot;
+</code></pre><p>See also <a href="#XLSX.readdata"><code>XLSX.readdata</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/worksheet.jl#L138-L188">source</a></section><section><div><pre><code class="language-julia hljs">getdata(ws::Worksheet, cell::Cell) :: CellValue</code></pre><p>Returns a Julia representation of a given cell value. The result data type is chosen based on the value of the cell as well as its style.</p><p>For example, date is stored as integers inside the spreadsheet, and the style is the information that is taken into account to chose <code>Date</code> as the result type.</p><p>For numbers, if the style implies that the number is visualized with decimals, the method will return a float, even if the underlying number is stored as an integer inside the spreadsheet XML.</p><p>If <code>cell</code> has empty value or empty <code>String</code>, this function will return <code>missing</code>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/cell.jl#L430-L444">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getcell"><a class="docstring-binding" href="#XLSX.getcell"><code>XLSX.getcell</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getcell(xlsxfile, cell_reference_name) :: AbstractCell
+getcell(worksheet, cell_reference_name) :: AbstractCell
+getcell(sheetrow, column_name) :: AbstractCell
+getcell(sheetrow, column_number) :: AbstractCell</code></pre><p>Returns the internal representation of a worksheet cell.</p><p>Returns <code>XLSX.EmptyCell</code> if the cell has no data.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/stream.jl#L231-L240">source</a></section><section><div><pre><code class="language-julia hljs">getcell(sheet, ref)
+getcell(sheet, row, col)</code></pre><p>Return an <code>AbstractCell</code> that represents a cell in the spreadsheet. Return a 2-D matrix as <code>Array{AbstractCell, 2}</code> if <code>ref</code> is a  rectangular range. For row and column ranges, the extent of the range in the other  dimension is determined by the worksheet&#39;s dimension. A non-contiguous range (which may not be rectangular) will return  a vector of <code>Array{AbstractCell, 2}</code> with one element for each  non-contiguous (comma separated) element in the range.</p><p>If <code>ref</code> is a range, <code>getcell</code> dispatches to <a href="#XLSX.getcellrange"><code>getcellrange</code></a>.</p><p>Example:</p><pre><code class="language-julia hljs">julia&gt; xf = XLSX.readxlsx(&quot;myfile.xlsx&quot;)
+
+julia&gt; sheet = xf[&quot;mysheet&quot;]
+
+julia&gt; cell = XLSX.getcell(sheet, &quot;A1&quot;)
+
+julia&gt; cell = XLSX.getcell(sheet, 1:3, [2,4,6])
+</code></pre><p>Other examples are as <a href="#XLSX.getdata"><code>getdata()</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/worksheet.jl#L301-L331">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getcellrange"><a class="docstring-binding" href="#XLSX.getcellrange"><code>XLSX.getcellrange</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getcellrange(sheet, rng)</code></pre><p>Return a matrix with cells as <code>Array{AbstractCell, 2}</code>. <code>rng</code> must be a valid cell range, column range or row range, as in <code>&quot;A1:B2&quot;</code>, <code>&quot;A:B&quot;</code> or <code>&quot;1:2&quot;</code>, or a non-contiguous range. For row and column ranges, the extent of the range in the other  dimension is determined by the worksheet&#39;s dimension. A non-contiguous range (which may not be rectangular) will return  a vector of <code>Array{AbstractCell, 2}</code> with one element for each  non-contiguous (comma separated) element in the range.</p><p>Example:</p><pre><code class="language-julia hljs">julia&gt; ncr = &quot;B3,A1,C2&quot; # non-contiguous range, &quot;out of order&quot;.
+&quot;B3,A1,C2&quot;
+
+julia&gt;  XLSX.getcellrange(f[1], ncr)
+3-element Vector{Matrix{XLSX.AbstractCell}}:
+ [XLSX.Cell(B3, 0x0000000000000018, 0x00000000, 0x0000, XLSX.CT_INT, false);;]
+ [XLSX.Cell(A1, 0x0000000000000018, 0x00000000, 0x0000, XLSX.CT_INT, false);;]
+ [XLSX.Cell(C2, 0x0000000000000018, 0x00000000, 0x0000, XLSX.CT_INT, false);;]
+</code></pre><p>For other examples, see <a href="#XLSX.getcell"><code>getcell()</code></a> and <a href="#XLSX.getdata"><code>getdata()</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/worksheet.jl#L392-L420">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.iserror"><a class="docstring-binding" href="#XLSX.iserror"><code>XLSX.iserror</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">iserror(s::Worksheet, ref::AbstractString)
+iserror(s::Worksheet, rows, cols)</code></pre><p>Returns <code>true</code> if the cell(s) at the given reference contain an error, <code>false</code> otherwise. An <code>EmptyCell</code> is not considered an error and returns <code>false</code>.</p><p>The return type depends on the type of <code>ref</code> and is the same shape as the return  type of <code>getcell</code> for the same <code>ref</code>:</p><ul><li>If <code>ref</code> or (<code>row</code>, <code>col</code>) refers to a single cell, returns a single Bool.</li><li>If <code>ref</code> or (<code>rows</code>, <code>cols</code>) refers to a range of cells, returns a matrix of Bools.</li><li>If <code>ref</code> or (<code>rows</code>, <code>cols</code>) refers to a non-contiguous range of cells, returns a vector of matrices of Bools.</li></ul><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.iserror(sh, &quot;A1&quot;) # Cell
+true
+
+julia&gt; XLSX.iserror(sh, &quot;I1&quot;) # EmptyCell
+false
+
+julia&gt; XLSX.iserror(sh, &quot;A1:I1&quot;) # CellRange - note that I1 is an EmptyCell, which is not an error
+1×9 Matrix{Bool}:
+ 1  1  1  1  1  1  1  1  0
+
+julia&gt; XLSX.iserror(sh, &quot;A1:B1,D1:E1&quot;) # non-contiguous range
+2-element Vector{Matrix{Bool}}:
+ [1 1]
+ [1 1]</code></pre><p>See also <a href="#XLSX.geterror"><code>XLSX.geterror</code></a>, <a href="#XLSX.getcell"><code>XLSX.getcell</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/cell.jl#L66-L98">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.geterror"><a class="docstring-binding" href="#XLSX.geterror"><code>XLSX.geterror</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">geterror(s::Worksheet, ref::AbstractString)
+geterror(s::Worksheet, rows, cols)</code></pre><p>Returns the error value (e.g. <code>#DIV/0!</code>) for the cell(s) at the given reference, if any.  If there is no error, returns an empty string.</p><p>The return type depends on the type of <code>ref</code> and is the same shape as the return  type of <code>getcell</code> for the same <code>ref</code>:</p><ul><li>If <code>ref</code> or (<code>row</code>, <code>col</code>) refers to a single cell, returns a single Bool.</li><li>If <code>ref</code> or (<code>rows</code>, <code>cols</code>) refers to a range of cells, returns a matrix of Bools.</li><li>If <code>ref</code> or (<code>rows</code>, <code>cols</code>) refers to a non-contiguous range of cells, returns a vector of matrices of Bools.</li></ul><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.geterror(sh, &quot;A1&quot;) # Cell
+&quot;#NULL!&quot;
+
+julia&gt; XLSX.geterror(sh, &quot;I1&quot;) # EmptyCell
+&quot;&quot;
+
+julia&gt; XLSX.geterror(sh, &quot;A1:I1&quot;) # CellRange - note that I1 is an EmptyCell, which returns an empty string
+1×9 Matrix{String}:
+ &quot;#NULL!&quot;  &quot;#DIV/0!&quot;  &quot;#VALUE!&quot;  &quot;#REF!&quot;  &quot;#NAME?&quot;  &quot;#NUM!&quot;  &quot;#N/A&quot;  &quot;#VALUE!&quot;  &quot;&quot;
+
+julia&gt; XLSX.geterror(sh, &quot;A1:B1,D1:E1&quot;) # non-contiguous range
+2-element Vector{Matrix{String}}:
+ [&quot;#NULL!&quot; &quot;#DIV/0!&quot;]
+ [&quot;#REF!&quot; &quot;#NAME?&quot;]</code></pre><p>See also <a href="#XLSX.iserror"><code>XLSX.iserror</code></a>, <a href="#XLSX.getcell"><code>XLSX.getcell</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/cell.jl#L110-L142">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.gettable"><a class="docstring-binding" href="#XLSX.gettable"><code>XLSX.gettable</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">gettable(
+    sheet,
+    [columns];
+    [first_row],
+    [column_labels],
+    [header],
+    [infer_eltypes],
+    [stop_in_empty_row],
+    [stop_in_row_function],
+    [keep_empty_rows],
+    [normalizenames],
+    [missing_strings]
+) -&gt; DataTable</code></pre><p>Returns data from a spreadsheet as a struct <code>XLSX.DataTable</code> which can be passed directly to any function that accepts <code>Tables.jl</code> data. (e.g. <code>DataFrame</code> from package <code>DataFrames.jl</code>).</p><p>Use <code>columns</code> argument to specify which columns to get. For example, <code>&quot;B:D&quot;</code> will select columns <code>B</code>, <code>C</code> and <code>D</code>. If <code>columns</code> is not given, the algorithm will find the first sequence of consecutive non-empty cells.</p><p>Use <code>first_row</code> to indicate the first row from the table. <code>first_row=5</code> will look for a table starting at sheet row <code>5</code>. If <code>first_row</code> is not given, the algorithm will look for the first non-empty row in the spreadsheet.</p><p><code>header</code> is a <code>Bool</code> indicating if the first row is a header. If <code>header=true</code> and <code>column_labels</code> is not specified, the column labels for the table will be read from the first row of the table. If <code>header=false</code> and <code>column_labels</code> is not specified, the algorithm will generate column labels. The default value is <code>header=true</code>.</p><p>Use <code>column_labels</code> as a vector of symbols to specify names for the header of the table.</p><p>Use <code>normalizenames=true</code> to normalize column names to valid Julia identifiers.</p><p>Use <code>missing_strings</code> to specify strings that should be interpreted as <code>missing</code>  values in the resulting table. <code>missing_strings</code> can be a single string or a  vector of strings. The default value is <code>missing_strings=nothing</code>.</p><p>Use <code>infer_eltypes=true</code> to get <code>data</code> as a <code>Vector{Any}</code> of typed vectors. The default value is <code>infer_eltypes=true</code>.</p><p><code>stop_in_empty_row</code> is a boolean indicating whether an empty row marks the end of the table. If <code>stop_in_empty_row=false</code>, the <code>TableRowIterator</code> will continue to fetch rows until there&#39;s no more rows in the Worksheet. The default behavior is <code>stop_in_empty_row=true</code>.</p><p><code>stop_in_row_function</code> is a Function that receives a <code>TableRow</code> and returns a <code>Bool</code> indicating if the end of the table was reached.</p><p><strong>Example for <code>stop_in_row_function</code></strong></p><pre><code class="language-julia hljs">function stop_function(r)
+    v = r[:col_label]
+    return !ismissing(v) &amp;&amp; v == &quot;unwanted value&quot;
+end</code></pre><p><code>keep_empty_rows</code> determines whether rows where all column values are equal to <code>missing</code> are kept (<code>true</code>) or dropped (<code>false</code>) from the resulting table. <code>keep_empty_rows</code> never affects the <em>bounds</em> of the table; the number of rows read from a sheet is only affected by <code>first_row</code>, <code>stop_in_empty_row</code> and <code>stop_in_row_function</code> (if specified). <code>keep_empty_rows</code> is only checked once the first and last row of the table have been determined, to see whether to keep or drop empty rows between the first and the last row.</p><p><strong>Example</strong></p><pre><code class="language-julia hljs">julia&gt; using DataFrames, PrettyTables, XLSX
+
+julia&gt; df = XLSX.openxlsx(&quot;myfile.xlsx&quot;) do xf
+        DataFrame(XLSX.gettable(xf[&quot;mysheet&quot;]))
+    end
+
+julia&gt; PrettyTable(XLSX.gettable(xf[&quot;mysheet&quot;], &quot;A:C&quot;))
+┌─────────┬─────────┬─────────┐
+│ Header1 │ Header2 │ Header3 │
+├─────────┼─────────┼─────────┤
+│       1 │       2 │       3 │
+│       4 │       5 │       6 │
+│       7 │       8 │       9 │
+└─────────┴─────────┴─────────┘
+   </code></pre><p>See also: <a href="#XLSX.readtable"><code>XLSX.readtable</code></a>, <a href="#XLSX.readto"><code>XLSX.readto</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/table.jl#L551-L637">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.readtable"><a class="docstring-binding" href="#XLSX.readtable"><code>XLSX.readtable</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">readtable(
+    source,
+    [sheet,
+    [columns]];
+    [first_row],
+    [column_labels],
+    [header],
+    [infer_eltypes],
+    [stop_in_empty_row],
+    [stop_in_row_function],
+    [enable_cache],
+    [keep_empty_rows],
+    [normalizenames],
+    [missing_strings]
+) -&gt; DataTable</code></pre><p>Returns tabular data from a spreadsheet as a struct <code>XLSX.DataTable</code>. Use this function to create a <code>DataFrame</code> from package <code>DataFrames.jl</code>  (or other <code>Tables.jl</code>` compatible object).</p><p>If <code>sheet</code> is not given, the first sheet in the <code>XLSXFile</code> will be used.</p><p>Use <code>columns</code> argument to specify which columns to get. For example, <code>&quot;B:D&quot;</code> will select columns <code>B</code>, <code>C</code> and <code>D</code>. If <code>columns</code> is not given, the algorithm will find the first sequence of consecutive non-empty cells. A valid <code>sheet</code> must be specified  when specifying <code>columns</code>.</p><p>Use <code>first_row</code> to indicate the first row of the table. <code>first_row=5</code> will look for a table starting at sheet row <code>5</code>. If <code>first_row</code> is not given, the algorithm will look for the first non-empty row in the spreadsheet.</p><p><code>header</code> is a <code>Bool</code> indicating if the first row is a header. If <code>header=true</code> and <code>column_labels</code> is not specified, the column labels for the table will be read from the first row of the table. If <code>header=false</code> and <code>column_labels</code> is not specified, the algorithm will generate column labels. The default value is <code>header=true</code>.</p><p>Use <code>column_labels</code> to specify names for the header of the table.</p><p>Use <code>normalizenames=true</code> to normalize column names to valid Julia identifiers.</p><p>Use <code>missing_strings</code> to specify strings that should be interpreted as  <code>missing</code> values in the resulting table. <code>missing_strings</code> can be a single  string (e.g. <code>&quot;N/A&quot;</code>) or a vector of strings (e.g. <code>[&quot;N/A&quot;, &quot;NULL&quot;]</code>).  The default value is <code>missing_strings=nothing</code>.</p><p>Use <code>infer_eltypes=true</code> to get <code>data</code> as a <code>Vector{Any}</code> of typed vectors. The default value is <code>infer_eltypes=true</code>.</p><p><code>stop_in_empty_row</code> is a boolean indicating whether an empty row marks the  end of the table. If <code>stop_in_empty_row=false</code>, the <code>TableRowIterator</code> will  continue to fetch rows until there&#39;s no more rows in the Worksheet or range. The default behavior is <code>stop_in_empty_row=true</code>.</p><p><code>stop_in_row_function</code> is a Function that receives a <code>TableRow</code> and returns  a <code>Bool</code> indicating if the end of the table was reached.</p><p>Example for <code>stop_in_row_function</code>:</p><pre><code class="language-julia hljs">function stop_function(r)
+    v = r[:col_label]
+    return !ismissing(v) &amp;&amp; v == &quot;unwanted value&quot;
+end</code></pre><p><code>enable_cache</code> is a boolean that determines whether cell data are loaded  into the worksheet cache on reading. Using <code>readtable</code> with <code>enable_cache=true</code>  is faster than with <code>enable_cache=false</code> for large files, but uses more  memory. The default behavior is <code>enable_cache=true</code>.</p><p><code>keep_empty_rows</code> determines whether rows where all column values are equal  to <code>missing</code> are kept (<code>true</code>) or dropped (<code>false</code>) from the resulting table.  <code>keep_empty_rows</code> never affects the <em>bounds</em> of the table; the number of  rows read from a sheet is only affected by <code>first_row</code>, <code>stop_in_empty_row</code>  and <code>stop_in_row_function</code> (if specified). <code>keep_empty_rows</code> is only checked once the first and last row of the table  have been determined, to see whether to keep or drop empty rows between the  first and the last row. The default behavior is <code>keep_empty_rows=false</code>.</p><p><strong>Example</strong></p><pre><code class="language-julia hljs">julia&gt; using DataFrames, XLSX
+
+julia&gt; df = DataFrame(XLSX.readtable(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;))</code></pre><p>See also: <a href="#XLSX.gettable"><code>XLSX.gettable</code></a>, <a href="#XLSX.readto"><code>XLSX.readto</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/read.jl#L1049-L1142">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.readto"><a class="docstring-binding" href="#XLSX.readto"><code>XLSX.readto</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">readto(
+    source,
+    [sheet,
+    [columns]],
+    sink;
+    [first_row],
+    [column_labels],
+    [header],
+    [infer_eltypes],
+    [stop_in_empty_row],
+    [stop_in_row_function],
+    [enable_cache],
+    [keep_empty_rows],
+    [normalizenames],
+    [missing_strings]
+) -&gt; sink</code></pre><p>Read and parse an Excel worksheet, materializing directly using the  <code>sink</code> function, which can be any <code>Tables.jl</code>-compatible function  (e.g. <code>DataFrame</code>, <code>StructArray</code> or <code>TypedTable</code>`).</p><p>Takes the same keyword arguments as <a href="#XLSX.readtable"><code>XLSX.readtable</code></a> </p><p><strong>Example</strong></p><pre><code class="language-julia hljs">julia&gt; using DataFrames, StructArrays, TypedTables, XLSX
+
+julia&gt; df = XLSX.readto(&quot;myfile.xlsx&quot;, DataFrame)
+
+julia&gt; sa = XLSX.readto(&quot;myfile.xlsx&quot;, StructArray)
+
+julia&gt; tt = XLSX.readto(&quot;myfile.xlsx&quot;, Table) # from TypedTables.jl
+
+julia&gt; df = XLSX.readto(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;, DataFrame)
+
+julia&gt; df = XLSX.readto(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;, &quot;A:C&quot;, DataFrame)</code></pre><p>See also: <a href="#XLSX.gettable"><code>XLSX.gettable</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/read.jl#L1216-L1257">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.gettransposedtable"><a class="docstring-binding" href="#XLSX.gettransposedtable"><code>XLSX.gettransposedtable</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">gettransposedtable(
+    sheet,
+    [rows];
+    [first_column],
+    [column_labels],
+    [header],
+    [normalizenames]
+) -&gt; DataTable</code></pre><p>Read a transposed table from a worksheet in which data are arranged in  rows rather than columns. For example:</p><pre><code class="language-julia hljs">Category    &quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;
+variable 1  10,  20,  30,  40
+variable 2  15,  25,  35,  40
+variable 3  20,  30,  40,  50</code></pre><p>Returns data from a worksheet as a struct <code>XLSX.DataTable</code> which can be passed directly to any function that accepts <code>Tables.jl</code> data. (e.g. <code>DataFrame</code> from package <code>DataFrames.jl</code>).</p><p>Use the <code>rows</code> argument to specify which worksheeet rows to include. For example, <code>&quot;2:7&quot;</code> will select rows 2 to 7 (inclusive). If <code>rows</code> is not given, the algorithm will find the first sequence of consecutive non-empty cells. If <code>rows</code> includes leading or trailing  rows that are completely empty, these rows will be omitted from the  returned table. In any case, the table will be truncated at the first  and last non-empty rows, even if this range is smaller than <code>rows</code>.  A valid <code>sheet</code> must be specified when specifying <code>rows</code>.</p><p>Use <code>first_column</code> to indicate the first column of the table. May be given  as a column number or as a string, so that <code>first_column=&quot;E&quot;</code> and <code>first_column=5</code> will both look for a table starting at column <code>5</code> (&quot;E&quot;). Any leading completely empty columns will be ignored, including  the <code>first_column</code>. If <code>first_column</code> is not given, the algorithm will  look for the first non-empty column in the spreadsheet.</p><p><code>header</code> is a <code>Bool</code> indicating if the first row is a header. If <code>header=true</code> and <code>column_labels</code> is not specified, the column labels for the table will be read from the first column of the table. If <code>header=false</code> and <code>column_labels</code> is not specified, the algorithm will generate column labels. The default value is <code>header=true</code>.</p><p>Use <code>column_labels</code> as a vector of symbols to specify names for the  header of the table. If <code>header=true</code> and <code>column_labels</code> is also given,  column_labels will be preferred and the first column of the table will  be ignored.</p><p>Use <code>normalizenames=true</code> to normalize column names to valid Julia identifiers.  The default is <code>normalizenames=false</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; using DataFrames, PrettyTables, XLSX
+
+julia&gt; xf = XLSX.openxlsx(&quot;HTable.xlsx&quot;)
+XLSXFile(&quot;HTable.xlsx&quot;) containing 4 Worksheets
+            sheetname size          range
+-------------------------------------------------
+               Origin 6x10          B2:K7
+               Offset 8x12          A1:L8
+             Multiple 8x22          A1:V8
+              Example 4x5           B2:F5
+              
+julia&gt; DataFrame(XLSX.gettransposedtable(xf[&quot;Example&quot;]))
+4×4 DataFrame
+ Row │ Category  Variable 1  Variable 2  Variable 3 
+     │ String    Int64       Int64       Int64
+─────┼──────────────────────────────────────────────
+   1 │ A                 10          15          20
+   2 │ B                 20          25          30
+   3 │ C                 30          35          40
+   4 │ D                 40          40          50
+
+julia&gt; PrettyTable(XLSX.gettransposedtable(xf[&quot;Example&quot;]; normalizenames=true))
+┌──────────┬────────────┬────────────┬────────────┐
+│ Category │ Variable_1 │ Variable_2 │ Variable_3 │
+├──────────┼────────────┼────────────┼────────────┤
+│        A │         10 │         15 │         20 │
+│        B │         20 │         25 │         30 │
+│        C │         30 │         35 │         40 │
+│        D │         40 │         40 │         50 │
+└──────────┴────────────┴────────────┴────────────┘
+
+julia&gt; DataFrame(gettransposedtable(xf[&quot;Example&quot;]; header=false))
+5×4 DataFrame
+ Row │ Col_1     Col_2       Col_3       Col_4      
+     │ String    Any         Any         Any
+─────┼──────────────────────────────────────────────
+   1 │ Category  Variable 1  Variable 2  Variable 3
+   2 │ A         10          15          20
+   3 │ B         20          25          30
+   4 │ C         30          35          40
+   5 │ D         40          40          50
+</code></pre><p>The worksheet <code>Multiple</code> contains two tables side by side, separated by an empty column. Only the first table is read by default. Read the second table by additionally specifying  the <code>first_column</code>.</p><pre><code class="language-julia hljs">julia&gt; DataFrame(XLSX.gettransposedtable(xf[&quot;Multiple&quot;], &quot;2:7&quot;))
+9×6 DataFrame
+ Row │ Year   Col A  Col B  Col C  Col D    Col E      
+     │ Int64  Int64  Int64  Int64  Float64  Any
+─────┼─────────────────────────────────────────────────
+   1 │  1940      1     10    100      0.1  Hello
+   2 │  1950      2     20    200      0.2  2025-12-19
+   3 │  1960      3     30    300      0.3  3
+   4 │  1970      4     40    400      0.4  3.33
+   5 │  1980      5     50    500      0.5  Hello
+   6 │  1990      6     60    600      0.6  2025-12-19
+   7 │  2000      7     70    700      0.7  3
+   8 │  2010      8     80    800      0.8  3.33
+   9 │  2020      9     90    900      0.9  true
+
+julia&gt; DataFrame(XLSX.gettransposedtable(xf[&quot;Multiple&quot;], &quot;2:7&quot;; first_column=&quot;M&quot;))
+9×6 DataFrame
+ Row │ date   name1    name2    name3  name4     name5      
+     │ Int64  Float64  Float64  Bool   Time      Any
+─────┼──────────────────────────────────────────────────────
+   1 │  1840     12.4    0.045   true  10:22:00  Hello
+   2 │  1841     12.6    0.046   true  10:23:00  2025-12-19
+   3 │  1842     12.8    0.047  false  10:24:00  3
+   4 │  1843     13.0    0.048   true  10:25:00  3.33
+   5 │  1844     13.2    0.049  false  10:26:00  Hello
+   6 │  1845     13.4    0.05    true  10:27:00  2025-12-19
+   7 │  1846     13.6    0.051   true  10:28:00  3
+   8 │  1847     13.8    0.052   true  10:29:00  3.33
+   9 │  1848     14.0    0.053  false  10:30:00  true
+</code></pre><p>See also: <a href="#XLSX.readtransposedtable"><code>XLSX.readtransposedtable</code></a>, <a href="#XLSX.readtable"><code>XLSX.readtable</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/table.jl#L723-L859">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.readtransposedtable"><a class="docstring-binding" href="#XLSX.readtransposedtable"><code>XLSX.readtransposedtable</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">readtransposedtable(
+    source,
+    [sheet,
+    [rows]];
+    [first_column],
+    [column_labels],
+    [header],
+    [normalizenames]
+) -&gt; DataTable</code></pre><p>Read a transposed table from an Excel file, <code>source</code>, in which data are arranged in  rows rather than columns in a worksheet. For example:</p><pre><code class="language-julia hljs">Category      &quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;
+&quot;variable 1&quot;  10,  20,  30,  40
+&quot;variable 2&quot;  15,  25,  35,  40
+&quot;variable 3&quot;  20,  30,  40,  50</code></pre><p>Returns data from a worksheet as a struct <code>XLSX.DataTable</code> which can be passed directly to any function that accepts <code>Tables.jl</code> data. (e.g. <code>DataFrame</code> from package <code>DataFrames.jl</code>).</p><p>If <code>sheet</code> is not given, the first sheet in the <code>XLSXFile</code> will be used.</p><p>Use the <code>rows</code> argument to specify which worksheeet rows to include. For example, <code>&quot;2:7&quot;</code> will select rows 2 to 7 (inclusive). If <code>rows</code> is not given, the algorithm will find the first sequence of consecutive non-empty cells. If <code>rows</code> includes leading or trailing  rows that are completely empty, these rows will be omitted from the  returned table. In any case, the table will be truncated at the first  and last non-empty rows, even if this range is smaller than <code>rows</code>.  A valid <code>sheet</code> must be specified when specifying <code>rows</code>.</p><p>Use <code>first_column</code> to indicate the first column of the table. May be given  as a column number or as a string, so that <code>first_column=&quot;E&quot;</code> and <code>first_column=5</code> will both look for a table starting at column <code>5</code> (&quot;E&quot;). Any leading completely empty columns will be ignored, including  the <code>first_column</code>. If <code>first_column</code> is not given, the algorithm will  look for the first non-empty column in the spreadsheet.</p><p><code>header</code> is a <code>Bool</code> indicating if the first row is a header. If <code>header=true</code> and <code>column_labels</code> is not specified, the column labels for the table will be read from the first column of the table. If <code>header=false</code> and <code>column_labels</code> is not specified, the algorithm will generate column labels. The default value is <code>header=true</code>.</p><p>Use <code>column_labels</code> as a vector of symbols to specify names for the  header of the table. If <code>header=true</code> and <code>column_labels</code> is also given,  column_labels will be preferred and the first column of the table will  be ignored.</p><p>Use <code>normalizenames=true</code> to normalize column names to valid Julia identifiers.  The default is <code>normalizenames=false</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; using DataFrames, XLSX, PrettyTables
+
+julia&gt; DataFrame(readtransposedtable(&quot;HTable.xlsx&quot;, &quot;Example&quot;))
+4×4 DataFrame
+ Row │ Category  Variable 1  Variable 2  Variable 3 
+     │ String    Int64       Int64       Int64
+─────┼──────────────────────────────────────────────
+   1 │ A                 10          15          20
+   2 │ B                 20          25          30
+   3 │ C                 30          35          40
+   4 │ D                 40          40          50
+
+julia&gt; PrettyTable(readtransposedtable(&quot;HTable.xlsx&quot;, &quot;Multiple&quot;, &quot;2:7&quot;; first_column=13))
+┌──────┬───────┬───────┬───────┬──────────┬────────────┐
+│ date │ name1 │ name2 │ name3 │    name4 │      name5 │
+├──────┼───────┼───────┼───────┼──────────┼────────────┤
+│ 1840 │  12.4 │ 0.045 │  true │ 10:22:00 │      Hello │
+│ 1841 │  12.6 │ 0.046 │  true │ 10:23:00 │ 2025-12-19 │
+│ 1842 │  12.8 │ 0.047 │ false │ 10:24:00 │          3 │
+│ 1843 │  13.0 │ 0.048 │  true │ 10:25:00 │       3.33 │
+│ 1844 │  13.2 │ 0.049 │ false │ 10:26:00 │      Hello │
+│ 1845 │  13.4 │  0.05 │  true │ 10:27:00 │ 2025-12-19 │
+│ 1846 │  13.6 │ 0.051 │  true │ 10:28:00 │          3 │
+│ 1847 │  13.8 │ 0.052 │  true │ 10:29:00 │       3.33 │
+│ 1848 │  14.0 │ 0.053 │ false │ 10:30:00 │       true │
+└──────┴───────┴───────┴───────┴──────────┴────────────┘</code></pre><p>See also: <a href="#XLSX.gettransposedtable"><code>XLSX.gettransposedtable</code></a>, <a href="#XLSX.readtable"><code>XLSX.readtable</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/read.jl#L1279-L1366">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.writetable"><a class="docstring-binding" href="#XLSX.writetable"><code>XLSX.writetable</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">writetable(filename, table; [overwrite], [sheetname])</code></pre><p>Write a Tables.jl compatible <code>table</code> as an Excel file with the specified file name (and sheet name, if specified).</p><p>If a file with the given name already exists, writing will fail unless <code>overwrite=true</code> is specified, in which  case the existing file will be overwritten.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/tables_interface.jl#L25-L32">source</a></section><section><div><pre><code class="language-julia hljs">writetable(filename::Union{AbstractString, IO}, tables::Vector{Pair{String, T}}; overwrite::Bool=false)
+writetable(filename::Union{AbstractString, IO}, tables::Pair{String, Any}...; overwrite::Bool=false)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/tables_interface.jl#L35-L38">source</a></section><section><div><pre><code class="language-julia hljs">writetable(filename, data, columnnames; [overwrite], [sheetname])</code></pre><ul><li><code>data</code> is a vector of columns.</li><li><code>columnames</code> is a vector of column labels.</li><li><code>overwrite</code> is a <code>Bool</code> to control if <code>filename</code> should be overwritten if already exists.</li><li><code>sheetname</code> is the name for the worksheet.</li></ul><p>Returns the filepath of the written file if a filename is supplied, or <code>nothing</code> if writing to an <code>IO</code>.</p><p><strong>Example</strong></p><pre><code class="language-julia hljs">import XLSX
+columns = [ [1, 2, 3, 4], [&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;], [10.2, 20.3, 30.4, 40.5] ]
+colnames = [ &quot;integers&quot;, &quot;strings&quot;, &quot;floats&quot; ]
+XLSX.writetable(&quot;table.xlsx&quot;, columns, colnames)</code></pre><p>See also: <a href="#XLSX.writetable!"><code>XLSX.writetable!</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/write.jl#L1583-L1603">source</a></section><section><div><pre><code class="language-julia hljs">writetable(filename::Union{AbstractString, IO}; overwrite::Bool=false, kw...)
+writetable(filename::Union{AbstractString, IO}, tables::Vector{Tuple{String, Vector{Any}, Vector{String}}}; overwrite::Bool=false)</code></pre><p>Write multiple tables.</p><p><code>kw</code> is a variable keyword argument list. Each element should be in this format: <code>sheetname=( data, column_names )</code>, where <code>data</code> is a vector of columns and <code>column_names</code> is a vector of column labels.</p><p>Returns the filepath of the written file if a filename is supplied, or <code>nothing</code> if writing to an <code>IO</code>.</p><p>Example:</p><pre><code class="language-julia hljs">julia&gt; import DataFrames, XLSX
+
+julia&gt; df1 = DataFrames.DataFrame(COL1=[10,20,30], COL2=[&quot;Fist&quot;, &quot;Sec&quot;, &quot;Third&quot;])
+
+julia&gt; df2 = DataFrames.DataFrame(AA=[&quot;aa&quot;, &quot;bb&quot;], AB=[10.1, 10.2])
+
+julia&gt; XLSX.writetable(&quot;report.xlsx&quot;, &quot;REPORT_A&quot; =&gt; df1, &quot;REPORT_B&quot; =&gt; df2)</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/write.jl#L1623-L1645">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.writetable!"><a class="docstring-binding" href="#XLSX.writetable!"><code>XLSX.writetable!</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">writetable!(sheet::Worksheet, table; anchor_cell::CellRef=CellRef(&quot;A1&quot;)))</code></pre><p>Write a Tables.jl compatible <code>table</code> to the specified sheet starting with the  anchor cell (if given) in the top left.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/tables_interface.jl#L46-L51">source</a></section><section><div><pre><code class="language-julia hljs">writetable!(
+    sheet::Worksheet,
+    data,
+    columnnames;
+    anchor_cell::CellRef=CellRef(&quot;A1&quot;),
+    write_columnnames::Bool=true,
+)</code></pre><p>Write tabular data <code>data</code> with labels given by <code>columnnames</code> to <code>sheet</code>, starting at <code>anchor_cell</code>.</p><p><code>data</code> must be a vector of columns. <code>columnnames</code> must be a vector of column labels.</p><p>Column labels that are not of type <code>String</code> will be converted  to strings before writing. Any data columns that are not of  type <code>String</code>, <code>Float64</code>, <code>Int64</code>, <code>Bool</code>, <code>Date</code>, <code>Time</code>,  <code>DateTime</code>, <code>Missing</code>, or <code>Nothing</code> will be converted to strings  before writing.</p><p>See also: <a href="#XLSX.writetable"><code>XLSX.writetable</code></a>.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/write.jl#L1012-L1035">source</a></section></details></article><h2 id="Cell-formulas"><a class="docs-heading-anchor" href="#Cell-formulas">Cell formulas</a><a id="Cell-formulas-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-formulas" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.setFormula"><a class="docstring-binding" href="#XLSX.setFormula"><code>XLSX.setFormula</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setFormula(ws::Worksheet, RefOrRange::AbstractString, formula::String; raw=false, spill=false)
+setFormula(xf::XLSXFile,  RefOrRange::AbstractString, formula::String; raw=false, spill=false)
+
+setFormula(sh::Worksheet, row, col, formula::String; raw=false, spill=false)</code></pre><p>Set the Excel formula to be used in the given cell or cell range.</p><p>Formulae must be valid Excel formulae and written in US english with comma separators. Cell references may be absolute or relative references in either  the row or the column or both (e.g. <code>$A$2</code>). No validation of the specified  formula is made by <code>XLSX.jl</code> and formulae are usually stored verbatim, as given.</p><p>Non-contiguous ranges are not supported by <code>setFormula</code>. Set the formula in  each cell or contiguous range separately.</p><p>Use <code>raw=true</code> if entering a formula in xml-ready format to prevent any processing  by <code>setFormula</code>.</p><p>Use <code>spill=true</code> to force the formula to be treated as an array formula that spills  and <code>spill=false</code> to prevent it being treated as such. By default <code>spill=nothing</code> and <code>setFormula</code> will determine whether a formula should spill or not automatically.</p><p>Keyword options should be rarely needed - <code>setFormula</code> should handle most formulae.</p><p>Since <code>XLSX.jl</code> does not and cannot replicate all the functions built in to Excel,  setting a formula in a cell does not permit the cell&#39;s value to be re-calculated  within <code>XLSX.jl</code>. Instead, although the formula is properly added to the cell, the  value is set to <code>missing</code>. However, the saved <code>XLSXFile</code> is set to force Excel to  re-calculate on opening. </p><p>If a cell spills but any of the cells in the spill range already contains a value, Excel will  show a <code>#SPILL</code> error.</p><p>More details can be found in the section <a href="../../formulae/formulas/#Using-Formulas">Using Formulas</a>.</p><p>See also <a href="#XLSX.getFormula">XLSX.getFormula</a>.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">
+julia&gt; using XLSX
+
+julia&gt; f=newxlsx(&quot;setting formulas&quot;)
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range        
+-------------------------------------------------
+     setting formulas 1x1           A1:A1        
+
+
+julia&gt; s=f[1]
+1×1 Worksheet: [&quot;setting formulas&quot;](A1:A1) 
+
+julia&gt; s[&quot;A2:A10&quot;]=1
+1
+
+julia&gt; s[&quot;A1:J1&quot;]=1
+1
+
+julia&gt; setFormula(s, &quot;B2:J10&quot;, &quot;=A2+B1&quot;) # adds formulae but cannot update calculated values
+&quot;=A2+B1&quot;
+
+julia&gt; addsheet!(f, &quot;trig functions&quot;)
+1×1 Worksheet: [&quot;trig functions&quot;](A1:A1) 
+
+julia&gt; f
+XLSXFile(&quot;mytest.xlsx&quot;) containing 2 Worksheets
+            sheetname size          range        
+-------------------------------------------------
+     setting formulas 10x10         A1:J10
+       trig functions 1x1           A1:A1
+
+
+julia&gt; s2=f[2]
+1×1 Worksheet: [&quot;trig functions&quot;](A1:A1)
+
+julia&gt; for i=1:100, s2[i, 1] = 2.0*pi*i/100.0; end
+
+julia&gt; setFormula(s2, &quot;B1:B100&quot;, &quot;=sin(A1)&quot;)
+
+julia&gt; setFormula(s2, &quot;C1:C100&quot;, &quot;=cos(A1)&quot;)
+
+julia&gt; setFormula(s2, &quot;D1:D100&quot;, &quot;=sin(A1)^2 + cos(A1)^2&quot;)
+
+julia&gt; XLSX.getFormula(s2, &quot;D100&quot;)
+&quot;=sin(A100)^2 + cos(A100)^2&quot;
+
+julia&gt; f=newxlsx(&quot;mysheet&quot;)
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+              mysheet 1x1           A1:A1
+
+julia&gt; s=f[1]
+1×1 Worksheet: [&quot;mysheet&quot;](A1:A1)
+
+julia&gt; s[&quot;A1&quot;]=[&quot;Header1&quot; &quot;Header2&quot; &quot;Header3&quot;; 1 2 3; 4 5 6; 7 8 9; 1 2 3; 4 5 6; 7 8 9]
+7×3 Matrix{Any}:
+  &quot;Header1&quot;   &quot;Header2&quot;   &quot;Header3&quot;
+ 1           2           3
+ 4           5           6
+ 7           8           9
+ 1           2           3
+ 4           5           6
+ 7           8           9
+
+julia&gt; setFormula(s, &quot;E1:G1&quot;, &quot;=sort(unique(A2:A7),,-1)&quot;) # using dynamic array functions</code></pre><p><img src="../../images/SortUnique.png" alt="image|320x500"/></p><pre><code class="language-julia hljs">
+f = CSV.read(&quot;iris.csv&quot;, XLSXFile) # read a CSV file into an XLSXFile
+
+XLSX.setFormula(f[1], &quot;G1&quot;, &quot;=GROUPBY(E1:E151,A1:D151,AVERAGE,3,1)&quot;) # Find average of each characteristic by species
+&quot;_xlfn.GROUPBY(E1:E151,A1:D151,_xleta.AVERAGE,3,1)&quot;
+
+f[1][&quot;M1&quot;] = &quot;versicolor&quot;
+XLSX.setFormula(f[1], &quot;M2&quot;, &quot;=VLOOKUP(M1,G1#,3,FALSE)&quot;) # Lookup average sepal width for versicolor using the spill range of G1
+&quot;=VLOOKUP(M1,_xlfn.ANCHORARRAY(G1),3,FALSE)&quot;
+
+XLSX.setFormula(f[1], &quot;G10&quot;, &quot;_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)&quot;; raw=true) # using `raw` format
+&quot;_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)&quot;</code></pre><div class="admonition is-info" id="Note-847a5a0d49262a1c"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-847a5a0d49262a1c" title="Permalink"></a></header><div class="admonition-body"><p>It is not yet possible for <code>setFormula</code> to create external references in formulas.  It is therefore not possible to set a formula that refers to a sheet in another Excel  file.</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/formula.jl#L684-L816">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getFormula"><a class="docstring-binding" href="#XLSX.getFormula"><code>XLSX.getFormula</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getFormula(sh::Worksheet, cr::String; get_external_refs::Bool=false) -&gt; Union{String,Nothing}
+getFormula(xf::XLSXFile, cr::String; get_external_refs::Bool=false) -&gt; Union{String,Nothing}
+
+getFormula(sh::Worksheet, row::Int, col::Int; get_external_refs::Bool=false) -&gt; Union{String,Nothing}</code></pre><p>Get the formula for a single cell reference in a worksheet <code>sh</code> or XLSXFile <code>xf</code>. The specified cell must be within the sheet dimension.</p><p>If the cell does not contain any formula (but is not an <code>EmptyCell</code>), return an empty string (&quot;&quot;). If the cell is an EmptyCell, return <code>nothing</code>.</p><p>If the cell contains a <code>FormulaReference</code>, look up the actual formula.</p><p>A formula may contain references to cells in external workbooks, in the form <code>[index]SheetName!A1</code> where <code>index</code> is an integer providing an internal Excel reference  to the external workbook. Use the keyword option <code>get_external_refs=true</code> to replace the index with the actual workbook path (as stored in the workbook&#39;s externalReferences). By default, <code>get_external_refs=false</code> and the formula is returned unchanged.</p><p>See also <a href="#XLSX.setFormula">XLSX.setFormula</a>.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">
+julia&gt; setFormula(s, &quot;B2:B5&quot;, &quot;=A2+2&quot;)
+&quot;=A2+2&quot;
+
+julia&gt; XLSX.getcell(s, &quot;B2&quot;)
+XLSX.Cell(B2, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, XLSX.ReferencedFormula(&quot;=A2+2&quot;, 0, &quot;B2:B5&quot;, nothing))
+
+julia&gt; XLSX.getcell(s, &quot;B3&quot;)
+XLSX.Cell(B3, &quot;&quot;, &quot;&quot;, &quot;&quot;, &quot;&quot;, XLSX.FormulaReference(0, nothing))
+
+julia&gt; XLSX.getFormula(s, XLSX.CellRef(&quot;B3&quot;))
+&quot;=A3+2&quot;
+
+julia&gt; XLSX.getFormula(s, XLSX.CellRef(&quot;A1&quot;))
+&quot;HYPERLINK(&quot;https://www.bbc.co.uk/news&quot;, &quot;BBC News&quot;)&quot;
+
+julia&gt; XLSX.getFormula(s, XLSX.CellRef(&quot;B1&quot;))
+&quot;[1]Sheet1!$A$1&quot;
+
+julia&gt; XLSX.getFormula(s, XLSX.CellRef(&quot;B1&quot;); get_external_refs=true)
+&quot;[https://d.docs.live.net/.../Documents/Julia/XLSX/linked-2.xlsx]Sheet1!$A$1&quot;</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/formula.jl#L918-L965">source</a></section></details></article><h2 id="Defined-names"><a class="docs-heading-anchor" href="#Defined-names">Defined names</a><a id="Defined-names-1"></a><a class="docs-heading-anchor-permalink" href="#Defined-names" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.addDefinedName"><a class="docstring-binding" href="#XLSX.addDefinedName"><code>XLSX.addDefinedName</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">addDefinedName(xf::XLSXFile,  name::AbstractString, value::Union{Int, Float64, String}; absolute=true)
+addDefinedName(xf::XLSXFile,  name::AbstractString, value::AbstractString; absolute=true)
+addDefinedName(sh::Worksheet, name::AbstractString, value::Union{Int, Float64, String}; absolute=true)
+addDefinedName(sh::Worksheet, name::AbstractString, value::AbstractString; absolute=true)</code></pre><p>Add a defined name to the Workbook or Worksheet. If an <code>XLSXFile</code> is passed, the defined name  is added to the Workbook. If a <code>Worksheet</code> is passed, the defined name is added to the Worksheet.</p><p>When adding defined name referring to a cell or range to a workbook, <code>value</code> must include the sheet  name (e.g. <code>Sheet1!A1:B2</code>). </p><p>If the new <code>definedName</code> is a cell reference or range, by default, it will be an absolute  reference (e.g. <code>$A$1:$C$6</code>). If <code>absolute=false</code> is specified, the new <code>definedName</code> will be  a relative reference (e.g. <code>A1:C6</code>). Any <code>absolute</code> argument specified is ignored if the  <code>definedName</code> is not a cell reference or range.</p><p>In the context of <code>XLSX.jl</code> there is no difference between an absolute reference and a relative  reference. However, Excel treats them differently. When <code>definedNames</code> are read in as part of  an XLSXFile, we keep track of whether they are absolute or not. If the XLSXFile is subsequently  written out again, the status of the <code>definedNames</code> is preserved.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.addDefinedName(sh, &quot;ID&quot;, &quot;C21&quot;)
+
+julia&gt; XLSX.addDefinedName(sh, &quot;NEW&quot;, &quot;A1:B2&quot;)
+
+julia&gt; XLSX.addDefinedName(sh, &quot;my_name&quot;, &quot;A1,B2,C3&quot;)
+
+julia&gt; XLSX.addDefinedName(xf, &quot;New&quot;, &quot;&#39;Mock-up&#39;!A1:B2&quot;)
+
+julia&gt; XLSX.addDefinedName(xf, &quot;Life_the_universe_and_everything&quot;, 42)
+
+julia&gt; XLSX.addDefinedName(xf, &quot;first_name&quot;, &quot;Hello World&quot;)
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/825598776fac87c5f7fa3ee15a4da5725ef2d2ec/src/workbook.jl#L324-L361">source</a></section></details></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../files/">« Files and worksheets</a><a class="docs-footer-nextpage" href="../formats/">Formats »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 29 April 2026 19:09">Wednesday 29 April 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
