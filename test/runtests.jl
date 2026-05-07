@@ -6924,9 +6924,13 @@ end
     @test XLSX.getFormula(f2[2], "B16") == "=sum(B2:B15)"
     @test XLSX.getFormula(f2[2], "M16") == "=sum(M2:M15)"
 
+    @test XLSX.hassheet(f, "newSheet")
+
     for row = 1:16
-        for col = 2:2:14
+        for col = 1:14
             @test (ismissing(f[1][row, col]) && ismissing(f2[1][row, col])) || (f2[1][row, col] == f[1][row, col])
+            @test (ismissing(f[2][row, col]) && ismissing(f[3][row, col])) || (f[2][row, col] == f[3][row, col])
+            @test (ismissing(f[3][row, col]) && ismissing(f2[3][row, col])) || (f2[3][row, col] == f[3][row, col])
         end
     end
 

@@ -190,7 +190,6 @@ function build_ns_dict!(xf::XLSXFile)
             ns[file_name] = prefix
         end
     end
-
     return nothing
 end
 
@@ -202,6 +201,33 @@ end
 function get_prefix(file_name::String, xf::XLSXFile)::Union{Nothing,AbstractString}
     ns = get(xf.namespace, file_name, nothing)
     return something(ns, "")
+end
+function get_default_namespace_prefix(r::XML.Node)
+    ns = get_default_namespace(r)
+    isnothing(ns) && return nothing
+    (prefix, _) = ns
+    return prefix=="" ? nothing : prefix   # may be "" (default) or "x" or anything
+end
+function get_default_namespace(r::XML.Node)
+    nss = get_namespaces(r)
+    length(nss) == 1 && return first(keys(nss)), first(values(nss))
+    haskey(nss, "") && return "", nss[""]
+    for (k, v) in nss
+        if v == SPREADSHEET_NAMESPACE_XPATH_ARG
+            return k, v
+        end
+    end
+    return nothing
+end
+function get_namespaces(r::XML.Node)::Dict{String,String}
+    nss = Dict{String,String}()
+    for (key, value) in XML.attributes(r)
+        if startswith(key, "xmlns")
+            colon_idx = findfirst(':', key)
+            nss[isnothing(colon_idx) ? "" : SubString(key, colon_idx+1)] = value
+        end
+    end
+    return nss
 end
 
 # Determine if the file is a Strict OOXML file.
@@ -597,64 +623,6 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
 
     return xf
 end
-
-function get_default_namespace_prefix(r::XML.Node)
-    ns = get_default_namespace(r)
-    isnothing(ns) && return nothing
-    (prefix, _) = ns
-    return prefix=="" ? nothing : prefix   # may be "" (default) or "x" or anything
-end
-
-function get_default_namespace(r::XML.Node)
-
-#function get_spreadsheetml_prefix(r::XML.Node)::Union{String,Nothing}
-    nss = get_namespaces(r)
-    length(nss) == 1 && return first(keys(nss)), first(values(nss))
-    haskey(nss, "") && return "", nss[""]
-    for (k, v) in nss
-        if v == SPREADSHEET_NAMESPACE_XPATH_ARG
-            return k, v
-        end
-    end
-
-    return nothing
-end
-#=function get_default_namespace(r::XML.Node)::Union{String,Nothing}
-    nss = get_namespaces(r)
-    return get(nss, "", nothing)
-end
-
-function _get_default_namespace(r::XML.Node)::Tuple{String,String}
-    nss = get_namespaces(r)
-    length(nss) == 1 && return first(keys(nss)), first(values(nss))
-    haskey(nss, "") || throw(XLSXError("No default namespace found."))
-    return "", nss[""]
-end
-=#
-
-function get_namespaces(r::XML.Node)::Dict{String,String}
-    nss = Dict{String,String}()
-    for (key, value) in XML.attributes(r)
-        if startswith(key, "xmlns")
-            colon_idx = findfirst(':', key)
-            nss[isnothing(colon_idx) ? "" : SubString(key, colon_idx+1)] = value
-        end
-    end
-    return nss
-end
-#=
-function get_default_namespace(r::XML.Node)::String
-    _, ns = _get_default_namespace(r)
-    return ns
-end
-
-function _get_default_namespace(r::XML.Node)::Tuple{String,String}
-    nss = get_namespaces(r)
-    length(nss) == 1 && return first(keys(nss)), first(values(nss))
-    haskey(nss, "") || throw(XLSXError("No default namespace found."))
-    return "", nss[""]
-end
-=#
 
 # See section 12.2 - Package Structure
 function check_minimum_requirements(xf::XLSXFile)

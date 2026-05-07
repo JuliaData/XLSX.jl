@@ -36,13 +36,6 @@ It's state is the SheetRowStreamIteratorState.
 The iterator element is a SheetRow.
 =#
 
-# strip off namespace prefix of nodename
-function nodename(x::XML.LazyNode)
-    t = localname(x)
-    i = findlast(==(':'), t)
-    return isnothing(i) ? t : t[i+1:end]
-end
-
 @inline get_worksheet(itr::SheetRowIterator) = itr.sheet
 @inline row_number(state::SheetRowStreamIteratorState) = state.row
 
@@ -350,29 +343,9 @@ function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Wor
 
     return sst_count, SheetRow(ws, row_num, current_row_ht, rowcells), unhandled_attributes
 end
-#=
-function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Worksheet, mylock::ReentrantLock)
-    unhandled_attributes = Dict{String,String}()
-
-    atts = XML.attributes(row)
-    if !isnothing(atts)
-        current_row_ht = haskey(atts, "ht") ? parse(Float64, atts["ht"]) : nothing
-        row_num = haskey(atts, "r") ? parse(Int, atts["r"]) : nothing
-        row_num === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
-        unhandled_attributes = Dict(filter(attr -> !in(first(attr), handled_attributes), atts))
-    end
-
-    # Process cells
-    rowcells = Dict{Int,Cell}()
-    _, sst_count = get_rowcells!(rowcells, row, ws; mylock)
-
-    return sst_count, SheetRow(ws, row_num, current_row_ht, rowcells), unhandled_attributes
-
-end
-=#
 
 function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode, nthreads::Int)
-    chunksize = 1000
+    chunksize = ROW_CHUNKSIZE
     handled_attributes = Set{String}(["r", "spans", "ht", "customHeight"])
     unhandled_attributes = Dict{Int,Dict{String,String}}()
    

@@ -289,11 +289,9 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
     xroot = doc[end]
 
     # check namespace and root node name
-    # get_default_namespace(xroot) != SPREADSHEET_NAMESPACE_XPATH_ARG && throw(XLSXError("Unsupported Spreadsheet XML namespace $(get_default_namespace(xroot))."))
     ns_map = get_namespaces(xroot)
-    spreadsheet_ns_declared = SPREADSHEET_NAMESPACE_XPATH_ARG in values(ns_map)
-    spreadsheet_ns_declared ||
-        throw(XLSXError("Unsupported Spreadsheet XML namespace."))
+    spreadsheet_ns_declared = (SPREADSHEET_NAMESPACE_XPATH_ARG in values(ns_map))
+    spreadsheet_ns_declared || throw(XLSXError("Unsupported Spreadsheet XML namespace."))
     localname(xroot) !=   "worksheet" && throw(XLSXError("Malformed Excel file. Expected root node named `worksheet` in worksheet XML file."))
 
     if full # need to reconstruct row and cell data from cache
@@ -361,7 +359,7 @@ function stream_cache_rows(sheet::Worksheet, chunksize::Int)
 end
 
 function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{UInt8}
-    chunksize = 1000
+    chunksize = ROW_CHUNKSIZE
     read_cache_rows = Channel{Vector{Tuple{Int64,Vector{UInt8}}}}(1 << 8)
     all_cache_rows = Vector{Tuple{Int64,Vector{UInt8}}}()
    
@@ -555,11 +553,15 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
         i, j = get_idces(wbdoc, "workbook", "definedNames")
         if isnothing(j)
             # there is no <definedNames> block in the workbook's xml file, so we'll need to create one
-            # The <definedNames> block goes after the <sheets> block. Need to move everything down one to make room.    
-            m, n = get_idces(wbdoc, "workbook", "sheets")
+            l = insert_index(wbdoc[end], "definedNames", WORKBOOK_ORDER)
             definedNames = XML.Element("$(pfx)definedNames")
-            insert!(wbdoc[m].children, n+1, definedNames)
-            j = n + 1
+            len = length(wbdoc[end])
+            if l != len
+                insert!(wbdoc[end].children, l+1, definedNames)
+            else
+                push!(wbdoc[end], definedNames)
+            end
+            j = l + 1
         else
             definedNames = unlink(wbdoc[i][j], ("definedNames", "definedName"), pfx) # Remove old defined names
         end

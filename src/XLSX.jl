@@ -41,6 +41,7 @@ export
 const SPREADSHEET_NAMESPACE_XPATH_ARG = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 const EXCEL_MAX_COLS = 16_384     # total columns supported by Excel per sheet
 const EXCEL_MAX_ROWS = 1_048_576  # total rows supported by Excel per sheet (including headers)
+const ROW_CHUNKSIZE = 1000        # number of rows to be processed in each thread
 
 include("types.jl")
 include("formula.jl")

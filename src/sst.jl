@@ -48,10 +48,6 @@ function add_to_sst!(ss::SharedStringTable, si_xml::String)::Int64
 
     ss.index[si_xml] = new_idx
 
-#    if new_idx ∉ get_shared_string_index(ss, si_xml)
-#        throw(XLSXError("Inconsistent state after adding a string to the Shared String Table."))
-#    end
-
     return new_idx
 end
 
@@ -67,7 +63,6 @@ end
 
 # Adds a string to shared string table. Returns the 0-based index of the shared string in the shared string table.
 function add_formatted_string!(wb::Workbook, str_formatted::String; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int64
-#    !is_writable(get_xlsxfile(wb)) && throw(XLSXError("XLSXFile instance is not writable."))
     if isempty(str_formatted)
         throw(XLSXError("Can't add empty string to Shared String Table."))
     end
@@ -93,12 +88,10 @@ needs_preserve(s::String) = startswith(s, ' ') || endswith(s, ' ') || contains(s
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
 function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int
-#    needs_preserve = startswith(str_unformatted, ' ') || endswith(str_unformatted, ' ') || contains(str_unformatted, '\n')  || contains(str_unformatted, "  ")
     escaped = XLSX.escape(str_unformatted)
 
     pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
     pfx = pfx == "" ? "" : "$(pfx):"
-
     
     io = IOBuffer()
     write(io, "<$(pfx)si>\n  <$(pfx)t")
@@ -111,7 +104,7 @@ function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; myloc
 end
 
 function sst_load!(workbook::Workbook)
-    chunksize=1000
+    chunksize = ROW_CHUNKSIZE
     sst = get_sst(workbook)
     if !sst.is_loaded
 

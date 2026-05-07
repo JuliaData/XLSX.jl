@@ -1,5 +1,4 @@
-#=
-const Workbook_elements = String[
+const WORKBOOK_ORDER = String[
     "fileVersion",
     "fileSharing",
     "workbookPr",
@@ -19,8 +18,8 @@ const Workbook_elements = String[
     "fileRecoveryPr",
     "webPublishObjects",
     "extLst"
-    ]
-=#
+]
+
     
 EmptyWorkbook() = Workbook(EmptyMSOfficePackage(), Vector{Worksheet}(), false, 
     Vector{Relationship}(), Dict{SheetCellRef, AbstractFormula}(), SharedStringTable(), Dict{Int,Bool}(), Dict{Int,Bool}(),

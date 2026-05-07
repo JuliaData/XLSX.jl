@@ -11,7 +11,6 @@ function column_bounds(sr::SheetRow)
     return (minimum(cols), maximum(cols))
 end
 
-
 # anchor_column will be the leftmost column of the column_bounds
 function last_column_index(sr::SheetRow, anchor_column::Int)::Int
     isempty(getcell(sr, anchor_column)) &&
@@ -31,7 +30,6 @@ function last_column_index(sr::SheetRow, anchor_column::Int)::Int
     end
     return lastcol
 end
-
 
 function _colname_prefix_string(sheet::Worksheet, cell::Cell)
     d = getdata(sheet, cell)
@@ -67,14 +65,9 @@ const RESERVED = Set(["local", "global", "export", "let",
 normalizename(name::Symbol) = name
 function normalizename(name::String)::Symbol
     uname = strip(Unicode.normalize(name))
-
-    if !Base.isidentifier(uname)
-        uname = String(map(c -> Base.is_id_char(c) ? c : '_', uname))
-    end
-
-    prefix = (isempty(uname) || !Base.is_id_start_char(uname[1]) || uname in RESERVED) ? "_" : ""
-    cleansed = prefix * uname
-    return Symbol(replace(cleansed, r"(_)\1+" => "_"))
+    id = Base.isidentifier(uname) ? uname : map(c->Base.is_id_char(c) ? c : '_', uname)
+    cleansed = string((isempty(id) || !Base.is_id_start_char(id[1]) || id in RESERVED) ? "_" : "", id)
+    return Symbol(replace(cleansed, r"(_)\1+"=>"_"))
 end
 
 """

@@ -45,11 +45,11 @@ function allCfs(ws::Worksheet)::Vector{XML.Node}
 end
 function add_cf_to_XML(ws, new_cf) # Add a new conditional formatting to the worksheet XML.
     wb = get_workbook(ws)
-    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # The <conditionalFormatting> blocks come after the <sheetData>
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
     l = insert_index(sheetdoc[end], "conditionalFormatting", WORKSHEET_ORDER)
     len = length(sheetdoc[end])
     if l != len
-        insert!(sheetdoc[end].children, l, new_cf)
+        insert!(sheetdoc[end].children, l+1, new_cf)
     else
         push!(sheetdoc[end], new_cf)
     end
