@@ -1,3 +1,66 @@
+# Order of worksheet elements:
+
+const WORKSHEET_ORDER = String[
+    "sheetPr",
+    "dimension",
+    "sheetViews",
+    "sheetFormatPr",
+    "cols",
+    "sheetData",
+    "sheetCalcPr",
+    "sheetProtection",
+    "protectedRanges",
+    "scenarios",
+    "autoFilter",
+    "sortState",
+    "dataConsolidate",
+    "customSheetViews",
+    "mergeCells",
+    "phoneticPr",
+    "conditionalFormatting",
+    "dataValidations",
+    "hyperlinks",
+    "printOptions",
+    "pageMargins",
+    "pageSetup",
+    "headerFooter",
+    "rowBreaks",
+    "colBreaks",
+    "customProperties",
+    "cellWatches",
+    "ignoredErrors",
+    "smartTags",
+    "drawing",
+    "legacyDrawing",
+    "legacyDrawingHF",
+    "picture",
+    "oleObjects",
+    "controls",
+    "webPublishItems",
+    "tableParts",
+    "extLst"
+]
+
+function insert_index(root::XML.Node, target::String, order::Vector{String})
+    # index of target in canonical order
+    target_idx = findfirst(==(target), order)
+    isnothing(target_idx) && throw(XLSXError("Target $target not in worksheet order list"))
+
+    chn = XML.children(root)
+
+    # scan backwards through the order list
+    for i in target_idx:-1:1
+        name = order[i]
+        # find the last child with this tag
+        for (j, child) in enumerate(chn)
+            if localname(child) == name
+                return j   # insert *after* this child
+            end
+        end
+    end
+
+    return 1   # nothing precedes the target → insert at top
+end
 
 function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
     wb = get_workbook(xf)
@@ -11,6 +74,14 @@ function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
     return Worksheet(xf, sheetId, relationship_id, name, nothing, is_hidden)
 end
 
+function ordinal_sheet_number(wb::Workbook, name::String)
+    for (i, s) in enumerate(wb.sheets)
+        if s.name == name
+            return i
+        end
+    end
+    throw(XLSXError("worksheet $(ws.name) not found in workbook"))
+end
 function Base.axes(ws::Worksheet, d)
     dim = get_dimension(ws)
     if d == 1

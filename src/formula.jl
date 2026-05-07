@@ -124,6 +124,11 @@ Base.isempty(f::FormulaReference) = false # always links to another formula
 Base.hash(f::Formula, h::UInt) = hash(f.unhandled, hash(f.formula, h))
 Base.hash(f::FormulaReference, h::UInt) = hash(f.unhandled, hash(f.id, h))
 Base.hash(f::ReferencedFormula, h::UInt) = hash(f.unhandled, hash(f.ref, hash(f.id, hash(f.formula, h))))
+import Base: copy
+
+copyfield(x::Dict) = copy(x)      # shallow copy of unhandled
+copyfield(x) = x                  # everything else is immutable
+Base.copy(f::T) where T<:AbstractFormula = T(map(copyfield, getfield.(Ref(f), fieldnames(T)))...)
 
 function new_ReferencedFormula_Id(ws::Worksheet)
     # return the first positive integer (or 0) not currently used as a ReferencedFormula Id
@@ -637,7 +642,7 @@ function get_external_workbook_path(xf::XLSXFile, id::Int)
     extRef = get_wb_ext_refs(xf)
     rel = get_relationship_target_by_id("xl", wb, extRef[id])
     extXml = xmlroot(xf, rel)
-    i, j = get_idces(extXml,    "externalLink",    "externalBook") # we are looking for ExternalBook to find an external filename
+    i, j = get_idces(extXml, "externalLink", "externalBook") # we are looking for ExternalBook to find an external filename
     isnothing(i) && throw(XLSXError("Malformed external reference in workbook. Missing externalLink node."))
     isnothing(j) && throw(XLSXError("Malformed external reference in workbook. Missing externalBook node."))
     k, l = get_idces(extXml[i], "externalBook", "externalBookPr")

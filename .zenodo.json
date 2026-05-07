@@ -9,7 +9,7 @@
     "contributors": [
         {
             "name": "Gebbels, Tim",
-            "type": "ProjectLeader"
+            "type": "ProjectMember"
         }
     ],
     "description": "XLSX.jl is a Julia package to read and write Excel spreadsheet files in the XLSX format.",

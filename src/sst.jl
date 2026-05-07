@@ -95,12 +95,17 @@ needs_preserve(s::String) = startswith(s, ' ') || endswith(s, ' ') || contains(s
 function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int
 #    needs_preserve = startswith(str_unformatted, ' ') || endswith(str_unformatted, ' ') || contains(str_unformatted, '\n')  || contains(str_unformatted, "  ")
     escaped = XLSX.escape(str_unformatted)
+
+    pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
+    pfx = pfx == "" ? "" : "$(pfx):"
+
+    
     io = IOBuffer()
-    write(io, "<si>\n  <t")
+    write(io, "<$(pfx)si>\n  <$(pfx)t")
     if needs_preserve(str_unformatted)
         write(io, " xml:space=\"preserve\"")
     end
-    write(io, ">", escaped, "</t>\n</si>")
+    write(io, ">", escaped, "</$(pfx)t>\n</$(pfx)si>")
     str_formatted = String(take!(io))
     return add_formatted_string!(wb, str_formatted; mylock)
 end
@@ -223,31 +228,29 @@ end
 
 function gather_strings!(wb::Workbook, io::IOBuffer, e::XML.LazyNode)
     tag = localname(e)
-    
+
     # Skip phonetic hints entirely
     tag == "rPh" && return nothing
-    
+
     if tag == "t"
-        children = XML.children(e)
-        n = length(children)
-        
-        if n == 1
-            c = children[1]
-            write(io, XML.is_simple(c) ? XML.simple_value(c) : XML.value(c))
-        elseif n == 0
-            val = XML.value(e)
-            !isnothing(val) && write(io, XML.is_simple(e) ? XML.simple_value(e) : val)
-        else
-            throw(XLSXError("Unexpected number of children in <t>: $n. Expected 0 or 1."))
+        for c in XML.children(e)
+            if XML.nodetype(c) == XML.Text
+                val = XML.is_simple(c) ? XML.simple_value(c) : XML.value(c)
+                !isnothing(val) && write(io, val)
+            end
+        end
+
+        # Fallback for truly empty <t>
+        if isempty(XML.children(e))
+            val = XML.is_simple(e) ? XML.simple_value(e) : XML.value(e)
+            !isnothing(val) && write(io, val)
         end
     else
-        # Recurse into children for all other tags
-        children = XML.children(e)
-        for ch in children
-            gather_strings!(wb,io, ch)
+        for ch in XML.children(e)
+            gather_strings!(wb, io, ch)
         end
     end
-    
+
     return nothing
 end
 
@@ -291,48 +294,48 @@ This is the required order of attributes in the xml:
 =#
 
  """
-    richTextRunToXML(run::RichTextRun) -> String
+    richTextRunToXML!(io::IO, run::RichTextRun, pfx::String) -> IO
 
 Convert an RichTextRun to XML format for Excel shared strings.
 Each rich text shared string may have multiple runs to allow 
 heterogeneous formatting within a single cell.
 """
-function richTextRunToXML!(io::IO, run::RichTextRun)
-    write(io, "<r>")
+function richTextRunToXML!(io::IO, run::RichTextRun, pfx)
+    write(io, "<$(pfx)r>")
 
     atts = run.atts
     if !isnothing(atts)
         props = IOBuffer()
 
         if (v = get(atts, :name, nothing)) !== nothing
-            write(props, "<rFont val=\"", v, "\"/>")
+            write(props, "<$(pfx)rFont val=\"", v, "\"/>")
         end
         if get(atts, :bold, false)  in (true, 1)
-            write(props, "<b/>")
+            write(props, "<$(pfx)b/>")
         end
         if get(atts, :italic, false)  in (true, 1)
-            write(props, "<i/>")
+            write(props, "<$(pfx)i/>")
         end
         if get(atts, :strike, false)  in (true, 1)
-            write(props, "<strike/>")
+            write(props, "<$(pfx)strike/>")
         end
         if (v = get(atts, :color, nothing)) !== nothing
-            write(props, "<color rgb=\"", get_color(v), "\"/>")
+            write(props, "<$(pfx)color rgb=\"", get_color(v), "\"/>")
         end
         if (v = get(atts, :size, nothing)) !== nothing
-            write(props, "<sz val=\"", string(v), "\"/>") # size read as a float, output rounded to nearest half point.
+            write(props, "<$(pfx)sz val=\"", string(v), "\"/>") # size read as a float, output rounded to nearest half point.
         end
         if get(atts, :under, false)  in (true, 1)
-            write(props, "<u/>")
+            write(props, "<$(pfx)u/>")
         end
         if (v = get(atts, :vertAlign, nothing)) !== nothing
-            write(props, "<vertAlign val=\"", v, "\"/>")
+            write(props, "<$(pfx)vertAlign val=\"", v, "\"/>")
         end
 
         if position(props) > 0
-            write(io, "<rPr>")
+            write(io, "<$(pfx)rPr>")
             write(io, take!(props))
-            write(io, "</rPr>")
+            write(io, "</$(pfx)rPr>")
         end
     end
 
@@ -345,22 +348,22 @@ function richTextRunToXML!(io::IO, run::RichTextRun)
     escaped = XLSX.escape(run.text)
 
     if needs_preserve
-        write(io, "<t xml:space=\"preserve\">", escaped, "</t>")
+        write(io, "<$(pfx)t xml:space=\"preserve\">", escaped, "</$(pfx)t>")
     else
-        write(io, "<t>", escaped, "</t>")
+        write(io, "<$(pfx)t>", escaped, "</$(pfx)t>")
     end
 
-    write(io, "</r>")
+    write(io, "</$(pfx)r>")
     return nothing
 end
 
-function richTextStringtoXML(rts::RichTextString)
+function richTextStringtoXML(rts::RichTextString, pfx::String)
     xml = IOBuffer()
-    write(xml, "<si>")
+    write(xml, "<$(pfx)si>")
     for r in rts.runs
-        richTextRunToXML!(xml, r)
+        richTextRunToXML!(xml, r, pfx)
     end
-    write(xml, "</si>")
+    write(xml, "</$(pfx)si>")
     return String(take!(xml))
 end
 function RichTextString(runs::Vector{RichTextRun})
@@ -665,11 +668,13 @@ end
 # Convert theme + tint to RGB
 function resolve_theme_color(theme_index::Int, tint::Float64)
     # Default Excel theme colors - assume these are never customised.
-    theme = [
-        0x000000, 0xFFFFFF, 0x1F497D, 0xEEECE1,
-        0x4F81BD, 0xC0504D, 0x9BBB59, 0x8064A2,
-        0x4BACC6, 0xF79646
-    ]
+     theme = [
+    0x000000, 0xFFFFFF, 0x1F497D, 0xEEECE1,
+    0x4F81BD, 0xC0504D, 0x9BBB59, 0x8064A2,
+    0x4BACC6, 0xF79646,
+    0x0000FF,  # hyperlink
+    0x800080   # followed hyperlink
+]
 
     base = theme[theme_index + 1]
     r = apply_tint(UInt8(base >> 16), tint)
@@ -681,7 +686,8 @@ function resolve_theme_color(theme_index::Int, tint::Float64)
     print(buf, uppercase(string(r, base=16, pad=2)))
     print(buf, uppercase(string(g, base=16, pad=2)))
     print(buf, uppercase(string(b, base=16, pad=2)))
-    return String(take!(buf))end
+    return String(take!(buf))
+end
 
 # Create a RichTextString from a shared string with multiple runs (or nothing if a simple text)
 function getRichTextString(wb::Workbook, xml_string::String)::Union{RichTextString, Nothing}

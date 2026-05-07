@@ -299,7 +299,7 @@ function addDefName(ws::Worksheet, name::AbstractString, value::DefinedNameValue
     else
         abs = absolute ? true : false
     end
-    wb.worksheet_names[(ws.sheetId, name)] = DefinedNameValue(value, abs)
+    wb.worksheet_names[(ordinal_sheet_number(wb, ws.name), name)] = DefinedNameValue(value, abs)
 end
 addDefName(ws::Worksheet, name::AbstractString, value::Integer; absolute=true) = addDefName(ws, name, Int64(value); absolute)
 

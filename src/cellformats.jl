@@ -124,6 +124,9 @@ function setFont(sh::Worksheet, cellref::CellRef;
     !isnothing(size) && (size < 1 || size > 409) &&
         throw(XLSXError("Invalid size value: $size. Must be between 1 and 409."))
 
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
+    pfx = pfx == "" ? "" : pfx * ":"
+
     wb   = get_workbook(sh)
     cell = getcell(sh, cellref)
     cell isa EmptyCell && throw(XLSXError("Cannot set font for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
@@ -168,7 +171,7 @@ function setFont(sh::Worksheet, cellref::CellRef;
     # under == "none": omit "u" entirely — already absent from new_font_atts
 
     # Drop "scheme" tag — Excel adds it but we don't want to propagate it
-    font_node  = buildNode("font", new_font_atts)
+    font_node  = buildNode("font", new_font_atts, pfx)
     new_fontid = styles_add_cell_attribute(wb, font_node, "fonts")
 
     newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["fontId", "applyFont"], [string(new_fontid), "1"]).id
@@ -650,6 +653,9 @@ function setBorder(sh::Worksheet, cellref::CellRef;
     end
 
     wb   = get_workbook(sh)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     cell = getcell(sh, cellref)
     cell isa EmptyCell &&
         throw(XLSXError("Cannot set border for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
@@ -677,7 +683,7 @@ function setBorder(sh::Worksheet, cellref::CellRef;
         for side in ("left", "right", "top", "bottom", "diagonal")
     )
 
-    border_node  = buildNode("border", new_border_atts)
+    border_node  = buildNode("border", new_border_atts, pfx)
     new_borderid = styles_add_cell_attribute(wb, border_node, "borders")
     newstyle     = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["borderId", "applyBorder"], [string(new_borderid), "1"]).id
     cell.style   = newstyle
@@ -1052,6 +1058,9 @@ function setFill(sh::Worksheet, cellref::CellRef;
         throw(XLSXError("Invalid pattern: $pattern. Must be one of: $(join(VALID_FILL_PATTERNS, ", "))."))
 
     wb   = get_workbook(sh)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     cell = getcell(sh, cellref)
     cell isa EmptyCell && throw(XLSXError("Cannot set fill for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
 
@@ -1085,7 +1094,7 @@ function setFill(sh::Worksheet, cellref::CellRef;
     end
 
     new_fill_atts = Dict{String,Union{Dict{String,String},Nothing}}("patternFill" => patternFill)
-    fill_node  = buildNode("fill", new_fill_atts)
+    fill_node  = buildNode("fill", new_fill_atts, pfx)
     new_fillid = styles_add_cell_attribute(wb, fill_node, "fills")
 
     newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["fillId", "applyFill"], [string(new_fillid), "1"]).id
@@ -1343,6 +1352,9 @@ function setAlignment(sh::Worksheet, cellref::CellRef;
         throw(XLSXError("Invalid rotation value: $rotation. Must be an integer between -90 and 90."))
 
     wb   = get_workbook(sh)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
+    pfx = pfx == "" ? pfx : pfx * ":"
+    
     cell = getcell(sh, cellref)
     cell isa EmptyCell &&
         throw(XLSXError("Cannot set alignment for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
@@ -1365,7 +1377,7 @@ function setAlignment(sh::Worksheet, cellref::CellRef;
     _merge_alignment_att(atts, "indent",       indent,     old_atts)
     _merge_alignment_att(atts, "textRotation", rotation,   old_atts)
 
-    alignment_node = XML.Node(XML.Element, "alignment", atts, nothing, nothing)
+    alignment_node = XML.Node(XML.Element, "$(pfx)alignment", atts, nothing, nothing)
     newstyle       = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), alignment_node).id
     cell.style     = newstyle
 
@@ -1902,13 +1914,16 @@ function setColumnWidth(ws::Worksheet, rng::CellRange; width::Union{Nothing,Real
     right = rng.stop.column_number
 
     # Find the <cols> block in the worksheet XML, inserting one before <sheetData> if absent
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet$(ws.sheetId).xml")
+    sheetdoc = xmlroot(wb, ws.relationship_id)
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     i, j = get_idces(sheetdoc, "worksheet", "cols")
 
     if isnothing(j)
         k, l = get_idces(sheetdoc, "worksheet", "sheetData")
         i != k && throw(XLSXError("Unexpected worksheet structure: <cols> parent index does not match <worksheet> index."))
-        insert!(sheetdoc[k].children, l, XML.Element("Cols"))
+        insert!(sheetdoc[k].children, l, XML.Element("$(pfx)Cols"))
         j = l
     end
 
@@ -1935,9 +1950,9 @@ function setColumnWidth(ws::Worksheet, rng::CellRange; width::Union{Nothing,Real
     end
 
     # Rebuild the <cols> node from the updated definitions
-    new_cols = unlink(sheetdoc[i][j], ("cols", "col"))
+    new_cols = unlink(sheetdoc[i][j], ("cols", "col"), pfx)
     for atts in values(col_defs)
-        new_col = XML.Element("col")
+        new_col = XML.Element("$(pfx)col")
         for (k, v) in atts
             new_col[k] = v
         end
@@ -1993,7 +2008,8 @@ function getColumnWidth(ws::Worksheet, cellref::CellRef)::Union{Nothing,Real}
         throw(XLSXError("Cell specified is outside sheet dimension `$d`"))
     end
 
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find the <cols> block in the worksheet's xml file
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
+    
     i, j = get_idces(sheetdoc, "worksheet", "cols")
 
     if isnothing(j) # There are no existing column formats defined.
@@ -2216,7 +2232,7 @@ function getMergedCells(ws::Worksheet)::Union{Vector{CellRange},Nothing}
         throw(XLSXError("Cannot get merged cells because cache is not enabled."))
     end
 
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find the <mergeCells> block in the worksheet's xml file
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
     i, j = get_idces(sheetdoc, "worksheet", "mergeCells")
 
     if isnothing(j) # There are no existing merged cells.
@@ -2442,24 +2458,26 @@ function mergeCells(ws::Worksheet, cr::CellRange)
         throw(XLSXError("Cannot get merged cells because cache is not enabled."))
     end
 
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find the <mergeCells> block in the worksheet's xml file
-    i, j = get_idces(sheetdoc, "worksheet", "mergeCells")
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
 
-    if isnothing(j) # There are no existing merged cells. Insert immediately after the <sheetData> block and push everything else down one.
-        k, l = get_idces(sheetdoc, "worksheet", "sheetData")
-        len = length(sheetdoc[k])
-        i != k && throw(XLSXError("Some problem here!"))
+    l = insert_index(sheetdoc[end], "mergeCells", WORKSHEET_ORDER)
+
+    if localname(sheetdoc[end][l]) != "mergeCells" # There are no existing merged cells. Insert immediately after the <sheetData> block and push everything else down one.
+        len = length(sheetdoc[end])
+        merge_node=XML.Node(XML.Element, "$(pfx)mergeCells", OrderedDict{String,String}(), nothing, Vector{XML.Node}())
         if l != len
-            insert!(sheetdoc[k].children, l+1, XML.Element("mergeCells"))
+            insert!(sheetdoc[end].children, l+1, merge_node)
         else
-            push!(sheetdoc[k], XML.Element("mergeCells"))
+            push!(sheetdoc[end], merge_node)
         end
-        j = l + 1
+        l += 1
         count = 0
     else # There are already some existing merged cells
-        c = XML.children(sheetdoc[i][j])
+        c = XML.children(sheetdoc[end][l])
         count = length(c)
-        if count != parse(Int, sheetdoc[i][j]["count"])
+        if count != parse(Int, sheetdoc[end][l]["count"])
             throw(XLSXError("Unexpected number of mergeCells found: $(length(c)). Expected $(sheetdoc[i][j]["count"])."))
         end
         for child in c
@@ -2469,9 +2487,9 @@ function mergeCells(ws::Worksheet, cr::CellRange)
         end
     end
 
-    push!(sheetdoc[i][j], XML.Element("mergeCell", ref=string(cr))) # Add the new merged cell range.
+    push!(sheetdoc[end][l], XML.Element("$(pfx)mergeCell", ref=string(cr))) # Add the new merged cell range.
     count += 1
-    sheetdoc[i][j]["count"] = count
+    sheetdoc[end][l]["count"] = count
 
     # All cells except the base cell are set to missing.
     let first = true

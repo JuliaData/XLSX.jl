@@ -124,13 +124,13 @@ function do_sheet_names_match(ws::Worksheet, rng::T) where {T<:Union{SheetCellRe
     end
 end
 
-function make_child_node(tag::String, name::String)::XML.Node
+function make_child_node(tag::String, name::String, pfx::String)::XML.Node
     children = tag ∈ ("border", "fill") ? Vector{XML.Node}() : nothing
-    return XML.Node(XML.Element, name, OrderedDict{String,String}(), nothing, children)
+    return XML.Node(XML.Element, pfx*name, OrderedDict{String,String}(), nothing, children)
 end
 
-function build_font_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}})
-    cnode = isnothing(attrs) ? XML.Element(name) : make_child_node(tag, name)
+function build_font_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}}, pfx::String)
+    cnode = isnothing(attrs) ? XML.Element(pfx*name) : make_child_node(tag, name, pfx)
     if !isnothing(attrs)
         for (k, v) in attrs
             cnode[k] = v
@@ -139,10 +139,10 @@ function build_font_child!(new_node::XML.Node, tag::String, name::String, attrs:
     push!(new_node, cnode)
 end
 
-function build_border_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}})
-    cnode = isnothing(attrs) ? XML.Element(name) : make_child_node(tag, name)
+function build_border_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}}, pfx::String)
+    cnode = isnothing(attrs) ? XML.Element(pfx*name) : make_child_node(tag, name, pfx)
     if !isnothing(attrs)
-        color = XML.Element("color")
+        color = XML.Element("$(pfx)color")
         for (k, v) in attrs
             if k == "style" && v != "none"
                 cnode[k] = v
@@ -158,14 +158,14 @@ function build_border_child!(new_node::XML.Node, tag::String, name::String, attr
     push!(new_node, cnode)
 end
 
-function build_fill_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}})
+function build_fill_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}}, pfx)
     if isnothing(attrs)
-        push!(new_node, XML.Element(name))
+        push!(new_node, XML.Element(pfx*name))
         return
     end
-    patternfill = XML.Element("patternFill")
-    fgcolor     = XML.Element("fgColor")
-    bgcolor     = XML.Element("bgColor")
+    patternfill = XML.Element("$(pfx)patternFill")
+    fgcolor     = XML.Element("$(pfx)fgColor")
+    bgcolor     = XML.Element("$(pfx)bgColor")
     for (k, v) in attrs
         if k == "patternType"
             patternfill[k] = v
@@ -181,7 +181,7 @@ function build_fill_child!(new_node::XML.Node, tag::String, name::String, attrs:
     push!(new_node, patternfill)  # patternfill goes directly onto new_node
 end
 
-function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{String,String}}})::XML.Node
+function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{String,String}}}, pfx::String)::XML.Node
     attribute_tags, build_child! = if tag == "font"
         font_tags,   build_font_child!
     elseif tag == "border"
@@ -192,9 +192,9 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
         throw(XLSXError("Unknown tag: $tag"))
     end
 
-    new_node = XML.Element(tag)
+    new_node = XML.Element(pfx*tag)
     for name in attribute_tags
-        haskey(attributes, name) && build_child!(new_node, tag, name, attributes[name])
+        haskey(attributes, name) && build_child!(new_node, tag, name, attributes[name], pfx)
     end
     return new_node
 end
@@ -540,7 +540,9 @@ end
 
 # Only used in testing!
 function styles_add_cell_font(wb::Workbook, attributes::Dict{String,Union{Dict{String,String},Nothing}})::Int
-    new_font = buildNode("font", attributes)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(wb))
+    pfx = pfx == "" ? pfx : pfx * ":"
+    new_font = buildNode("font", attributes, pfx)
     return styles_add_cell_attribute(wb, new_font, "fonts")
 end
 

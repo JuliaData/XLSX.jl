@@ -193,9 +193,15 @@ function build_ns_dict!(xf::XLSXFile)
 
     return nothing
 end
+
+function get_prefix(ws::Worksheet)
+        internal_file_name = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
+        pfx = get_prefix(internal_file_name, get_xlsxfile(ws))
+        return something(pfx, "")
+end
 function get_prefix(file_name::String, xf::XLSXFile)::Union{Nothing,AbstractString}
     ns = get(xf.namespace, file_name, nothing)
-    return ns
+    return something(ns, "")
 end
 
 # Determine if the file is a Strict OOXML file.
@@ -573,6 +579,7 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
     if strict
         convert_strict_to_transitional!(xf, 2)
     end
+    build_ns_dict!(xf)
 
     load_files!(xf, zip_io; pass=3) # load worksheets last so inlineStrings go after existing ssts
 
@@ -919,11 +926,11 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
     filtered_files = Channel{String}(1 << 8) do out
         for file in all_files
             should_process = if pass == 1
-                !occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", file)
+                !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", file)
             elseif pass == 2
                 occursin(r"xl/sharedStrings\.xml", file)
             else  # pass == 3
-                occursin(r"xl/worksheets/sheet\d+\.xml", file)
+                occursin(r"^xl/worksheets/[^/]+\.xml$", file)
             end
            
             if should_process
@@ -983,7 +990,7 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String)
     try
         bytes = ZipArchives.zip_readentry(zip_io, filename)
         if (endswith(filename, ".xml") || endswith(filename, ".rels"))
-            if occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", filename)
+            if occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", filename)
                 strip_bom_and_lf!(bytes)
                 skipnode = filename == "xl/sharedStrings.xml" ? "sst" : "sheetData"
                 f, s = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
@@ -1018,7 +1025,7 @@ function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.
         try
             bytes = ZipArchives.zip_readentry(zip_io, filename)
             strip_bom_and_lf!(bytes)
-            if occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", filename)
+            if occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", filename)
                 skipnode = filename == "xl/sharedStrings.xml" ? "sst" : "sheetData"
                 f, _ = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
                 xf.data[filename] = XML.Node(XML.Raw(f))
@@ -1041,6 +1048,10 @@ end
 
 # Utility method to return the root element of a given XMLDocument from the package.
 @inline xmlroot(xl::XLSXFile, filename::String)::XML.Node = xmldocument(xl, filename)
+function xmlroot(wb::Workbook, rId::String)
+    filename = get_relationship_target_by_id("xl", wb, rId)
+    return xmldocument(get_xlsxfile(wb), filename)
+end
 
 #
 # Helper Functions

@@ -160,10 +160,50 @@ end
 =#
 
 # Extracts the unformatted text from an inlineStr "is" XML element as a <si> XML string.
-function _build_si_xml(child)::String
-    inner = join(XML.write.(XML.children(child)), "\n")
-    return "<si>\n  $inner\n</si>"
+function _rewrite_node(node::XML.LazyNode, pfx::Union{String,Nothing})::String
+    pfx = something(pfx, "")
+    tag = localname(node)
+    
+    attrs = XML.attributes(node)
+    attr_str = isnothing(attrs) || isempty(attrs) ? "" : " " * join(
+        ("$(k)=\"$(v)\"" for (k, v) in attrs), " "
+    )
+    
+    children = XML.children(node)
+    
+    if tag == "t"
+        # Emit text inline to avoid injecting whitespace text nodes
+        txt = if isempty(children)
+            XML.value(node)
+        else
+            join((XML.is_simple(c) ? XML.simple_value(c) : something(XML.value(c), "") for c in children), "")
+        end
+        return "<$(pfx)$(tag)$(attr_str)>$(something(txt, ""))</$(pfx)$(tag)>"
+    elseif isempty(children)
+        txt = XML.value(node)
+        if txt !== nothing && !isempty(txt)
+            return "<$(pfx)$(tag)$(attr_str)>$(txt)</$(pfx)$(tag)>"
+        else
+            return "<$(pfx)$(tag)$(attr_str)/>"
+        end
+    else
+        inner = join(_rewrite_node.(children, pfx), "\n  ")
+        return "<$(pfx)$(tag)$(attr_str)>\n  $(inner)\n</$(pfx)$(tag)>"
+    end
 end
+
+function _build_si_xml(si_node::XML.LazyNode, pfx::String)::String
+    children = XML.children(si_node)
+    inner = join(_rewrite_node.(children, pfx), "\n  ")
+    prefix_part = isempty(pfx) ? "si" : "$(pfx)si"
+    return "<$(prefix_part)>\n  $(inner)\n</$(prefix_part)>"
+end
+#=
+function _build_si_xml(child::XML.LazyNode, pfx::String)::String
+    inner = join(XML.write.(XML.children(child)), "\n")
+    return "<$(pfx)si>\n  $inner\n</$(pfx)si>"
+end
+=#
 
 # Parses a style string to (UInt32, Int) for use as style and num_style.
 function _parse_style(s::String)
@@ -177,6 +217,12 @@ _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 
 function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothing}=nothing)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
+    sst_pfx = get_prefix("xl/SharedStrings.xml", get_xlsxfile(ws))
+    if isnothing(sst_pfx) || sst_pfx == ""
+        sst_pfx = ""
+    else
+        sst_pfx = ":"
+    end
 
     localname(c) == "c" || throw(XLSXError("`Cell` expects a `c` (cell) XML node."))
 
@@ -201,7 +247,7 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
             localname(child) == "is" || continue
             uft = unformatted_text(wb, child)
             if !isempty(uft)
-                ft = _build_si_xml(child)
+                ft = _build_si_xml(child, sst_pfx)
                 datatype = CT_STRING
                 value = reinterpret(UInt64, Int64(add_formatted_string!(wb, ft; mylock)))
             end

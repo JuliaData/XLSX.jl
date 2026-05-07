@@ -39,25 +39,29 @@ end
 # --- Standard conditional formats
 #
 function allCfs(ws::Worksheet)::Vector{XML.Node}
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find all the <conditionalFormatting> blocks in the worksheet's xml file
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # find all the <conditionalFormatting> blocks in the worksheet's xml file
+#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find all the <conditionalFormatting> blocks in the worksheet's xml file
     return find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":worksheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":conditionalFormatting", sheetdoc)
 end
 function add_cf_to_XML(ws, new_cf) # Add a new conditional formatting to the worksheet XML.
     wb = get_workbook(ws)
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # The <conditionalFormatting> blocks come after the <sheetData>
-    k, l = get_idces(sheetdoc, "worksheet", "sheetData")
-    len = length(sheetdoc[k])
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # The <conditionalFormatting> blocks come after the <sheetData>
+    l = insert_index(sheetdoc[end], "conditionalFormatting", WORKSHEET_ORDER)
+    len = length(sheetdoc[end])
     if l != len
-        insert!(sheetdoc[k].children, l+1, new_cf)
+        insert!(sheetdoc[end].children, l, new_cf)
     else
-        push!(sheetdoc[k], new_cf)
+        push!(sheetdoc[end], new_cf)
     end
 end
 function update_worksheet_cfx!(allcfs, cfx, ws, rng)
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     matchcfs = filter(x -> x["sqref"] == string(rng), allcfs)   # Match range with existing conditional formatting blocks.
     l = length(matchcfs)
     if l == 0                                                   # No existing conditional formatting blocks for this range so create a new one.
-        new_cf = XML.Element("conditionalFormatting"; sqref=rng)
+        new_cf = XML.Element("$(pfx)conditionalFormatting"; sqref=rng)
         push!(new_cf, cfx)
         add_cf_to_XML(ws, new_cf)                               # Add the new conditional formatting block to the worksheet XML.
     elseif l == 1                                               # Existing conditional formatting block found for this range so add new rule to that block.
@@ -73,7 +77,8 @@ end
 #
 function allExtCfs(ws::Worksheet)::Vector{XML.Node}
     wb = get_workbook(ws)
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)    
+#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
     i, j = get_idces(sheetdoc, "worksheet", "extLst")
     if isnothing(j)
         return Vector{XML.Node}()
@@ -107,7 +112,8 @@ function make_extCfsBlock()
 end
 function update_worksheet_ext_cfx!(allcfs, cfx, ws, rng)
     wb = get_workbook(ws)
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
+#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
     i, j = get_idces(sheetdoc, "worksheet", "extLst")
     if isnothing(j)
         make_extLst!(sheetdoc[i])
@@ -164,6 +170,9 @@ end
 function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
     # Check if the workbook already has a dxfs element. If not, add one.
     xroot = styles_xmlroot(wb)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(wb))
+    pfx = pfx == "" ? pfx : pfx * ":"
+    
     i, j = get_idces(xroot, "styleSheet", "dxfs")
 
     if isnothing(j) # No existing conditional formats so need to add a block (is this even possible?). Push everything lower down one.
@@ -193,7 +202,7 @@ function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
 
     #   Don't reuse duplicates here. Always create new!
     existingdx = XML.children(xroot[i][j])
-    dxfs = unlink(xroot[i][j], ("dxfs", "dxf")) # Create the new <dxfs> Node
+    dxfs = unlink(xroot[i][j], ("dxfs", "dxf"), pfx) # Create the new <dxfs> Node
     if length(existingdx) > 0
         for c in existingdx
             push!(dxfs, c) # Copy each existing <dxf> into the new <dxfs> Node
