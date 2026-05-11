@@ -416,18 +416,18 @@ function getDefinedNames(xl::XLSXFile)
         push!(result, (name = name, scope = "Workbook", value = string(val.value)))
     end
 
-for ((sid, name), val) in wb.worksheet_names
-    scope = haskey(sheet_lookup, sid) ||
-        throw(ArgumentError("No sheet name found for localSheetId=$sid")) # shouldn't ever happen!
+    for ((sid, name), val) in wb.worksheet_names
+        scope = haskey(sheet_lookup, sid) ||
+            throw(ArgumentError("No sheet name found for localSheetId=$sid")) # shouldn't ever happen!
 
-    scope = sheet_lookup[sid]
+        scope = sheet_lookup[sid]
 
-    push!(result, (
-        name  = name,
-        scope = scope,
-        value = string(val.value),
-    ))
-end
+        push!(result, (
+            name  = name,
+            scope = scope,
+            value = string(val.value),
+        ))
+    end
 
     sort!(result, by = x -> (x.scope, x.name))
 end

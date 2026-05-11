@@ -86,15 +86,21 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
         catch e
             @test occursin("is not a valid XLSX file", "$e")
         end
-        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-        try
-            XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-            @test false # didn't throw exception
-        catch e
-            @test occursin("does not support Excel template files", "$e")
-        end
+#        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
+#        try
+#            XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
+#            @test false # didn't throw exception
+#        catch e
+#            @test occursin("does not support Excel template files", "$e")
+#        end
     end
 
+    @testset "read .xltx file" begin
+        xf = XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
+        s=xf[1]
+        @test s["P5"] == 5
+        @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
+    end
     @testset "missing file or bad `mode`" begin
         @test_throws XLSX.XLSXError XLSX.openxlsx("noSuchFile.xlsx")
         @test_throws XLSX.XLSXError XLSX.openxlsx(joinpath(data_directory, "Book1.xlsx"); mode="tg")

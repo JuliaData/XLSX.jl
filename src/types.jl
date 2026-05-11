@@ -584,11 +584,12 @@ mutable struct XLSXFile <: MSOfficePackage
     workbook::Workbook
     relationships::Vector{Relationship} # contains package level relationships
     is_writable::Bool # indicates whether this XLSX file can be edited
+    is_xltx::Bool # indicates whether this XLSX file was read from template (xltx) file
     uuid_rng::Random.Xoshiro # rng used to generate uuids for this file
 
     function XLSXFile(source::Union{AbstractString, IO}, use_cache::Bool, is_writable::Bool)
         check_for_xlsx_file_format(source)
-        xl = new(source, use_cache, Dict{String, Bool}(), Dict{String, XML.Node}(), Dict{String, String}(), Dict{String, Vector{UInt8}}(), EmptyWorkbook(), Vector{Relationship}(), is_writable, Random.Xoshiro(2468))
+        xl = new(source, use_cache, Dict{String, Bool}(), Dict{String, XML.Node}(), Dict{String, String}(), Dict{String, Vector{UInt8}}(), EmptyWorkbook(), Vector{Relationship}(), is_writable, false, Random.Xoshiro(2468))
         xl.workbook.package = xl
         return xl
     end

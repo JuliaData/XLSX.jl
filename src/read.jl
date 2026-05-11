@@ -281,12 +281,6 @@ and saving to another file with [XLSX.writexlsx](@ref).
 
 A convenience function equivalent to `openxlsx(source; mode="rw", enable_cache=true)`
 
-!!! note
-    XLSX.jl only works with `.xlsx` files and cannot work with Excel `.xltx` template files. 
-    Reading as a template in this package merely means opening a `.xlsx` file to edit, update 
-    and then write as an updated `.xlsx` file (e.g. using `XLSX.writexlsx()`). Doing so retains 
-    the formatting and layout of the opened file, but this is not the same as using a `.xltx` file.
-
 # Examples
 ```julia
 julia> xf = opentemplate("myExcelFile.xlsx")
@@ -371,6 +365,7 @@ Consider using [`XLSX.openxlsx`](@ref) for lazy loading of Excel file contents.
     openxlsx(f::F, source::Union{AbstractString, IO}; mode::AbstractString="r", enable_cache::Bool=true) where {F<:Function}
 
 Open an XLSX file for reading and/or writing and applies the function `f` to the content.
+
 # `Do` syntax
 
 This function should be used with `do` syntax, like in:
@@ -398,6 +393,13 @@ The `mode` argument controls how the file is opened. The following modes are all
     that `XLSX.jl` cannot process (such as charts, pivot tables, etc), but that would otherwise be preserved if not 
     overwritten. You may avoid this risk by choosing to open files in "rw" mode without using do-block syntax, in which 
     case it becomes necessary explicitly to write the `XLSXFile` out again, providing the option to write to another file name.
+    
+
+!!! note
+
+    When a native Excel template (`.xltx`) file is opened in "rw" mode using do-block syntax, it will always be written 
+    back out as a regular Excel file with a `.xlsx` extension at the termination of the do block. It is not written out 
+    as an Excel template file.
 
 # Arguments
 
@@ -474,7 +476,12 @@ function openxlsx(f::F, source::Union{AbstractString,IO};
 
     finally
         if _write
-            writexlsx(source, xf, overwrite=true)
+            if xf.is_xltx 
+                if isa(xf.source, AbstractString)
+                    xf.source = splitext(xf.source)[1] * ".xlsx"
+                end
+            end
+            writexlsx(xf.source, xf, overwrite=true)
         end
     end
 end
@@ -603,7 +610,7 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
         convert_strict_to_transitional!(xf, 1)
     end
 
-    check_minimum_requirements(xf)
+    check_minimum_requirements(xf) # if native .xltx file read, need to change filename once all data files loaded.
     parse_relationships!(xf)
     parse_workbook!(xf)
 
@@ -634,6 +641,77 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
     return xf
 end
 
+"""
+    ensure_workbook_is_xlsx!(xf::XLSXFile)
+
+Inspect the `[Content_Types].xml` part of the package and ensure that
+`/xl/workbook.xml` is marked as a regular `.xlsx` workbook. If the workbook
+content type indicates a template (`.xltx`), the function converts it in-place
+by rewriting the workbook `ContentType` to the standard `.xlsx` value and
+updating `xf.source` to use a `.xlsx` file extension. Throws an `XLSXError`
+if the workbook override is missing or has an unknown content type.
+"""
+function ensure_workbook_is_xlsx!(xf::XLSXFile)
+    root = xf.data["[Content_Types].xml"][end]
+
+    workbook_override = nothing
+    default_xml_type = nothing
+
+    # Scan once, collecting both possible sources of the workbook content type
+    for child in XML.children(root)
+        name = localname(child)
+
+        if name == "Override" &&
+           lowercase(child["PartName"]) == "/xl/workbook.xml"
+            workbook_override = child
+
+        elseif name == "Default" &&
+               child["Extension"] == "xml"
+            default_xml_type = child["ContentType"]
+        end
+    end
+
+    # Excel-compatible fallback:
+    # 1. Prefer the Override
+    # 2. Fall back to the Default
+    # 3. Only error if both missing
+    ctype =
+        !isnothing(workbook_override) ? workbook_override["ContentType"] :
+        !isnothing(default_xml_type) ? default_xml_type :
+        throw(XLSXError("Malformed XLSX: workbook.xml content type not found."))
+
+    # Normal .xlsx
+    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+        return nothing
+    end
+
+    # Template .xltx → convert to .xlsx
+    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml"
+
+        if !isnothing(workbook_override)
+            # Update the Override entry
+            workbook_override["ContentType"] =
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+        else
+            # Update the Default entry instead
+            for child in XML.children(root)
+                if localname(child) == "Default" &&
+                   child["Extension"] == "xml"
+                    child["ContentType"] =
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+                end
+            end
+        end
+
+        xf.is_xltx = true # mark the file as originally being a template, so that we can rename it to .xlsx on save
+        return nothing
+    end
+
+    # Unknown workbook type
+    throw(XLSXError("Unknown workbook content type: $ctype"))
+end
+
+
 # See section 12.2 - Package Structure
 function check_minimum_requirements(xf::XLSXFile)
     mandatory_files = ["_rels/.rels",
@@ -647,18 +725,9 @@ function check_minimum_requirements(xf::XLSXFile)
     end
 
     # Further check if this is a valid `.xlsx` file.
-    f = "[Content_Types].xml"
-    content_types = XML.write(xf.data[f])
+    ensure_workbook_is_xlsx!(xf)
 
-    if occursin("spreadsheetml.sheet", content_types)
-        return nothing
-    elseif occursin("spreadsheetml.template", content_types)
-        throw(XLSXError("XLSX.jl does not support Excel template files (`.xltx` files).\nSave template as an `xlsx` file type first."))
-    else
-        throw(XLSXError("Unknown Excel file type."))
-    end
-
-    nothing
+    return nothing
 end
 
 # Parses package level relationships defined in `_rels/.rels`.

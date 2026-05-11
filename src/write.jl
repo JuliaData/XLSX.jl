@@ -7,13 +7,22 @@ overwriting original content.
 
 A new `XLSXFile` created with `XLSX.newxlsx` (or using `openxlsx` without specifying a filename) will 
 have `source` set to `"blank.xlsx"` and cannot be saved with this function. Use [`writexlsx`](@ref) instead 
-to specify a file name for the saved file.
+to specify a new file name for the saved file.
+
+An `XLSXFile` created from a native Excel template (`.xltx`) file cannot be saved with this function. 
+Use [`writexlsx`](@ref) instead to specify a new file name for the saved file.
 
 Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
 
 """
 function savexlsx(f::XLSXFile)
-    f.source == "blank.xlsx" && throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
+    if isa(f.source, AbstractString)
+        if f.source == "blank.xlsx"
+            throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
+        elseif f.is_xltx
+            throw(XLSXError("Can't save to a back to an Excel template file. Use `writexlsx` instead to specify a file name."))
+        end
+    end
     return writexlsx(f.source, f; overwrite=true)
 end
 
@@ -33,7 +42,7 @@ See also [`savexlsx`](@ref).
 
 !!! note
 
-    XLSX.jl can now read strict (ISO/IEC 29500) XLSX files, and converts them eagerly on read 
+    When XLSX.jl reads strict (ISO/IEC 29500) XLSX files, it converts them eagerly on 
     to transitional (ECMA 376) format. On write, XLSX.jl will always write in the transitional 
     format, which is the Excel default. Excel itself can convert between strict and 
     transitional formats. Use Excel directly to convert a transitional file to strict format, 
