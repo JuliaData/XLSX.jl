@@ -8,3 +8,7 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    groups: # uncomment to group all julia package updates into a single PR
+      all-julia-packages:
+        patterns:
+          - "*"
