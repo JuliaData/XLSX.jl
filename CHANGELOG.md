@@ -5,6 +5,7 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- add `dependabot` support ([#130](https://github.com/JuliaData/XLSX.jl/issues/130))
 
 ## [v0.11.7](https://github.com/JuliaData/XLSX.jl/tree/v0.11.7) - 2026-05-07
 - Fix issue [#368](https://github.com/JuliaData/XLSX.jl/issues/368) for both reading and writing

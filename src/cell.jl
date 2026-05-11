@@ -17,51 +17,33 @@ Base.:(==)(c1::EmptyCell, c2::EmptyCell) = c1.ref == c2.ref
 Base.hash(c::EmptyCell, h::UInt) = hash(c.ref, h)
 
 const RGX_INTEGER = r"^\-?[0-9]+$"
+
+const ERROR_STRING_TO_CODE = Dict{String, UInt64}(
+    "#NULL!"  => UInt64(XL_NULL),
+    "#DIV/0!" => UInt64(XL_DIV0),
+    "#VALUE!" => UInt64(XL_VALUE),
+    "#REF!"   => UInt64(XL_REF),
+    "#NAME?"  => UInt64(XL_NAME),
+    "#NUM!"   => UInt64(XL_NUM),
+    "#N/A"    => UInt64(XL_NA),
+    "#SPILL!" => UInt64(XL_SPILL), # Won't happen - #SPILL isn't an actual error. Returns #VALUE! instead.
+)
+
+const ERROR_CODE_TO_STRING = Dict{UInt64, String}(v => k for (k, v) in ERROR_STRING_TO_CODE)
+
 function get_error_type(v::AbstractString)::UInt64
-    if v == "#NULL!"
-        return UInt64(XL_NULL)
-    elseif v == "#DIV/0!"
-        return UInt64(XL_DIV0)
-    elseif v == "#VALUE!"
-        return UInt64(XL_VALUE)
-    elseif v == "#REF!"
-        return UInt64(XL_REF)
-    elseif v == "#NAME?"
-        return UInt64(XL_NAME)
-    elseif v == "#NUM!"
-        return UInt64(XL_NUM)
-    elseif v == "#N/A"
-        return UInt64(XL_NA)
-    elseif v == "#SPILL!"
-        return UInt64(XL_SPILL)
-    else
+    get(ERROR_STRING_TO_CODE, v) do
         throw(XLSXError("Unknown error value: $v"))
     end
 end
 
 function get_error_string(e::UInt64)::String
-    if e == UInt64(XL_NULL)
-        return "#NULL!"
-    elseif e == UInt64(XL_DIV0)
-        return "#DIV/0!"
-    elseif e == UInt64(XL_VALUE)
-        return "#VALUE!"
-    elseif e == UInt64(XL_REF)
-        return "#REF!"
-    elseif e == UInt64(XL_NAME)
-        return "#NAME?"
-    elseif e == UInt64(XL_NUM)
-        return "#NUM!"
-    elseif e == UInt64(XL_NA)
-        return "#N/A"
-    elseif e == UInt64(XL_SPILL) # Won't happen - #SPILL isn't an actual error. Returns #VALUE! instead.
-        return "#SPILL!"
-     else
+    get(ERROR_CODE_TO_STRING, e) do
         throw(XLSXError("Unknown error code: $e"))
     end
 end
-get_error_string(::Nothing) = ""
 
+get_error_string(::Nothing) = ""
 
 """
     iserror(s::Worksheet, ref::AbstractString)
@@ -215,13 +197,65 @@ end
 # Resolves unhandled_attributes to nothing if empty, for compact Formula construction.
 _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 
+function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{ReentrantLock,Nothing}=nothing)::Union{Cell,EmptyCell}
+    wb = get_workbook(ws)
+
+    @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
+
+    a   = XML.attributes(c)
+    chn = XML.children(c)
+    ref = CellRef(a["r"])
+
+    t     = get(a, "t", "")
+    s_str = get(a, "s", "")
+    m_str = get(a, "cm", "")
+
+    style, num_style = _parse_style(s_str)
+    meta::UInt32     = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
+
+    datatype::CellValueType = CT_EMPTY
+    value::UInt64           = UInt64(0)
+    formula::Bool           = false
+
+    if t == "inlineStr"
+        for child in chn
+            localname(child) == "is" || continue
+            uft = unformatted_text(wb, child)
+            if !isempty(uft)
+                ft = _build_si_xml(child, sst_pfx)
+                datatype = CT_STRING
+                value = reinterpret(UInt64, Int64(add_formatted_string!(wb, ft; mylock)))
+            end
+            break
+        end
+    else
+#        is_writable = get_xlsxfile(wb).is_writable
+        for child in chn
+            tag = localname(child)
+            if tag == "v"
+                ch = XML.children(child)
+                isempty(ch) && continue
+                raw = XML.value(ch[1])
+                v = occursin('&', raw) ? XLSX.unescape(raw) : raw
+                datatype, value = process_tv(wb, t, v, num_style; mylock)
+            elseif tag == "f"
+                f = parse_formula_from_element(wb,child)
+                wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
+                formula = true
+            end
+        end
+    end
+
+    return Cell(ref, value, style, meta, datatype, formula)
+end
+#=
 function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothing}=nothing)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
     sst_pfx = get_prefix("xl/SharedStrings.xml", get_xlsxfile(ws))
     if isnothing(sst_pfx) || sst_pfx == ""
         sst_pfx = ""
     else
-        sst_pfx = ":"
+        sst_pfx = sst_pfx*":"
     end
 
     localname(c) == "c" || throw(XLSXError("`Cell` expects a `c` (cell) XML node."))
@@ -274,6 +308,7 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
 
     return Cell(ref, value, style, meta, datatype, formula)
 end
+=#
 
 function parse_formula_from_element(wb, c_child_element)::AbstractFormula
     localname(c_child_element) == "f" ||
@@ -343,35 +378,32 @@ function process_tv(wb::Workbook, t::String, v::String, num_style::Int; mylock::
     value::UInt64           = UInt64(0)
     isempty(v) && return datatype, value
 
-    if t == "b"
-        datatype = CT_BOOL
-        value = v == "1" ? UInt64(1) :
-                v == "0" ? UInt64(0) :
-                throw(XLSXError("Unknown boolean value: $v"))
+    if t == "n" || t == ""
+        if styles_is_datetime(wb, num_style)
+            value, datatype = _parse_excel_datetime_raw(v)
+        elseif styles_is_float(wb, num_style)
+            datatype = CT_FLOAT
+            value = reinterpret(UInt64, parse(Float64, v))
+        else
+            parsed_int = tryparse(Int64, v)
+            if parsed_int !== nothing
+                datatype = CT_INT
+                value = reinterpret(UInt64, parsed_int)
+            else
+                datatype = CT_FLOAT
+                value = reinterpret(UInt64, parse(Float64, v))
+            end
+        end
 
     elseif t == "s"
         datatype = CT_STRING
         value = reinterpret(UInt64, parse(Int64, v))
 
-    elseif t == "d" # ISO 8601 date/datetime/time string
-        if occursin("T", v) && !startswith(v, "T")
-            dt = Dates.DateTime(replace(rstrip(v, 'Z'), r"(\.\d{3})\d+$" => s"\1"), Dates.dateformat"yyyy-mm-ddTHH:MM:SS.sss")
-            serial = datetime_to_excel_value(dt, wb.date1904)
-            datatype = CT_DATETIME
-        elseif occursin("-", v)
-            d = Dates.Date(v, Dates.dateformat"yyyy-mm-dd")
-            serial = date_to_excel_value(d, wb.date1904)
-            datatype = CT_DATE
-        else
-            # Time-only: parse HH:MM:SS.fractional directly to fractional day
-            parts = split(rstrip(v, 'Z'), ":")
-            seconds = parse(Float64, parts[1]) * 3600.0 +
-                      parse(Float64, parts[2]) * 60.0 +
-                      parse(Float64, parts[3])
-            serial = seconds / 86400.0
-            datatype = CT_TIME
-        end
-        value = reinterpret(UInt64, serial)
+    elseif t == "b"
+        datatype = CT_BOOL
+        value = v == "1" ? UInt64(1) :
+                v == "0" ? UInt64(0) :
+                throw(XLSXError("Unknown boolean value: $v"))
 
     elseif t == "str"
         datatype = CT_STRING
@@ -381,23 +413,35 @@ function process_tv(wb::Workbook, t::String, v::String, num_style::Int; mylock::
         datatype = CT_ERROR
         value = get_error_type(v)
 
-    elseif t == "n" || t == ""
-        if styles_is_datetime(wb, num_style)
-            value, datatype = _parse_excel_datetime_raw(v)
-        elseif styles_is_float(wb, num_style)
-            datatype = CT_FLOAT
-            value = reinterpret(UInt64, parse(Float64, v))
-        else
-            # Use tryparse to distinguish integers from floats, avoiding manual byte scanning
-            parsed_int = tryparse(Int64, v)
-            if !isnothing(parsed_int)
-                datatype = CT_INT
-                value = reinterpret(UInt64, parsed_int)
-            else
-                datatype = CT_FLOAT
-                value = reinterpret(UInt64, parse(Float64, v))
+    elseif t == "d"
+        # Check for 'T' separator (datetime) vs '-' (date) vs time-only
+        T_pos = findfirst(==('T'), v)
+        if T_pos !== nothing && T_pos > firstindex(v)
+            # Datetime: strip trailing Z, truncate sub-milliseconds
+            v2 = rstrip(v, 'Z')
+            dot_pos = findfirst(==('.'), v2)
+            if dot_pos !== nothing && length(v2) - dot_pos > 3
+                v2 = v2[begin:dot_pos+3]
             end
+            dt = Dates.DateTime(v2, Dates.dateformat"yyyy-mm-ddTHH:MM:SS.sss")
+            value = reinterpret(UInt64, datetime_to_excel_value(dt, wb.date1904))
+            datatype = CT_DATETIME
+        elseif findfirst(==('-'), v) !== nothing
+            d = Dates.Date(v, Dates.dateformat"yyyy-mm-dd")
+            value = reinterpret(UInt64, date_to_excel_value(d, wb.date1904))
+            datatype = CT_DATE
+        else
+            # Time-only HH:MM:SS[.frac][Z] — parse without allocating via split
+            v2 = rstrip(v, 'Z')
+            c1 = findfirst(==(':'), v2)
+            c2 = findnext(==(':'), v2, c1+1)
+            h  = parse(Float64, @view v2[begin:c1-1])
+            m  = parse(Float64, @view v2[c1+1:c2-1])
+            s  = parse(Float64, @view v2[c2+1:end])
+            value = reinterpret(UInt64, (h * 3600.0 + m * 60.0 + s) / 86400.0)
+            datatype = CT_TIME
         end
+
     else
         throw(XLSXError("Cannot parse cell value: $v"))
     end
@@ -455,22 +499,6 @@ function datetime_to_excel_value(dt::Dates.DateTime, is1904::Bool)::Float64
     return date_part + time_part
 end
 
-#=
-# Shared helper for parsing a raw Excel datetime string into a value and CellValueType.
-function _parse_excel_datetime(v::AbstractString, is1904::Bool)
-    isempty(v) && throw(XLSXError("Cannot convert an empty string into a datetime value."))
-    if occursin('.', v) || v == "0"
-        time_value = parse(Float64, v)
-        time_value >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $time_value"))
-        return time_value < 1.0 ?
-            (excel_value_to_time(time_value), CT_TIME) :
-            (excel_value_to_datetime(time_value, is1904), CT_DATETIME)
-    else
-        return excel_value_to_date(parse(Int64, v), is1904), CT_DATE
-    end
-end
-=#
-
 @inline getdata(ws::Worksheet, empty::EmptyCell) = missing
 
 """
@@ -510,7 +538,7 @@ function getdata(ws::Worksheet, cell::Cell)
 end
 
 # Extract cells from a <row> LazyNode and push them (in place) into a Dict(column -> Cell)
-function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothing}=nothing)
+function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{ReentrantLock,Nothing}=nothing)
 
     #=
         # threaded cell extraction causes hugely more lock conflicts for low cellchunk size.
@@ -599,7 +627,7 @@ function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Workshee
 
     while !isnothing(cellnode) && cellnode.depth > d
         if localname(cellnode) == "c" # This is a cell
-            cell = Cell(cellnode, ws; mylock) # construct an XLSX.Cell from an XML.LazyNode
+            cell = Cell(cellnode, ws, sst_pfx; mylock) # construct an XLSX.Cell from an XML.LazyNode
             sst_count += cell.datatype == CT_STRING ? 1 : 0
             rowcells[column_number(cell)] = cell
         end

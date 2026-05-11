@@ -854,6 +854,56 @@ end
     @test !XLSX.is_defined_name_value_a_reference(missing)
 
     f = XLSX.opentemplate(joinpath(data_directory, "general.xlsx"))
+
+    result = XLSX.getDefinedNames(f)
+
+    # Return type
+    @test eltype(result) <: NamedTuple
+    @test length(result) == 16
+    @test all(r -> haskey(r, :name) && haskey(r, :scope) && haskey(r, :value), result)
+    @test all(r -> r.name isa String && r.scope isa String && r.value isa String, result)
+
+    # Sorting: sorted by (scope, name) — "Workbook" before sheet names
+    @test issorted(result, by = x -> (x.scope, x.name))
+    workbook_end = findlast(r -> r.scope == "Workbook", result)
+    sheet_start  = findfirst(r -> r.scope != "Workbook", result)
+    @test workbook_end < sheet_start
+
+    # Workbook-scoped constants
+    @test any(r -> r.name == "CONST_INT"   && r.scope == "Workbook" && r.value == "100",   result)
+    @test any(r -> r.name == "CONST_FLOAT" && r.scope == "Workbook" && r.value == "10.2",  result)
+    @test any(r -> r.name == "CONST_DATE"  && r.scope == "Workbook" && r.value == "43383", result)
+
+    # Workbook-scoped ranges
+    @test any(r -> r.name == "SINGLE_CELL" && r.scope == "Workbook" && r.value == "named_ranges!A2",    result)
+    @test any(r -> r.name == "RANGE_B4C5"  && r.scope == "Workbook" && r.value == "named_ranges!B4:C5", result)
+
+    # Workbook-scoped string value
+    @test any(r -> r.name == "LOCAL_NAME" && r.scope == "Workbook" && r.value == "out there in the cold", result)
+
+    # Worksheet-scoped: named_ranges sheet
+    @test any(r -> r.name == "LOCAL_INT"      && r.scope == "named_ranges" && r.value == "1000",              result)
+    @test any(r -> r.name == "LOCAL_NAME"     && r.scope == "named_ranges" && r.value == "Hey You",           result)
+    @test any(r -> r.name == "LOCAL_REF"      && r.scope == "named_ranges" && r.value == "named_ranges!A15:B15", result)
+    @test any(r -> r.name == "CONST_LOCAL_INT"&& r.scope == "named_ranges" && r.value == "100",               result)
+
+    # Worksheet-scoped: named_ranges_2 sheet
+    @test any(r -> r.name == "LOCAL_INT"  && r.scope == "named_ranges_2" && r.value == "2000",                  result)
+    @test any(r -> r.name == "LOCAL_NAME" && r.scope == "named_ranges_2" && r.value == "out there in the cold", result)
+    @test any(r -> r.name == "LOCAL_REF"  && r.scope == "named_ranges_2" && r.value == "named_ranges_2!D1:E1",  result)
+
+    # Names that exist at both workbook and worksheet scope (shadowing)
+    local_int_entries = filter(r -> r.name == "LOCAL_INT", result)
+    @test length(local_int_entries) == 3
+    @test any(r -> r.scope == "Workbook",       local_int_entries)
+    @test any(r -> r.scope == "named_ranges",   local_int_entries)
+    @test any(r -> r.scope == "named_ranges_2", local_int_entries)
+
+    const_local_int_entries = filter(r -> r.name == "CONST_LOCAL_INT", result)
+    @test length(const_local_int_entries) == 2
+    @test any(r -> r.scope == "Workbook",     const_local_int_entries)
+    @test any(r -> r.scope == "named_ranges", const_local_int_entries)
+
     @test f["SINGLE_CELL"] == "single cell A2"
     @test f["RANGE_B4C5"] == Any["range B4:C5" "range B4:C5"; "range B4:C5" "range B4:C5"]
     @test f["CONST_DATE"] == 43383
@@ -7315,7 +7365,8 @@ end
     @test XLSX.getcell(sheet1, "A1") == XLSX.Cell(XLSX.get_workbook(xf), XLSX.CellRef("A1"), "str", "", "", "", true)
     @test XLSX.get_formula_from_cache(sheet1, XLSX.CellRef("A1")) == XLSX.Formula("\"\"")
     XLSX.writexlsx("mytest.xlsx", xf, overwrite=true)
-    xf2 = XLSX.readxlsx(joinpath(data_directory, "empty_v.xlsx"))
+    xf2 = XLSX.readxlsx("mytest.xlsx")
+    sheet1 = xf2["Sheet1"]
     @test XLSX.getcell(xf2[1], "A1") == XLSX.Cell(XLSX.get_workbook(xf2), XLSX.CellRef("A1"), "str", "", "", "", true)
     @test XLSX.get_formula_from_cache(sheet1, XLSX.CellRef("A1")) == XLSX.Formula("\"\"")
     isfile("mytest.xlsx") && rm("mytest.xlsx")

@@ -397,3 +397,37 @@ function addDefinedName(ws::Worksheet, name::AbstractString, value::AbstractStri
         return addDefName(ws, name, value; absolute)
     end
 end
+
+"""
+    getDefinedNames(xl::XLSXFile) -> Vector{NamedTuple}
+
+Returns all defined names in `xl`, both workbook-scoped and worksheet-scoped,
+as a vector of `(name, scope, value)` named tuples sorted by scope then name.
+Workbook-scoped names use `"Workbook"` as the scope; worksheet-scoped names
+use the sheet's display name.
+"""
+function getDefinedNames(xl::XLSXFile)
+    wb = xl.workbook
+    sheet_lookup = Dict(ws.sheetId => ws.name for ws in wb.sheets)
+
+    result = NamedTuple{(:name, :scope, :value), Tuple{String, String, String}}[]
+
+    for (name, val) in wb.workbook_names
+        push!(result, (name = name, scope = "Workbook", value = string(val.value)))
+    end
+
+for ((sid, name), val) in wb.worksheet_names
+    scope = haskey(sheet_lookup, sid) ||
+        throw(ArgumentError("No sheet name found for localSheetId=$sid")) # shouldn't ever happen!
+
+    scope = sheet_lookup[sid]
+
+    push!(result, (
+        name  = name,
+        scope = scope,
+        value = string(val.value),
+    ))
+end
+
+    sort!(result, by = x -> (x.scope, x.name))
+end

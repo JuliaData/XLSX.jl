@@ -229,6 +229,16 @@ function get_namespaces(r::XML.Node)::Dict{String,String}
     end
     return nss
 end
+function get_sst_prefix(ws::Worksheet)::String
+    sst_pfx = get_prefix("xl/SharedStrings.xml", get_xlsxfile(ws))
+    if isnothing(sst_pfx) || sst_pfx == ""
+        sst_pfx = ""
+    else
+        sst_pfx = sst_pfx*":"
+    end
+    return sst_pfx
+end
+
 
 # Determine if the file is a Strict OOXML file.
 function is_strict_ooxml(xf::XLSXFile)::Bool
@@ -737,9 +747,10 @@ function parse_defined_name_value(s::String)::Tuple{DefinedNameValueTypes, Any}
     end
 
     if is_valid_non_contiguous_range(s)
-        rng = [unquoteit(split(r, '!')[1]) * "!" * split(r, '!')[2] for r in split(s, ',')]
+        parts = split(s, ',')
+        rng = [String(unquote_sheet(r)) for r in parts]
         defined_value = NonContiguousRange(join(rng, ','))
-        isabs = [is_valid_fixed_sheet_cellname(d) || is_valid_fixed_sheet_cellrange(d) for d in split(s, ',')]
+        isabs = [is_valid_fixed_sheet_cellname(d) || is_valid_fixed_sheet_cellrange(d) for d in parts]
         length(isabs) != length(defined_value.rng) && throw(XLSXError("Error parsing absolute references in non-contiguous range."))
     elseif is_valid_fixed_sheet_cellname(s)
         defined_value, isabs = SheetCellRef(unquote_sheet(s)), true
@@ -749,13 +760,13 @@ function parse_defined_name_value(s::String)::Tuple{DefinedNameValueTypes, Any}
         defined_value, isabs = SheetCellRange(unquote_sheet(s)), true
     elseif is_valid_sheet_cellrange(s)
         defined_value, isabs = SheetCellRange(unquote_sheet(s)), false
-    elseif occursin(r"^\".*\"$", s)
-        inner = s[nextind(s, begin):prevind(s, end)]
+    elseif startswith(s, '"') && endswith(s, '"')
+        inner = String(chop(s, head=1, tail=1))
         defined_value, isabs = (isempty(inner) ? missing : inner), false
-    elseif tryparse(Int64, s) !== nothing
-        defined_value, isabs = parse(Int64, s), false
-    elseif tryparse(Float64, s) !== nothing
-        defined_value, isabs = parse(Float64, s), false
+    elseif (n = tryparse(Int64, s)) !== nothing
+        defined_value, isabs = n, false
+    elseif (n = tryparse(Float64, s)) !== nothing
+        defined_value, isabs = n, false
     elseif isempty(s)
         defined_value, isabs = missing, false
     else
