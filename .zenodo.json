@@ -12,7 +12,7 @@
             "type": "ProjectMember"
         }
     ],
-    "description": "XLSX.jl is a Julia package to read and write Excel spreadsheet files in the XLSX format.",
+    "description": "XLSX.jl is a Julia package to read and write Excel spreadsheet files.",
     "license": "mit",
     "upload_type": "software",
     "keywords": ["julia", "excel", "xlsx", "spreadsheet"]
