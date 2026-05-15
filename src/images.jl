@@ -109,9 +109,8 @@ Supported formats (auto-detected): PNG, JPEG, GIF.
 
 # Keyword Arguments
 
-- `size`: provide the desired size of the image as a tuple of integers: `(width_px, height_px)`. Actual size 
-will snap to the nearest actual cell boundaries. If `nothing` (default), the image's native pixel size is used. 
-Ignored if `ref` is a cell range.
+- `size`: provide the desired size of the image as a tuple of integers: `(width_px, height_px)`. If `nothing` (default), 
+the image's native pixel size is used. Ignored if `ref` is a cell range. Actual size will snap to the nearest cell boundaries.
 
 # Return Value
 

@@ -916,6 +916,7 @@ XLSXFile("blank.xlsx") containing 1 Worksheet
 
 """
 function XLSXFile(table)
+    Tables.istable(table) || throw(XLSXError("Input must be a Tables.jl compatible table."))
     isempty(Tables.rows(table)) && throw(XLSXError("Cannot create XLSXFile from an empty table."))
     xf = newxlsx()
     writetable!(xf[1], table)
