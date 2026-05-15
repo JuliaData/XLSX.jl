@@ -131,7 +131,7 @@ function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIterator
 
     sheet_row = SheetRow(ws, current_row, current_row_ht, rowcells)
 
-    return sheet_row, SheetRowStreamIteratorState(state.row_nodes, state.row_index, rowcells, mylock)
+    return sheet_row, state
 end
     
 #
@@ -329,16 +329,30 @@ function stream_rows(sheetdata::XML.LazyNode, chunksize::Int; channel_size::Int=
     end
 end
 
+const _EMPTY_ROW_ATTRS = Dict{String,String}()
+
 function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Worksheet, mylock::ReentrantLock)
-    unhandled_attributes = Dict{String,String}()
+    current_row_ht::Union{Float64,Nothing} = nothing
+    row_num::Union{Int,Nothing} = nothing
+    unhandled_attributes = _EMPTY_ROW_ATTRS
 
     atts = XML.attributes(row)
     if !isnothing(atts)
-        current_row_ht = haskey(atts, "ht") ? parse(Float64, atts["ht"]) : nothing
-        row_num = haskey(atts, "r") ? parse(Int, atts["r"]) : nothing
-        row_num === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
-        unhandled_attributes = Dict{String,String}(k => v for (k, v) in atts if !in(k, handled_attributes))
+        for (k, v) in atts
+            if k == "r"
+                row_num = parse(Int, v)
+            elseif k == "ht"
+                current_row_ht = parse(Float64, v)
+            end
+            if !(k in handled_attributes)
+                if unhandled_attributes === _EMPTY_ROW_ATTRS
+                    unhandled_attributes = Dict{String,String}()
+                end
+                unhandled_attributes[String(k)] = String(v)
+            end
+        end
     end
+    row_num === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
 
     # Process cells
     rowcells = Dict{Int,Cell}()

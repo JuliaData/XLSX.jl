@@ -73,7 +73,7 @@ function _build_si_xml(child)::String
 end
 
 # Parses a style string to (UInt32, Int) for use as style and num_style.
-function _parse_style(s::String)
+function _parse_style(s::AbstractString)
     isempty(s) && return UInt32(0), 0
     n = parse(Int, s)
     return UInt32(n), n
@@ -118,9 +118,8 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
         for child in chn
             tag = XML.tag(child)
             if tag == "v"
-                ch = XML.children(child)
-                isempty(ch) && continue
-                v = XML.value(ch[1])
+                v = XML.is_simple_value(child)
+                isnothing(v) && continue
                 datatype, value = process_tv(wb, t, v, num_style; mylock)
             elseif tag == "f"
                 if get_xlsxfile(wb).is_writable
@@ -139,12 +138,15 @@ function parse_formula_from_element(c_child_element)::AbstractFormula
     XML.tag(c_child_element) == "f" ||
         throw(XLSXError("Expected nodename `f`. Found: `$(XML.tag(c_child_element))`"))
 
-    # Extract formula string
-    formula_string = if XML.is_simple(c_child_element)
-        XML.simple_value(c_child_element)
-    else
-        text_nodes = filter(x -> XML.nodetype(x) == XML.Text, XML.children(c_child_element))
-        isempty(text_nodes) ? "" : XML.value(text_nodes[1])
+    # Extract formula string — `<f>` may have attributes (t="shared", si=…, ref=…)
+    # which makes it non-"simple", so collect the first Text child.
+    formula_string = ""
+    for ch in XML.children(c_child_element)
+        if XML.nodetype(ch) === XML.Text
+            v = XML.value(ch)
+            isnothing(v) || (formula_string = v)
+            break
+        end
     end
 
     a = XML.attributes(c_child_element)
@@ -198,7 +200,7 @@ function _parse_excel_datetime_raw(v::AbstractString)
     end
 end
 
-function process_tv(wb::Workbook, t::String, v::String, num_style::Int; mylock::Union{ReentrantLock,Nothing}=nothing)
+function process_tv(wb::Workbook, t::AbstractString, v::AbstractString, num_style::Int; mylock::Union{ReentrantLock,Nothing}=nothing)
     datatype::CellValueType = CT_EMPTY
     value::UInt64           = UInt64(0)
     isempty(v) && return datatype, value

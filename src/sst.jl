@@ -89,7 +89,7 @@ function add_formatted_string!(wb::Workbook, str_formatted::String; mylock::Unio
 end
 
 # check if unformatted shared string needs xml:space="preserve"
-needs_preserve(s::String) = startswith(s, ' ') || endswith(s, ' ') || contains(s, '\n')  || contains(s, "  ")
+needs_preserve(s::AbstractString) = startswith(s, ' ') || endswith(s, ' ') || contains(s, '\n')  || contains(s, "  ")
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
 function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int
@@ -148,31 +148,27 @@ end
 
 function gather_strings!(io::IOBuffer, e::XML.LazyNode)
     tag = XML.tag(e)
-    
+
     # Skip phonetic hints entirely
     tag == "rPh" && return nothing
-    
+
     if tag == "t"
-        children = XML.children(e)
-        n = length(children)
-        
-        if n == 1
-            c = children[1]
-            write(io, XML.is_simple(c) ? XML.simple_value(c) : XML.value(c))
-        elseif n == 0
-            val = XML.value(e)
-            !isnothing(val) && write(io, XML.is_simple(e) ? XML.simple_value(e) : val)
-        else
-            throw(XLSXError("Unexpected number of children in <t>: $n. Expected 0 or 1."))
+        # `<t>` may carry `xml:space="preserve"` so it is not always "simple";
+        # collect any Text/CData children directly.
+        for ch in XML.children(e)
+            nt = XML.nodetype(ch)
+            if nt === XML.Text || nt === XML.CData
+                v = XML.value(ch)
+                isnothing(v) || write(io, v)
+            end
         end
     else
         # Recurse into children for all other tags
-        children = XML.children(e)
-        for ch in children
+        for ch in XML.children(e)
             gather_strings!(io, ch)
         end
     end
-    
+
     return nothing
 end
 
