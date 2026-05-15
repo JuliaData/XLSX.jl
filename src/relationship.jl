@@ -75,38 +75,22 @@ function get_workbook_relationship_root(xf::XLSXFile)::XML.Node
     return xroot
 end
 
+function new_relationship_id(rels_root::XML.Node)::String
+    ids = [parse(Int, m[1])
+           for n in element_children(rels_root)
+           for m in [match(r"rId(\d+)", get_attr(n, "Id"))]
+           if m !== nothing]
+    return "rId$(isempty(ids) ? 1 : maximum(ids) + 1)"
+end
+
 # Adds new relationship. Returns new generated rId.
 function add_relationship!(wb::Workbook, target::String, _type::String)::String
-    xf = get_xlsxfile(wb)
-#    !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable."))
-    local rId::String
-
-    let
-        got_unique_id = false
-        id = 1
-
-        while !got_unique_id
-            got_unique_id = true
-            rId = string("rId", id)
-            for r in wb.relationships
-                if r.Id == rId
-                    got_unique_id = false
-                    id += 1
-                    break
-                end
-            end
-        end
-    end
-
-    # adds to relationship vector
-    new_relationship = Relationship(rId, _type, target)
-    push!(wb.relationships, new_relationship)
-
-    # adds to XML tree
+    xf    = get_xlsxfile(wb)
     xroot = get_workbook_relationship_root(xf)
-    el = XML.Element("Relationship"; Id=rId, Type=_type, Target=target)
-    push!(xroot, el)
+    rId   = new_relationship_id(xroot) 
 
+    push!(wb.relationships, Relationship(rId, _type, target))
+    push!(xroot, XML.Element("Relationship"; Id=rId, Type=_type, Target=target))
     return rId
 end
 

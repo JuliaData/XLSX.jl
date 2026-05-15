@@ -1289,6 +1289,57 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
     # insert the copied sheet into the workbook
     new_ws = insertsheet!(wb, xdoc, new_cache, ws.sst_count, pfx, name; dim)
 
+    # Copy images if the sheet has a drawing
+    sheet_path = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+    drawing_path = _drawing_path_for_sheet(xl, sheet_path)
+
+    if drawing_path !== nothing
+        src_drawing_file = rsplit(drawing_path, "/"; limit=2)[2]
+        src_drawing_rels = "xl/drawings/_rels/$src_drawing_file.rels"
+
+        # Pick a fresh drawing file name
+        i = 1
+        while haskey(xl.data, "xl/drawings/drawing$i.xml"); i += 1; end
+        new_drawing_file = "drawing$i.xml"
+        new_drawing_path = "xl/drawings/$new_drawing_file"
+        new_drawing_rels = "xl/drawings/_rels/$new_drawing_file.rels"
+
+        # Copy drawing XML and rels verbatim
+        xl.data[new_drawing_path]  = copynode(xl.data[drawing_path])
+        xl.files[new_drawing_path] = true
+        xl.data[new_drawing_rels]  = copynode(xl.data[src_drawing_rels])
+        xl.files[new_drawing_rels] = true
+
+        # Register content types for drawing and any media it references
+        register_content_type!(xl, "[Content_Types].xml";
+                            tag="Override", key="PartName", val="/$new_drawing_path",
+                            content_type=MIME_DRAWING)
+        for img in _images_for_drawing(xl, drawing_path, ws.name)
+            ext = detect_image_ext(xl.binary_data["xl/media/$(img.media_name)"])
+            ext_no_dot = String(lstrip(ext, '.'))
+            register_content_type!(xl, "[Content_Types].xml";
+                                tag="Default", key="Extension", val=ext_no_dot,
+                                content_type=get(EXT_MIME, ext, "image/$ext_no_dot"))
+        end
+
+        # Link drawing to new sheet using existing helpers
+        new_sheet_path = get_relationship_target_by_id("xl", wb, new_ws.relationship_id)
+        new_rels_path  = let (d, f) = rsplit(new_sheet_path, "/"; limit=2)
+            "$d/_rels/$f.rels"
+        end
+        if !haskey(xl.data, new_rels_path)
+            xl.data[new_rels_path]  = empty_rels_doc()
+            xl.files[new_rels_path] = true
+        end
+        new_rels_root = root_element(xl.data[new_rels_path])
+        rid = new_relationship_id(new_rels_root)
+        pfx = get_prefix(new_rels_path, xl)
+        push!(new_rels_root, XML.Element(prefixed_tag(pfx, "Relationship");
+            Id=rid, Type=REL_DRAWING, Target="../drawings/$new_drawing_file",
+        ))
+        ensure_drawing_element!(xl, xl.data[new_sheet_path], new_sheet_path, rid)
+    end
+
     # copy defined names from the original worksheet to the new worksheet
     ws_keys = [x for x in keys(wb.worksheet_names) if first(x) == ws.sheetId]
     for k in ws_keys
