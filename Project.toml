@@ -1,7 +1,7 @@
 name = "XLSX"
 uuid = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 license = "MIT"
-version = "0.11.7"
+version = "0.11.8"
 authors = ["Felipe Noronha <felipenoris@gmail.com>"]
 repo = "https://github.com/juliadata/XLSX.jl.git"
 

@@ -5,6 +5,8 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [v0.11.8](https://github.com/JuliaData/XLSX.jl/tree/v0.11.8) - 2026-05-15
 - add `dependabot` support ([#130](https://github.com/JuliaData/XLSX.jl/issues/130))
 - add ability to read native template (`.xltx`) files ([#293](https://github.com/JuliaData/XLSX.jl/issues/293))
 - add `getDefinedNames` to mirror `addDefinedName`
