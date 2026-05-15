@@ -7540,6 +7540,7 @@ end
 @testset "Add Images" begin
     REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
     jpeg  = joinpath(data_directory, "track_start.jpg")
+    png   = joinpath(data_directory, "track_start.png")
     bytes = read(jpeg)
 
     # Helper so each testset gets a fresh workbook
@@ -7555,7 +7556,7 @@ end
         ]
         for (args, exp_from, exp_to) in cases
             xf, s = fresh()
-            info = XLSX.addImage(s, args..., jpeg)
+            info = XLSX.addImage(s, args..., png)
             @test info.from == exp_from
             exp_to === nothing || @test info.to == exp_to
             @test haskey(xf.binary_data, "xl/media/" * info.media_name)
@@ -7632,7 +7633,7 @@ end
     @testset "image cleaned up when sheet deleted" begin
         xf = XLSX.newxlsx()
         s1 = xf["Sheet1"]
-        XLSX.addImage(s1, 1, 1, jpeg)
+        XLSX.addImage(s1, 1, 1, png)
         info = XLSX.getImages(s1)[1]
 
         wb = XLSX.get_workbook(xf)

@@ -56,9 +56,6 @@ function _text_value(node::XML.Node)::Union{Nothing,String}
     return nothing
 end
 
-# Returns the local part of a tag, e.g. "pkg:Relationship" → "Relationship"
-localname(tag::AbstractString) = last(split(tag, ':'; limit=2))
-
 # Prepends prefix if non-empty: prefixed_tag("pkg", "Relationship") → "pkg:Relationship"
 prefixed_tag(prefix::AbstractString, name::AbstractString) =
     isempty(prefix) ? name : "$prefix:$name"
