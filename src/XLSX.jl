@@ -23,6 +23,7 @@ export
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet, 
     addsheet!, renamesheet!, copysheet!, deletesheet!, 
+    addImage,
     # Cells & data
     CellRef, row_number, column_number, eachtablerow,
     readdata, getdata, gettable, readtable, readto, 

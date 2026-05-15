@@ -1619,6 +1619,46 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
         delete!(wb.worksheet_names, oldkey)
     end
 
+    # Drawing and image cleanup
+    sheet_path   = "xl/worksheets/sheet" * rId[4:end] * ".xml"
+    drawing_path = _drawing_path_for_sheet(xf, sheet_path)
+
+    if drawing_path !== nothing
+        drawing_file     = rsplit(drawing_path, "/"; limit=2)[2]
+        drawing_rels     = "xl/drawings/_rels/$drawing_file.rels"
+
+        # Remove media — but only if no other sheet references it
+        all_images = getImages(xf)
+        deleted_images = _images_for_drawing(xf, drawing_path, name)
+        deleted_names  = Set(img.media_name for img in deleted_images)
+        still_used     = Set(img.media_name for img in all_images
+                            if img.sheet != name)
+        for media_name in deleted_names
+            if media_name ∉ still_used
+                delete!(xf.binary_data, "xl/media/$media_name")
+            end
+        end
+
+        # Remove drawing XML and rels
+        for path in (drawing_path, drawing_rels)
+            delete!(xf.files, path)
+            delete!(xf.data, path)
+        end
+
+        # Remove drawing Override from [Content_Types].xml
+        ctype_root = xmlroot(xf, "[Content_Types].xml")[end]
+        cont = XML.children(ctype_root)
+        idx = findfirst(i -> haskey(cont[i], "PartName") &&
+                            cont[i]["PartName"] == "/$drawing_path", eachindex(cont))
+        idx !== nothing && deleteat!(cont, idx)
+
+        # Remove sheet rels file (contains the drawing relationship)
+        sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
+        sheet_rels = "$sheet_dir/_rels/$sheet_file.rels"
+        delete!(xf.files, sheet_rels)
+        delete!(xf.data,  sheet_rels)
+    end
+
     # Files
     xml_filename = "xl/worksheets/sheet" * rId[4:end] * ".xml"
     if in(xml_filename, keys(xf.files))
