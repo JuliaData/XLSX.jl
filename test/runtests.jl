@@ -7628,4 +7628,53 @@ end
         xf, s = fresh()
         @test_throws ArgumentError XLSX.addImage(s, "ZZZ9999", jpeg)
     end
+
+    @testset "image cleaned up when sheet deleted" begin
+        xf = XLSX.newxlsx()
+        s1 = xf["Sheet1"]
+        XLSX.addImage(s1, 1, 1, jpeg)
+        info = XLSX.getImages(s1)[1]
+
+        wb = XLSX.get_workbook(xf)
+        XLSX.addsheet!(wb, "Sheet2")  # need a second sheet to allow deletion
+        XLSX.deletesheet!(wb, "Sheet1")
+
+        # Media removed
+        @test !haskey(xf.binary_data, "xl/media/" * info.media_name)
+
+        # Drawing XML and rels removed
+        @test !haskey(xf.data, "xl/drawings/drawing1.xml")
+        @test !haskey(xf.data, "xl/drawings/_rels/drawing1.xml.rels")
+
+        # No images reported
+        @test isempty(XLSX.getImages(xf))
+    end
+
+    @testset "shared media preserved when only one sheet deleted" begin
+        xf = XLSX.newxlsx()
+        s1 = xf["Sheet1"]
+        wb = XLSX.get_workbook(xf)
+
+        XLSX.addImage(s1, 1, 1, jpeg)
+
+        XLSX.copysheet!(s1, "Sheet2")
+        s2 = xf["Sheet2"]
+
+        info1 = XLSX.getImages(s1)[1]
+        info2 = XLSX.getImages(s2)[1]
+
+        # Both sheets reference the same media file
+        @test info1.media_name == info2.media_name
+        media_key = "xl/media/" * info1.media_name
+
+        XLSX.deletesheet!(wb, "Sheet1")
+
+        # Media still present — Sheet2 still references it
+        @test haskey(xf.binary_data, media_key)
+
+        # Sheet2 image still retrievable
+        imgs = XLSX.getImages(xf)
+        @test length(imgs) == 1
+        @test imgs[1].sheet == "Sheet2"
+    end
 end
