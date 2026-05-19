@@ -1,5 +1,4 @@
-#=
-const Workbook_elements = String[
+const WORKBOOK_ORDER = String[
     "fileVersion",
     "fileSharing",
     "workbookPr",
@@ -19,12 +18,12 @@ const Workbook_elements = String[
     "fileRecoveryPr",
     "webPublishObjects",
     "extLst"
-    ]
-=#
+]
+
     
-EmptyWorkbook() = Workbook(EmptyMSOfficePackage(), Vector{Worksheet}(), false,
+EmptyWorkbook() = Workbook(EmptyMSOfficePackage(), Vector{Worksheet}(), false, 
     Vector{Relationship}(), Dict{SheetCellRef, AbstractFormula}(), SharedStringTable(), Dict{Int,Bool}(), Dict{Int,Bool}(),
-    Dict{String,DefinedNameValueTypes}(), Dict{Tuple{Int,String},DefinedNameValueTypes}(), nothing)
+    ReentrantLock(), Dict{String,DefinedNameValueTypes}(), Dict{Tuple{Int,String},DefinedNameValueTypes}(), nothing)
 
 #=
 Indicates whether this XLSX file can be edited.
@@ -38,6 +37,7 @@ is_writable(xl::XLSXFile) = xl.is_writable
     sheetnames(wb::Workbook)
 
 Return a vector with Worksheet names for this Workbook.
+
 """
 sheetnames(wb::Workbook) = [s.name for s in wb.sheets]
 @inline sheetnames(xl::XLSXFile) = sheetnames(xl.workbook)
@@ -47,6 +47,7 @@ sheetnames(wb::Workbook) = [s.name for s in wb.sheets]
     hassheet(xl::XLSXFile, sheetname::AbstractString)
 
 Return `true` if `wb` contains a sheet named `sheetname`.
+
 """
 function hassheet(wb::Workbook, sheetname::AbstractString)::Bool
     for s in wb.sheets
@@ -63,6 +64,7 @@ end
     sheetcount(xlsfile) :: Int
 
 Count the number of sheets in the Workbook.
+
 """
 @inline sheetcount(wb::Workbook) = length(wb.sheets)
 @inline sheetcount(xl::XLSXFile) = sheetcount(xl.workbook)
@@ -112,7 +114,11 @@ function Base.show(io::IO, xf::XLSXFile)
             _size = size(rg) |> x -> string(x[1], "x", x[2])
             @printf(io, "%21s %-13s %-13s\n", sheetname, _size, rg)
         else
-            @printf(io, "%21s size unknown\n", sheetname)
+            if is_chartsheet(wb, sheetname)
+                @printf(io, "%21s Chartsheet\n", sheetname)
+            else
+                @printf(io, "%21s size unknown\n", sheetname)
+            end
         end
     end
 end
@@ -125,6 +131,30 @@ function Base.getindex(xl::XLSXFile, s::AbstractString)
     else
         return getdata(xl, s)
     end
+end
+
+function ref_chooser(f::Function, xl::XLSXFile, ref_str::AbstractString)
+    if is_workbook_defined_name(xl, ref_str)
+        v = get_defined_name_value(xl.workbook, ref_str)
+        if is_defined_name_value_a_constant(v)
+            return v
+        elseif is_defined_name_value_a_reference(v)
+            return f(xl, v)
+        else
+            throw(XLSXError("Unexpected Workbook defined name value: $v."))
+        end
+    elseif is_valid_sheet_cellname(ref_str)
+        return f(xl, SheetCellRef(ref_str))
+    elseif is_valid_sheet_cellrange(ref_str)
+        return f(xl, SheetCellRange(ref_str))
+    elseif is_valid_sheet_column_range(ref_str)
+        return f(xl, SheetColumnRange(ref_str))
+    elseif is_valid_sheet_row_range(ref_str)
+        return f(xl, SheetRowRange(ref_str))
+    elseif is_valid_non_contiguous_sheetcellrange(ref_str)
+        return f(xl, NonContiguousRange(ref_str))
+    end
+    throw(XLSXError("`$ref_str` is not a valid SheetCellRef."))
 end
 
 function getdata(xl::XLSXFile, ref::SheetCellRef)
@@ -153,29 +183,13 @@ function getdata(xl::XLSXFile, rng::NonContiguousRange)
 end
 
 function getdata(xl::XLSXFile, s::AbstractString)
-    if is_workbook_defined_name(xl, s)
-        v = get_defined_name_value(xl.workbook, s)
-        if is_defined_name_value_a_constant(v)
-            return v
-        elseif is_defined_name_value_a_reference(v)
-            return getdata(xl, v)
-        else
-            throw(XLSXError("Unexpected Workbook defined name value: $v."))
-        end
-    elseif is_valid_sheet_cellname(s)
-        return getdata(xl, SheetCellRef(s))
-    elseif is_valid_sheet_cellrange(s)
-        return getdata(xl, SheetCellRange(s))
-    elseif is_valid_sheet_column_range(s)
-        return getdata(xl, SheetColumnRange(s))
-    elseif is_valid_sheet_row_range(s)
-        return getdata(xl, SheetRowRange(s))
-    elseif is_valid_non_contiguous_sheetcellrange(s)
-        return getdata(xl, NonContiguousRange(s))
-    end
-
-    throw(XLSXError("`$s` is not a valid sheetname, workbook definedName or cell/range reference."))
+    return ref_chooser(getdata, xl, s)
 end
+
+getcell(xl::XLSXFile, rng::SheetCellRange) = getcellrange(xl::XLSXFile, rng::SheetCellRange)
+getcell(xl::XLSXFile, rng::SheetRowRange) = getcellrange(xl::XLSXFile, rng::SheetRowRange)
+getcell(xl::XLSXFile, rng::SheetColumnRange) = getcellrange(xl::XLSXFile, rng::SheetColumnRange)
+getcell(xl::XLSXFile, rng::NonContiguousRange) = getcellrange(xl::XLSXFile, rng::NonContiguousRange)
 
 function getcell(xl::XLSXFile, ref::SheetCellRef)
     !hassheet(xl, ref.sheet) && throw(XLSXError("Sheet `$(ref.sheet)` not found."))
@@ -183,25 +197,7 @@ function getcell(xl::XLSXFile, ref::SheetCellRef)
 end
 
 function getcell(xl::XLSXFile, ref_str::AbstractString)
-    if is_workbook_defined_name(xl, ref_str)
-        v = get_defined_name_value(xl.workbook, ref_str)
-        if is_defined_name_value_a_reference(v)
-            return isa(v, SheetCellRef) ? getcell(xl, v) : getcellrange(xl, v)
-        else
-            throw(XLSXError("`$ref_str` is not a valid Workbook definedName reference."))
-        end
-    elseif is_valid_sheet_cellname(ref_str)
-        return getcell(xl, SheetCellRef(ref_str))
-    elseif is_valid_sheet_cellrange(ref_str)
-        return getcellrange(xl, SheetCellRange(ref_str))
-    elseif is_valid_sheet_column_range(ref_str)
-        return getcellrange(xl, SheetColumnRange(ref_str))
-    elseif is_valid_sheet_row_range(ref_str)
-        return getcellrange(xl, SheetRowRange(ref_str))
-    elseif is_valid_non_contiguous_range(ref_str)
-        return getcellrange(xl, NonContiguousRange(ref_str))
-    end
-    throw(XLSXError("`$ref_str` is not a valid SheetCellRef."))
+    return ref_chooser(getcell, xl, ref_str)
 end
 
 function getcellrange(xl::XLSXFile, rng::SheetCellRange)
@@ -225,24 +221,7 @@ function getcellrange(xl::XLSXFile, rng::NonContiguousRange)
 end
 
 function getcellrange(xl::XLSXFile, rng_str::AbstractString)
-    wb = get_workbook(xl)
-    if is_workbook_defined_name(wb, rng_str)
-        v = get_defined_name_value(wb, rng_str)
-        if is_defined_name_value_a_reference(v)
-            return getcellrange(xl, v)
-        else
-            throw(XLSXError("`$rng_str` is not a valid Workbook definedName reference."))
-        end
-    elseif is_valid_sheet_cellrange(rng_str)
-        return getcellrange(xl, SheetCellRange(rng_str))
-    elseif is_valid_sheet_column_range(rng_str)
-        return getcellrange(xl, SheetColumnRange(rng_str))
-    elseif is_valid_sheet_row_range(rng_str)
-        return getcellrange(xl, SheetRowRange(rng_str))
-    elseif is_valid_non_contiguous_range(rng_str)
-        return getcellrange(xl, NonContiguousRange(rng_str))
-    end
-    throw(XLSXError("`$rng_str` is not a valid SheetCellRange."))
+    return ref_chooser(getcellrange, xl, rng_str)
 end
 
 # Defined names are case-insensitive in Excel. Need to check on this basis (haskey is insufficient).
@@ -319,7 +298,7 @@ function addDefName(ws::Worksheet, name::AbstractString, value::DefinedNameValue
     else
         abs = absolute ? true : false
     end
-    wb.worksheet_names[(ws.sheetId, name)] = DefinedNameValue(value, abs)
+    wb.worksheet_names[(ordinal_sheet_number(wb, ws.name), name)] = DefinedNameValue(value, abs)
 end
 addDefName(ws::Worksheet, name::AbstractString, value::Integer; absolute=true) = addDefName(ws, name, Int64(value); absolute)
 
@@ -417,4 +396,38 @@ function addDefinedName(ws::Worksheet, name::AbstractString, value::AbstractStri
     else
         return addDefName(ws, name, value; absolute)
     end
+end
+
+"""
+    getDefinedNames(xl::XLSXFile) -> Vector{NamedTuple}
+
+Returns all defined names in `xl`, both workbook-scoped and worksheet-scoped,
+as a vector of `(name, scope, value)` named tuples sorted by scope then name.
+Workbook-scoped names use `"Workbook"` as the scope; worksheet-scoped names
+use the sheet's display name.
+"""
+function getDefinedNames(xl::XLSXFile)
+    wb = xl.workbook
+    sheet_lookup = Dict(ws.sheetId => ws.name for ws in wb.sheets)
+
+    result = NamedTuple{(:name, :scope, :value), Tuple{String, String, String}}[]
+
+    for (name, val) in wb.workbook_names
+        push!(result, (name = name, scope = "Workbook", value = string(val.value)))
+    end
+
+    for ((sid, name), val) in wb.worksheet_names
+        scope = haskey(sheet_lookup, sid) ||
+            throw(ArgumentError("No sheet name found for localSheetId=$sid")) # shouldn't ever happen!
+
+        scope = sheet_lookup[sid]
+
+        push!(result, (
+            name  = name,
+            scope = scope,
+            value = string(val.value),
+        ))
+    end
+
+    sort!(result, by = x -> (x.scope, x.name))
 end

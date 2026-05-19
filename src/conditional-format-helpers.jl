@@ -39,20 +39,25 @@ end
 # --- Standard conditional formats
 #
 function allCfs(ws::Worksheet)::Vector{XML.Node}
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find all the <conditionalFormatting> blocks in the worksheet's xml file
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # find all the <conditionalFormatting> blocks in the worksheet's xml file
+#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find all the <conditionalFormatting> blocks in the worksheet's xml file
     return find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":worksheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":conditionalFormatting", sheetdoc)
 end
 function add_cf_to_XML(ws, new_cf) # Add a new conditional formatting to the worksheet XML.
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # The <conditionalFormatting> blocks come after the <sheetData>
-    k, l = get_idces(sheetdoc, "worksheet", "sheetData")
-    len = length(sheetdoc[k])
+    wb = get_workbook(ws)
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
+    l = insert_index(sheetdoc[end], "conditionalFormatting", WORKSHEET_ORDER)
+    len = length(sheetdoc[end])
     if l != len
-        insert!(sheetdoc[k].children, l+1, new_cf)
+        insert!(sheetdoc[end].children, l+1, new_cf)
     else
-        push!(sheetdoc[k], new_cf)
+        push!(sheetdoc[end], new_cf)
     end
 end
 function update_worksheet_cfx!(allcfs, cfx, ws, rng)
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     matchcfs = filter(x -> x["sqref"] == string(rng), allcfs)   # Match range with existing conditional formatting blocks.
     l = length(matchcfs)
     if l == 0                                                   # No existing conditional formatting blocks for this range so create a new one.
@@ -71,7 +76,9 @@ end
 # --- Conditional formats relying on Excel 2010 extensions
 #
 function allExtCfs(ws::Worksheet)::Vector{XML.Node}
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
+    wb = get_workbook(ws)
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)    
+#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
     i, j = get_idces(sheetdoc, "worksheet", "extLst")
     if isnothing(j)
         return Vector{XML.Node}()
@@ -81,7 +88,7 @@ function allExtCfs(ws::Worksheet)::Vector{XML.Node}
     let cfs = nothing
         for ext in exts
             for c in XML.children(ext)
-                if XML.tag(c)=="x14:conditionalFormattings"
+                if XML.tag(c) == "x14:conditionalFormattings"
                     cfs = c
                     break
                 end
@@ -104,7 +111,9 @@ function make_extCfsBlock()
     return extCf
 end
 function update_worksheet_ext_cfx!(allcfs, cfx, ws, rng)
-    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
+    wb = get_workbook(ws)
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
+#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
     i, j = get_idces(sheetdoc, "worksheet", "extLst")
     if isnothing(j)
         make_extLst!(sheetdoc[i])
@@ -161,6 +170,9 @@ end
 function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
     # Check if the workbook already has a dxfs element. If not, add one.
     xroot = styles_xmlroot(wb)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(wb))
+    pfx = pfx == "" ? pfx : pfx * ":"
+    
     i, j = get_idces(xroot, "styleSheet", "dxfs")
 
     if isnothing(j) # No existing conditional formats so need to add a block (is this even possible?). Push everything lower down one.

@@ -24,4 +24,5 @@ XLSX.addsheet!
 XLSX.renamesheet!
 XLSX.copysheet!
 XLSX.deletesheet!
+XLSX.addImage
 ```

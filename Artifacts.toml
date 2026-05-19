@@ -1,6 +1,0 @@
-[XLSX_relocatable_data]
-git-tree-sha1 = "c0b84c4a80d13f58b3409f4a77d4a11455b5609e"
-
-    [[XLSX_relocatable_data.download]]
-    sha256 = "badd217e2f89dea194e4bce0d23cc96f5c1ac146e247b7c465d79fa4557610ec"
-    url = "https://github.com/juliadata/XLSX.jl/releases/download/artifact-v0.8/xlsx_artifact_v0.8.2.tar.gz"

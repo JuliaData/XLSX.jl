@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [v0.11.8](https://github.com/JuliaData/XLSX.jl/tree/v0.11.8) - 2026-05-15
+- add `dependabot` support ([#130](https://github.com/JuliaData/XLSX.jl/issues/130))
+- add ability to read native template (`.xltx`) files ([#293](https://github.com/JuliaData/XLSX.jl/issues/293))
+- add `getDefinedNames` to mirror `addDefinedName`
+- support adding png, jpg or gif images into a sheet ([#134](https://github.com/JuliaData/XLSX.jl/issues/134))
+
+## [v0.11.7](https://github.com/JuliaData/XLSX.jl/tree/v0.11.7) - 2026-05-07
+- Fix issue [#368](https://github.com/JuliaData/XLSX.jl/issues/368) for both reading and writing
+
+## [v0.11.6](https://github.com/JuliaData/XLSX.jl/tree/v0.11.6) - 2026-04-29
+- Correct citation details
+
+## [v0.11.5](https://github.com/JuliaData/XLSX.jl/tree/v0.11.5) - 2026-04-29
+- Add basic support for Chartsheets (read/write)
+- Modestly widen support for strict format files
+- Add hooks for Zenodo citation
+
+## [v0.11.4](https://github.com/JuliaData/XLSX.jl/tree/v0.11.4) - 2026-04-22
+- Add `iserror` and `geterror` functions ([#327](https://github.com/JuliaData/XLSX.jl/issues/327))
+- Add support for strict (ISO/IEC 29500) .xlsx files ([#328](https://github.com/JuliaData/XLSX.jl/issues/328), [#233](https://github.com/JuliaData/XLSX.jl/issues/233))
+- Widen Compat on Colors.jl to "0.12, 0.13" ([[#370](https://github.com/JuliaData/XLSX.jl/issues/370)])
+
+## [v0.11.3](https://github.com/JuliaData/XLSX.jl/tree/v0.11.3) - 2026-04-14
+- Bake in relocatable data (issue [#351](https://github.com/JuliaData/XLSX.jl/issues/351))
+- Add type inference to `eachtablerow` (issue [#225](https://github.com/JuliaData/XLSX.jl/issues/225))
+- Add support for custom missing strings (issue [#90](https://github.com/JuliaData/XLSX.jl/issues/90))
+- Widen `setdata!` to accept an AbstractArray (issue [#158](https://github.com/JuliaData/XLSX.jl/issues/158))
+- Fix intermittent bug with race condition when reading styles
+- Move test data files to /test/data
+
 ## [v0.11.2](https://github.com/JuliaData/XLSX.jl/tree/v0.11.2) - 2026-04-01
 Bug-fix to support 32-bit Julia
 

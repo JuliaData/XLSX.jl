@@ -1,3 +1,89 @@
+# Name space conversion map for converting Strict OOXML files (ISO/IEC 29500) to Transitional format (ECMA-376)
+const STRICT_TO_TRANSITIONAL = Dict(
+    # core markup
+    "http://purl.oclc.org/ooxml/spreadsheetml/main" =>
+        "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "http://purl.oclc.org/ooxml/wordprocessingml/main" =>
+        "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "http://purl.oclc.org/ooxml/presentationml/main" =>
+        "http://schemas.openxmlformats.org/presentationml/2006/main",
+    "http://purl.oclc.org/ooxml/drawingml/main" =>
+        "http://schemas.openxmlformats.org/drawingml/2006/main",
+
+    # drawingml sub-namespaces
+    "http://purl.oclc.org/ooxml/drawingml/chartDrawing" =>
+        "http://schemas.openxmlformats.org/drawingml/2006/chartDrawing",
+    "http://purl.oclc.org/ooxml/drawingml/picture" =>
+        "http://schemas.openxmlformats.org/drawingml/2006/picture",
+    "http://purl.oclc.org/ooxml/drawingml/wordprocessingDrawing" =>
+        "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    "http://purl.oclc.org/ooxml/drawingml/spreadsheetDrawing" =>
+        "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
+
+    # officeDocument and relationships
+    "http://purl.oclc.org/ooxml/officeDocument/relationships" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/worksheet" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/sharedStrings" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/styles" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/theme" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/chartsheet" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/drawing" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/extendedProperties" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/customProperties" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/printerSettings" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/calcChain" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/calcChain",
+
+    # docProps and vTypes
+    "http://purl.oclc.org/ooxml/officeDocument/extendedProperties" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties",
+    "http://purl.oclc.org/ooxml/officeDocument/docPropsVTypes" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes",
+    "http://purl.oclc.org/ooxml/officeDocument/customProperties" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/custom-properties",
+
+    # customXml, math, bibliography
+    "http://purl.oclc.org/ooxml/officeDocument/customXml" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/customXml",
+    "http://purl.oclc.org/ooxml/officeDocument/math" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/math",
+    "http://purl.oclc.org/ooxml/officeDocument/bibliography" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/bibliography",
+
+     # chart relationships
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/chart" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/image" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/hyperlink" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/table" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/pivotTable" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable",
+    "http://purl.oclc.org/ooxml/officeDocument/relationships/pivotCacheDefinition" =>
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition",
+
+    # chart namespace
+    "http://purl.oclc.org/ooxml/drawingml/chart" =>
+        "http://schemas.openxmlformats.org/drawingml/2006/chart",
+
+    # markup compatibility
+    "http://purl.oclc.org/ooxml/markup-compatibility/2006" =>
+        "http://schemas.openxmlformats.org/markup-compatibility/2006",
+)
 
 @inline get_xlsxfile(wb::Workbook)::XLSXFile = wb.package
 @inline get_xlsxfile(ws::Worksheet)::XLSXFile = ws.package
@@ -69,7 +155,7 @@ function check_for_xlsx_file_format(source::IO, label::AbstractString="input")
         return
     elseif header == XLS_FILE_HEADER # either an old XLS file or a password protected XLSX file
         if is_encrypted_xlsx(source) # Issue #251
-            throw(XLSXError("`$label` looks like a password protected XLSX file. This package does not support password protected files."))
+            throw(XLSXError("`$label` looks like a password protected XLSX file. This package does not support password protected files. Consider using XLSXDecrypt.jl to decrypt the file first."))
         else
             throw(XLSXError("`$label` looks like an old XLS file (not XLSX). This package does not support XLS file format."))
         end
@@ -86,6 +172,138 @@ function check_for_xlsx_file_format(filepath::AbstractString)
     end
 end
 
+#@inline localname(node::XML.Node) = split(XML.tag(node), ":")[end]
+@inline function localname(node)
+    t = XML.tag(node)
+    isnothing(t) && return nothing
+    return String(split(XML.tag(node), ":")[end])
+end
+@inline localname(tag::String) = String(split(tag, ":")[end])
+
+# Build a lookup dictionary for element names, qualified with the default namespace prefix if it exists.
+function build_ns_dict!(xf::XLSXFile)
+    ns = xf.namespace
+    for (file_name, is_read) in xf.files
+        if is_read
+            doc = xmlroot(xf, file_name)
+            # Some files are stored as lightweight placeholders (e.g. the SST) or
+            # as Raw nodes with no element children; skip those for ns detection.
+            els = xml_elements(doc)
+            isempty(els) && continue
+            xroot = last(els)
+            prefix = get_default_namespace_prefix(xroot)
+            ns[file_name] = prefix
+        end
+    end
+    return nothing
+end
+
+function get_prefix(ws::Worksheet)
+        internal_file_name = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
+        pfx = get_prefix(internal_file_name, get_xlsxfile(ws))
+        return something(pfx, "")
+end
+function get_prefix(file_name::String, xf::XLSXFile)::Union{Nothing,AbstractString}
+    ns = get(xf.namespace, file_name, nothing)
+    return something(ns, "")
+end
+# Returns the prefix (possibly "") that maps to the default/spreadsheet namespace,
+# or `nothing` if there is no prefixed default. Used by `build_ns_dict!` for the
+# Strict-OOXML namespace-prefix feature.
+function get_default_namespace_prefix(r::XML.Node)
+    nss = get_namespaces(r)
+    isempty(nss) && return nothing
+    if length(nss) == 1
+        prefix = first(keys(nss))
+        return prefix == "" ? nothing : prefix
+    end
+    haskey(nss, "") && return nothing
+    for (k, v) in nss
+        if v == SPREADSHEET_NAMESPACE_XPATH_ARG
+            return k == "" ? nothing : k
+        end
+    end
+    return nothing
+end
+# v0.4 contract: returns the default-namespace URI as a single `String`.
+function get_default_namespace(r::XML.Node)::String
+    nss = get_namespaces(r)
+
+    # if only one namespace is defined, assume it is the default one
+    # even if it has a prefix
+    length(nss) == 1 && return first(values(nss))
+
+    # otherwise, prefer the unprefixed default namespace
+    haskey(nss, "") && return nss[""]
+
+    # no unprefixed default (e.g. issues #380/#362/#267/#170): fall back to the
+    # spreadsheet namespace even if it carries a prefix
+    for (_, ns) in nss
+        if ns == SPREADSHEET_NAMESPACE_XPATH_ARG
+            return ns
+        end
+    end
+
+    throw(XLSXError("No default namespace found."))
+end
+function get_namespaces(r::XML.Node)::Dict{String,String}
+    nss = Dict{String,String}()
+    atts = XML.attributes(r)
+    isnothing(atts) && return nss   # XML.jl 0.4 returns `nothing` for attribute-less nodes
+    for (key, value) in atts
+        if startswith(key, "xmlns")
+            colon_idx = findfirst(':', key)
+            nss[isnothing(colon_idx) ? "" : SubString(key, colon_idx+1)] = value
+        end
+    end
+    return nss
+end
+function get_sst_prefix(ws::Worksheet)::String
+    sst_pfx = get_prefix("xl/SharedStrings.xml", get_xlsxfile(ws))
+    if isnothing(sst_pfx) || sst_pfx == ""
+        sst_pfx = ""
+    else
+        sst_pfx = sst_pfx*":"
+    end
+    return sst_pfx
+end
+
+
+# Determine if the file is a Strict OOXML file.
+function is_strict_ooxml(xf::XLSXFile)::Bool
+    wb = get_workbook(xf)
+    files = xf.data
+
+    # Primary check: conformance attribute on workbook root
+    if haskey(files, "xl/workbook.xml")
+        wbNode = xml_root_element(files["xl/workbook.xml"])
+        attrs = XML.attributes(wbNode)
+        if !isnothing(attrs)
+            if get(attrs, "conformance", "") == "strict"
+                return true
+            end
+            # Also catch strict namespace declarations on root element
+            if any(occursin("purl.oclc.org/ooxml", v) for (_, v) in attrs)
+                return true
+            end
+        end
+    end
+
+    # Fallback: check relationship types in _rels/.rels
+    if haskey(files, "_rels/.rels")
+        rels = xml_root_element(files["_rels/.rels"])
+        for el in xml_elements(rels)
+            if localname(el) == "Relationship"
+                relattrs = XML.attributes(el)
+                if !isnothing(relattrs) && occursin("purl.oclc.org/ooxml", get(relattrs, "Type", ""))
+                    return true
+                end
+            end
+        end
+    end
+
+    return false
+end
 
 """
     opentemplate(source::Union{AbstractString, IO}) :: XLSXFile
@@ -94,12 +312,6 @@ Read an existing Excel (`.xlsx`) file as a template and return as a writable `XL
 and saving to another file with [XLSX.writexlsx](@ref).
 
 A convenience function equivalent to `openxlsx(source; mode="rw", enable_cache=true)`
-
-!!! note
-    XLSX.jl only works with `.xlsx` files and cannot work with Excel `.xltx` template files. 
-    Reading as a template in this package merely means opening a `.xlsx` file to edit, update 
-    and then write as an updated `.xlsx` file (e.g. using `XLSX.writexlsx()`). Doing so retains 
-    the formatting and layout of the opened file, but this is not the same as using a `.xltx` file.
 
 # Examples
 ```julia
@@ -110,10 +322,6 @@ julia> xf = opentemplate("myExcelFile.xlsx")
 opentemplate(source::Union{AbstractString,IO})::XLSXFile = open_or_read_xlsx(source, true, true, true)
 
 @inline open_xlsx_template(source::Union{AbstractString,IO})::XLSXFile = open_or_read_xlsx(source, true, true, true)
-
-function _relocatable_data_path(; path::AbstractString=Artifacts.artifact"XLSX_relocatable_data")
-    return path
-end
 
 """
     newxlsx([sheetname::AbstractString]; update_timestamp::Bool) :: XLSXFile
@@ -153,15 +361,15 @@ function fix_datestamp!(xf::XLSXFile)
     return nothing
 end
 
+include_dependency(joinpath(@__DIR__, "data", "blank.xlsx"))
+const BLANK_XLSX_DATA = read(joinpath(@__DIR__, "data", "blank.xlsx"))
+
 function open_empty_template(
     sheetname::AbstractString="";
-    path::AbstractString=_relocatable_data_path(),
+    empty_template_data::Vector{UInt8}=BLANK_XLSX_DATA,
     update_timestamp::Bool=true
 )::XLSXFile
-
-    empty_excel_template = joinpath(path, "blank.xlsx")
-    !isfile(empty_excel_template) && throw(XLSXError("Couldn't find template file $empty_excel_template."))
-    xf = open_xlsx_template(empty_excel_template)
+    xf = open_xlsx_template(IOBuffer(empty_template_data))
     xf[1].cache.is_full = true
 
     if sheetname != ""
@@ -189,6 +397,7 @@ Consider using [`XLSX.openxlsx`](@ref) for lazy loading of Excel file contents.
     openxlsx(f::F, source::Union{AbstractString, IO}; mode::AbstractString="r", enable_cache::Bool=true) where {F<:Function}
 
 Open an XLSX file for reading and/or writing and applies the function `f` to the content.
+
 # `Do` syntax
 
 This function should be used with `do` syntax, like in:
@@ -216,6 +425,13 @@ The `mode` argument controls how the file is opened. The following modes are all
     that `XLSX.jl` cannot process (such as charts, pivot tables, etc), but that would otherwise be preserved if not 
     overwritten. You may avoid this risk by choosing to open files in "rw" mode without using do-block syntax, in which 
     case it becomes necessary explicitly to write the `XLSXFile` out again, providing the option to write to another file name.
+    
+
+!!! note
+
+    When a native Excel template (`.xltx`) file is opened in "rw" mode using do-block syntax, it will always be written 
+    back out as a regular Excel file with a `.xlsx` extension at the termination of the do block. It is not written out 
+    as an Excel template file.
 
 # Arguments
 
@@ -292,7 +508,12 @@ function openxlsx(f::F, source::Union{AbstractString,IO};
 
     finally
         if _write
-            writexlsx(source, xf, overwrite=true)
+            if xf.is_xltx 
+                if isa(xf.source, AbstractString)
+                    xf.source = splitext(xf.source)[1] * ".xlsx"
+                end
+            end
+            writexlsx(xf.source, xf, overwrite=true)
         end
     end
 end
@@ -348,6 +569,66 @@ function parse_file_mode(mode::AbstractString)::Tuple{Bool,Bool}
     end
 end
 
+# Convert a strict OOXML file to transitional format in-place by remapping
+# `purl.oclc.org/ooxml` namespaces and relationship types to their
+# `schemas.openxmlformats.org` equivalents, and dropping the `conformance="strict"` attribute.
+# Remap a single element's attributes from strict OOXML to transitional, in place.
+# XML.jl 0.4 exposes attributes as a read-only `Attributes` view, so mutate the
+# node directly (`node[k] = v`) and drop attributes via the backing vector.
+function _strict_to_transitional_node!(node::XML.Node, filename::AbstractString)
+    isnothing(node.attributes) && return nothing
+    # Snapshot keys/values first since we mutate while inspecting.
+    pairs = collect(node.attributes)
+    for (k, v) in pairs
+        if k == "conformance" && v == "strict"
+            filter!(p -> first(p) != "conformance", node.attributes)
+        elseif startswith(v, "http://purl.oclc.org/ooxml")
+            if haskey(STRICT_TO_TRANSITIONAL, v)
+                node[k] = STRICT_TO_TRANSITIONAL[v]
+            else
+                throw(XLSXError("Unsupported strict OOXML namespace or relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
+            end
+        elseif k == "Type" && startswith(v, "http://purl.oclc.org/ooxml")
+            if haskey(STRICT_TO_TRANSITIONAL, v)
+                node[k] = STRICT_TO_TRANSITIONAL[v]
+            else
+                throw(XLSXError("Unsupported strict OOXML relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
+            end
+        end
+    end
+    return nothing
+end
+
+function convert_strict_to_transitional!(xf::XLSXFile, pass::Int)
+
+    for filename in keys(xf.files)
+        should_process = if pass == 1
+            !occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", filename)
+        elseif pass == 2
+            occursin(r"xl/sharedStrings\.xml", filename)
+        else  # pass == 3
+            occursin(r"xl/worksheets/sheet\d+\.xml", filename)
+        end
+           
+        if should_process
+            data = xf.data[filename]
+            els = xml_elements(data)
+            # SST/worksheet files are stored as lightweight placeholders with no
+            # element children; nothing to remap there.
+            isempty(els) && continue
+            xroot = last(els)
+            _strict_to_transitional_node!(xroot, filename)
+
+            # For .rels files, also patch Type= on child Relationship elements
+            for el in xml_elements(xroot)
+                _strict_to_transitional_node!(el, filename)
+            end
+        end
+    end
+
+    return nothing
+end
+
 function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable_cache::Bool, _write::Bool)::XLSXFile
     # sanity check
     if _write
@@ -363,10 +644,13 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
 #       zip_io = ZipArchives.ZipReader(Mmap.mmap(abspath(source))) # but Mmap is unreliable : https://discourse.julialang.org/t/struggling-to-use-mmap-with-ziparchives/129839
     end
 
-
     load_files!(xf, zip_io; pass=1) # multi-threaded file load
+    strict = is_strict_ooxml(xf)
+    if strict
+        convert_strict_to_transitional!(xf, 1)
+    end
 
-    check_minimum_requirements(xf)
+    check_minimum_requirements(xf) # if native .xltx file read, need to change filename once all data files loaded.
     parse_relationships!(xf)
     parse_workbook!(xf)
 
@@ -374,7 +658,17 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
     remove_calcChain!(xf)
 
     load_files!(xf, zip_io; pass=2) # Need to load sst before worksheets
+
+    if strict
+        convert_strict_to_transitional!(xf, 2)
+    end
+    build_ns_dict!(xf)
+
     load_files!(xf, zip_io; pass=3) # load worksheets last so inlineStrings go after existing ssts
+
+    if strict
+        convert_strict_to_transitional!(xf, 3)
+    end
 
     for sheet in get_workbook(xf).sheets
         if isnothing(sheet.dimension)
@@ -382,38 +676,81 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
         end
     end
 
+    build_ns_dict!(xf)
+
     return xf
 end
-function get_namespaces(r::XML.Node)::Dict{String,String}
-    nss = Dict{String,String}()
-    for (key, value) in XML.attributes(r)
-        if startswith(key, "xmlns")
-            colon_idx = findfirst(':', key)
-            if isnothing(colon_idx)
-                nss[""] = value
-            else
-                nss[SubString(key, colon_idx+1)] = value
+
+"""
+    ensure_workbook_is_xlsx!(xf::XLSXFile)
+
+Inspect the `[Content_Types].xml` part of the package and ensure that
+`/xl/workbook.xml` is marked as a regular `.xlsx` workbook. If the workbook
+content type indicates a template (`.xltx`), the function converts it in-place
+by rewriting the workbook `ContentType` to the standard `.xlsx` value and
+updating `xf.source` to use a `.xlsx` file extension. Throws an `XLSXError`
+if the workbook override is missing or has an unknown content type.
+"""
+function ensure_workbook_is_xlsx!(xf::XLSXFile)
+    root = xml_root_element(xf.data["[Content_Types].xml"])
+
+    workbook_override = nothing
+    default_xml_type = nothing
+
+    # Scan once, collecting both possible sources of the workbook content type
+    for child in XML.children(root)
+        name = localname(child)
+
+        if name == "Override" &&
+           lowercase(child["PartName"]) == "/xl/workbook.xml"
+            workbook_override = child
+
+        elseif name == "Default" &&
+               child["Extension"] == "xml"
+            default_xml_type = child["ContentType"]
+        end
+    end
+
+    # Excel-compatible fallback:
+    # 1. Prefer the Override
+    # 2. Fall back to the Default
+    # 3. Only error if both missing
+    ctype =
+        !isnothing(workbook_override) ? workbook_override["ContentType"] :
+        !isnothing(default_xml_type) ? default_xml_type :
+        throw(XLSXError("Malformed XLSX: workbook.xml content type not found."))
+
+    # Normal .xlsx
+    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+        return nothing
+    end
+
+    # Template .xltx → convert to .xlsx
+    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml"
+
+        if !isnothing(workbook_override)
+            # Update the Override entry
+            workbook_override["ContentType"] =
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+        else
+            # Update the Default entry instead
+            for child in XML.children(root)
+                if localname(child) == "Default" &&
+                   child["Extension"] == "xml"
+                    child["ContentType"] =
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+                end
             end
         end
-    end
-    return nss
-end
-function get_default_namespace(r::XML.Node)::String
-    nss = get_namespaces(r)
 
-    # in case that only one namespace is defined, assume that it is the default one
-    # even if it has a prefix
-    length(nss) == 1 && return first(values(nss))
-
-    # otherwise, look for the default namespace (without prefix)
-    for (prefix, ns) in nss
-        if prefix == ""
-            return ns
-        end
+        xf.is_xltx = true # mark the file as originally being a template, so that we can rename it to .xlsx on save
+        return nothing
     end
 
-    throw(XLSXError("No default namespace found."))
+    # Unknown workbook type
+    throw(XLSXError("Unknown workbook content type: $ctype"))
 end
+
 
 # See section 12.2 - Package Structure
 function check_minimum_requirements(xf::XLSXFile)
@@ -428,36 +765,27 @@ function check_minimum_requirements(xf::XLSXFile)
     end
 
     # Further check if this is a valid `.xlsx` file.
-    f = "[Content_Types].xml"
-    content_types = XML.write(xf.data[f])
+    ensure_workbook_is_xlsx!(xf)
 
-    if occursin("spreadsheetml.sheet", content_types)
-        return nothing
-    elseif occursin("spreadsheetml.template", content_types)
-        throw(XLSXError("XLSX.jl does not support Excel template files (`.xltx` files).\nSave template as an `xlsx` file type first."))
-    else
-        throw(XLSXError("Unknown Excel file type."))
-    end
-
-    nothing
+    return nothing
 end
 
 # Parses package level relationships defined in `_rels/.rels`.
 # Parses workbook level relationships defined in `xl/_rels/workbook.xml.rels`.
 function parse_relationships!(xf::XLSXFile)
+    wb = get_workbook(xf)
 
     # package level relationships
     xroot = get_package_relationship_root(xf)
     for el in xml_elements(xroot)
-        push!(xf.relationships, Relationship(el))
+        push!(xf.relationships, Relationship(wb, el))
     end
     isempty(xf.relationships) && throw(XLSXError("Relationships not found in _rels/.rels!"))
 
     # workbook level relationships
-    wb = get_workbook(xf)
     xroot = get_workbook_relationship_root(xf)
     for el in xml_elements(xroot)
-        push!(wb.relationships, Relationship(el))
+        push!(wb.relationships, Relationship(wb, el))
     end
     isempty(wb.relationships) && throw(XLSXError("Relationships not found in xl/_rels/workbook.xml.rels"))
 
@@ -466,148 +794,100 @@ end
 
 # Updates xf.workbook from xf.data[\"xl/workbook.xml\"]
 function parse_workbook!(xf::XLSXFile)
-    xroot = xml_root_element(xmlroot(xf,"xl/workbook.xml"))
-    chn = XML.children(xroot)
-    XML.tag(xroot) != "workbook" && throw(XLSXError("Malformed xl/workbook.xml. Root node name should be 'workbook'. Got '$(XML.tag(xroot))'."))
+    xroot = xml_root_element(xmlroot(xf, "xl/workbook.xml"))
+    wb = get_workbook(xf)
 
-    # workbook to be parsed
-    workbook = get_workbook(xf)
+    localname(xroot) != "workbook" && throw(XLSXError("Malformed xl/workbook.xml. Root node name should be 'workbook'. Got '$(localname(xroot))'."))
 
-    # workbookPr -> date1904
-    # does not have attribute => is not date1904
-    workbook.date1904 = false
-
-    # changes workbook.date1904 if there is a setting in the workbookPr node
-    for node in chn
-        if XML.tag(node) == "workbookPr"
-
-            # read date1904 attribute
-            attributes = XML.attributes(node)
-            if !isnothing(attributes)
-                if haskey(attributes, "date1904")
-                    attribute_value_date1904 = attributes["date1904"]
-                    if attribute_value_date1904 == "1" || attribute_value_date1904 == "true"
-                        workbook.date1904 = true
-                    elseif attribute_value_date1904 == "0" || attribute_value_date1904 == "false"
-                        workbook.date1904 = false
-                    else
-                        throw(XLSXError("Could not parse xl/workbook -> workbookPr -> date1904 = $(attribute_value_date1904)."))
-                    end
-                end
+    # date1904
+    wb.date1904 = false
+    for node in XML.children(xroot)
+        localname(node) != "workbookPr" && continue
+        attrs = XML.attributes(node)
+        if !isnothing(attrs) && haskey(attrs, "date1904")
+            v = attrs["date1904"]
+            if v ∈ ("1", "true")
+                wb.date1904 = true
+            elseif v ∉ ("0", "false")
+                throw(XLSXError("Could not parse xl/workbook -> workbookPr -> date1904 = $v."))
             end
-
-            break
         end
+        break
     end
 
     # sheets
-    sheets = Vector{Worksheet}()
-    for node in chn
-        if XML.tag(node) == "sheets"
-
-            for sheet_node in xml_elements(node)
-                XML.tag(sheet_node) != "sheet" && throw(XLSXError("Unsupported node $(XML.tag(sheet_node)) in node $(XML.tag(node)) in 'xl/workbook.xml'."))
-                worksheet = Worksheet(xf, sheet_node)
-                push!(sheets, worksheet)
-            end
-            break
+    wb.sheets = Worksheet[]
+    for node in xml_elements(xroot)
+        localname(node) != "sheets" && continue
+        for sheet_node in xml_elements(node)
+            localname(sheet_node) != "sheet" && throw(XLSXError("Unsupported node $(localname(sheet_node)) in node $(localname(node)) in 'xl/workbook.xml'."))
+            push!(wb.sheets, Worksheet(xf, sheet_node))
         end
+        break
     end
-    workbook.sheets = sheets
 
     # named ranges
-    for node in chn
-        if XML.tag(node) == "definedNames"
+    for node in xml_elements(xroot)
+        localname(node) != "definedNames" && continue
+        for dn_node in xml_elements(node)
+            localname(dn_node) != "definedName" && continue
 
-            for defined_name_node in XML.children(node)
+            raw = XML.value(dn_node[1])
+            name = XML.attributes(dn_node)["name"]
 
-                if XML.tag(defined_name_node) == "definedName"
+            defined_value, isabs = parse_defined_name_value(raw)
 
-                    defined_value_string = XML.value(defined_name_node[1])
-                    name = XML.attributes(defined_name_node)["name"]
-
-                    local defined_value::DefinedNameValueTypes
-                    if is_valid_non_contiguous_range(defined_value_string)
-                        el = split(defined_value_string, ',')
-                        rng = String[]
-                        for rf in el
-                            sp = split(rf, '!')
-                            push!(rng, (unquoteit(sp[1])*"!"*sp[2]))
-                        end
-                        defined_value = NonContiguousRange(join(rng, ','))
-                        isabs = Vector{Bool}(undef, length(defined_value.rng))
-                        for (i, d) in enumerate(split(defined_value_string, ","))
-                            isabs[i] = is_valid_fixed_sheet_cellname(d) || is_valid_fixed_sheet_cellrange(d)
-                        end
-                        length(isabs) != length(defined_value.rng) && throw(XLSXError("Error parsing absolute references in non-contiguous range."))
-                    elseif is_valid_fixed_sheet_cellname(defined_value_string)
-                        sp = split(defined_value_string, '!')
-                        defined_value = SheetCellRef(unquoteit(sp[1])*"!"*sp[2])
-                        isabs = true
-                    elseif is_valid_sheet_cellname(defined_value_string)
-                        sp = split(defined_value_string, '!')
-                        defined_value = SheetCellRef(unquoteit(sp[1])*"!"*sp[2])
-                        isabs = false
-                    elseif is_valid_fixed_sheet_cellrange(defined_value_string)
-                        sp = split(defined_value_string, '!')
-                        defined_value = SheetCellRange(unquoteit(sp[1])*"!"*sp[2])
-                        isabs = true
-                    elseif is_valid_sheet_cellrange(defined_value_string)
-                        sp = split(defined_value_string, '!')
-                        defined_value = SheetCellRange(unquoteit(sp[1])*"!"*sp[2])
-                        isabs = false
-                    elseif occursin(r"^\".*\"$", defined_value_string) # is enclosed by quotes
-                        defined_value = defined_value_string[nextind(defined_value_string, begin):prevind(defined_value_string, end)] # remove enclosing quotes
-                        if isempty(defined_value)
-                            defined_value = missing
-                        end
-                        isabs = false
-                    elseif tryparse(Int64, defined_value_string) !== nothing
-                        defined_value = parse(Int64, defined_value_string)
-                        isabs = false
-                    elseif tryparse(Float64, defined_value_string) !== nothing
-                        defined_value = parse(Float64, defined_value_string)
-                        isabs = false
-                    elseif isempty(defined_value_string)
-                        defined_value = missing
-                        isabs = false
-                    else
-
-                        # Couldn't parse definedName. Will silently ignore it, since this is not a critical feature.
-                        # Actually is just interpreted as a string anyway and added to the defined names (is this true?).
-                        defined_value = string(defined_value_string)
-                        isabs = false
-                        #continue
-
-                        # debug - Now more important since we are writing updated defined names to back to output file.
-                        # throw(XLSXError("Could not parse value $(defined_value_string) for definedName $name."))
-                    end
-                    a = XML.attributes(defined_name_node)
-                    if haskey(a, "localSheetId")
-                        # is a Worksheet level name
-
-                        # localSheetId is the 0-based index of the Worksheet in the order
-                        # that it is displayed on screen.
-                        # Which is the order of the elements under <sheets> element in workbook.xml .
-                        localSheetId = parse(Int, a["localSheetId"]) + 1
-                        sheetId = workbook.sheets[localSheetId].sheetId
-                        workbook.worksheet_names[(sheetId, name)] = DefinedNameValue(defined_value, isabs)
-                    else
-                        # is a Workbook level name
-                        workbook.workbook_names[name] = DefinedNameValue(defined_value, isabs)
-                    end
-                end
-
+            attrs = XML.attributes(dn_node)
+            if haskey(attrs, "localSheetId")
+                localSheetId = parse(Int, attrs["localSheetId"]) + 1
+                sheetId = wb.sheets[localSheetId].sheetId
+                wb.worksheet_names[(sheetId, name)] = DefinedNameValue(defined_value, isabs)
+            else
+                wb.workbook_names[name] = DefinedNameValue(defined_value, isabs)
             end
-            break
         end
+        break
+    end
+end
+
+function parse_defined_name_value(s::String)::Tuple{DefinedNameValueTypes, Any}
+    unquote_sheet(str) = let sp = split(str, '!')
+        unquoteit(sp[1]) * "!" * sp[2]
     end
 
-    nothing
+    if is_valid_non_contiguous_range(s)
+        parts = split(s, ',')
+        rng = [String(unquote_sheet(r)) for r in parts]
+        defined_value = NonContiguousRange(join(rng, ','))
+        isabs = [is_valid_fixed_sheet_cellname(d) || is_valid_fixed_sheet_cellrange(d) for d in parts]
+        length(isabs) != length(defined_value.rng) && throw(XLSXError("Error parsing absolute references in non-contiguous range."))
+    elseif is_valid_fixed_sheet_cellname(s)
+        defined_value, isabs = SheetCellRef(unquote_sheet(s)), true
+    elseif is_valid_sheet_cellname(s)
+        defined_value, isabs = SheetCellRef(unquote_sheet(s)), false
+    elseif is_valid_fixed_sheet_cellrange(s)
+        defined_value, isabs = SheetCellRange(unquote_sheet(s)), true
+    elseif is_valid_sheet_cellrange(s)
+        defined_value, isabs = SheetCellRange(unquote_sheet(s)), false
+    elseif startswith(s, '"') && endswith(s, '"')
+        inner = String(chop(s, head=1, tail=1))
+        defined_value, isabs = (isempty(inner) ? missing : inner), false
+    elseif (n = tryparse(Int64, s)) !== nothing
+        defined_value, isabs = n, false
+    elseif (n = tryparse(Float64, s)) !== nothing
+        defined_value, isabs = n, false
+    elseif isempty(s)
+        defined_value, isabs = missing, false
+    else
+        defined_value, isabs = string(s), false
+    end
+
+    return defined_value, isabs
 end
 
 # Returns a Dict mapping Workbook <externalReferences>: index => relationship id.
 function get_wb_ext_refs(xf::XLSXFile)
+    wb = get_workbook(xf)
     ext_refs = Dict{Int, String}()
     xroot = xmlroot(xf, "xl/workbook.xml")
     i, j = get_idces(xroot, "workbook", "externalReferences")
@@ -665,10 +945,11 @@ function splitNode(xml_str::String, skipnode::String)
     doc = parse(xml_str, XML.Node)
     root = xml_root_element(doc)
 
-    # Find the target node and extract its content
+    # Find the target node and extract its content (match on local name so
+    # namespace-prefixed files such as `<x:sheetData>` are handled, issue #380).
     target_idx = nothing
     for (i, child) in enumerate(XML.children(root))
-        if XML.tag(child) == skipnode
+        if localname(child) == skipnode
             target_idx = i
             break
         end
@@ -679,6 +960,7 @@ function splitNode(xml_str::String, skipnode::String)
     end
 
     target = root[target_idx]
+    target_tag = XML.tag(target)   # keep any namespace prefix on the placeholder
 
     # Build wrapper XML from the target element and its children
     skipped = XML.write(target)
@@ -686,15 +968,55 @@ function splitNode(xml_str::String, skipnode::String)
         skipped = "<worksheet>" * skipped * "</worksheet>"
     end
 
-    # Replace with empty self-closing element (preserving attributes)
+    # Replace with empty self-closing element (preserving attributes and prefix)
     attrs = XML.attributes(target)
     if isnothing(attrs) || isempty(attrs)
-        root[target_idx] = XML.Element(skipnode)
+        root[target_idx] = XML.Element(target_tag)
     else
         empty!(target.children)
     end
 
     return doc, skipped
+end
+
+function skipNode(r::XML.Raw, skipnode::String) # separate rows or ssts to speed up reading of large files
+    # Resolve wrapper strings once upfront
+    prefix, suffix = if skipnode == "sheetData"
+        "<worksheet><sheetData>", "</sheetData></worksheet>"
+    elseif skipnode == "sst"
+        "<sst>", "</sst>"
+    else
+        throw(XLSXError("Unsupported skipNode target: $skipnode."))
+    end
+
+    data_len = length(r.data)
+    new     = IOBuffer(; sizehint=data_len) # original data with <sheetData> or <sst> node removed
+    skipped = IOBuffer(; sizehint=data_len ÷ 2) # just the <sheetData> or <sst> node and its children
+
+    n = XML.next(r)
+    write(new, @view n.data[n.pos:n.pos+n.len])
+
+    while localname(first(XML.get_name(n.data, n.pos))) != skipnode # Retain everything before the <sheetData> or <sst> node
+        n = XML.next(n)
+        write(new, @view n.data[n.pos:n.pos+n.len])
+    end
+
+    write(skipped, prefix) # Add parents for <row> or <sst> elements to the excerpted data
+
+    sdepth = n.depth
+    n = XML.next(n)
+    while n !== nothing && n.depth > sdepth # Put all children of <sheetData> or <sst> into the excerpted data
+        write(skipped, @view n.data[n.pos:n.pos+n.len])
+        n = XML.next(n)
+    end
+    while n !== nothing # Retain everything after the <sheetData> or <sst> node
+        write(new, @view n.data[n.pos:n.pos+n.len])
+        n = XML.next(n)
+    end
+
+    write(skipped, suffix) # close parents for <row> or <sst> elements in the excerpted data
+
+    return take!(new), take!(skipped)
 end
 
 function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, channel_size::Int=1 << 8)
@@ -705,7 +1027,8 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, ch
             if f != "xl/calcChain.xml"
 
                 if pass==1 && !startswith(f, "customXml") && (endswith(f, ".xml") || endswith(f, ".rels"))
-                    # Identify usable xml files in XLSXFile
+                    # Identify usable xml files in XLSXFile (customXml parts are
+                    # kept as raw binary, see `process_file`).
                     internal_xml_file_add!(xf, f)
                 end
                 put!(out, f)
@@ -730,11 +1053,11 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
     filtered_files = Channel{String}(1 << 8) do out
         for file in all_files
             should_process = if pass == 1
-                !occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", file)
+                !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", file)
             elseif pass == 2
                 occursin(r"xl/sharedStrings\.xml", file)
             else  # pass == 3
-                occursin(r"xl/worksheets/sheet\d+\.xml", file)
+                occursin(r"^xl/worksheets/[^/]+\.xml$", file)
             end
            
             if should_process
@@ -788,32 +1111,32 @@ end
 
 function process_file(zip_io::ZipArchives.ZipReader, filename::String)
 
-        node=nothing
-        raw=nothing
-        bin=nothing
+    node=nothing
+    raw=nothing
+    bin=nothing
 
-        try
-            bytes = ZipArchives.zip_readentry(zip_io, filename)
-            if !startswith(filename, "customXml") && (endswith(filename, ".xml") || endswith(filename, ".rels"))
-                strip_bom_and_lf!(bytes)
-                xml_str = String(bytes)
-                if filename == "xl/sharedStrings.xml"
-                    node = XML.Element("sst")  # placeholder; SST is loaded via sst_load!
-                    raw = xml_str
-                elseif occursin(r"xl/worksheets/sheet\d+\.xml", filename)
-                    node, raw = splitNode(xml_str, "sheetData")
-                    raw = isempty(raw) ? nothing : raw
-                else
-                    node = parse(xml_str, XML.Node)
-                end
+    try
+        bytes = ZipArchives.zip_readentry(zip_io, filename)
+        if !startswith(filename, "customXml") && (endswith(filename, ".xml") || endswith(filename, ".rels"))
+            strip_bom_and_lf!(bytes)
+            xml_str = String(bytes)
+            if filename == "xl/sharedStrings.xml"
+                node = XML.Element("sst")  # placeholder; SST is loaded via sst_load!
+                raw = xml_str
+            elseif occursin(r"xl/worksheets/sheet\d+\.xml", filename)
+                node, raw = splitNode(xml_str, "sheetData")
+                raw = isempty(raw) ? nothing : raw
             else
-                bin = bytes                
+                node = parse(xml_str, XML.Node)
             end
-        catch err
-            throw(XLSXError("Failed to parse internal XML file `$filename`"))
+        else
+            bin = bytes
         end
+    catch err
+        throw(XLSXError("Failed to parse internal XML file `$filename`"))
+    end
 
-        return ReadFile(node, raw, bin, filename)
+    return ReadFile(node, raw, bin, filename)
 end
 
 function internal_xml_file_read(xf::XLSXFile, filename::String)
@@ -855,6 +1178,10 @@ end
 
 # Utility method to return the root element of a given XMLDocument from the package.
 @inline xmlroot(xl::XLSXFile, filename::String)::XML.Node = xmldocument(xl, filename)
+function xmlroot(wb::Workbook, rId::String)
+    filename = get_relationship_target_by_id("xl", wb, rId)
+    return xmldocument(get_xlsxfile(wb), filename)
+end
 
 #
 # Helper Functions
@@ -934,7 +1261,8 @@ end
         [stop_in_row_function],
         [enable_cache],
         [keep_empty_rows],
-        [normalizenames]
+        [normalizenames],
+        [missing_strings]
     ) -> DataTable
 
 Returns tabular data from a spreadsheet as a struct `XLSX.DataTable`.
@@ -964,6 +1292,11 @@ Use `column_labels` to specify names for the header of the table.
 
 Use `normalizenames=true` to normalize column names to valid Julia identifiers.
 
+Use `missing_strings` to specify strings that should be interpreted as 
+`missing` values in the resulting table. `missing_strings` can be a single 
+string (e.g. `"N/A"`) or a vector of strings (e.g. `["N/A", "NULL"]`). 
+The default value is `missing_strings=nothing`.
+
 Use `infer_eltypes=true` to get `data` as a `Vector{Any}` of typed vectors.
 The default value is `infer_eltypes=true`.
 
@@ -985,8 +1318,9 @@ end
 ```
 
 `enable_cache` is a boolean that determines whether cell data are loaded 
-into the worksheet cache on reading.
-The default behavior is `enable_cache=false`.
+into the worksheet cache on reading. Using `readtable` with `enable_cache=true` 
+is faster than with `enable_cache=false` for large files, but uses more 
+memory. The default behavior is `enable_cache=true`.
 
 `keep_empty_rows` determines whether rows where all column values are equal 
 to `missing` are kept (`true`) or dropped (`false`) from the resulting table. 
@@ -1008,33 +1342,77 @@ julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"))
 
 See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref).
 """
-function readtable(source::Union{AbstractString,IO}; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=true, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false, 
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     c = openxlsx(source; enable_cache) do xf
-        gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+        gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     end
     return c
 end
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=true, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     c = openxlsx(source; enable_cache) do xf
-        gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+        gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     end
     return c
 end
 
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=true, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     c = openxlsx(source; enable_cache) do xf
-        gettable(getsheet(xf, sheet), columns; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames)
+        gettable(getsheet(xf, sheet), columns; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
     end
     return c
 end
 
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; first_row::Union{Nothing,Int}=nothing, column_labels=nothing, header::Bool=true, infer_eltypes::Bool=true, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, enable_cache::Bool=false, keep_empty_rows::Bool=false, normalizenames::Bool=false)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; 
+    first_row::Union{Nothing,Int}=nothing, 
+    column_labels=nothing, 
+    header::Bool=true, 
+    infer_eltypes::Bool=true, 
+    stop_in_empty_row::Bool=true, 
+    stop_in_row_function::Union{Nothing,Function}=nothing, 
+    enable_cache::Bool=true, 
+    keep_empty_rows::Bool=false, 
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+)
     if is_valid_column_range(range)
         range = ColumnRange(range)
     else
         throw(XLSXError("The columns argument must be a valid column range."))
     end
-    return readtable(source, sheet, range; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, enable_cache, keep_empty_rows, normalizenames)
+    return readtable(source, sheet, range; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, enable_cache, keep_empty_rows, normalizenames, missing_strings)
 end
 
 """
@@ -1051,7 +1429,8 @@ end
         [stop_in_row_function],
         [enable_cache],
         [keep_empty_rows],
-        [normalizenames]
+        [normalizenames],
+        [missing_strings]
     ) -> sink
 
 Read and parse an Excel worksheet, materializing directly using the 

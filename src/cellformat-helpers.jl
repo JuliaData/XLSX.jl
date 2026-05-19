@@ -124,7 +124,83 @@ function do_sheet_names_match(ws::Worksheet, rng::T) where {T<:Union{SheetCellRe
         throw(XLSXError("Worksheet `$(ws.name)` does not match sheet in cell reference: `$(rng.sheet)`"))
     end
 end
-function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{String,String}}})::XML.Node
+
+function make_child_node(tag::String, name::String, pfx::String)::XML.Node
+    children = tag ∈ ("border", "fill") ? Vector{XML.Node{String}}() : nothing
+    return XML.Node{String}(XML.Element, pfx*name, Pair{String,String}[], nothing, children)
+end
+
+function build_font_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}}, pfx::String)
+    cnode = isnothing(attrs) ? XML.Element(pfx*name) : make_child_node(tag, name, pfx)
+    if !isnothing(attrs)
+        for (k, v) in attrs
+            cnode[k] = v
+        end
+    end
+    push!(new_node, cnode)
+end
+
+function build_border_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}}, pfx::String)
+    cnode = isnothing(attrs) ? XML.Element(pfx*name) : make_child_node(tag, name, pfx)
+    if !isnothing(attrs)
+        color = XML.Element("$(pfx)color")
+        for (k, v) in attrs
+            if k == "style" && v != "none"
+                cnode[k] = v
+            elseif k == "direction"
+                v ∈ ("up",   "both") && (new_node["diagonalUp"]   = "1")
+                v ∈ ("down", "both") && (new_node["diagonalDown"] = "1")
+            else
+                color[k] = v
+            end
+        end
+        !isempty(XML.attributes(color)) && push!(cnode, color)
+    end
+    push!(new_node, cnode)
+end
+
+function build_fill_child!(new_node::XML.Node, tag::String, name::String, attrs::Union{Nothing,Dict{String,String}}, pfx)
+    if isnothing(attrs)
+        push!(new_node, XML.Element(pfx*name))
+        return
+    end
+    patternfill = XML.Element("$(pfx)patternFill")
+    fgcolor     = XML.Element("$(pfx)fgColor")
+    bgcolor     = XML.Element("$(pfx)bgColor")
+    for (k, v) in attrs
+        if k == "patternType"
+            patternfill[k] = v
+        elseif startswith(k, "fg")
+            fgcolor[k[3:end]] = v
+        elseif startswith(k, "bg")
+            bgcolor[k[3:end]] = v
+        end
+    end
+    haskey(patternfill, "patternType") || throw(XLSXError("No `patternType` attribute found."))
+    !isempty(XML.attributes(fgcolor)) && push!(patternfill, fgcolor)
+    !isempty(XML.attributes(bgcolor)) && push!(patternfill, bgcolor)
+    push!(new_node, patternfill)  # patternfill goes directly onto new_node
+end
+
+function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{String,String}}}, pfx::String)::XML.Node
+    attribute_tags, build_child! = if tag == "font"
+        font_tags,   build_font_child!
+    elseif tag == "border"
+        border_tags, build_border_child!
+    elseif tag == "fill"
+        fill_tags,   build_fill_child!
+    else
+        throw(XLSXError("Unknown tag: $tag"))
+    end
+
+    new_node = XML.Element(pfx*tag)
+    for name in attribute_tags
+        haskey(attributes, name) && build_child!(new_node, tag, name, attributes[name], pfx)
+    end
+    return new_node
+end
+
+#=function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{String,String}}})::XML.Node
     if tag == "font"
         attribute_tags = font_tags
     elseif tag == "border"
@@ -206,6 +282,7 @@ function buildNode(tag::String, attributes::Dict{String,Union{Nothing,Dict{Strin
     end
     return new_node
 end
+=#
 function isInDim(ws::Worksheet, dim::CellRange, rng::CellRange)
     if !issubset(rng, dim)
         throw(XLSXError("Cell range $rng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
@@ -282,6 +359,13 @@ function is_valid_format(fmt::AbstractString) # From Claude
     return true
 end
 
+function first2_after_colon(tag::AbstractString)
+    parts = split(tag, ':', limit=2)
+    s = length(parts) == 1 ? parts[1] : parts[2]
+    chars = collect(s)
+    return join(chars[1:min(2, length(chars))])
+end
+
 # Parses a patternFill XML node into a flat dict of fill attributes.
 # patternType is stored directly, fg/bg color attributes are prefixed with "fg"/"bg".
 function _parse_pattern_fill(pattern::XML.Node)::Dict{String,String}
@@ -294,10 +378,10 @@ function _parse_pattern_fill(pattern::XML.Node)::Dict{String,String}
     end
     for subc in XML.children(pattern)
         XML.nodetype(subc) == XML.Element || continue
-        tag_prefix = first(XML.tag(subc), 2)  # "fg" or "bg"
+        tag_prefix = first2_after_colon(localname(subc))  # "fg" or "bg"
         sub_atts = XML.attributes(subc)
         if isnothing(sub_atts) || isempty(sub_atts)
-            throw(XLSXError("Expected attributes on fill sub-element <$(XML.tag(subc))>, found none."))
+            throw(XLSXError("Expected attributes on fill sub-element <$(localname(subc))>, found none."))
         end
         for (k, v) in sub_atts
             atts[tag_prefix * k] = v  # e.g. "fgrgb" => "FFFF0000"
@@ -457,7 +541,9 @@ end
 
 # Only used in testing!
 function styles_add_cell_font(wb::Workbook, attributes::Dict{String,Union{Dict{String,String},Nothing}})::Int
-    new_font = buildNode("font", attributes)
+    pfx = get_prefix("xl/styles.xml", get_xlsxfile(wb))
+    pfx = pfx == "" ? pfx : pfx * ":"
+    new_font = buildNode("font", attributes, pfx)
     return styles_add_cell_attribute(wb, new_font, "fonts")
 end
 
@@ -772,15 +858,30 @@ end
 #
 # Most setUniform functions (but not Style or Alignment - see below)
 #
+function get_all_xf_nodes(ws::Worksheet)
+    find_all_nodes(
+        "/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" *
+        SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" *
+        SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf",
+        styles_xmlroot(get_workbook(ws))
+    )
+end
+
+function maybe_update_font!(f::Function, ws::Worksheet, cell, cellref; kw...)
+    f == setFont || return
+    cell isa EmptyCell && return
+    cell.datatype == CT_STRING || return
+    v = update_sharedString_font(ws, cell; kw...)
+    cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
+end
+
 function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML.Node}, cellref::CellRef, atts::Vector{String}, newid::Union{Int,Nothing}, first::Bool; kw...)
     cell = getcell(ws, cellref)
-    if cell isa EmptyCell # Can't add a attribute to an empty cell.
-        return newid, first
-    end
-    if first                           # Get the attribute of the first cell in the range.
+    cell isa EmptyCell && return newid, first
+    if first
         newid = f(ws, cellref; kw...)
         first = false
-    else                               # Apply the same attribute to the rest of the cells in the range.
+    else
         if cell.style == UInt64(0)
             cell.style = get_num_style_index(ws, allXfNodes, 0).id
         end
@@ -788,144 +889,83 @@ function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML
     end
     return newid, first
 end
+
 function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange, atts::Vector{String}; kw...)
-    if !get_xlsxfile(ws).use_cache_for_sheet_data
-        throw(XLSXError("Cannot set uniform attributes because cache is not enabled."))
+    get_xlsxfile(ws).use_cache_for_sheet_data || throw(XLSXError("Cannot set uniform attributes because cache is not enabled."))
+    allXfNodes = get_all_xf_nodes(ws)
+    newid, first = nothing, true
+    isInDim(ws, get_dimension(ws), rng)
+    for cellref in rng
+        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
+        maybe_update_font!(f, ws, getcell(ws, cellref), cellref; kw...)
     end
-    allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
-    let newid::Union{Int,Nothing}, first::Bool
-        newid = nothing
-        first = true
-        isInDim(ws, get_dimension(ws), rng)
-        for cellref in rng
-            newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
-            if f==setFont
-                cell=getcell(ws, cellref)
-                if !(cell isa EmptyCell) && cell.datatype == CT_STRING
-                    v=update_sharedString_font(ws, cell; kw...)
-                    cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
-                end
-            end
-        end
-        if first
-            newid = -1
-        end
-        return newid
-    end
+    return first ? -1 : newid
 end
+
 function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange, atts::Vector{String}; kw...)::Int
-    allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
+    allXfNodes = get_all_xf_nodes(ws)
+    single = length(ncrng) == 1
     bounds = nc_bounds(ncrng)
-    if length(ncrng) == 1
-        single = true
-    else
-        single = false
-    end
-    dim = (get_dimension(ws))
-    OK = dim.start.column_number <= bounds.start.column_number
-    OK &= dim.stop.column_number >= bounds.stop.column_number
-    OK &= dim.start.row_number <= bounds.start.row_number
-    OK &= dim.stop.row_number >= bounds.stop.row_number
-    if OK
-        let newid::Union{Int,Nothing}, first::Bool
-            newid = nothing
-            first = true
-            for r in ncrng.rng
-                @assert r isa CellRef || r isa CellRange "Something wrong here"
-                if r isa CellRef
-                    cell=getcell(ws, r)
-                    if cell isa EmptyCell
-                        single && throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(r)). Set the value first."))
-                        continue
-                    end
-                    newid, first = process_uniform_core(f, ws, allXfNodes, r, atts, newid, first; kw...)
-                    if f==setFont && cell.datatype == CT_STRING
-                        v=update_sharedString_font(ws, cell; kw...)
-                        cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
-                    end
-                else
-                    for c in r
-                        newid, first = process_uniform_core(f, ws, allXfNodes, c, atts, newid, first; kw...)
-                        if f==setFont
-                            cell=getcell(ws, c)
-                            if !(cell isa EmptyCell) &&!(cell isa EmptyCell) && cell.datatype == CT_STRING
-                                v=update_sharedString_font(ws, cell; kw...)
-                                cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
-                            end
-                        end
-                    end
-#                else
-#                    throw(XLSXError("Something wrong here!"))
-                end
-            end
-            if first
-                newid = -1
-            end
-            return newid
-        end
-    else
-        throw(XLSXError("Non-contiguous range $ncrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
-    end
-end
-function process_uniform_veccolon(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
     dim = get_dimension(ws)
-    @assert isnothing(row) || isnothing(col) "Something wrong here!"
-    allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
-    if isnothing(col)
-        col = dim.start.column_number:dim.stop.column_number
-    else
-        row = dim.start.row_number:dim.stop.row_number
-#    else
-#        throw(XLSXError("Something wrong here!"))
-    end
-    isInDim(ws, dim, row, col)
-    let newid::Union{Int,Nothing}, first::Bool
-        newid = nothing
-        first = true
-        for a in row
-            for b in col
-                cellref = CellRef(a, b)
-                cell=getcell(ws, cellref)
-                if cell isa EmptyCell
-                    continue
-                end
-                newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
-                if f==setFont && cell.datatype == CT_STRING
-                    v=update_sharedString_font(ws, cell; kw...)
-                    cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
-                end
-            end
-        end
-        if first
-            newid = -1
-        end
-        return newid
-    end
-end
-function process_uniform_vecint(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
-    allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
-    let newid::Union{Int,Nothing}, first::Bool
-        dim = get_dimension(ws)
-        newid = nothing
-        first = true
-        isInDim(ws, dim, row, col)
-        for a in row, b in col
-            cellref = CellRef(a, b)
-            cell=getcell(ws, cellref)
+
+    dim.start.column_number <= bounds.start.column_number &&
+    dim.stop.column_number  >= bounds.stop.column_number  &&
+    dim.start.row_number    <= bounds.start.row_number    &&
+    dim.stop.row_number     >= bounds.stop.row_number     ||
+        throw(XLSXError("Non-contiguous range $ncrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
+
+    newid, first = nothing, true
+    for r in ncrng.rng
+        @assert r isa CellRef || r isa CellRange "Something wrong here"
+        if r isa CellRef
+            cell = getcell(ws, r)
             if cell isa EmptyCell
+                single && throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(r)). Set the value first."))
                 continue
             end
-            newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
-            if f==setFont && cell.datatype == CT_STRING
-                v=update_sharedString_font(ws, cell; kw...)
-                cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
+            newid, first = process_uniform_core(f, ws, allXfNodes, r, atts, newid, first; kw...)
+            maybe_update_font!(f, ws, cell, r; kw...)
+        else
+            for c in r
+                newid, first = process_uniform_core(f, ws, allXfNodes, c, atts, newid, first; kw...)
+                maybe_update_font!(f, ws, getcell(ws, c), c; kw...)
             end
         end
-        if first
-            newid = -1
-        end
-        return newid
     end
+    return first ? -1 : newid
+end
+
+function process_uniform_veccolon(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
+    @assert isnothing(row) || isnothing(col) "Something wrong here!"
+    allXfNodes = get_all_xf_nodes(ws)
+    dim = get_dimension(ws)
+    isnothing(col) ? (col = dim.start.column_number:dim.stop.column_number) :
+                     (row = dim.start.row_number:dim.stop.row_number)
+    isInDim(ws, dim, row, col)
+    newid, first = nothing, true
+    for a in row, b in col
+        cellref = CellRef(a, b)
+        cell = getcell(ws, cellref)
+        cell isa EmptyCell && continue
+        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
+        maybe_update_font!(f, ws, cell, cellref; kw...)
+    end
+    return first ? -1 : newid
+end
+
+function process_uniform_vecint(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
+    allXfNodes = get_all_xf_nodes(ws)
+    dim = get_dimension(ws)
+    isInDim(ws, dim, row, col)
+    newid, first = nothing, true
+    for a in row, b in col
+        cellref = CellRef(a, b)
+        cell = getcell(ws, cellref)
+        cell isa EmptyCell && continue
+        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
+        maybe_update_font!(f, ws, cell, cellref; kw...)
+    end
+    return first ? -1 : newid
 end
 
 #
@@ -1281,12 +1321,12 @@ function update_sharedString_font(ws::Worksheet, cell::Cell;
 
     is = parse(str_formatted, XML.Node)[1] # Convert to XML.Node for ease of handling
 
-    all_r = filter(z -> XML.tag(z) == "r", XML.children(is))
+    all_r = filter(z -> localname(z) == "r", XML.children(is))
     run_elements = reduce(vcat, [XML.children(z) for z in all_r])
-    rPr_elements = filter(z -> XML.tag(z) == "rPr", run_elements) # rPr elements
+    rPr_elements = filter(z -> localname(z) == "rPr", run_elements) # rPr elements
 
     t=String[] # text elements
-    for i in filter(z -> XML.tag(z) == "t", run_elements)
+    for i in filter(z -> localname(z) == "t", run_elements)
         push!(t, XML.is_simple(i[1]) ? XML.simple_value(i[1]) : XML.value(i[1]))
     end
 

@@ -466,19 +466,21 @@ Return a vector of pairs: CellRange => NamedTuple{type::String, priority::Int}}.
 
 
 """
-getConditionalFormats(ws::Worksheet) = append!(getConditionalFormats(allCfs(ws)), getConditionalExtFormats(allExtCfs(ws)))
-function getConditionalFormats(allcfnodes::Vector{XML.Node})::Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}
+getConditionalFormats(ws::Worksheet) = append!(getConditionalFormats(ws, allCfs(ws)), getConditionalExtFormats(ws, allExtCfs(ws)))
+function getConditionalFormats(ws::Worksheet, allcfnodes::Vector{XML.Node})::Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}
+    wb = get_workbook(ws)
     allcfs = Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}()
     for cf in allcfnodes
         for child in XML.children(cf)
-            if XML.tag(child) == "cfRule"
+            if localname(child) ==    "cfRule"
                 push!(allcfs, CellRange(cf["sqref"]) => (type=child["type"], priority=parse(Int, child["priority"])))
             end
         end
     end
     return allcfs
 end
-function getConditionalExtFormats(allcfnodes::Vector{XML.Node})::Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}
+function getConditionalExtFormats(ws::Worksheet, allcfnodes::Vector{XML.Node})::Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}
+    wb = get_workbook(ws)
     allcfs = Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}()
     for cf in allcfnodes
         let t, p, r, rule = false, ref = false
@@ -1436,7 +1438,10 @@ function setCfCellIs(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=())
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
-    allcfs = allCfs(ws)                    # get all conditional format blocks
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
+    allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
     !isnothing(value) && !is_valid_cellname(value) && !is_valid_fixed_cellname(value) && isnothing(tryparse(Float64, value)) && throw(XLSXError("Invalid `value`: $value. Must be a number or a CellRef."))
@@ -1450,16 +1455,16 @@ function setCfCellIs(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=())
     if isnothing(value)
         value = all(ismissing.(ws[rng])) ? nothing : string(sum(skipmissing(ws[rng])) / count(!ismissing, ws[rng]))
     end
-    cfx = XML.Element("cfRule"; type="cellIs", dxfId=string(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="cellIs", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
     cfx["operator"] = operator
-    push!(cfx, XML.Element("formula", XML.Text(value)))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text(value)))
     if !isnothing(value2) && operator ∈ ["between", "notBetween"]
 
-        push!(cfx, XML.Element("formula", XML.Text(value2)))
+        push!(cfx, XML.Element("$(pfx)formula", XML.Text(value2)))
     end
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
@@ -1515,6 +1520,9 @@ function setCfContainsText(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                    # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
@@ -1542,14 +1550,14 @@ function setCfContainsText(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
     end
     formula = replace(formula, "__txt__" => value, "__CR__" => string(first(rng)))
 
-    cfx = XML.Element("cfRule"; type=type, dxfId=string(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type=type, dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
     cfx["operator"] = operator
     cfx["text"] = value
-    push!(cfx, XML.Element("formula", XML.Text(formula)))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text(formula)))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -1604,6 +1612,9 @@ function setCfTop10(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()):
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                    # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
@@ -1616,7 +1627,7 @@ function setCfTop10(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()):
 
     percent = ""
     bottom = ""
-    cfx = XML.Element("cfRule"; type="top10", dxfId=string(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="top10", dxfId=string(dxid.id))
     if operator == "topN"
     elseif operator == "topN%"
         percent = "1"
@@ -1691,6 +1702,9 @@ function setCfAboveAverage(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                    # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
@@ -1700,25 +1714,25 @@ function setCfAboveAverage(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
     dxid = Add_Cf_Dx(wb, new_dx)
 
     if operator == "aboveAverage"
-        cfx = XML.Element("cfRule"; type=operator, dxfId=string(dxid.id), priority="1")
+        cfx = XML.Element("$(pfx)cfRule"; type=operator, dxfId=string(dxid.id), priority="1")
     elseif operator == "aboveEqAverage"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", equalAverage="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", equalAverage="1")
     elseif operator == "plus1StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="1")
     elseif operator == "plus2StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="2")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="2")
     elseif operator == "plus3StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="3")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="3")
     elseif operator == "belowAverage"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0")
     elseif operator == "belowEqAverage"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", equalAverage="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", equalAverage="1")
     elseif operator == "minus1StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="1")
     elseif operator == "minus2StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="2")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="2")
     elseif operator == "minus3StdDev"
-        cfx = XML.Element("cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="3")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="3")
     else
         throw(XLSXError("Invalid operator: $operator. Valid options are: `aboveAverage`, `aboveEqAverage`, `plus1sStdDev`, `plus2StdDev`, `plus3StdDev`, `belowAverage`, `belowEqAverage`, `minus1StdDev`, `minus2StdDev`, `minus3StdDev`."))
     end
@@ -1778,6 +1792,9 @@ function setCfTimePeriod(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
@@ -1794,14 +1811,14 @@ function setCfTimePeriod(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("cfRule"; type="timePeriod", dxfId=string(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="timePeriod", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
     cfx["timePeriod"] = operator
 
-    push!(cfx, XML.Element("formula", XML.Text(formula)))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text(formula)))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -1853,6 +1870,9 @@ function setCfContainsBlankErrorUniqDup(ws::Worksheet, rng::CellRange; allkws::D
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
     if operator == "containsBlanks"
@@ -1875,12 +1895,12 @@ function setCfContainsBlankErrorUniqDup(ws::Worksheet, rng::CellRange; allkws::D
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("cfRule"; type=operator, dxfId=string(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type=operator, dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
-    formula != "" && push!(cfx, XML.Element("formula", XML.Text(formula)))
+    formula != "" && push!(cfx, XML.Element("$(pfx)formula", XML.Text(formula)))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -1933,6 +1953,9 @@ function setCfFormula(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
@@ -1941,13 +1964,13 @@ function setCfFormula(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("cfRule"; type="expression", dxfId=string(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="expression", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
 
-    push!(cfx, XML.Element("formula", XML.Text("(" * uppercase_unquoted(formula) * ")")))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text("(" * uppercase_unquoted(formula) * ")")))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -2008,6 +2031,9 @@ function setCfColorScale(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension ($(get_dimension(ws)))."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
 
@@ -2022,8 +2048,10 @@ function setCfColorScale(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
                 min_val = nothing
             end
             min_type == "formula" || isnothing(min_val) || is_valid_fixed_cellname(min_val) || is_valid_fixed_sheet_cellname(min_val) || !isnothing(tryparse(Float64, min_val)) || throw(XLSXError("Invalid min_val: `$min_val`. Valid options (unless min_type is `formula`) are a CellRef (e.g. `\$A\$1`) or a number."))
+ 
             isnothing(mid_type) || mid_type in ["percentile", "percent", "num", "formula"] || throw(XLSXError("Invalid mid_type: $mid_type. Valid options are: percentile, percent, num, formula."))
             (!isnothing(mid_type) && mid_type == "formula") || isnothing(mid_val) || is_valid_fixed_cellname(mid_val) || is_valid_fixed_sheet_cellname(mid_val) || !isnothing(tryparse(Float64, mid_val)) || throw(XLSXError("Invalid mid_val: `$mid_val`. Valid options (unless mid_type is `formula`) are a CellRef (e.g. `\$A\$1`) or a number."))
+
             max_type in ["max", "percentile", "percent", "num", "formula"] || throw(XLSXError("Invalid max_type: $max_type. Valid options are: max, percentile, percent, num, formula."))
             if max_type == "max"
                 max_val = nothing
@@ -2040,17 +2068,37 @@ function setCfColorScale(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
                 end
             end
 
-            cfx = XML.h.cfRule(type="colorScale", priority=new_pr,
-                XML.h.colorScale(
-                    isnothing(min_val) ? XML.h.cfvo(type=min_type) : XML.h.cfvo(type=min_type, val=min_val),
-                    isnothing(mid_type) ? "" : XML.h.cfvo(type=mid_type, val=mid_val),
-                    isnothing(max_val) ? XML.h.cfvo(type=max_type) : XML.h.cfvo(type=max_type, val=max_val),
-                    XML.h.color(rgb=get_color(min_col)),
-                    isnothing(mid_type) ? "" : XML.h.color(rgb=get_color(mid_col)),
-                    XML.h.color(rgb=get_color(max_col))
-                )
+            cfx = XML.Element("$(pfx)cfRule"; type="colorScale", priority=new_pr)
+            csc = XML.Element("$(pfx)colorScale")
+            push!(csc,
+                isnothing(min_val) ?
+                    XML.Element("$(pfx)cfvo"; type=min_type) :
+                    XML.Element("$(pfx)cfvo"; type=min_type, val=min_val)
             )
 
+            !isnothing(mid_type) && push!(csc, XML.Element("$(pfx)cfvo"; type=mid_type, val=mid_val))
+
+            push!(csc,
+                isnothing(max_val) ?
+                    XML.Element("$(pfx)cfvo"; type=max_type) :
+                    XML.Element("$(pfx)cfvo"; type=max_type, val=max_val)
+            )
+
+            push!(csc, XML.Element("$(pfx)color"; rgb=get_color(min_col)))
+            !isnothing(mid_type) && push!(csc, XML.Element("$(pfx)color"; rgb=get_color(mid_col)))
+            push!(csc, XML.Element("$(pfx)color"; rgb=get_color(max_col)))                
+
+#            cfx = XML.h.cfRule(type="colorScale", priority=new_pr,
+#                XML.h.colorScale(
+#                    isnothing(min_val) ? XML.h.cfvo(type=min_type) : XML.h.cfvo(type=min_type, val=min_val),
+#                    isnothing(mid_type) ? "" : XML.h.cfvo(type=mid_type, val=mid_val),
+#                    isnothing(max_val) ? XML.h.cfvo(type=max_type) : XML.h.cfvo(type=max_type, val=max_val),
+#                    XML.h.color(rgb=get_color(min_col)),
+#                    isnothing(mid_type) ? "" : XML.h.color(rgb=get_color(mid_col)),
+#                    XML.h.color(rgb=get_color(max_col))
+#                )
+#            )
+            push!(cfx, csc)
         else
             if !haskey(colorscales, colorscale)
                 throw(XLSXError("Invalid colorscale option chosen: $colorscale. Valid options are: $(keys(colorscales))."))
@@ -2138,6 +2186,9 @@ function setCfIconSet(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
     end
     
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension ($(get_dimension(ws)))."))
+
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
 
     allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
@@ -2358,6 +2409,9 @@ function setCfDataBar(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
 
     !issubset(rng, get_dimension(ws)) && throw(XLSXError("Range `$rng` goes outside worksheet dimension ($(get_dimension(ws)))."))
 
+    pfx = get_prefix(ws)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     allcfs = allCfs(ws)                # get all conditional format blocks
     old_cf = getConditionalFormats(ws) # extract conditional format info
     allextcfs = allExtCfs(ws)          # get all extended conditional format blocks
@@ -2425,17 +2479,35 @@ function setCfDataBar(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
         id = "{" * uppercase(string(UUIDs.uuid4(ws.package.uuid_rng))) * "}"
         mnt = allkws["min_type"] ∈ ["automatic", "least"] ? "min" : allkws["min_type"]
         mxt = allkws["max_type"] ∈ ["automatic", "highest"] ? "max" : allkws["max_type"]
-        cfx = XML.h.cfRule(type="dataBar", priority=new_pr,
-            XML.h.dataBar(
-                isnothing(allkws["min_val"]) ? XML.h.cfvo(type=mnt) : XML.h.cfvo(type=mnt, val=allkws["min_val"]),
-                isnothing(allkws["max_val"]) ? XML.h.cfvo(type=mxt) : XML.h.cfvo(type=mxt, val=allkws["max_val"]),
-                XML.h.color(rgb=get_color(allkws["fill_col"]))),
-            XML.h.extLst()
+
+        cfx = XML.Element("$(pfx)cfRule"; type="dataBar", priority=new_pr)
+        cdb = XML.Element("$(pfx)dataBar")
+        push!(cdb, isnothing(allkws["min_val"]) ?
+                XML.Element("$(pfx)cfvo"; type=mnt) :
+                XML.Element("$(pfx)cfvo"; type=mnt, val=allkws["min_val"])
         )
+
+        push!(cdb, isnothing(allkws["max_val"]) ?
+                XML.Element("$(pfx)cfvo"; type=mxt) :
+                XML.Element("$(pfx)cfvo"; type=mxt, val=allkws["max_val"])
+        )
+
+        push!(cdb, XML.Element("$(pfx)color"; rgb=get_color(allkws["fill_col"])))
+
+#        cfx = XML.h.cfRule(type="dataBar", priority=new_pr,
+#            XML.h.dataBar(
+#                isnothing(allkws["min_val"]) ? XML.h.cfvo(type=mnt) : XML.h.cfvo(type=mnt, val=allkws["min_val"]),
+#                isnothing(allkws["max_val"]) ? XML.h.cfvo(type=mxt) : XML.h.cfvo(type=mxt, val=allkws["max_val"]),
+#                XML.h.color(rgb=get_color(allkws["fill_col"]))),
+#            XML.h.extLst()
+#        )
+
+        push!(cfx, cdb)
+
         if haskey(allkws, "showVal") && !isnothing(allkws["showVal"]) && allkws["showVal"] == "false"
             cfx[1]["showValue"] = "0"
         end
-        cfx_ext = XML.Element("ext") # This establishes link (via id) to the extension elements
+        cfx_ext = XML.Element("$(pfx)ext") # This establishes link (via id) to the extension elements
         cfx_ext["xmlns:x14"] = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
         cfx_ext["uri"] = "{B025F937-C7B1-47D3-B67F-A62EFF666E3E}"
         push!(cfx_ext, XML.Element("x14:id", XML.Text(id)))

@@ -1,10 +1,41 @@
 
 function CellRef(n::AbstractString)
+    i = 1
+    len = ncodeunits(n)
+    len == 0 && throw(XLSXError("$n is not a valid CellRef."))
+    
+    # scan letters for column
+    while i <= len && isascii(n[i]) && isuppercase(n[i])
+        i += 1
+    end
+    col_end = i - 1
+    col_end == 0 && throw(XLSXError("$n is not a valid CellRef."))
+    
+    # decode column number inline (no SubString, no decode_column_number call)
+    col = 0
+    for j in 1:col_end
+        col = col * 26 + (codeunit(n, j) - UInt8('A') + 1)
+    end
+    
+    # parse row number inline (no SubString, no parse() call)
+    row = 0
+    while i <= len
+        c = codeunit(n, i)
+        (c < UInt8('0') || c > UInt8('9')) && throw(XLSXError("$n is not a valid CellRef."))
+        row = row * 10 + (c - UInt8('0'))
+        i += 1
+    end
+    row == 0 && throw(XLSXError("$n is not a valid CellRef."))
+    
+    return CellRef(Int32(row), Int32(col))
+end
+#=
+function CellRef(n::AbstractString)
     !is_valid_cellname(n) && throw(XLSXError("$n is not a valid CellRef."))
     column_name, row_number = split_cellname(n)
     return CellRef(Int32(row_number), Int32(decode_column_number(column_name)))
 end
-
+=#
 @inline CellRef(row::Integer, col::Integer) = CellRef(Int32(row), Int32(col))
 @inline CellPosition(ref::CellRef) = CellPosition(row_number(ref), column_number(ref))
 @inline row_number(p::CellPosition) = p.row
@@ -750,7 +781,7 @@ end
 NonContiguousRange(s::Worksheet, v::AbstractString)::NonContiguousRange = nCR(s.name, string.(split(v, ",")))
 function NonContiguousRange(v::AbstractString)::NonContiguousRange
 
-    !is_valid_non_contiguous_range(v) && throw(XLSXError("$v is not a valid non-contiguous range."))
+    !is_valid_non_contiguous_sheetcellrange(v) && throw(XLSXError("$v is not a valid non-contiguous sheetcell range."))
     
     ranges = string.(split(v, ","))
     firstsheet = parse_sheetname_from_sheetcell_name(ranges[1])

@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+title: "XLSX.jl"
+message: "If you use XLSX.jl in your research, please cite it."
+type: software
+authors:
+  - family-names: Noronha Tavares
+    given-names: Felipe
+    role: original-author
+contributors:
+  - family-names: Gebbels
+    given-names: Tim
+    role: maintainer
+repository-code: https://github.com/JuliaData/XLSX.jl
+license: MIT

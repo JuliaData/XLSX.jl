@@ -8,9 +8,13 @@ import CSV
 using StyledStrings
 
 
-data_directory = joinpath(dirname(pathof(XLSX)), "..", "data")
+data_directory = joinpath(dirname(pathof(XLSX)), "..", "test", "data")
 
 @assert isdir(data_directory)
+
+src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
+
+@assert isdir(src_data_directory)
 
 @testset "read test files" begin
     ef_blank_ptbr_1904 = XLSX.readxlsx(joinpath(data_directory, "blank_ptbr_1904.xlsx"))
@@ -74,22 +78,28 @@ data_directory = joinpath(dirname(pathof(XLSX)), "..", "data")
     end
 
     @testset "Read invalid XLSX error" begin
-        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "sheet_template.xml"))
+        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(src_data_directory, "sheet_template.xml"))
         try
-            XLSX.readxlsx(joinpath(data_directory, "sheet_template.xml"))
+            XLSX.readxlsx(joinpath(src_data_directory, "sheet_template.xml"))
             @test false # didn't throw exception
         catch e
             @test occursin("is not a valid XLSX file", "$e")
         end
-        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-        try
-            XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-            @test false # didn't throw exception
-        catch e
-            @test occursin("does not support Excel template files", "$e")
-        end
+#        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
+#        try
+#            XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
+#            @test false # didn't throw exception
+#        catch e
+#            @test occursin("does not support Excel template files", "$e")
+#        end
     end
 
+    @testset "read .xltx file" begin
+        xf = XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
+        s=xf[1]
+        @test s["P5"] == 5
+        @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
+    end
     @testset "missing file or bad `mode`" begin
         @test_throws XLSX.XLSXError XLSX.openxlsx("noSuchFile.xlsx")
         @test_throws XLSX.XLSXError XLSX.openxlsx(joinpath(data_directory, "Book1.xlsx"); mode="tg")
@@ -849,6 +859,56 @@ end
     @test !XLSX.is_defined_name_value_a_reference(missing)
 
     f = XLSX.opentemplate(joinpath(data_directory, "general.xlsx"))
+
+    result = XLSX.getDefinedNames(f)
+
+    # Return type
+    @test eltype(result) <: NamedTuple
+    @test length(result) == 16
+    @test all(r -> haskey(r, :name) && haskey(r, :scope) && haskey(r, :value), result)
+    @test all(r -> r.name isa String && r.scope isa String && r.value isa String, result)
+
+    # Sorting: sorted by (scope, name) — "Workbook" before sheet names
+    @test issorted(result, by = x -> (x.scope, x.name))
+    workbook_end = findlast(r -> r.scope == "Workbook", result)
+    sheet_start  = findfirst(r -> r.scope != "Workbook", result)
+    @test workbook_end < sheet_start
+
+    # Workbook-scoped constants
+    @test any(r -> r.name == "CONST_INT"   && r.scope == "Workbook" && r.value == "100",   result)
+    @test any(r -> r.name == "CONST_FLOAT" && r.scope == "Workbook" && r.value == "10.2",  result)
+    @test any(r -> r.name == "CONST_DATE"  && r.scope == "Workbook" && r.value == "43383", result)
+
+    # Workbook-scoped ranges
+    @test any(r -> r.name == "SINGLE_CELL" && r.scope == "Workbook" && r.value == "named_ranges!A2",    result)
+    @test any(r -> r.name == "RANGE_B4C5"  && r.scope == "Workbook" && r.value == "named_ranges!B4:C5", result)
+
+    # Workbook-scoped string value
+    @test any(r -> r.name == "LOCAL_NAME" && r.scope == "Workbook" && r.value == "out there in the cold", result)
+
+    # Worksheet-scoped: named_ranges sheet
+    @test any(r -> r.name == "LOCAL_INT"      && r.scope == "named_ranges" && r.value == "1000",              result)
+    @test any(r -> r.name == "LOCAL_NAME"     && r.scope == "named_ranges" && r.value == "Hey You",           result)
+    @test any(r -> r.name == "LOCAL_REF"      && r.scope == "named_ranges" && r.value == "named_ranges!A15:B15", result)
+    @test any(r -> r.name == "CONST_LOCAL_INT"&& r.scope == "named_ranges" && r.value == "100",               result)
+
+    # Worksheet-scoped: named_ranges_2 sheet
+    @test any(r -> r.name == "LOCAL_INT"  && r.scope == "named_ranges_2" && r.value == "2000",                  result)
+    @test any(r -> r.name == "LOCAL_NAME" && r.scope == "named_ranges_2" && r.value == "out there in the cold", result)
+    @test any(r -> r.name == "LOCAL_REF"  && r.scope == "named_ranges_2" && r.value == "named_ranges_2!D1:E1",  result)
+
+    # Names that exist at both workbook and worksheet scope (shadowing)
+    local_int_entries = filter(r -> r.name == "LOCAL_INT", result)
+    @test length(local_int_entries) == 3
+    @test any(r -> r.scope == "Workbook",       local_int_entries)
+    @test any(r -> r.scope == "named_ranges",   local_int_entries)
+    @test any(r -> r.scope == "named_ranges_2", local_int_entries)
+
+    const_local_int_entries = filter(r -> r.name == "CONST_LOCAL_INT", result)
+    @test length(const_local_int_entries) == 2
+    @test any(r -> r.scope == "Workbook",     const_local_int_entries)
+    @test any(r -> r.scope == "named_ranges", const_local_int_entries)
+
     @test f["SINGLE_CELL"] == "single cell A2"
     @test f["RANGE_B4C5"] == Any["range B4:C5" "range B4:C5"; "range B4:C5" "range B4:C5"]
     @test f["CONST_DATE"] == 43383
@@ -1086,6 +1146,38 @@ end
 
     isfile("mytest.xlsx") && rm("mytest.xlsx")
 
+    f = XLSX.readxlsx(joinpath(data_directory, "Errors.xlsx"))
+    sh = f[1]
+    @test XLSX.iserror(sh, "A1") == true
+    @test XLSX.iserror(sh, 1, 1) == true
+    @test XLSX.iserror(sh, "I1") == false
+    @test XLSX.iserror(sh, 1, 9) == false
+    @test XLSX.iserror(sh, "A1:I1") == [true true true true true true true true false]
+    @test XLSX.iserror(sh, 1, 1:9) == [true true true true true true true true false]
+    @test XLSX.iserror(sh, "A1:B1,D1:E1") == [[true true], [true true]]
+    @test XLSX.iserror(sh, 1, [1, 2, 4, 5]) == [true, true, true, true]
+    @test XLSX.iserror(sh, :) == Bool[
+                                        1 1 1 1 1 1 1 1
+                                        0 0 0 0 0 0 0 0
+                                        0 0 0 0 0 0 0 0
+                                        0 0 0 0 0 0 0 0
+                                        0 0 0 0 0 0 0 0
+                                     ]
+    @test XLSX.geterror(sh, "A1") == "#NULL!"
+    @test XLSX.geterror(sh, 1, 1) == "#NULL!"
+    @test XLSX.geterror(sh, "I1") == ""
+    @test XLSX.geterror(sh, 1, 9) == ""
+    @test XLSX.geterror(s, "A1:I1") == ["#NULL!"  "#DIV/0!"  "#VALUE!"  "#REF!"  "#NAME?"  "#NUM!"  "#N/A"  "#VALUE!"  ""]
+    @test XLSX.geterror(s, 1, 1:9) == ["#NULL!"  "#DIV/0!"  "#VALUE!"  "#REF!"  "#NAME?"  "#NUM!"  "#N/A"  "#VALUE!"  ""]
+    @test XLSX.geterror(sh, "A1:B1,D1:E1") == [["#NULL!" "#DIV/0!"], ["#REF!" "#NAME?"]]
+    @test XLSX.geterror(sh, 1, [1, 2, 4, 5]) == ["#NULL!", "#DIV/0!", "#REF!", "#NAME?"]
+    @test XLSX.geterror(sh, :) == [ "#NULL!"  "#DIV/0!"  "#VALUE!"  "#REF!"  "#NAME?"  "#NUM!"  "#N/A"  "#VALUE!"
+                                    ""        ""         ""         ""       ""        ""       ""      ""
+                                    ""        ""         ""         ""       ""        ""       ""      ""
+                                    ""        ""         ""         ""       ""        ""       ""      ""
+                                    ""        ""         ""         ""       ""        ""       ""      ""
+                                 ]
+
 end
 
 @testset "No Dimension" begin
@@ -1258,6 +1350,171 @@ function check_test_data(data::Vector{S}, test_data::Vector{T}) where {S,T}
     end
 
     nothing
+end
+
+@testset "Strict formats" begin
+    @testset "Simple" begin
+        XLSX.openxlsx(joinpath(data_directory, "strict.xlsx")) do f
+            show(IOBuffer(), f)
+            sheet = f["general"]
+            @test sheet["A1"] == "text"
+            @test sheet["B1"] == "regular text"
+            @test sheet["A2"] == "integer"
+            @test sheet["B2"] == 102
+            @test sheet["A3"] == "float"
+            @test isapprox(sheet["B3"], 102.2)
+            @test sheet["A4"] == "date"
+            @test sheet["B4"] == Date(1983, 4, 16)
+            @test sheet["A5"] == "hour"
+            @test sheet["B5"] == Dates.Time(Dates.Hour(19), Dates.Minute(45))
+            @test sheet["A6"] == "datetime"
+            @test sheet["B6"] == Date(2018, 4, 16) + Dates.Time(Dates.Hour(19), Dates.Minute(19), Dates.Second(51))
+            @test f["general!B7"] == -220.0
+            @test f["general!B8"] == -2000
+            @test f["general!B9"] == 100000000000000
+            @test f["general!B10"] == -100000000000000
+        end
+
+        XLSX.openxlsx(joinpath(data_directory, "strict.xlsx")) do xf
+            empty_sheet = XLSX.getsheet(xf, "empty")
+            @test_throws XLSX.XLSXError XLSX.gettable(empty_sheet)
+            itr = XLSX.eachrow(empty_sheet)
+            @test_throws XLSX.XLSXError XLSX.find_row(itr, 1)
+            @test_throws XLSX.XLSXError XLSX.getsheet(xf, "invalid_sheet")
+        end
+
+        f = XLSX.readxlsx(joinpath(data_directory, "strict.xlsx"))
+        tb5 = f["table5"]
+        test_data = Vector{Any}(undef, 1)
+        test_data[1] = [1, 2, 3, 4, 5]
+        dtable = XLSX.gettable(tb5)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:HEADER]
+        check_test_data(data, test_data)
+        tb6 = f["table6"]
+        dtable = XLSX.gettable(tb6, first_row=3)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:HEADER]
+        check_test_data(data, test_data)
+        tb7 = f["table7"]
+        dtable = XLSX.gettable(tb7, first_row=3)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:HEADER]
+        check_test_data(data, test_data)
+
+        sheet_lookup = f["lookup"]
+        test_data = Vector{Any}(undef, 3)
+        test_data[1] = [10, 20, 30]
+        test_data[2] = ["name1", "name2", "name3"]
+        test_data[3] = [100, 200, 300]
+        dtable = XLSX.gettable(sheet_lookup)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:ID, :NAME, :VALUE]
+        check_test_data(data, test_data)
+
+        header_error_sheet = f["header_error"]
+        dtable = XLSX.gettable(header_error_sheet, "B:E")
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:COLUMN_A, :COLUMN_B, Symbol("COLUMN_A_2"), Symbol("#Empty")]
+
+        XLSX.writexlsx("mytest.xlsx", XLSX.openxlsx(joinpath(data_directory, "strict.xlsx"); mode="rw"), overwrite=true)
+
+        XLSX.openxlsx("mytest.xlsx") do f
+            show(IOBuffer(), f)
+            sheet = f["general"]
+            @test sheet["A1"] == "text"
+            @test sheet["B1"] == "regular text"
+            @test sheet["A2"] == "integer"
+            @test sheet["B2"] == 102
+            @test sheet["A3"] == "float"
+            @test isapprox(sheet["B3"], 102.2)
+            @test sheet["A4"] == "date"
+            @test sheet["B4"] == Date(1983, 4, 16)
+            @test sheet["A5"] == "hour"
+            @test sheet["B5"] == Dates.Time(Dates.Hour(19), Dates.Minute(45))
+            @test sheet["A6"] == "datetime"
+            @test sheet["B6"] == Date(2018, 4, 16) + Dates.Time(Dates.Hour(19), Dates.Minute(19), Dates.Second(51))
+            @test f["general!B7"] == -220.0
+            @test f["general!B8"] == -2000
+            @test f["general!B9"] == 100000000000000
+            @test f["general!B10"] == -100000000000000
+        end
+
+        XLSX.openxlsx("mytest.xlsx") do xf
+            empty_sheet = XLSX.getsheet(xf, "empty")
+            @test_throws XLSX.XLSXError XLSX.gettable(empty_sheet)
+            itr = XLSX.eachrow(empty_sheet)
+            @test_throws XLSX.XLSXError XLSX.find_row(itr, 1)
+            @test_throws XLSX.XLSXError XLSX.getsheet(xf, "invalid_sheet")
+        end
+
+        f = XLSX.readxlsx("mytest.xlsx")
+        tb5 = f["table5"]
+        test_data = Vector{Any}(undef, 1)
+        test_data[1] = [1, 2, 3, 4, 5]
+        dtable = XLSX.gettable(tb5)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:HEADER]
+        check_test_data(data, test_data)
+        tb6 = f["table6"]
+        dtable = XLSX.gettable(tb6, first_row=3)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:HEADER]
+        check_test_data(data, test_data)
+        tb7 = f["table7"]
+        dtable = XLSX.gettable(tb7, first_row=3)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:HEADER]
+        check_test_data(data, test_data)
+
+        sheet_lookup = f["lookup"]
+        test_data = Vector{Any}(undef, 3)
+        test_data[1] = [10, 20, 30]
+        test_data[2] = ["name1", "name2", "name3"]
+        test_data[3] = [100, 200, 300]
+        dtable = XLSX.gettable(sheet_lookup)
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:ID, :NAME, :VALUE]
+        check_test_data(data, test_data)
+
+        header_error_sheet = f["header_error"]
+        dtable = XLSX.gettable(header_error_sheet, "B:E")
+        data, col_names = dtable.data, dtable.column_labels
+        @test col_names == [:COLUMN_A, :COLUMN_B, Symbol("COLUMN_A_2"), Symbol("#Empty")]
+
+        isfile("mytest.xlsx") && rm("mytest.xlsx")
+    end
+
+    @testset "With chartsheet" begin # From Issue #233
+        f = XLSX.openxlsx(joinpath(data_directory, "Strict-foo.xlsx"), mode="rw")
+        Expected = """            sheetname size          range        
+            -------------------------------------------------
+                         Tabelle1 13x4          A2:D14       
+                        Diagramm1 Chartsheet\n"""
+        result = sprint(show, f)
+        idx = findfirst(==('\n'), result)
+        after = result[idx+1:end]
+        @test after == Expected
+        @test sprint(show, f[1]) == "13×4 XLSX.Worksheet: [\"Tabelle1\"](A2:D14) "
+        @test sprint(show, f[2]) == "Chartsheet: [\"Diagramm1\"] "
+        @test_throws XLSX.XLSXError XLSX.copysheet!(f["Diagramm1"], "Diagramm1_copy")
+        @test_throws XLSX.XLSXError XLSX.deletesheet!(f["Diagramm1"])
+        @test_throws XLSX.XLSXError XLSX.gettable(f["Diagramm1"])
+        @test_throws XLSX.XLSXError XLSX.gettable(f["Diagramm1"], "A:B")
+        XLSX.writexlsx("mytest.xlsx", f, overwrite=true)
+
+        XLSX.openxlsx("mytest.xlsx") do f
+            result = sprint(show, f)
+            idx = findfirst(==('\n'), result)
+            after = result[idx+1:end]
+            @test after == Expected
+            @test sprint(show, f[1]) == "13×4 XLSX.Worksheet: [\"Tabelle1\"](A2:D14) "
+            @test sprint(show, f[2]) == "Chartsheet: [\"Diagramm1\"] "
+        end
+        isfile("mytest.xlsx") && rm("mytest.xlsx")
+    end
+
+
 end
 
 @testset "Table" begin
@@ -1889,6 +2146,45 @@ end
     @testset "normalizenames" begin
         test_data = ["hello", "Hello 1", "123", Symbol("name")]
         @test XLSX.normalizename.(test_data) == [:hello, :Hello_1, :_123, :name]
+
+        data = Vector{Any}()
+        push!(data, [:sym1, :sym2, :sym3])
+        push!(data, [1.0, 2.0, 3.0])
+        push!(data, ["abc", "DeF", "gHi"])
+        push!(data, [true, true, false])
+        cols = ["1 col", "col \$2", "local", "col:4"]
+
+        XLSX.writetable("mytest.xlsx", data, cols; overwrite=true)
+        df = DataFrames.DataFrame(XLSX.readtable("mytest.xlsx", "Sheet1", normalizenames=true))
+        @test DataFrames.names(df) == Any["_1_col", "col_2", "_local", "col_4"]
+
+    end
+
+    @testset "missing_strings" begin # issue #90
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings="N/A", stop_in_empty_row=false)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [1, 2, 3, missing, 4, 5]
+        test_data[2] = [4, 5, 6, "Null", 7, 8]
+        check_test_data(t.data, test_data)
+
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings="Null", stop_in_empty_row=false)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [1, 2, 3, "N/A", 4, 5]
+        test_data[2] = [4, 5, 6, missing, 7, 8]
+        check_test_data(t.data, test_data)
+
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings=["Null", "N/A"], stop_in_empty_row=false)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [1, 2, 3, missing, 4, 5]
+        test_data[2] = [4, 5, 6, missing, 7, 8]
+        check_test_data(t.data, test_data)
+
+        t = XLSX.readtable(joinpath(data_directory, "missing_strings.xlsx"); missing_strings=["Null", "N/A"], stop_in_empty_row=false, keep_empty_rows=true)
+        test_data = Vector{Any}(undef, 2)
+        test_data[1] = [missing, 1, 2, 3, missing, missing, 4, 5]
+        test_data[2] = [missing, 4, 5, 6, missing, missing, 7, 8]
+        check_test_data(t.data, test_data)
+
     end
 
     @testset "Read DataFrame" begin
@@ -1923,20 +2219,6 @@ end
 
     end
 
-    @testset "normalizenames" begin # Issue #260
-
-        data = Vector{Any}()
-        push!(data, [:sym1, :sym2, :sym3])
-        push!(data, [1.0, 2.0, 3.0])
-        push!(data, ["abc", "DeF", "gHi"])
-        push!(data, [true, true, false])
-        cols = ["1 col", "col \$2", "local", "col:4"]
-
-        XLSX.writetable("mytest.xlsx", data, cols; overwrite=true)
-        df = DataFrames.DataFrame(XLSX.readtable("mytest.xlsx", "Sheet1", normalizenames=true))
-        @test DataFrames.names(df) == Any["_1_col", "col_2", "_local", "col_4"]
-
-    end
 end
 
 @testset "Write" begin
@@ -4231,7 +4513,13 @@ end
             max_type="formula",
             max_val="\$A\$2"
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A5:E5") => (type="dataBar", priority=5), XLSX.CellRange("A4:E4") => (type="dataBar", priority=4), XLSX.CellRange("A3:E3") => (type="dataBar", priority=3), XLSX.CellRange("A2:E2") => (type="dataBar", priority=2), XLSX.CellRange("A1:E1") => (type="dataBar", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("A5:E5") => (type="dataBar", priority=5), 
+            XLSX.CellRange("A4:E4") => (type="dataBar", priority=4), 
+            XLSX.CellRange("A3:E3") => (type="dataBar", priority=3), 
+            XLSX.CellRange("A2:E2") => (type="dataBar", priority=2), 
+            XLSX.CellRange("A1:E1") => (type="dataBar", priority=1),
+        ]
         @test XLSX.setConditionalFormat(s, "A1", :dataBar) == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :dataBar) == 0
         @test XLSX.setConditionalFormat(s, "Sheet1!A1", :dataBar) == 0
@@ -4250,24 +4538,24 @@ end
         @test XLSX.setConditionalFormat(s, :, :dataBar) == 0
         @test XLSX.setConditionalFormat(s, :, :, :dataBar) == 0
         @test length(XLSX.getConditionalFormats(s)) == 22
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:E5") => (type="dataBar", priority=21),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:E5") => (type="dataBar", priority=22),
-            XLSX.CellRange("A1:E3") => (type="dataBar", priority=17),
-            XLSX.CellRange("A1:C5") => (type="dataBar", priority=12),
-            XLSX.CellRange("A1:C5") => (type="dataBar", priority=13),
-            XLSX.CellRange("A1:C5") => (type="dataBar", priority=15),
-            XLSX.CellRange("A1:C5") => (type="dataBar", priority=16),
-            XLSX.CellRange("A1:C5") => (type="dataBar", priority=19),
+            XLSX.CellRange("A1:E5") => (type="dataBar", priority=21),
             XLSX.CellRange("A1:C5") => (type="dataBar", priority=20),
-            XLSX.CellRange("A2:E4") => (type="dataBar", priority=11),
+            XLSX.CellRange("A1:C5") => (type="dataBar", priority=19),
             XLSX.CellRange("A2:E4") => (type="dataBar", priority=18),
-            XLSX.CellRange("A1:E2") => (type="dataBar", priority=10),
+            XLSX.CellRange("A1:E3") => (type="dataBar", priority=17),
+            XLSX.CellRange("A1:C5") => (type="dataBar", priority=16),
+            XLSX.CellRange("A1:C5") => (type="dataBar", priority=15),
             XLSX.CellRange("A1:E2") => (type="dataBar", priority=14),
+            XLSX.CellRange("A1:C5") => (type="dataBar", priority=13),
+            XLSX.CellRange("A1:C5") => (type="dataBar", priority=12),
+            XLSX.CellRange("A2:E4") => (type="dataBar", priority=11),
+            XLSX.CellRange("A1:E2") => (type="dataBar", priority=10),
             XLSX.CellRange("A1:A2") => (type="dataBar", priority=9),
+            XLSX.CellRange("A1:A1") => (type="dataBar", priority=8),
             XLSX.CellRange("A1:C3") => (type="dataBar", priority=7),
             XLSX.CellRange("A1:A1") => (type="dataBar", priority=6),
-            XLSX.CellRange("A1:A1") => (type="dataBar", priority=8),
             XLSX.CellRange("A5:E5") => (type="dataBar", priority=5),
             XLSX.CellRange("A4:E4") => (type="dataBar", priority=4),
             XLSX.CellRange("A3:E3") => (type="dataBar", priority=3),
@@ -4290,7 +4578,12 @@ end
             max_type="percentile",
             max_val="75"
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="dataBar", priority=4), XLSX.CellRange("E1:E5") => (type="dataBar", priority=3), XLSX.CellRange("B1:B5") => (type="dataBar", priority=2), XLSX.CellRange("A1:A5") => (type="dataBar", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="dataBar", priority=4), 
+            XLSX.CellRange("E1:E5") => (type="dataBar", priority=3), 
+            XLSX.CellRange("B1:B5") => (type="dataBar", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="dataBar", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -4442,7 +4735,13 @@ end
             max_type="max",
             max_col="darkgreen"
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A5:E5") => (type="colorScale", priority=5), XLSX.CellRange("A4:E4") => (type="colorScale", priority=4), XLSX.CellRange("A3:E3") => (type="colorScale", priority=3), XLSX.CellRange("A2:E2") => (type="colorScale", priority=2), XLSX.CellRange("A1:E1") => (type="colorScale", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("A5:E5") => (type="colorScale", priority=5), 
+            XLSX.CellRange("A4:E4") => (type="colorScale", priority=4), 
+            XLSX.CellRange("A3:E3") => (type="colorScale", priority=3), 
+            XLSX.CellRange("A2:E2") => (type="colorScale", priority=2), 
+            XLSX.CellRange("A1:E1") => (type="colorScale", priority=1)
+        ]
         @test XLSX.setConditionalFormat(s, "A1", :colorScale) == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :colorScale) == 0
         @test XLSX.setConditionalFormat(s, "Sheet1!A1", :colorScale) == 0
@@ -4461,24 +4760,24 @@ end
         @test XLSX.setConditionalFormat(s, :, :colorScale) == 0
         @test XLSX.setConditionalFormat(s, :, :, :colorScale) == 0
         @test length(XLSX.getConditionalFormats(s)) == 22
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:E5") => (type="colorScale", priority=21),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:E5") => (type="colorScale", priority=22),
-            XLSX.CellRange("A1:E3") => (type="colorScale", priority=17),
-            XLSX.CellRange("A1:C5") => (type="colorScale", priority=12),
-            XLSX.CellRange("A1:C5") => (type="colorScale", priority=13),
-            XLSX.CellRange("A1:C5") => (type="colorScale", priority=15),
-            XLSX.CellRange("A1:C5") => (type="colorScale", priority=16),
-            XLSX.CellRange("A1:C5") => (type="colorScale", priority=19),
+            XLSX.CellRange("A1:E5") => (type="colorScale", priority=21),
             XLSX.CellRange("A1:C5") => (type="colorScale", priority=20),
-            XLSX.CellRange("A2:E4") => (type="colorScale", priority=11),
+            XLSX.CellRange("A1:C5") => (type="colorScale", priority=19),
             XLSX.CellRange("A2:E4") => (type="colorScale", priority=18),
-            XLSX.CellRange("A1:E2") => (type="colorScale", priority=10),
+            XLSX.CellRange("A1:E3") => (type="colorScale", priority=17),
+            XLSX.CellRange("A1:C5") => (type="colorScale", priority=16),
+            XLSX.CellRange("A1:C5") => (type="colorScale", priority=15),
             XLSX.CellRange("A1:E2") => (type="colorScale", priority=14),
+            XLSX.CellRange("A1:C5") => (type="colorScale", priority=13),
+            XLSX.CellRange("A1:C5") => (type="colorScale", priority=12),
+            XLSX.CellRange("A2:E4") => (type="colorScale", priority=11),
+            XLSX.CellRange("A1:E2") => (type="colorScale", priority=10),
             XLSX.CellRange("A1:A2") => (type="colorScale", priority=9),
+            XLSX.CellRange("A1:A1") => (type="colorScale", priority=8),
             XLSX.CellRange("A1:C3") => (type="colorScale", priority=7),
             XLSX.CellRange("A1:A1") => (type="colorScale", priority=6),
-            XLSX.CellRange("A1:A1") => (type="colorScale", priority=8),
             XLSX.CellRange("A5:E5") => (type="colorScale", priority=5),
             XLSX.CellRange("A4:E4") => (type="colorScale", priority=4),
             XLSX.CellRange("A3:E3") => (type="colorScale", priority=3),
@@ -4503,7 +4802,12 @@ end
             max_type="max",
             max_col="blue"
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="colorScale", priority=4), XLSX.CellRange("E1:E5") => (type="colorScale", priority=3), XLSX.CellRange("B1:B5") => (type="colorScale", priority=2), XLSX.CellRange("A1:A5") => (type="colorScale", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="colorScale", priority=4), 
+            XLSX.CellRange("E1:E5") => (type="colorScale", priority=3), 
+            XLSX.CellRange("B1:B5") => (type="colorScale", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="colorScale", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -4607,7 +4911,13 @@ end
             max_type="percent",
             max_val="95"
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A5:E5") => (type="iconSet", priority=5), XLSX.CellRange("A4:E4") => (type="iconSet", priority=4), XLSX.CellRange("A3:E3") => (type="iconSet", priority=3), XLSX.CellRange("A2:E2") => (type="iconSet", priority=2), XLSX.CellRange("A1:E1") => (type="iconSet", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("A5:E5") => (type="iconSet", priority=5), 
+            XLSX.CellRange("A4:E4") => (type="iconSet", priority=4), 
+            XLSX.CellRange("A3:E3") => (type="iconSet", priority=3), 
+            XLSX.CellRange("A2:E2") => (type="iconSet", priority=2), 
+            XLSX.CellRange("A1:E1") => (type="iconSet", priority=1)
+        ]
         @test XLSX.setConditionalFormat(s, "A1", :iconSet) == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :iconSet) == 0
         @test XLSX.setConditionalFormat(s, "Sheet1!A1", :iconSet) == 0
@@ -4627,24 +4937,24 @@ end
         @test XLSX.setConditionalFormat(s, :, :, :iconSet) == 0
         @test length(XLSX.getConditionalFormats(s)) == 22
 
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:E5") => (type="iconSet", priority=21),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:E5") => (type="iconSet", priority=22),
-            XLSX.CellRange("A1:E3") => (type="iconSet", priority=17),
-            XLSX.CellRange("A1:C5") => (type="iconSet", priority=12),
-            XLSX.CellRange("A1:C5") => (type="iconSet", priority=13),
-            XLSX.CellRange("A1:C5") => (type="iconSet", priority=15),
-            XLSX.CellRange("A1:C5") => (type="iconSet", priority=16),
-            XLSX.CellRange("A1:C5") => (type="iconSet", priority=19),
+            XLSX.CellRange("A1:E5") => (type="iconSet", priority=21),
             XLSX.CellRange("A1:C5") => (type="iconSet", priority=20),
-            XLSX.CellRange("A2:E4") => (type="iconSet", priority=11),
+            XLSX.CellRange("A1:C5") => (type="iconSet", priority=19),
             XLSX.CellRange("A2:E4") => (type="iconSet", priority=18),
-            XLSX.CellRange("A1:E2") => (type="iconSet", priority=10),
+            XLSX.CellRange("A1:E3") => (type="iconSet", priority=17),
+            XLSX.CellRange("A1:C5") => (type="iconSet", priority=16),
+            XLSX.CellRange("A1:C5") => (type="iconSet", priority=15),
             XLSX.CellRange("A1:E2") => (type="iconSet", priority=14),
+            XLSX.CellRange("A1:C5") => (type="iconSet", priority=13),
+            XLSX.CellRange("A1:C5") => (type="iconSet", priority=12),
+            XLSX.CellRange("A2:E4") => (type="iconSet", priority=11),
+            XLSX.CellRange("A1:E2") => (type="iconSet", priority=10),
             XLSX.CellRange("A1:A2") => (type="iconSet", priority=9),
+            XLSX.CellRange("A1:A1") => (type="iconSet", priority=8),
             XLSX.CellRange("A1:C3") => (type="iconSet", priority=7),
             XLSX.CellRange("A1:A1") => (type="iconSet", priority=6),
-            XLSX.CellRange("A1:A1") => (type="iconSet", priority=8),
             XLSX.CellRange("A5:E5") => (type="iconSet", priority=5),
             XLSX.CellRange("A4:E4") => (type="iconSet", priority=4),
             XLSX.CellRange("A3:E3") => (type="iconSet", priority=3),
@@ -4697,14 +5007,14 @@ end
             min_val="3", mid_val="45", mid2_val="65", max_val="8",
             min_gte="false", mid_gte="false", mid2_gte="false", max_gte="false") == 0
 
-        @test XLSX.getConditionalFormats(s) == [
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("F2:F11") => (type="iconSet", priority=7),
+            XLSX.CellRange("E2:E11") => (type="iconSet", priority=6),
             XLSX.CellRange("D2:D11") => (type="iconSet", priority=5),
             XLSX.CellRange("C2:C11") => (type="iconSet", priority=4),
             XLSX.CellRange("B2:B11") => (type="iconSet", priority=3),
-            XLSX.CellRange("A2:A11") => (type="iconSet", priority=1),
             XLSX.CellRange("A2:A11") => (type="iconSet", priority=2),
-            XLSX.CellRange("E2:E11") => (type="iconSet", priority=6),
-            XLSX.CellRange("F2:F11") => (type="iconSet", priority=7)
+            XLSX.CellRange("A2:A11") => (type="iconSet", priority=1),
         ]
 
         f = XLSX.newxlsx()
@@ -4801,10 +5111,7 @@ end
         ) == 0
 
 
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:A4") => (type="iconSet", priority=16),
-            XLSX.CellRange("A1:A4") => (type="iconSet", priority=15),
-            XLSX.CellRange("A1:A4") => (type="iconSet", priority=14),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
             XLSX.CellRange("A1:A4") => (type="iconSet", priority=1),
             XLSX.CellRange("B1:B4") => (type="iconSet", priority=2),
             XLSX.CellRange("C1:C4") => (type="iconSet", priority=3),
@@ -4818,6 +5125,9 @@ end
             XLSX.CellRange("K1:K4") => (type="iconSet", priority=11),
             XLSX.CellRange("L1:L4") => (type="iconSet", priority=12),
             XLSX.CellRange("M1:M4") => (type="iconSet", priority=13),
+            XLSX.CellRange("A1:A4") => (type="iconSet", priority=14),
+            XLSX.CellRange("A1:A4") => (type="iconSet", priority=15),
+            XLSX.CellRange("A1:A4") => (type="iconSet", priority=16),
             XLSX.CellRange("A2:M2") => (type="iconSet", priority=17)
         ]
 
@@ -4915,7 +5225,13 @@ end
             font=["color" => "green"],
             border=["style" => "thick", "color" => "coral"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A5:E5") => (type="cellIs", priority=5), XLSX.CellRange("A4:E4") => (type="cellIs", priority=4), XLSX.CellRange("A3:E3") => (type="cellIs", priority=3), XLSX.CellRange("A2:E2") => (type="cellIs", priority=2), XLSX.CellRange("A1:E1") => (type="cellIs", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("A5:E5") => (type="cellIs", priority=5), 
+            XLSX.CellRange("A4:E4") => (type="cellIs", priority=4), 
+            XLSX.CellRange("A3:E3") => (type="cellIs", priority=3), 
+            XLSX.CellRange("A2:E2") => (type="cellIs", priority=2), 
+            XLSX.CellRange("A1:E1") => (type="cellIs", priority=1)
+        ]
         @test XLSX.setConditionalFormat(s, "A1", :cellIs) == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :cellIs) == 0
         @test XLSX.setConditionalFormat(s, "Sheet1!A1", :cellIs) == 0
@@ -4934,24 +5250,24 @@ end
         @test XLSX.setConditionalFormat(s, :, :cellIs) == 0
         @test XLSX.setConditionalFormat(s, :, :, :cellIs) == 0
         @test length(XLSX.getConditionalFormats(s)) == 22
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:E5") => (type="cellIs", priority=21),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:E5") => (type="cellIs", priority=22),
-            XLSX.CellRange("A1:E3") => (type="cellIs", priority=17),
-            XLSX.CellRange("A1:C5") => (type="cellIs", priority=12),
-            XLSX.CellRange("A1:C5") => (type="cellIs", priority=13),
-            XLSX.CellRange("A1:C5") => (type="cellIs", priority=15),
-            XLSX.CellRange("A1:C5") => (type="cellIs", priority=16),
-            XLSX.CellRange("A1:C5") => (type="cellIs", priority=19),
+            XLSX.CellRange("A1:E5") => (type="cellIs", priority=21),
             XLSX.CellRange("A1:C5") => (type="cellIs", priority=20),
-            XLSX.CellRange("A2:E4") => (type="cellIs", priority=11),
+            XLSX.CellRange("A1:C5") => (type="cellIs", priority=19),
             XLSX.CellRange("A2:E4") => (type="cellIs", priority=18),
-            XLSX.CellRange("A1:E2") => (type="cellIs", priority=10),
+            XLSX.CellRange("A1:E3") => (type="cellIs", priority=17),
+            XLSX.CellRange("A1:C5") => (type="cellIs", priority=16),
+            XLSX.CellRange("A1:C5") => (type="cellIs", priority=15),
             XLSX.CellRange("A1:E2") => (type="cellIs", priority=14),
+            XLSX.CellRange("A1:C5") => (type="cellIs", priority=13),
+            XLSX.CellRange("A1:C5") => (type="cellIs", priority=12),
+            XLSX.CellRange("A2:E4") => (type="cellIs", priority=11),
+            XLSX.CellRange("A1:E2") => (type="cellIs", priority=10),
             XLSX.CellRange("A1:A2") => (type="cellIs", priority=9),
+            XLSX.CellRange("A1:A1") => (type="cellIs", priority=8),
             XLSX.CellRange("A1:C3") => (type="cellIs", priority=7),
             XLSX.CellRange("A1:A1") => (type="cellIs", priority=6),
-            XLSX.CellRange("A1:A1") => (type="cellIs", priority=8),
             XLSX.CellRange("A5:E5") => (type="cellIs", priority=5),
             XLSX.CellRange("A4:E4") => (type="cellIs", priority=4),
             XLSX.CellRange("A3:E3") => (type="cellIs", priority=3),
@@ -4984,7 +5300,12 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="cellIs", priority=4), XLSX.CellRange("E1:E5") => (type="cellIs", priority=3), XLSX.CellRange("B1:B5") => (type="cellIs", priority=2), XLSX.CellRange("A1:A5") => (type="cellIs", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="cellIs", priority=4), 
+            XLSX.CellRange("E1:E5") => (type="cellIs", priority=3), 
+            XLSX.CellRange("B1:B5") => (type="cellIs", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="cellIs", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -5073,7 +5394,13 @@ end
             font=["color" => "green"],
             border=["style" => "thick", "color" => "coral"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A5:E5") => (type="beginsWith", priority=5), XLSX.CellRange("A4:E4") => (type="notContainsText", priority=4), XLSX.CellRange("A3:E3") => (type="notContainsText", priority=3), XLSX.CellRange("A2:E2") => (type="containsText", priority=2), XLSX.CellRange("A1:E1") => (type="containsText", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("A5:E5") => (type="beginsWith", priority=5), 
+            XLSX.CellRange("A4:E4") => (type="notContainsText", priority=4), 
+            XLSX.CellRange("A3:E3") => (type="notContainsText", priority=3), 
+            XLSX.CellRange("A2:E2") => (type="containsText", priority=2), 
+            XLSX.CellRange("A1:E1") => (type="containsText", priority=1)
+        ]
         #        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A5:E5") => (type = "containsText", priority = 5), XLSX.CellRange("A4:E4") => (type = "containsText", priority = 4), XLSX.CellRange("A3:E3") => (type = "containsText", priority = 3), XLSX.CellRange("A2:E2") => (type = "containsText", priority = 2), XLSX.CellRange("A1:E1") => (type = "containsText", priority = 1)]
         @test XLSX.setConditionalFormat(s, "A1", :containsText; value="a") == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :containsText; value="a") == 0
@@ -5093,24 +5420,24 @@ end
         @test XLSX.setConditionalFormat(s, :, :containsText; value="a") == 0
         @test XLSX.setConditionalFormat(s, :, :, :containsText; value="a") == 0
         @test length(XLSX.getConditionalFormats(s)) == 22
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:E5") => (type="containsText", priority=21),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:E5") => (type="containsText", priority=22),
-            XLSX.CellRange("A1:E3") => (type="containsText", priority=17),
-            XLSX.CellRange("A1:C5") => (type="containsText", priority=12),
-            XLSX.CellRange("A1:C5") => (type="containsText", priority=13),
-            XLSX.CellRange("A1:C5") => (type="containsText", priority=15),
-            XLSX.CellRange("A1:C5") => (type="containsText", priority=16),
-            XLSX.CellRange("A1:C5") => (type="containsText", priority=19),
+            XLSX.CellRange("A1:E5") => (type="containsText", priority=21),
             XLSX.CellRange("A1:C5") => (type="containsText", priority=20),
-            XLSX.CellRange("A2:E4") => (type="containsText", priority=11),
+            XLSX.CellRange("A1:C5") => (type="containsText", priority=19),
             XLSX.CellRange("A2:E4") => (type="containsText", priority=18),
-            XLSX.CellRange("A1:E2") => (type="containsText", priority=10),
+            XLSX.CellRange("A1:E3") => (type="containsText", priority=17),
+            XLSX.CellRange("A1:C5") => (type="containsText", priority=16),
+            XLSX.CellRange("A1:C5") => (type="containsText", priority=15),
             XLSX.CellRange("A1:E2") => (type="containsText", priority=14),
+            XLSX.CellRange("A1:C5") => (type="containsText", priority=13),
+            XLSX.CellRange("A1:C5") => (type="containsText", priority=12),
+            XLSX.CellRange("A2:E4") => (type="containsText", priority=11),
+            XLSX.CellRange("A1:E2") => (type="containsText", priority=10),
             XLSX.CellRange("A1:A2") => (type="containsText", priority=9),
+            XLSX.CellRange("A1:A1") => (type="containsText", priority=8),
             XLSX.CellRange("A1:C3") => (type="containsText", priority=7),
             XLSX.CellRange("A1:A1") => (type="containsText", priority=6),
-            XLSX.CellRange("A1:A1") => (type="containsText", priority=8),
             XLSX.CellRange("A5:E5") => (type="beginsWith", priority=5),
             XLSX.CellRange("A4:E4") => (type="notContainsText", priority=4),
             XLSX.CellRange("A3:E3") => (type="notContainsText", priority=3),
@@ -5137,7 +5464,12 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="endsWith", priority=4), XLSX.CellRange("E1:E5") => (type="containsText", priority=3), XLSX.CellRange("B1:B5") => (type="containsText", priority=2), XLSX.CellRange("A1:A5") => (type="containsText", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="endsWith", priority=4), 
+            XLSX.CellRange("E1:E5") => (type="containsText", priority=3), 
+            XLSX.CellRange("B1:B5") => (type="containsText", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="containsText", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -5236,7 +5568,14 @@ end
             border=["style" => "thick", "color" => "coral"],
             font=["color" => "blue", "bold" => "true", "italic" => "true"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("A1:J10") => (type="top10", priority=3), XLSX.CellRange("A1:J10") => (type="top10", priority=4), XLSX.CellRange("A1:J10") => (type="top10", priority=5), XLSX.CellRange("A1:J10") => (type="top10", priority=6), XLSX.CellRange("A2:J2") => (type="top10", priority=2), XLSX.CellRange("A1:J1") => (type="top10", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A1:J1") => (type="top10", priority=1),
+            XLSX.CellRange("A2:J2") => (type="top10", priority=2),
+            XLSX.CellRange("A1:J10") => (type="top10", priority=3), 
+            XLSX.CellRange("A1:J10") => (type="top10", priority=4), 
+            XLSX.CellRange("A1:J10") => (type="top10", priority=5), 
+            XLSX.CellRange("A1:J10") => (type="top10", priority=6), 
+        ]
 
         @test XLSX.setConditionalFormat(s, "A1", :top10) == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :top10) == 0
@@ -5256,30 +5595,30 @@ end
         @test XLSX.setConditionalFormat(s, :, :top10) == 0
         @test XLSX.setConditionalFormat(s, :, :, :top10) == 0
         @test length(XLSX.getConditionalFormats(s)) == 23
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:J3") => (type="top10", priority=18),
-            XLSX.CellRange("A1:C10") => (type="top10", priority=13),
-            XLSX.CellRange("A1:C10") => (type="top10", priority=14),
-            XLSX.CellRange("A1:C10") => (type="top10", priority=16),
-            XLSX.CellRange("A1:C10") => (type="top10", priority=17),
-            XLSX.CellRange("A1:C10") => (type="top10", priority=20),
-            XLSX.CellRange("A1:C10") => (type="top10", priority=21),
-            XLSX.CellRange("A2:J4") => (type="top10", priority=12),
-            XLSX.CellRange("A2:J4") => (type="top10", priority=19),
-            XLSX.CellRange("A1:J2") => (type="top10", priority=11),
-            XLSX.CellRange("A1:J2") => (type="top10", priority=15),
-            XLSX.CellRange("A1:A2") => (type="top10", priority=10),
-            XLSX.CellRange("A1:C3") => (type="top10", priority=8),
-            XLSX.CellRange("A1:A1") => (type="top10", priority=7),
-            XLSX.CellRange("A1:A1") => (type="top10", priority=9),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A1:J1") => (type="top10", priority=1),
+            XLSX.CellRange("A2:J2") => (type="top10", priority=2),
             XLSX.CellRange("A1:J10") => (type="top10", priority=3),
             XLSX.CellRange("A1:J10") => (type="top10", priority=4),
             XLSX.CellRange("A1:J10") => (type="top10", priority=5),
             XLSX.CellRange("A1:J10") => (type="top10", priority=6),
+            XLSX.CellRange("A1:A1") => (type="top10", priority=7),
+            XLSX.CellRange("A1:C3") => (type="top10", priority=8),
+            XLSX.CellRange("A1:A1") => (type="top10", priority=9),
+            XLSX.CellRange("A1:A2") => (type="top10", priority=10),
+            XLSX.CellRange("A1:J2") => (type="top10", priority=11),
+            XLSX.CellRange("A2:J4") => (type="top10", priority=12),
+            XLSX.CellRange("A1:C10") => (type="top10", priority=13),
+            XLSX.CellRange("A1:C10") => (type="top10", priority=14),
+            XLSX.CellRange("A1:J2") => (type="top10", priority=15),
+            XLSX.CellRange("A1:C10") => (type="top10", priority=16),
+            XLSX.CellRange("A1:C10") => (type="top10", priority=17),
+            XLSX.CellRange("A1:J3") => (type="top10", priority=18),
+            XLSX.CellRange("A2:J4") => (type="top10", priority=19),
+            XLSX.CellRange("A1:C10") => (type="top10", priority=20),
+            XLSX.CellRange("A1:C10") => (type="top10", priority=21),
             XLSX.CellRange("A1:J10") => (type="top10", priority=22),
             XLSX.CellRange("A1:J10") => (type="top10", priority=23),
-            XLSX.CellRange("A2:J2") => (type="top10", priority=2),
-            XLSX.CellRange("A1:J1") => (type="top10", priority=1)
         ]
 
         f = XLSX.newxlsx()
@@ -5301,7 +5640,11 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="top10", priority=4), XLSX.CellRange("E1:E10") => (type="top10", priority=3), XLSX.CellRange("B1:B10") => (type="top10", priority=2), XLSX.CellRange("A1:A5") => (type="top10", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="top10", priority=4), 
+            XLSX.CellRange("E1:E10") => (type="top10", priority=3), 
+            XLSX.CellRange("B1:B10") => (type="top10", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="top10", priority=1)]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -5421,18 +5764,18 @@ end
             border=["style" => "thick", "color" => "green"],
             font=["color" => "green", "bold" => "true", "italic" => "true"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=8),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=9),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=10),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=1),
+            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=2),
+            XLSX.CellRange("A2:C10") => (type="aboveAverage", priority=3),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=4),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=5),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=6),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=7),
-            XLSX.CellRange("A2:C10") => (type="aboveAverage", priority=3),
-            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=1),
-            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=2)
-        ]
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=8),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=9),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=10)
+         ]
 
         @test XLSX.setConditionalFormat(s, "A1", :aboveAverage) == 0
         @test XLSX.setConditionalFormat(s, "A1:C3", :aboveAverage) == 0
@@ -5452,34 +5795,34 @@ end
         @test XLSX.setConditionalFormat(s, :, :aboveAverage) == 0
         @test XLSX.setConditionalFormat(s, :, :, :aboveAverage) == 0
         @test length(XLSX.getConditionalFormats(s)) == 27
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A2:C4") => (type="aboveAverage", priority=16),
-            XLSX.CellRange("A2:C4") => (type="aboveAverage", priority=23),
-            XLSX.CellRange("A1:C2") => (type="aboveAverage", priority=15),
-            XLSX.CellRange("A1:C2") => (type="aboveAverage", priority=19),
-            XLSX.CellRange("A1:A2") => (type="aboveAverage", priority=14),
-            XLSX.CellRange("A1:C3") => (type="aboveAverage", priority=12),
-            XLSX.CellRange("A1:C3") => (type="aboveAverage", priority=22),
-            XLSX.CellRange("A1:A1") => (type="aboveAverage", priority=11),
-            XLSX.CellRange("A1:A1") => (type="aboveAverage", priority=13),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=8),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=9),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=10),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=17),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=18),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=20),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=21),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=24),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=25),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=26),
-            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=27),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=1),
+            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=2),
+            XLSX.CellRange("A2:C10") => (type="aboveAverage", priority=3),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=4),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=5),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=6),
             XLSX.CellRange("A2:C1001") => (type="aboveAverage", priority=7),
-            XLSX.CellRange("A2:C10") => (type="aboveAverage", priority=3),
-            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=1),
-            XLSX.CellRange("A2:C2") => (type="aboveAverage", priority=2)
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=8),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=9),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=10),
+            XLSX.CellRange("A1:A1") => (type="aboveAverage", priority=11),
+            XLSX.CellRange("A1:C3") => (type="aboveAverage", priority=12),
+            XLSX.CellRange("A1:A1") => (type="aboveAverage", priority=13),
+            XLSX.CellRange("A1:A2") => (type="aboveAverage", priority=14),
+            XLSX.CellRange("A1:C2") => (type="aboveAverage", priority=15),
+            XLSX.CellRange("A2:C4") => (type="aboveAverage", priority=16),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=17),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=18),
+            XLSX.CellRange("A1:C2") => (type="aboveAverage", priority=19),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=20),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=21),
+            XLSX.CellRange("A1:C3") => (type="aboveAverage", priority=22),
+            XLSX.CellRange("A2:C4") => (type="aboveAverage", priority=23),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=24),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=25),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=26),
+            XLSX.CellRange("A1:C1001") => (type="aboveAverage", priority=27),
         ]
 
         f = XLSX.newxlsx()
@@ -5507,7 +5850,12 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="aboveAverage", priority=4), XLSX.CellRange("E1:E10") => (type="aboveAverage", priority=3), XLSX.CellRange("B1:B10") => (type="aboveAverage", priority=2), XLSX.CellRange("A1:A5") => (type="aboveAverage", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="aboveAverage", priority=4), 
+            XLSX.CellRange("E1:E10") => (type="aboveAverage", priority=3), 
+            XLSX.CellRange("B1:B10") => (type="aboveAverage", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="aboveAverage", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -5627,16 +5975,16 @@ end
             border=["style" => "thick", "color" => "coral"],
             font=["color" => "green", "bold" => "true", "italic" => "true"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=1),
+            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=2),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=3),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=4),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=5),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=6),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=7),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=8),
-            XLSX.CellRange("A1:C10") => (type="timePeriod", priority=9),
-            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=1),
-            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=2)
+            XLSX.CellRange("A1:C10") => (type="timePeriod", priority=9)
         ]
 
         @test XLSX.setConditionalFormat(s, "A1", :timePeriod) == 0
@@ -5658,18 +6006,9 @@ end
         @test XLSX.setConditionalFormat(s, :, :, :timePeriod) == 0
         @test length(XLSX.getConditionalFormats(s)) == 26
 
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:J10") => (type="timePeriod", priority=25),
-            XLSX.CellRange("A1:J10") => (type="timePeriod", priority=26),
-            XLSX.CellRange("A1:J3") => (type="timePeriod", priority=21),
-            XLSX.CellRange("A2:J4") => (type="timePeriod", priority=15),
-            XLSX.CellRange("A2:J4") => (type="timePeriod", priority=22),
-            XLSX.CellRange("A1:J2") => (type="timePeriod", priority=14),
-            XLSX.CellRange("A1:J2") => (type="timePeriod", priority=18),
-            XLSX.CellRange("A1:A2") => (type="timePeriod", priority=13),
-            XLSX.CellRange("A1:C3") => (type="timePeriod", priority=11),
-            XLSX.CellRange("A1:A1") => (type="timePeriod", priority=10),
-            XLSX.CellRange("A1:A1") => (type="timePeriod", priority=12),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=1),
+            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=2),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=3),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=4),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=5),
@@ -5677,14 +6016,23 @@ end
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=7),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=8),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=9),
+            XLSX.CellRange("A1:A1") => (type="timePeriod", priority=10),
+            XLSX.CellRange("A1:C3") => (type="timePeriod", priority=11),
+            XLSX.CellRange("A1:A1") => (type="timePeriod", priority=12),
+            XLSX.CellRange("A1:A2") => (type="timePeriod", priority=13),
+            XLSX.CellRange("A1:J2") => (type="timePeriod", priority=14),
+            XLSX.CellRange("A2:J4") => (type="timePeriod", priority=15),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=16),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=17),
+            XLSX.CellRange("A1:J2") => (type="timePeriod", priority=18),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=19),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=20),
+            XLSX.CellRange("A1:J3") => (type="timePeriod", priority=21),
+            XLSX.CellRange("A2:J4") => (type="timePeriod", priority=22),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=23),
             XLSX.CellRange("A1:C10") => (type="timePeriod", priority=24),
-            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=1),
-            XLSX.CellRange("A2:J2") => (type="timePeriod", priority=2)
+            XLSX.CellRange("A1:J10") => (type="timePeriod", priority=25),
+            XLSX.CellRange("A1:J10") => (type="timePeriod", priority=26)
         ]
 
         f = XLSX.newxlsx()
@@ -5710,7 +6058,12 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="timePeriod", priority=4), XLSX.CellRange("E1:E10") => (type="timePeriod", priority=3), XLSX.CellRange("B1:B10") => (type="timePeriod", priority=2), XLSX.CellRange("A1:A5") => (type="timePeriod", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="timePeriod", priority=4), 
+            XLSX.CellRange("E1:E10") => (type="timePeriod", priority=3), 
+            XLSX.CellRange("B1:B10") => (type="timePeriod", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="timePeriod", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -5812,13 +6165,13 @@ end
             border=["style" => "thick", "color" => "coral"],
             font=["color" => "blue", "bold" => "true", "italic" => "true"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A2:J2") => (type="expression", priority=1),
+            XLSX.CellRange("A2:J2") => (type="expression", priority=2),
             XLSX.CellRange("A1:C10") => (type="expression", priority=3),
             XLSX.CellRange("A1:C10") => (type="expression", priority=4),
             XLSX.CellRange("A1:C10") => (type="expression", priority=5),
             XLSX.CellRange("A1:C10") => (type="expression", priority=6),
-            XLSX.CellRange("A2:J2") => (type="expression", priority=1),
-            XLSX.CellRange("A2:J2") => (type="expression", priority=2),
         ]
 
         @test XLSX.setConditionalFormat(s, "A1", :expression; formula="iseven(A1)") == 0
@@ -5839,30 +6192,30 @@ end
         @test XLSX.setConditionalFormat(s, :, :expression; formula="iseven(A1)") == 0
         @test XLSX.setConditionalFormat(s, :, :, :expression; formula="iseven(A1)") == 0
         @test length(XLSX.getConditionalFormats(s)) == 23
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:J10") => (type="expression", priority=22),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:J10") => (type="expression", priority=23),
-            XLSX.CellRange("A1:J3") => (type="expression", priority=18),
-            XLSX.CellRange("A2:J4") => (type="expression", priority=12),
+            XLSX.CellRange("A1:J10") => (type="expression", priority=22),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=21),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=20),
             XLSX.CellRange("A2:J4") => (type="expression", priority=19),
-            XLSX.CellRange("A1:J2") => (type="expression", priority=11),
+            XLSX.CellRange("A1:J3") => (type="expression", priority=18),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=17),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=16),
             XLSX.CellRange("A1:J2") => (type="expression", priority=15),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=14),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=13),
+            XLSX.CellRange("A2:J4") => (type="expression", priority=12),
+            XLSX.CellRange("A1:J2") => (type="expression", priority=11),
             XLSX.CellRange("A1:A2") => (type="expression", priority=10),
+            XLSX.CellRange("A1:A1") => (type="expression", priority=9),
             XLSX.CellRange("A1:C3") => (type="expression", priority=8),
             XLSX.CellRange("A1:A1") => (type="expression", priority=7),
-            XLSX.CellRange("A1:A1") => (type="expression", priority=9),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=3),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=4),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=5),
             XLSX.CellRange("A1:C10") => (type="expression", priority=6),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=13),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=14),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=16),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=17),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=20),
-            XLSX.CellRange("A1:C10") => (type="expression", priority=21),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=5),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=4),
+            XLSX.CellRange("A1:C10") => (type="expression", priority=3),
+            XLSX.CellRange("A2:J2") => (type="expression", priority=2),
             XLSX.CellRange("A2:J2") => (type="expression", priority=1),
-            XLSX.CellRange("A2:J2") => (type="expression", priority=2)
         ]
 
         f = XLSX.newxlsx()
@@ -5883,7 +6236,12 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="expression", priority=4), XLSX.CellRange("E1:E10") => (type="expression", priority=3), XLSX.CellRange("B1:B10") => (type="expression", priority=2), XLSX.CellRange("A1:A5") => (type="expression", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="expression", priority=4), 
+            XLSX.CellRange("E1:E10") => (type="expression", priority=3), 
+            XLSX.CellRange("B1:B10") => (type="expression", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="expression", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -5978,15 +6336,15 @@ end
             border=["style" => "thick", "color" => "coral"],
             font=["color" => "green", "bold" => "true", "italic" => "true"]
         ) == 0
-        @test XLSX.getConditionalFormats(s) == [
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority) == [
+            XLSX.CellRange("A2:J2") => (type="containsErrors", priority=1),
+            XLSX.CellRange("A2:J2") => (type="containsErrors", priority=2),
             XLSX.CellRange("A1:C10") => (type="containsErrors", priority=3),
             XLSX.CellRange("A1:C10") => (type="notContainsErrors", priority=4),
             XLSX.CellRange("A1:C10") => (type="containsBlanks", priority=5),
             XLSX.CellRange("A1:C10") => (type="notContainsBlanks", priority=6),
             XLSX.CellRange("A1:C10") => (type="uniqueValues", priority=7),
             XLSX.CellRange("A1:C10") => (type="duplicateValues", priority=8),
-            XLSX.CellRange("A2:J2") => (type="containsErrors", priority=1),
-            XLSX.CellRange("A2:J2") => (type="containsErrors", priority=2)
         ]
 
         @test XLSX.setConditionalFormat(s, "A1", :containsErrors) == 0
@@ -6007,32 +6365,32 @@ end
         @test XLSX.setConditionalFormat(s, :, :uniqueValues) == 0
         @test XLSX.setConditionalFormat(s, :, :, :duplicateValues) == 0
         @test length(XLSX.getConditionalFormats(s)) == 25
-        @test XLSX.getConditionalFormats(s) == [
-            XLSX.CellRange("A1:J10") => (type="uniqueValues", priority=24),
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
             XLSX.CellRange("A1:J10") => (type="duplicateValues", priority=25),
-            XLSX.CellRange("A1:J3") => (type="notContainsErrors", priority=20),
-            XLSX.CellRange("A2:J4") => (type="duplicateValues", priority=14),
+            XLSX.CellRange("A1:J10") => (type="uniqueValues", priority=24),
+            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=23),
+            XLSX.CellRange("A1:C10") => (type="notContainsBlanks", priority=22),
             XLSX.CellRange("A2:J4") => (type="containsBlanks", priority=21),
-            XLSX.CellRange("A1:J2") => (type="uniqueValues", priority=13),
+            XLSX.CellRange("A1:J3") => (type="notContainsErrors", priority=20),
+            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=19),
+            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=18),
             XLSX.CellRange("A1:J2") => (type="containsErrors", priority=17),
+            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=16),
+            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=15),
+            XLSX.CellRange("A2:J4") => (type="duplicateValues", priority=14),
+            XLSX.CellRange("A1:J2") => (type="uniqueValues", priority=13),
             XLSX.CellRange("A1:A2") => (type="notContainsBlanks", priority=12),
+            XLSX.CellRange("A1:A1") => (type="containsBlanks", priority=11),
             XLSX.CellRange("A1:C3") => (type="notContainsErrors", priority=10),
             XLSX.CellRange("A1:A1") => (type="containsErrors", priority=9),
-            XLSX.CellRange("A1:A1") => (type="containsBlanks", priority=11),
-            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=3),
-            XLSX.CellRange("A1:C10") => (type="notContainsErrors", priority=4),
-            XLSX.CellRange("A1:C10") => (type="containsBlanks", priority=5),
-            XLSX.CellRange("A1:C10") => (type="notContainsBlanks", priority=6),
-            XLSX.CellRange("A1:C10") => (type="uniqueValues", priority=7),
             XLSX.CellRange("A1:C10") => (type="duplicateValues", priority=8),
-            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=15),
-            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=16),
-            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=18),
-            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=19),
-            XLSX.CellRange("A1:C10") => (type="notContainsBlanks", priority=22),
-            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=23),
+            XLSX.CellRange("A1:C10") => (type="uniqueValues", priority=7),
+            XLSX.CellRange("A1:C10") => (type="notContainsBlanks", priority=6),
+            XLSX.CellRange("A1:C10") => (type="containsBlanks", priority=5),
+            XLSX.CellRange("A1:C10") => (type="notContainsErrors", priority=4),
+            XLSX.CellRange("A1:C10") => (type="containsErrors", priority=3),
+            XLSX.CellRange("A2:J2") => (type="containsErrors", priority=2),
             XLSX.CellRange("A2:J2") => (type="containsErrors", priority=1),
-            XLSX.CellRange("A2:J2") => (type="containsErrors", priority=2)
         ]
 
         f = XLSX.newxlsx()
@@ -6052,7 +6410,12 @@ end
             border=["style" => "thick", "color" => "coral"]
         ) == 0
 
-        @test XLSX.getConditionalFormats(s) == [XLSX.CellRange("C1:D5") => (type="uniqueValues", priority=4), XLSX.CellRange("E1:E10") => (type="containsBlanks", priority=3), XLSX.CellRange("B1:B10") => (type="notContainsErrors", priority=2), XLSX.CellRange("A1:A5") => (type="containsErrors", priority=1)]
+        @test sort!(XLSX.getConditionalFormats(s), by = x -> x.second.priority, rev=true) == [
+            XLSX.CellRange("C1:D5") => (type="uniqueValues", priority=4), 
+            XLSX.CellRange("E1:E10") => (type="containsBlanks", priority=3), 
+            XLSX.CellRange("B1:B10") => (type="notContainsErrors", priority=2), 
+            XLSX.CellRange("A1:A5") => (type="containsErrors", priority=1)
+        ]
 
         f = XLSX.newxlsx()
         s = f[1]
@@ -6545,7 +6908,7 @@ end
 
 @testset "show xlsx" begin
     @testset "single sheet" begin
-        xf = XLSX.readxlsx(joinpath(data_directory, "blank.xlsx"))
+        xf = XLSX.readxlsx(joinpath(src_data_directory, "blank.xlsx"))
         show(IOBuffer(), xf)
     end
 
@@ -6573,6 +6936,138 @@ end
         @test data == [[1, 3], [2, 4]]
         @test col_names == [:One, :Two]
     end
+end
+
+# issues #380, #362, #267, #170
+@testset "no default namespace" begin
+
+    f = XLSX.openxlsx(joinpath(data_directory, "No-Default_NameSpace.xlsx"), mode="rw")
+    @test XLSX.get_dimension(f[2])==XLSX.CellRange("A1:N15")
+    XLSX.addDefinedName(f, "xfile", "XLSX-Export!B2")
+    XLSX.addDefinedName(f[2], "wsheet", 200.2)
+    XLSX.mergeCells(f[2], "A11:N11")
+    XLSX.setRowHeight(f[2], 11; height=25)
+    XLSX.setColumnWidth(f[2], "B"; width=50)
+    @test XLSX.setFont(f[2], [2, 4], 2:4; size=18, name="Arial") == -1
+    @test XLSX.setBorder(f[2], [2, 4], :; left=["style" => "hair"], right=["color" => "FF8B4513"], top=["style" => "hair"], bottom=["color" => "chocolate4"], diagonal=["style" => "hair"]) == -1
+    @test XLSX.setFill(f[2], "G5"; pattern="darkTrellis", fgColor="FF222222", bgColor="FFDDDDDD") == 2
+    @test XLSX.setConditionalFormat(f[2], "J2:J10", :colorScale) == 0
+    XLSX.mergeCells(f[2], "A4:C5")
+    @test XLSX.setConditionalFormat(f[2], "H2:H15", :dataBar) == 0
+    XLSX.setFormula(f[2], "A16:N16", "=sum(A2:A15)")
+    XLSX.addImage(f[2], "B17", joinpath(data_directory, "track_start.jpg"))
+    XLSX.copysheet!(f[2], "newSheet")
+
+    XLSX.writexlsx("mytest.xlsx", f, overwrite=true)
+
+    f2 = XLSX.openxlsx("mytest.xlsx", mode="rw")
+    @test XLSX.get_dimension(f2[2])==XLSX.CellRange("A1:N16")
+    @test f2["xfile"] == f2["XLSX-Export"]["B2"]
+    @test f2["XLSX-Export"]["wsheet"] == 200.2
+    @test XLSX.getMergedCells(f2[2]) == XLSX.CellRange[XLSX.CellRange("A11:N11"), XLSX.CellRange("A4:C5")]
+    @test XLSX.isMergedCell(f2[2], "D11")
+    @test XLSX.getMergedBaseCell(f2[2], "D11") == (baseCell=XLSX.CellRef("A11"), baseValue=13953)
+    @test ismissing(f2[2]["D11"])
+    @test XLSX.getRowHeight(f2[2], "B11") ≈ 25.2109375
+    @test XLSX.getColumnWidth(f2[2], 11, 2) ≈ 50.7109375
+    @test XLSX.getFont(f2[2], 2, 2).font == Dict("name" => Dict("val" => "Arial"), "sz" => Dict("val" => "18"), "color" => Dict("theme" => "1"))
+    @test XLSX.getBorder(f2[2], 4, 6).border == Dict("left" => Dict("style" => "hair"), "bottom" => nothing, "right" => nothing, "top" => Dict("style" => "hair"), "diagonal" => Dict("style" => "hair", "direction" => "both"))
+    @test XLSX.getFill(f2[2], "G5").fill == Dict("patternFill" => Dict("bgrgb" => "FFDDDDDD", "patternType" => "darkTrellis", "fgrgb" => "FF222222"))
+    @test sort!(XLSX.getConditionalFormats(f2[2]), by = x -> x.second.priority, rev=true) == [
+        XLSX.CellRange("H2:H15") => (type = "dataBar", priority = 2),
+        XLSX.CellRange("J2:J10") => (type = "colorScale", priority = 1)
+    ]
+    @test XLSX.getFormula(f2[2], "B16") == "=sum(B2:B15)"
+    @test XLSX.getFormula(f2[2], "M16") == "=sum(M2:M15)"
+
+    @test XLSX.hassheet(f, "newSheet")
+    @test XLSX.getImages(f["newSheet"]) == [(sheet = "newSheet", media_name = "image1.jpg", from = "B17", to = "E27")]
+
+    for row = 1:16
+        for col = 1:14
+            @test (ismissing(f[1][row, col]) && ismissing(f2[1][row, col])) || (f2[1][row, col] == f[1][row, col])
+            @test (ismissing(f[2][row, col]) && ismissing(f[3][row, col])) || (f[2][row, col] == f[3][row, col])
+            @test (ismissing(f[3][row, col]) && ismissing(f2[3][row, col])) || (f2[3][row, col] == f[3][row, col])
+        end
+    end
+
+    df = XLSX.readto(joinpath(data_directory, "No-Default_NameSpace.xlsx"), 2, DataFrames.DataFrame)
+    @test DataFrames.names(df) == String[
+        "NR ",
+        "LC ",
+        "LC-title ",
+        "X [m]",
+        "Xi ",
+        "MNR ",
+        "SIGU [MPa]",
+        "DL [m]",
+        "node1 ",
+        "X [m]_2",
+        "Y [m]",
+        "Z [m]",
+        "node2 ",
+        "NREF "
+    ]
+    @test DataFrames.nrow(df) == 14
+
+    XLSX.writetable("mytest.xlsx", "Sheet1" => df; overwrite=true)
+    df2 = XLSX.readto("mytest.xlsx", DataFrames.DataFrame)
+
+    @test DataFrames.names(df) == DataFrames.names(df2)
+    @test DataFrames.nrow(df) == DataFrames.nrow(df2)
+    @test isequal(df, df2)
+
+
+    f = XLSX.openxlsx(joinpath(data_directory, "No-Default_NameSpace2.xlsx"), mode="rw")
+    @test XLSX.get_dimension(f[1])==XLSX.CellRange("A1:R1001")
+
+    XLSX.writexlsx("mytest.xlsx", f, overwrite=true)
+    f2 = XLSX.readxlsx("mytest.xlsx")
+    @test XLSX.get_dimension(f2[1])==XLSX.CellRange("A1:R1001")
+
+    for row =1:100:1001
+        for col = 1:2:17
+            @test (ismissing(f[1][row, col]) && ismissing(f2[1][row, col])) || (f2[1][row, col] == f[1][row, col])
+        end
+    end
+
+    df = XLSX.readto(joinpath(data_directory, "No-Default_NameSpace2.xlsx"), DataFrames.DataFrame; first_row=3)
+    @test DataFrames.names(df) == String[
+        "Stock Code",
+        "Name of Securities",
+        "Category",
+        "Sub-Category",
+        "Board Lot",
+        "ISIN",
+        "Expiry Date",
+        "Subject to Stamp Duty",
+        "Shortsell Eligible",
+        "CAS Eligible",
+        "VCM Eligible",
+        "Admitted to CCASS",
+        "Debt Securities Board Lot (Nominal)",
+        "Debt Securities Investor Type",
+        "POS Eligible",
+        "Spread Table\r\n1 = Part A\r\n3 = Part B\r\n5 = Part D\r\n4 & 6 = Part E",
+        "Trading Currency",
+        "RMB Counter"
+        ]
+    @test DataFrames.nrow(df) == 998
+
+    XLSX.writetable("mytest.xlsx", "Sheet1" => df; overwrite=true)
+    df2 = XLSX.readto("mytest.xlsx", DataFrames.DataFrame)
+
+    @test DataFrames.names(df) == DataFrames.names(df2)
+    @test DataFrames.nrow(df) == DataFrames.nrow(df2)
+
+    for row in 1:5:DataFrames.nrow(df)
+        for col in 1:2:DataFrames.ncol(df)
+            if !(ismissing(df2[row, col]))
+                @test df[row, col] == df2[row, col]
+            end
+        end
+    end
+    isfile("mytest.xlsx") && rm("mytest.xlsx")
 end
 
 # issues #62, #71
@@ -6687,17 +7182,17 @@ end
         XLSX.setFont(sh, "A1"; name="Palatino")
         r = XLSX.getRichTextString(sh, "A1")
         @test r.runs[4].text == "ki"
-        @test r.runs[4].atts == Dict(:bold => true, :size => 11)
+        @test r.runs[4].atts == Dict(:bold => true, :color => "FFFFFFFF", :size => 11)
         @test r.runs[6].text == "ty"
         @test r.runs[6].atts == Dict(:color => "FFFF0000", :size => 11)
         @test XLSX.getFont(sh, "A1").font == Dict("name" => Dict("val" => "Palatino"), "sz" => Dict("val" => "11"), "color" => Dict("theme" => "1"))
         XLSX.setFont(sh, "A1:F2"; name="Palatino")
         r = XLSX.getRichTextString(sh, "B2")
         @test r.runs[4].text == "k"
-        @test r.runs[4].atts == Dict(:bold => true, :size => 11, :under => true)
+        @test r.runs[4].atts == Dict(:bold => true, :color => "FFFFFFFF", :size => 11, :under => true)
         r = XLSX.getRichTextString(sh, "F2")
         @test r.runs[3].text == "lo "
-        @test r.runs[3].atts == Dict(:size => 11)
+        @test r.runs[3].atts == Dict(:color => "FFFFFFFF", :size => 11)
         @test XLSX.getFont(sh, "B2").font["name"] == Dict("val" => "Palatino")
         XLSX.setFont(sh, "B"; under="none")
         @test haskey(XLSX.getFont(sh, "B2").font, "u") == false
@@ -6724,9 +7219,9 @@ end
         @test XLSX.getFont(sh, "C2") === nothing
         r = XLSX.getRichTextString(sh, "C1")
         @test r.runs[3].text == "lo "
-        @test r.runs[3].atts == Dict(:name => "Aptos Narrow", :size => 11)
+        @test r.runs[3].atts == Dict(:color => "FFFFFFFF", :name => "Aptos Narrow", :size => 11)
         @test r.runs[4].text == "ki"
-        @test r.runs[4].atts == Dict(:bold => true, :italic => true, :name => "Aptos Narrow", :size => 11)
+        @test r.runs[4].atts == Dict(:bold => true, :color => "FFFFFFFF", :italic => true, :name => "Aptos Narrow", :size => 11)
 
         XLSX.setUniformFont(sh, :, 3:2:5; color="orange")
         @test XLSX.getFont(sh, "C1").font["sz"] == Dict("val" => "11")
@@ -6752,9 +7247,9 @@ end
         @test XLSX.getFont(sh, "B2") === nothing
         r = XLSX.getRichTextString(sh, "F1")
         @test r.runs[3].text == "lo "
-        @test r.runs[3].atts == Dict(:name => "Calibri", :size => 11)
+        @test r.runs[3].atts == Dict(:color => "FFFFFFFF", :name => "Calibri", :size => 11)
         @test r.runs[8].text == " "
-        @test r.runs[8].atts == Dict(:name => "Aptos Narrow", :size => 11)
+        @test r.runs[8].atts == Dict(:color => "FFFFFFFF", :name => "Aptos Narrow", :size => 11)
         xf = XLSX.opentemplate(joinpath(data_directory, "is.xlsx"))
         sh = xf["Sheet1"]
         XLSX.setFont(sh, "A1"; under="double", color="orange", name="Palatino", size=20, bold=true, italic=true, strike=true)
@@ -6808,14 +7303,14 @@ end
     @testset "RichTextString" begin
         f=XLSX.newxlsx()
         s=f[1]
-        rtf1=XLSX.RichTextRun("Hello", [:vertAlign => "subscript"])
-        rtf2=XLSX.RichTextRun(" Kitty ", [:color => "green", :size => 14, :bold => true, :under => true])
+        rtf1=XLSX.RichTextRun("Hello", (:vertAlign => "subscript"))
+        rtf2=XLSX.RichTextRun(" Kitty ", (:color => "green", :size => 14, :bold => true, :under => true))
         rtf3=XLSX.RichTextRun("Hello", [:color => "green", :size => 14, :under => true])
         s["A1"] = XLSX.RichTextString(rtf1, rtf2, rtf3)
         @test XLSX.getRichTextString(s, "A1").runs[1].atts == Dict(:vertAlign => "subscript")
         @test XLSX.getRichTextString(s, "A1") == XLSX.RichTextString(rtf1, rtf2, rtf3)
 
-        rtf4=XLSX.RichTextRun("Hell", [:color => "red", :size => 18, :name => "Times New Roman"])
+        rtf4=XLSX.RichTextRun("Hell", (color = "red", size = 18, name = "Times New Roman"))
         rtf5=XLSX.RichTextRun("o", [:color => "green", :size => 24, :vertAlign => "superscript", :name => "Arial"])
         rtf6=XLSX.RichTextRun(" Kitt", [:color => "blue", :size => 12, :name => "Consolas"])
         rtf7=XLSX.RichTextRun("y", [:color => "green", :size => 14, :vertAlign => "subscript"])
@@ -6852,6 +7347,21 @@ end
         @test String(take!(io1)) == rts_expected_result
         show(io1, XLSX.getRichTextString(s, "A2").runs[1])
         @test String(take!(io1)) == rtr_expected_result
+
+        rt1 = XLSX.RichTextRun("Water is H")
+        rt2 = XLSX.RichTextRun("2", :vertAlign => "subscript")
+        rt3 = XLSX.RichTextRun("O!")
+        rts_expected_result = "RichTextString: \"Water is H2O!\" \n" *
+                               " containing 3 runs:\n" *
+                               " Run text                 Run attributes\n" *
+                               " -------------------------------------------------------------------------------------------\n" *
+                               " \"Water is H\"             [ ]                                                               \n" *
+                               " \"2\"                      [:vertAlign => \"subscript\"]                                       \n" *
+                               " \"O!\"                     [ ]                                                               \n"
+        io1 = IOBuffer()
+        show(io1, XLSX.RichTextString(rt1, rt2, rt3))
+        @test String(take!(io1)) == rts_expected_result
+
     end
 end
 
@@ -6862,7 +7372,8 @@ end
     @test XLSX.getcell(sheet1, "A1") == XLSX.Cell(XLSX.get_workbook(xf), XLSX.CellRef("A1"), "str", "", "", "", true)
     @test XLSX.get_formula_from_cache(sheet1, XLSX.CellRef("A1")) == XLSX.Formula("\"\"")
     XLSX.writexlsx("mytest.xlsx", xf, overwrite=true)
-    xf2 = XLSX.readxlsx(joinpath(data_directory, "empty_v.xlsx"))
+    xf2 = XLSX.readxlsx("mytest.xlsx")
+    sheet1 = xf2["Sheet1"]
     @test XLSX.getcell(xf2[1], "A1") == XLSX.Cell(XLSX.get_workbook(xf2), XLSX.CellRef("A1"), "str", "", "", "", true)
     @test XLSX.get_formula_from_cache(sheet1, XLSX.CellRef("A1")) == XLSX.Formula("\"\"")
     isfile("mytest.xlsx") && rm("mytest.xlsx")
@@ -7000,6 +7511,12 @@ end
         XLSX.setFormula(f[1], "G10", "_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)"; raw=true)
         @test XLSX.get_formula_from_cache(sheet, XLSX.CellRef("G10")) == XLSX.Formula("_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)", "array", "G10:G10", nothing)
     end
+
+    @testset "type inference in `eachtablerow`" begin
+        f = XLSX.readxlsx(joinpath(data_directory, "general.xlsx"))
+        df = XLSX.eachtablerow(f["lookup"], "B:J") |> DataFrames.DataFrame
+        @test eltype.(eachcol(df)) == [Int64, String, Int64, Any, Int64, String, Any, Int64, Int64]
+    end
 end
 
 @testset "stream iterator" begin
@@ -7015,5 +7532,149 @@ end
                 @test XLSX.getdata(s, cell) == "trash"
             end
         end
+    end
+end
+
+
+@testset "Add Images" begin
+    REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+    jpeg  = joinpath(data_directory, "track_start.jpg")
+    png   = joinpath(data_directory, "track_start.png")
+    bytes = read(jpeg)
+
+    # Helper so each testset gets a fresh workbook
+    fresh() = (xf = XLSX.newxlsx(); (xf, xf["Sheet1"]))
+
+    @testset "cell addressing variants" begin
+        cases = [
+            ((1, 1),                      "A1", nothing),
+            (("B2",),                     "B2", nothing),
+            (("C3:D5",),                  "C3", "D5"),
+            ((CellRef("E7"),),            "E7", nothing),
+            ((XLSX.CellRange("F4:H9"),), "F4", "H9"),
+        ]
+        for (args, exp_from, exp_to) in cases
+            xf, s = fresh()
+            info = XLSX.addImage(s, args..., png)
+            @test info.from == exp_from
+            exp_to === nothing || @test info.to == exp_to
+            @test haskey(xf.binary_data, "xl/media/" * info.media_name)
+        end
+    end
+    @testset "IOBuffer input" begin
+        xf, s = fresh()
+        info = XLSX.addImage(s, 3, 4, IOBuffer(copy(bytes)))
+        @test startswith(info.media_name, "image")
+        @test xf.binary_data["xl/media/" * info.media_name] == bytes
+        @test haskey(xf.data, "xl/drawings/drawing1.xml")
+    end
+
+    @testset "drawing XML and relationships" begin
+        xf, s = fresh()
+        info = XLSX.addImage(s, "B2", jpeg; size=(128, 128))
+
+        # Relationships
+        rels_root = xf.data["xl/drawings/_rels/drawing1.xml.rels"][end]
+        rel_nodes = [n for n in XML.children(rels_root) if XML.tag(n) == "Relationship"]
+        @test !isempty(rel_nodes)
+        @test any(get(XML.attributes(n), "Type", "") == REL_IMAGE for n in rel_nodes)
+
+        # Anchor geometry
+        drawing_root = xf.data["xl/drawings/drawing1.xml"][end]
+        anchors = [n for n in XML.children(drawing_root) if XML.tag(n) == "xdr:twoCellAnchor"]
+        @test length(anchors) == 1
+        @test XLSX._parse_cell_marker(anchors[1], "from"; is_to=false) == info.from
+        @test XLSX._parse_cell_marker(anchors[1], "to";   is_to=true)  == info.to
+    end
+
+    @testset "multiple images" begin
+        xf, s = fresh()
+        info1 = XLSX.addImage(s, 1, 1, jpeg)
+        info2 = XLSX.addImage(s, 5, 5, jpeg)
+
+        @test info1.media_name != info2.media_name
+        @test haskey(xf.binary_data, "xl/media/" * info1.media_name)
+        @test haskey(xf.binary_data, "xl/media/" * info2.media_name)
+
+        rels_root = xf.data["xl/drawings/_rels/drawing1.xml.rels"][end]
+        rel_nodes = [n for n in XML.children(rels_root) if XML.tag(n) == "Relationship"]
+        @test length(rel_nodes) == 2
+        @test all(get(XML.attributes(n), "Type", "") == REL_IMAGE for n in rel_nodes)
+
+        drawing_root = xf.data["xl/drawings/drawing1.xml"][end]
+        anchors = [n for n in XML.children(drawing_root) if XML.tag(n) == "xdr:twoCellAnchor"]
+        @test length(anchors) == 2
+        @test XLSX._parse_cell_marker(anchors[1], "from"; is_to=false) == info1.from
+        @test XLSX._parse_cell_marker(anchors[2], "from"; is_to=false) == info2.from
+    end
+
+    @testset "round-trip (file and IOBuffer)" begin
+        for (label, src) in [("file path", jpeg), ("IOBuffer", IOBuffer(copy(bytes)))]
+            xf, s = fresh()
+            XLSX.addImage(s, 1, 1, src)
+            tmp = tempname() * ".xlsx"
+            XLSX.writexlsx(tmp, xf)
+            @test isfile(tmp) && filesize(tmp) > 0
+
+            xf2  = XLSX.readxlsx(tmp)
+            imgs = XLSX.getImages(xf2)
+            @test length(imgs) == 1
+            @test imgs[1].sheet == "Sheet1"
+            @test startswith(imgs[1].media_name, "image")
+        end
+    end
+
+    @testset "invalid cell reference" begin
+        xf, s = fresh()
+        @test_throws ArgumentError XLSX.addImage(s, "ZZZ9999", jpeg)
+    end
+
+    @testset "image cleaned up when sheet deleted" begin
+        xf = XLSX.newxlsx()
+        s1 = xf["Sheet1"]
+        XLSX.addImage(s1, 1, 1, png)
+        info = XLSX.getImages(s1)[1]
+
+        wb = XLSX.get_workbook(xf)
+        XLSX.addsheet!(wb, "Sheet2")  # need a second sheet to allow deletion
+        XLSX.deletesheet!(wb, "Sheet1")
+
+        # Media removed
+        @test !haskey(xf.binary_data, "xl/media/" * info.media_name)
+
+        # Drawing XML and rels removed
+        @test !haskey(xf.data, "xl/drawings/drawing1.xml")
+        @test !haskey(xf.data, "xl/drawings/_rels/drawing1.xml.rels")
+
+        # No images reported
+        @test isempty(XLSX.getImages(xf))
+    end
+
+    @testset "shared media preserved when only one sheet deleted" begin
+        xf = XLSX.newxlsx()
+        s1 = xf["Sheet1"]
+        wb = XLSX.get_workbook(xf)
+
+        XLSX.addImage(s1, 1, 1, jpeg)
+
+        XLSX.copysheet!(s1, "Sheet2")
+        s2 = xf["Sheet2"]
+
+        info1 = XLSX.getImages(s1)[1]
+        info2 = XLSX.getImages(s2)[1]
+
+        # Both sheets reference the same media file
+        @test info1.media_name == info2.media_name
+        media_key = "xl/media/" * info1.media_name
+
+        XLSX.deletesheet!(wb, "Sheet1")
+
+        # Media still present — Sheet2 still references it
+        @test haskey(xf.binary_data, media_key)
+
+        # Sheet2 image still retrievable
+        imgs = XLSX.getImages(xf)
+        @test length(imgs) == 1
+        @test imgs[1].sheet == "Sheet2"
     end
 end

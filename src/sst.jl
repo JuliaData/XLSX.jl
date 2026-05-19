@@ -48,10 +48,6 @@ function add_to_sst!(ss::SharedStringTable, si_xml::String)::Int64
     push!(ss.unformatted, unformatted_text(parse(si_xml, XML.LazyNode)))
     ss.index[si_xml] = new_idx
 
-#    if new_idx ∉ get_shared_string_index(ss, si_xml)
-#        throw(XLSXError("Inconsistent state after adding a string to the Shared String Table."))
-#    end
-
     return new_idx
 end
 
@@ -67,7 +63,6 @@ end
 
 # Adds a string to shared string table. Returns the 0-based index of the shared string in the shared string table.
 function add_formatted_string!(wb::Workbook, str_formatted::String; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int64
-#    !is_writable(get_xlsxfile(wb)) && throw(XLSXError("XLSXFile instance is not writable."))
     if isempty(str_formatted)
         throw(XLSXError("Can't add empty string to Shared String Table."))
     end
@@ -93,14 +88,17 @@ needs_preserve(s::AbstractString) = startswith(s, ' ') || endswith(s, ' ') || co
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
 function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int
-#    needs_preserve = startswith(str_unformatted, ' ') || endswith(str_unformatted, ' ') || contains(str_unformatted, '\n')  || contains(str_unformatted, "  ")
     escaped = XLSX.escape(str_unformatted)
+
+    pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
+    pfx = pfx == "" ? "" : "$(pfx):"
+    
     io = IOBuffer()
-    write(io, "<si>\n  <t")
+    write(io, "<$(pfx)si>\n  <$(pfx)t")
     if needs_preserve(str_unformatted)
         write(io, " xml:space=\"preserve\"")
     end
-    write(io, ">", escaped, "</t>\n</si>")
+    write(io, ">", escaped, "</$(pfx)t>\n</$(pfx)si>")
     str_formatted = String(take!(io))
     return add_formatted_string!(wb, str_formatted; mylock)
 end
@@ -120,7 +118,7 @@ function sst_load!(workbook::Workbook)
             sizehint!(sst.unformatted, n)
         end
         for child in XML.eachchildnode(sst_root)
-            if XML.nodetype(child) == XML.Element && XML.tag(child) == "si"
+            if XML.nodetype(child) == XML.Element && localname(child) == "si"
                 push!(sst.shared_strings, XML.write(child))
                 push!(sst.unformatted, unformatted_text(child))
             end
@@ -142,9 +140,13 @@ end
 function unformatted_text(el::XML.LazyNode) :: String
     io = IOBuffer()
     gather_strings!(io, el)
-    s = String(take!(io))
-    return s
+    # XML.jl 0.4 `LazyNode` already unescapes entity references in `XML.value`,
+    # so no extra unescape is needed here.
+    return String(take!(io))
 end
+
+# 2-arg form retained for call sites that thread the workbook (e.g. inlineStr cells).
+unformatted_text(::Workbook, el::XML.LazyNode) :: String = unformatted_text(el)
 
 function gather_strings!(io::IOBuffer, e::XML.LazyNode)
     tag = XML.tag(e)
@@ -211,49 +213,48 @@ This is the required order of attributes in the xml:
 =#
 
  """
-    richTextRunToXML(run::RichTextRun) -> String
+    richTextRunToXML!(io::IO, run::RichTextRun, pfx::String) -> IO
 
 Convert an RichTextRun to XML format for Excel shared strings.
 Each rich text shared string may have multiple runs to allow 
 heterogeneous formatting within a single cell.
 """
-function richTextRunToXML!(io::IO, run::RichTextRun)
-    write(io, "<r>")
+function richTextRunToXML!(io::IO, run::RichTextRun, pfx)
+    write(io, "<$(pfx)r>")
 
     atts = run.atts
     if !isnothing(atts)
         props = IOBuffer()
 
         if (v = get(atts, :name, nothing)) !== nothing
-            write(props, "<rFont val=\"", v, "\"/>")
+            write(props, "<$(pfx)rFont val=\"", v, "\"/>")
         end
-        if get(atts, :bold, false) === true
-            write(props, "<b/>")
+        if get(atts, :bold, false)  in (true, 1)
+            write(props, "<$(pfx)b/>")
         end
-        if get(atts, :italic, false) === true
-            write(props, "<i/>")
+        if get(atts, :italic, false)  in (true, 1)
+            write(props, "<$(pfx)i/>")
         end
-        if get(atts, :strike, false) === true
-            write(props, "<strike/>")
+        if get(atts, :strike, false)  in (true, 1)
+            write(props, "<$(pfx)strike/>")
         end
         if (v = get(atts, :color, nothing)) !== nothing
-            write(props, "<color rgb=\"", get_color(v), "\"/>")
+            write(props, "<$(pfx)color rgb=\"", get_color(v), "\"/>")
         end
         if (v = get(atts, :size, nothing)) !== nothing
-            write(props, "<sz val=\"", string(v), "\"/>") # size read as a float, output rounded to nearest half point.
-#            write(props, "<sz val=\"", v, "\"/>")
+            write(props, "<$(pfx)sz val=\"", string(v), "\"/>") # size read as a float, output rounded to nearest half point.
         end
-        if get(atts, :under, false) === true
-            write(props, "<u/>")
+        if get(atts, :under, false)  in (true, 1)
+            write(props, "<$(pfx)u/>")
         end
         if (v = get(atts, :vertAlign, nothing)) !== nothing
-            write(props, "<vertAlign val=\"", v, "\"/>")
+            write(props, "<$(pfx)vertAlign val=\"", v, "\"/>")
         end
 
         if position(props) > 0
-            write(io, "<rPr>")
+            write(io, "<$(pfx)rPr>")
             write(io, take!(props))
-            write(io, "</rPr>")
+            write(io, "</$(pfx)rPr>")
         end
     end
 
@@ -266,22 +267,22 @@ function richTextRunToXML!(io::IO, run::RichTextRun)
     escaped = XLSX.escape(run.text)
 
     if needs_preserve
-        write(io, "<t xml:space=\"preserve\">", escaped, "</t>")
+        write(io, "<$(pfx)t xml:space=\"preserve\">", escaped, "</$(pfx)t>")
     else
-        write(io, "<t>", escaped, "</t>")
+        write(io, "<$(pfx)t>", escaped, "</$(pfx)t>")
     end
 
-    write(io, "</r>")
+    write(io, "</$(pfx)r>")
     return nothing
 end
 
-function richTextStringtoXML(rts::RichTextString)
+function richTextStringtoXML(rts::RichTextString, pfx::String)
     xml = IOBuffer()
-    write(xml, "<si>")
+    write(xml, "<$(pfx)si>")
     for r in rts.runs
-        richTextRunToXML!(xml, r)
+        richTextRunToXML!(xml, r, pfx)
     end
-    write(xml, "</si>")
+    write(xml, "</$(pfx)si>")
     return String(take!(xml))
 end
 function RichTextString(runs::Vector{RichTextRun})
@@ -443,15 +444,25 @@ end
 
 RichTextString(runs::RichTextRun...) = RichTextString(collect(runs))
 
-RichTextRun(text::String, atts::Dict{Symbol, Any}) = RichTextRun(text, collect(pairs(atts)))
-function RichTextRun(text::String, pairs::Vector{Pair{Symbol,String}})
-    isempty(text) && throw(XLSXError("Cannot create a RichTextRun with no text."))
-    for (k, _) in pairs
-        in(k, ValidRichTextAttributes) || throw(XLSXError("Unknown Rich Text Attribute: ':$x'. Valid attributes are :bold, :italic, :under, :strike, :vertAlign, :color, :size, :name."))
-    end
-    atts=Dict{Symbol, Any}(pairs)
-    return RichTextRun(text, atts)
-end
+# Normalize any attribute input into Vector{Pair{Symbol,Any}}
+_to_pairs(::Nothing) = nothing
+
+_to_pairs(nt::NamedTuple) =
+    [Pair{Symbol,Any}(k, v) for (k, v) in pairs(nt)]
+
+_to_pairs(p::Pair) =
+    [Pair{Symbol,Any}(p.first, p.second)]
+
+_to_pairs(v::Vector{<:Pair}) =
+    [Pair{Symbol,Any}(p.first, p.second) for p in v]
+
+_to_pairs(d::Dict{Symbol,Any}) =
+    [Pair{Symbol,Any}(k, v) for (k, v) in d]
+
+_to_pairs(t::Tuple{Vararg{Pair}}) =
+    [Pair{Symbol,Any}(p.first, p.second) for p in t]
+
+RichTextRun(text::String, atts) = RichTextRun(text, _to_pairs(atts))
 
 """
     getRichTextString(ws::Worksheet, cr::String)                 -> Union{RichTextString, Nothing}
@@ -548,16 +559,62 @@ function getRichTextString(s::Worksheet, c::CellRef)::Union{RichTextString, Noth
     cell.datatype == CT_STRING || return nothing
     sst_load!(get_workbook(s))
     uss = get_sst(get_workbook(s)).shared_strings[reinterpret(Int64, cell.value)+1]
-    return getRichTextString(uss)
+    return getRichTextString(get_workbook(s), uss)
+end
+
+const INDEXED_PALETTE = [
+    "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
+    "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
+    "800000", "008000", "000080", "808000", "800080", "008080", "C0C0C0", "808080",
+    "9999FF", "993366", "FFFFCC", "CCFFFF", "660066", "FF8080", "0066CC", "CCCCFF",
+    "000080", "FF00FF", "FFFF00", "00FFFF", "800080", "800000", "008080", "0000FF",
+    "00CCFF", "CCFFFF", "CCFFCC", "FFFF99", "99CCFF", "FF99CC", "CC99FF", "FFCC99",
+    "3366FF", "33CCCC", "99CC00", "FFCC00", "FF9900", "FF6600", "666699", "969696",
+    "003366", "339966", "003300", "333300", "993300", "993366", "333399", "333333"
+]
+
+# Excel tint algorithm
+@inline function apply_tint(channel::UInt8, tint::Float64)::UInt8
+    c = Float64(channel)
+    if tint > 0
+        c = c + (255 - c) * tint
+    else
+        c = c * (1 + tint)
+    end
+    return UInt8(clamp(round(Int, c), 0, 255))
+end
+
+# Convert theme + tint to RGB
+function resolve_theme_color(theme_index::Int, tint::Float64)
+    # Default Excel theme colors - assume these are never customised.
+     theme = [
+    0x000000, 0xFFFFFF, 0x1F497D, 0xEEECE1,
+    0x4F81BD, 0xC0504D, 0x9BBB59, 0x8064A2,
+    0x4BACC6, 0xF79646,
+    0x0000FF,  # hyperlink
+    0x800080   # followed hyperlink
+]
+
+    base = theme[theme_index + 1]
+    r = apply_tint(UInt8(base >> 16), tint)
+    g = apply_tint(UInt8((base >> 8) & 0xFF), tint)
+    b = apply_tint(UInt8(base & 0xFF), tint)
+
+   buf = IOBuffer()
+    print(buf, "FF")
+    print(buf, uppercase(string(r, base=16, pad=2)))
+    print(buf, uppercase(string(g, base=16, pad=2)))
+    print(buf, uppercase(string(b, base=16, pad=2)))
+    return String(take!(buf))
 end
 
 # Create a RichTextString from a shared string with multiple runs (or nothing if a simple text)
-function getRichTextString(xml_string::String)::Union{RichTextString, Nothing}
+function getRichTextString(::Workbook, xml_string::String)::Union{RichTextString, Nothing}
     doc = parse(xml_string, XML.Node)
     si = xml_root_element(doc)
     
     # Check for rich text runs <r> elements
-    runs = [child for child in XML.children(si) if XML.tag(child) == "r"]
+    runs = [child for child in XML.children(si) if localname(child) == "r"]
     
     # No rich text runs — plain string, return nothing
     isempty(runs) && return nothing
@@ -567,13 +624,13 @@ function getRichTextString(xml_string::String)::Union{RichTextString, Nothing}
     for run in runs
         children = XML.children(run)
         
-        t_node = findfirst(c -> XML.tag(c) == "t", children)
+        t_node = findfirst(c -> localname(c) == "t", children)
         isnothing(t_node) && continue
 
         text = XML.is_simple(children[t_node]) ? XML.simple_value(children[t_node]) : XML.value(children[t_node][1])
         isempty(text) && continue
         
-        rpr = findfirst(c -> XML.tag(c) == "rPr", children)
+        rpr = findfirst(c -> localname(c) == "rPr", children)
         atts = if isnothing(rpr)
             nothing
         else
@@ -581,24 +638,38 @@ function getRichTextString(xml_string::String)::Union{RichTextString, Nothing}
             rpr_children = XML.children(rpr_node)
             pairs = Pair{Symbol, Any}[]
             
-            any(c -> XML.tag(c) == "b",      rpr_children) && push!(pairs, :bold      => true)
-            any(c -> XML.tag(c) == "i",      rpr_children) && push!(pairs, :italic    => true)
-            any(c -> XML.tag(c) == "strike", rpr_children) && push!(pairs, :strike    => true)
-            any(c -> XML.tag(c) == "u",      rpr_children) && push!(pairs, :under     => true)
+            any(c -> localname(c) == "b",      rpr_children) && push!(pairs, :bold      => true)
+            any(c -> localname(c) == "i",      rpr_children) && push!(pairs, :italic    => true)
+            any(c -> localname(c) == "strike", rpr_children) && push!(pairs, :strike    => true)
+            any(c -> localname(c) == "u",      rpr_children) && push!(pairs, :under     => true)
             
-            sz_node = findfirst(c -> XML.tag(c) == "sz", rpr_children)
+            sz_node = findfirst(c -> localname(c) == "sz", rpr_children)
             !isnothing(sz_node) && push!(pairs, :size => parse(Int, XML.attributes(rpr_children[sz_node])["val"]))
             
-            color_node = findfirst(c -> XML.tag(c) == "color", rpr_children)
+            color_node = findfirst(c -> localname(c) == "color", rpr_children)
             if !isnothing(color_node)
-                atts_dict = XML.attributes(rpr_children[color_node])
-                haskey(atts_dict, "rgb") && push!(pairs, :color => atts_dict["rgb"])
-            end
-            
-            font_node = findfirst(c -> XML.tag(c) == "rFont", rpr_children)
+                atts = XML.attributes(rpr_children[color_node])
+
+                if haskey(atts, "rgb")
+                    push!(pairs, :color => atts["rgb"])
+                elseif haskey(atts, "theme")
+                    theme = parse(Int, atts["theme"])
+                    tint  = haskey(atts, "tint") ? parse(Float64, atts["tint"]) : 0.0
+                    rgb = resolve_theme_color(theme, tint)
+                    push!(pairs, :color => rgb)
+                elseif haskey(atts, "indexed")
+                    idx = parse(Int, atts["indexed"])
+                    idx = clamp(idx, 0, length(INDEXED_PALETTE)-1)
+                    rgb = INDEXED_PALETTE[idx + 1]
+                    push!(pairs, :color => "FF" * rgb)
+                elseif haskey(atts, "auto")
+                    push!(pairs, :color => "000000")  # Excel default
+                end
+            end            
+            font_node = findfirst(c -> localname(c) == "rFont", rpr_children)
             !isnothing(font_node) && push!(pairs, :name => XML.attributes(rpr_children[font_node])["val"])
             
-            va_node = findfirst(c -> XML.tag(c) == "vertAlign", rpr_children)
+            va_node = findfirst(c -> localname(c) == "vertAlign", rpr_children)
             !isnothing(va_node) && push!(pairs, :vertAlign => XML.attributes(rpr_children[va_node])["val"])
             
             isempty(pairs) ? nothing : pairs

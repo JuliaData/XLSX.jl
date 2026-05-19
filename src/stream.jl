@@ -36,13 +36,6 @@ It's state is the SheetRowStreamIteratorState.
 The iterator element is a SheetRow.
 =#
 
-# strip off namespace prefix of nodename
-function nodename(x::XML.LazyNode)
-    t = XML.tag(x)
-    i = findlast(==(':'), t)
-    return isnothing(i) ? t : t[i+1:end]
-end
-
 @inline get_worksheet(itr::SheetRowIterator) = itr.sheet
 @inline row_number(state::SheetRowStreamIteratorState) = state.row
 
@@ -66,12 +59,12 @@ end
 # Collect all row LazyNodes from a worksheet's sheetData element.
 function _collect_row_nodes(doc::XML.LazyNode)
     root = xml_root_element(doc)
-    XML.tag(root) != "worksheet" && throw(XLSXError("Expecting to find a worksheet node. Found a $(XML.tag(root))."))
+    localname(root) != "worksheet" && throw(XLSXError("Expecting to find a worksheet node. Found a $(localname(root))."))
 
     # Find sheetData
     sheetdata = nothing
     for child in XML.children(root)
-        if XML.tag(child) == "sheetData"
+        if localname(child) == "sheetData"
             sheetdata = child
             break
         end
@@ -79,14 +72,16 @@ function _collect_row_nodes(doc::XML.LazyNode)
     sheetdata === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
 
     # Collect row nodes
-    return XML.LazyNode[child for child in XML.children(sheetdata) if XML.tag(child) == "row"]
+    return XML.LazyNode[child for child in XML.children(sheetdata) if localname(child) == "row"]
 end
 
 # Creates an iterator for row elements in the Worksheet's XML.
 function Base.iterate(itr::SheetRowStreamIterator)
     ws = get_worksheet(itr)
+    wb = get_workbook(ws)
     target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
     doc = open_internal_file_stream(get_xlsxfile(ws), target_file)
+    sst_pfx = get_sst_prefix(ws)
 
     length(doc) <= 0 && throw(XLSXError("Couldn't open reader for Worksheet $(ws.name)."))
 
@@ -101,7 +96,7 @@ function Base.iterate(itr::SheetRowStreamIterator)
 
     rowcells = Dict{Int, Cell}()
     mylock = ReentrantLock()
-    sst_count = get_rowcells!(rowcells, rownode, ws; mylock)
+    _, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx; mylock)
     itr.sheet.sst_count += sst_count
 
     sheet_row = SheetRow(ws, current_row, current_row_ht, rowcells)
@@ -113,6 +108,7 @@ function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIterator
     ws = get_worksheet(itr)
     rowcells = state.rowcells
     mylock = state.lock
+    sst_pfx = get_sst_prefix(ws)
     empty!(rowcells)
 
     if state.row_index > length(state.row_nodes)
@@ -126,7 +122,7 @@ function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIterator
     current_row = parse(Int, a["r"])
     current_row_ht = haskey(a, "ht") ? parse(Float64, a["ht"]) : nothing
 
-    sst_count = get_rowcells!(rowcells, rownode, ws; mylock)
+    _, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx; mylock)
     itr.sheet.sst_count += sst_count
 
     sheet_row = SheetRow(ws, current_row, current_row_ht, rowcells)
@@ -308,7 +304,7 @@ Base.length(r::WorksheetCache)=length(r.cells)
 function produce_rowchunks!(out, sheetdata::XML.LazyNode, rows, chunksize)
     pos = 0
     for child in XML.children(sheetdata)
-        if XML.tag(child) == "row"
+        if localname(child) == "row"
             pos += 1
             rows[pos] = child
         end
@@ -331,7 +327,7 @@ end
 
 const _EMPTY_ROW_ATTRS = Dict{String,String}()
 
-function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Worksheet, mylock::ReentrantLock)
+function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Worksheet, sst_pfx::String, mylock::ReentrantLock)
     current_row_ht::Union{Float64,Nothing} = nothing
     row_num::Union{Int,Nothing} = nothing
     unhandled_attributes = _EMPTY_ROW_ATTRS
@@ -354,18 +350,17 @@ function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Wor
     end
     row_num === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
 
-    # Process cells
     rowcells = Dict{Int,Cell}()
-    sst_count = get_rowcells!(rowcells, row, ws; mylock)
+    _, sst_count = get_rowcells!(rowcells, row, ws, sst_pfx; mylock)
 
     return sst_count, SheetRow(ws, row_num, current_row_ht, rowcells), unhandled_attributes
-
 end
 
 function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode, nthreads::Int)
-    chunksize = 1000
+    chunksize = ROW_CHUNKSIZE
     handled_attributes = Set{String}(["r", "spans", "ht", "customHeight"])
     unhandled_attributes = Dict{Int,Dict{String,String}}()
+    sst_pfx = get_sst_prefix(ws)
 
     if ws.cache === nothing
         ws.cache = WorksheetCache(ws)
@@ -394,7 +389,7 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode, nthreads::Int)
     root = xml_root_element(lznode)
     sheetdata = nothing
     for child in XML.children(root)
-        if XML.tag(child) == "sheetData"
+        if localname(child) == "sheetData"
             sheetdata = child
             break
         end
@@ -407,7 +402,7 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode, nthreads::Int)
     @sync for _ in 1:nthreads
         Threads.@spawn begin
             for rows in streamed_rows
-                processed = [process_row(row, handled_attributes, ws, mylock) for row in rows]
+                processed = filter!(!isnothing, [process_row(row, handled_attributes, ws, sst_pfx, mylock) for row in rows])
                 put!(sheet_rows, processed)
             end
         end
@@ -424,6 +419,7 @@ end
 # (faster than using eachrow which materialises every row).
 function match_rows(ws::Worksheet, rows_to_match::Vector{Int})::Vector{SheetRow}
     matched_rows = Vector{SheetRow}()
+    sst_pfx = get_sst_prefix(ws)
 
     sort!(rows_to_match)
     i = 1
@@ -442,7 +438,7 @@ function match_rows(ws::Worksheet, rows_to_match::Vector{Int})::Vector{SheetRow}
             current_row_ht = haskey(atts, "ht") ? parse(Float64, atts["ht"]) : nothing
 
             rowcells = Dict{Int,Cell}()
-            get_rowcells!(rowcells, n, ws; mylock)
+            get_rowcells!(rowcells, n, ws, sst_pfx; mylock)
 
             sheetrow = SheetRow(ws, row_num, current_row_ht, rowcells)
             push!(matched_rows, sheetrow)

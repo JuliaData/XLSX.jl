@@ -1,6 +1,6 @@
 
-function Relationship(e::XML.Node)::Relationship
-    XML.tag(e) != "Relationship" && throw(XLSXError("Unexpected XML Element: $(XML.tag(e)). Expected: \"Relationship\"."))
+function Relationship(wb::Workbook, e::XML.Node)::Relationship
+    localname(e) !=   "Relationship" && throw(XLSXError("Unexpected XML Element: $(localname(e)). Expected: \"Relationship\"."))
     a = XML.attributes(e)
     return Relationship(
         a["Id"],
@@ -75,38 +75,22 @@ function get_workbook_relationship_root(xf::XLSXFile)::XML.Node
     return xroot
 end
 
+function new_relationship_id(rels_root::XML.Node)::String
+    ids = [parse(Int, m[1])
+           for n in element_children(rels_root)
+           for m in [match(r"rId(\d+)", get_attr(n, "Id"))]
+           if m !== nothing]
+    return "rId$(isempty(ids) ? 1 : maximum(ids) + 1)"
+end
+
 # Adds new relationship. Returns new generated rId.
 function add_relationship!(wb::Workbook, target::String, _type::String)::String
-    xf = get_xlsxfile(wb)
-#    !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable."))
-    local rId::String
-
-    let
-        got_unique_id = false
-        id = 1
-
-        while !got_unique_id
-            got_unique_id = true
-            rId = string("rId", id)
-            for r in wb.relationships
-                if r.Id == rId
-                    got_unique_id = false
-                    id += 1
-                    break
-                end
-            end
-        end
-    end
-
-    # adds to relationship vector
-    new_relationship = Relationship(rId, _type, target)
-    push!(wb.relationships, new_relationship)
-
-    # adds to XML tree
+    xf    = get_xlsxfile(wb)
     xroot = get_workbook_relationship_root(xf)
-    el = XML.Element("Relationship"; Id=rId, Type=_type, Target=target)
-    push!(xroot, el)
+    rId   = new_relationship_id(xroot) 
 
+    push!(wb.relationships, Relationship(rId, _type, target))
+    push!(xroot, XML.Element("Relationship"; Id=rId, Type=_type, Target=target))
     return rId
 end
 
@@ -128,3 +112,21 @@ function delete_relationships!(xf::XLSXFile, rel::Relationship)
     xf.data["xl/_rels/workbook.xml.rels"]=xroot
 
 end
+
+#is_chartsheet(wb::Workbook, rid::String) = any(r.Id == rid && occursin("chartsheet", r.Type) for r in wb.relationships)
+function is_chartsheet(wb::Workbook, sheetname::AbstractString)::Bool
+    name = unquoteit(sheetname)
+    xroot = xml_root_element(get_xlsxfile(wb).data["xl/workbook.xml"])
+    for node in xml_elements(xroot)
+        localname(node) != "sheets" && continue
+        for sheet_node in xml_elements(node)
+            attrs = XML.attributes(sheet_node)
+            isnothing(attrs) && continue
+            get(attrs, "name", "") == name || continue
+            rid = get(attrs, "r:id", "")
+            return any(r.Id == rid && occursin("chartsheet", r.Type) for r in wb.relationships)
+        end
+    end
+    return false
+end
+

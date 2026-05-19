@@ -7,13 +7,22 @@ overwriting original content.
 
 A new `XLSXFile` created with `XLSX.newxlsx` (or using `openxlsx` without specifying a filename) will 
 have `source` set to `"blank.xlsx"` and cannot be saved with this function. Use [`writexlsx`](@ref) instead 
-to specify a file name for the saved file.
+to specify a new file name for the saved file.
+
+An `XLSXFile` created from a native Excel template (`.xltx`) file cannot be saved with this function. 
+Use [`writexlsx`](@ref) instead to specify a new file name for the saved file.
 
 Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
 
 """
 function savexlsx(f::XLSXFile)
-    f.source == "blank.xlsx" && throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
+    if isa(f.source, AbstractString)
+        if f.source == "blank.xlsx"
+            throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
+        elseif f.is_xltx
+            throw(XLSXError("Can't save to a back to an Excel template file. Use `writexlsx` instead to specify a file name."))
+        end
+    end
     return writexlsx(f.source, f; overwrite=true)
 end
 
@@ -30,6 +39,15 @@ Returns the filepath of the written file if a filename is supplied, or `nothing`
 If `overwrite=true`, `output_source` (when a filepath) will be overwritten if it exists.
 
 See also [`savexlsx`](@ref).
+
+!!! note
+
+    When XLSX.jl reads strict (ISO/IEC 29500) XLSX files, it converts them eagerly on 
+    to transitional (ECMA 376) format. On write, XLSX.jl will always write in the transitional 
+    format, which is the Excel default. Excel itself can convert between strict and 
+    transitional formats. Use Excel directly to convert a transitional file to strict format, 
+    if needed.
+
 """
 function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwrite::Bool=false)
 
@@ -49,14 +67,17 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
 
         # write XML files not in cache
         for f in keys(xf.files)
-            if !occursin(r"xl/worksheets/sheet\d+\.xml|xl/sharedStrings\.xml", f) # will be generated from cache below
+            if !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", f)
                 ZipArchives.zip_newfile(xlsx, f; compress=true)
-                write(xlsx, XML.write(xf.data[f]))
+                xml_str = XML.write(xf.data[f])
+                write(xlsx, xml_str)
             end
         end
-
         # write worksheet files from cache (cache must be enabled in write mode)
         for sheet_no in 1:sheetcount(wb)
+            if is_chartsheet(wb, getsheet(wb, sheet_no).name)
+                continue
+            end
             doc = update_single_sheet!(wb, sheet_no, true)
             f = get_relationship_target_by_id("xl", wb, getsheet(wb, sheet_no).relationship_id)
             ZipArchives.zip_newfile(xlsx, f; compress=true)
@@ -97,37 +118,34 @@ function set_worksheet_xml_document!(ws::Worksheet, xdoc::XML.Node)
 end
 
 function generate_sst_xml_string(wb::Workbook)::String
-    sst=wb.sst
+    sst = wb.sst
     !sst.is_loaded && throw(XLSXError("Can't generate XML string from a Shared String Table that is not loaded."))
+
+    pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
+    pfx_c = isempty(pfx) ? "" : "$(pfx):"      # "x:" or ""
+    c_pfx = isempty(pfx) ? "" : ":$(pfx)"      # ":x" or ""
+
+    sst_total = sum(sheet.sst_count for sheet in wb.sheets)
+
     buff = IOBuffer()
 
-    sst_total = 0
-    for sheet in wb.sheets
-        sst_total += sheet.sst_count
-    end
-
-    print(
-        buff,
-        """
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst count="$sst_total" uniqueCount="$(length(sst))" xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-"""
-    )
+    print(buff, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><$(pfx_c)sst count="$sst_total" uniqueCount="$(length(sst))" xmlns$(c_pfx)="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n""")
 
     for s in sst.shared_strings
         print(buff, s)
     end
 
-    print(buff, "</sst>")
+    print(buff, "</$(pfx_c)sst>")
 
     return String(take!(buff))
 end
 
-function add_node_formula!(io, ref::CellRef, ws::Worksheet)
-    return add_node_formula!(io, get_formula_from_cache(ws, ref))
+function add_node_formula!(io, ref::CellRef, ws::Worksheet, pfx)
+    return add_node_formula!(io, get_formula_from_cache(ws, ref), pfx)
 end
-add_node_formula!(io, f::CellFormula) = add_node_formula!(io, f.value)
-function add_node_formula!(io, f::Formula)
-    write(io, "\n        <f")
+add_node_formula!(io, f::CellFormula, pfx) = add_node_formula!(io, f.value, pfx)
+function add_node_formula!(io, f::Formula, pfx)
+    write(io, "\n        <$(pfx)f")
     
     isnothing(f.type) || isempty(f.type) || write(io, " t=\"", f.type, "\"")
     isnothing(f.ref) || isempty(f.ref) || write(io, " ref=\"", f.ref, "\"")
@@ -139,11 +157,11 @@ function add_node_formula!(io, f::Formula)
         end
     end
     
-    write(io, ">", XLSX.escape(f.formula), "</f>")
+    write(io, ">", XLSX.escape(f.formula), "</$(pfx)f>")
 end
 
-function add_node_formula!(io, f::FormulaReference)
-    write(io, "\n        <f t=\"shared\"")
+function add_node_formula!(io, f::FormulaReference, pfx)
+    write(io, "\n        <$(pfx)f t=\"shared\"")
     
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
@@ -153,11 +171,11 @@ function add_node_formula!(io, f::FormulaReference)
     
     write(io, " si=\"")
     print(io, f.id)
-    write(io, "\"></f>")
+    write(io, "\"></$(pfx)f>")
 end
 
-function add_node_formula!(io, f::ReferencedFormula)
-    write(io, "\n        <f t=\"shared\" ref=\"", f.ref, "\"")
+function add_node_formula!(io, f::ReferencedFormula, pfx)
+    write(io, "\n        <$(pfx)f t=\"shared\" ref=\"", f.ref, "\"")
     
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
@@ -167,7 +185,7 @@ function add_node_formula!(io, f::ReferencedFormula)
     
     write(io, " si=\"")
     print(io, f.id)
-    write(io, "\">", XLSX.escape(f.formula), "</f>")
+    write(io, "\">", XLSX.escape(f.formula), "</$(pfx)f>")
 end
 
 function find_all_nodes(givenpath::String, doc::XML.Node)::Vector{XML.Node}
@@ -192,8 +210,8 @@ end
 function get_node_paths!(xpaths::Vector{XPathInfo}, node::XML.Node, default_ns, path)
     for c in XML.children(node)
         if XML.nodetype(c) ∉ [XML.Declaration, XML.Comment, XML.Text]
-            node_tag = XML.tag(c)
-            if !occursin(":", node_tag)
+            node_tag = localname(c)
+            if !occursin(":", node_tag) && !isnothing(default_ns)
                 node_tag = default_ns * ":" * node_tag
             end
             npath = path * "/" * node_tag
@@ -208,42 +226,35 @@ end
 
 
 # Remove all children with tag given by att[2] from a parent XML node with a tag given by att[1].
-function unlink(node::XML.Node, att::Tuple{String,String})
-    new_node = XML.Element(first(att))
+function unlink(node::XML.Node, att::Tuple{String,String}, pfx::String="")
+    new_node = XML.Element(pfx * first(att))
+
     atts = XML.attributes(node)
-    if !isnothing(atts) # Copy attributes across to new node
-        for (k, v) in atts
-            new_node[k] = v
-        end
+    isnothing(atts) || foreach(((k, v),) -> new_node[k] = v, atts)
+
+    for child in XML.children(node)
+        localname(child) != last(att) && push!(new_node, child)
     end
-    for child in XML.children(node) # Copy any child nodes with tags that are not att[2] across to new node
-        if XML.tag(child) != last(att)
-            push!(new_node, child)
-        end
-    end
+
     return new_node
 end
 
-# Remove all children with tag given by att[2] from a parent XML node with a tag given by att[1].
+function keep_prefix(node, pfx)
+    pfx && return XML.tag(node)
+    return localname(node)
+end
+
+# Find the index location of child and grandchild in a parent XML node.
+function find_child_index(children, target)
+    pfx = occursin(":", target)
+    findfirst(c -> keep_prefix(c, pfx) === target, children)
+end
 function get_idces(doc::XML.Node, t, b)
-    i = 1
-    j = 1
-    chn=XML.children(doc)
-    l=length(chn)
-    while XML.tag(chn[i]) != t
-        i += 1
-        if i > l
-            return nothing, nothing
-        end
-    end
-    chn=XML.children(chn[i])
-    l=length(chn)
-    while XML.tag(chn[j]) != b
-        j += 1
-        if j > l
-            return i, nothing
-        end
-    end
+    chn = XML.children(doc)
+    i = find_child_index(chn, t)
+    i === nothing && return nothing, nothing
+
+    j = find_child_index(XML.children(chn[i]), b)
     return i, j
 end
 
@@ -259,19 +270,23 @@ worksheet xml files are not stored.
 function update_worksheets_xml!(xl::XLSXFile; full=false)
     wb = get_workbook(xl)
     for sheet_no in 1:sheetcount(wb)
+        if is_chartsheet(wb, getsheet(wb, sheet_no).name)
+            continue
+        end
         update_single_sheet!(wb, sheet_no, full)
     end
     return nothing
 end
-
 function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{UInt8}}
     sheet = getsheet(wb, sheet_no)
     doc = copynode(get_worksheet_xml_document(sheet))
     xroot = xml_root_element(doc)
 
     # check namespace and root node name
-    get_default_namespace(xroot) != SPREADSHEET_NAMESPACE_XPATH_ARG && throw(XLSXError("Unsupported Spreadsheet XML namespace $(get_default_namespace(xroot))."))
-    XML.tag(xroot) != "worksheet" && throw(XLSXError("Malformed Excel file. Expected root node named `worksheet` in worksheet XML file."))
+    ns_map = get_namespaces(xroot)
+    spreadsheet_ns_declared = (SPREADSHEET_NAMESPACE_XPATH_ARG in values(ns_map))
+    spreadsheet_ns_declared || throw(XLSXError("Unsupported Spreadsheet XML namespace."))
+    localname(xroot) !=   "worksheet" && throw(XLSXError("Malformed Excel file. Expected root node named `worksheet` in worksheet XML file."))
 
     if full # need to reconstruct row and cell data from cache
 
@@ -282,14 +297,18 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
             dimension_node["ref"] = string(get_dimension(sheet))
         end
 
-        empty_doc=XML.write(doc)
-        idx=findfirst("<sheetData/>", empty_doc)
-        idx === nothing && throw(XLSXError("<sheetData/> placeholder not found"))
+        pfx = get_prefix(sheet)
+        pfx = pfx == "" ? pfx : pfx * ":"
+
+        empty_doc = XML.write(doc)
+
+        idx = findfirst("<$(pfx)sheetData/>", empty_doc)
+        idx === nothing && throw(XLSXError("<$(pfx)sheetData/> placeholder not found when reconstructing worksheet '$(sheet.name)'"))
         new_doc=IOBuffer()
         print(new_doc, empty_doc[begin:first(idx)-1])
 
         # create <sheetData> with any attributes
-        print(new_doc, "<sheetData")
+        print(new_doc, "<$(pfx)sheetData")
         i, j = get_idces(doc, "worksheet", "sheetData")
         a = XML.attributes(doc[i][j])
         if !isnothing(a)
@@ -299,9 +318,9 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
         end
         print(new_doc, ">\n")
         # iterates over WorksheetCache cells and writes the XML
-        new_doc=vcat(take!(new_doc), get_cache_rows(sheet))
+        new_doc=vcat(take!(new_doc), get_cache_rows(sheet, pfx))
 
-        new_doc=vcat(new_doc, Vector{UInt8}("  </sheetData>"))
+        new_doc=vcat(new_doc, Vector{UInt8}("  </$(pfx)sheetData>"))
         new_doc=vcat(new_doc, Vector{UInt8}(empty_doc[last(idx)+1:end]))
 
         return new_doc
@@ -333,8 +352,8 @@ function stream_cache_rows(sheet::Worksheet, chunksize::Int)
     end
 end
 
-function get_cache_rows(sheet::Worksheet)::Vector{UInt8}
-    chunksize = 1000
+function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{UInt8}
+    chunksize = ROW_CHUNKSIZE
     read_cache_rows = Channel{Vector{Tuple{Int64,Vector{UInt8}}}}(1 << 8)
     all_cache_rows = Vector{Tuple{Int64,Vector{UInt8}}}()
    
@@ -351,8 +370,7 @@ function get_cache_rows(sheet::Worksheet)::Vector{UInt8}
     @sync for _ in 1:Threads.nthreads()
         Threads.@spawn begin
             for rows in cache_rows
-                # rows is already a chunk - just process it
-                processed = [process_cache_row(row, sheet) for row in rows]
+                processed = [process_cache_row(row, sheet, pfx) for row in rows]
                 put!(read_cache_rows, processed)
             end
         end
@@ -401,7 +419,8 @@ function encode(d::CellErrorType)
         throw(XLSXError("Unknown CellErrorType: $d"))
     end
 end
-function process_cache_row(cacherow::Tuple{CellRange, SheetRow, Dict{String,String}}, ws::Worksheet)
+
+function process_cache_row(cacherow::Tuple{CellRange, SheetRow, Dict{String,String}}, ws::Worksheet, pfx::String)
     pad2 = "    "      # 4 spaces
     pad3 = "      "    # 6 spaces
     pad4 = "        "  # 8 spaces
@@ -414,27 +433,22 @@ function process_cache_row(cacherow::Tuple{CellRange, SheetRow, Dict{String,Stri
 
     row_node = IOBuffer()
 
-    # <row r="X" - combine writes
-    write(row_node, pad2, "<row r=\"", string(row_nr), "\"")
+    write(row_node, pad2, "<$(pfx)row r=\"", string(row_nr), "\"")
 
-    # spans="A:B"
     if spans_str != ""
         write(row_node, " spans=\"", spans_str, "\"")
     end
 
-    # ht="..." customHeight="1"
     if !isnothing(r.ht)
         write(row_node, " ht=\"", string(r.ht), "\" customHeight=\"1\"")
     end
 
-    # unhandled attributes - combine writes
     for (attribute, value) in unhandled_attributes
         write(row_node, " ", attribute, "=\"", value, "\"")
     end
 
     write(row_node, ">\n")
 
-    # cells
     for c in ordered_column_indexes
         cell = getcell(r, c)
 
@@ -442,7 +456,7 @@ function process_cache_row(cacherow::Tuple{CellRange, SheetRow, Dict{String,Stri
             continue
         end
 
-        write(row_node, pad3, "<c r=\"", string(cell.ref), "\"")
+        write(row_node, pad3, "<$(pfx)c r=\"", string(cell.ref), "\"")
 
         if cell.datatype != CT_EMPTY
             write(row_node, " t=\"", encode(cell.datatype), "\"")
@@ -456,12 +470,6 @@ function process_cache_row(cacherow::Tuple{CellRange, SheetRow, Dict{String,Stri
             write(row_node, " cm=\"", string(cell.meta), "\"")
         end
 
-        write(row_node, ">")
-
-        if cell.formula
-            add_node_formula!(row_node, cell.ref, ws)
-        end
-
         if cell.datatype ∈ [CT_FLOAT, CT_DATETIME, CT_TIME]
             v = reinterpret(Float64, cell.value)
         elseif cell.datatype ∈ [CT_STRING, CT_DATE, CT_INT, CT_BOOL]
@@ -473,14 +481,26 @@ function process_cache_row(cacherow::Tuple{CellRange, SheetRow, Dict{String,Stri
         else
             v = getdata(ws, cell)
         end
-        write(row_node, "\n", pad4, "<v>", ismissing(v) ? "" : string(v), "</v>")
 
-        write(row_node, "\n", pad3, "</c>\n")
+        has_value = !ismissing(v) && v != ""
+        has_formula = cell.formula
+
+        if !has_value && !has_formula
+            write(row_node, "/>\n")
+        else
+            write(row_node, ">")
+            if has_formula
+                add_node_formula!(row_node, cell.ref, ws, pfx)
+            end
+            if has_value
+                write(row_node, "\n", pad4, "<$(pfx)v>", string(v), "</$(pfx)v>")
+            end
+            write(row_node, "\n", pad3, "</$(pfx)c>\n")
+        end
     end
 
-    write(row_node, pad2, "</row>\n")
-    s=take!(row_node)
-    return (row_nr, s)
+    write(row_node, pad2, "</$(pfx)row>\n")
+    return (row_nr, take!(row_node))
 end
 
 function abscell(c::CellRef)
@@ -511,12 +531,15 @@ end
 function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <definedNames>. 
     wb = get_workbook(xl)
 
+    pfx = get_prefix("xl/workbook.xml", xl)
+    pfx = pfx == "" ? "" : "$(pfx):"
+
     wbdoc = xmlroot(xl, "xl/workbook.xml") # find the workbook's xml file
 
     #update calcPr to force update on loaded
     i, j = get_idces(wbdoc, "workbook", "calcPr")
     if !isnothing(j)
-        wbdoc[i][j] = XML.Element("calcPr", fullCalcOnLoad="1", calcMode="auto")
+        wbdoc[i][j] = XML.Element("$(pfx)calcPr", fullCalcOnLoad="1", calcMode="auto")
     end
 
     #update defined names
@@ -524,13 +547,17 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
         i, j = get_idces(wbdoc, "workbook", "definedNames")
         if isnothing(j)
             # there is no <definedNames> block in the workbook's xml file, so we'll need to create one
-            # The <definedNames> block goes after the <sheets> block. Need to move everything down one to make room.    
-            m, n = get_idces(wbdoc, "workbook", "sheets")
-            definedNames = XML.Element("definedNames")
-            insert!(wbdoc[m].children, n+1, definedNames)
-            j = n + 1
+            l = insert_index(wbdoc[end], "definedNames", WORKBOOK_ORDER)
+            definedNames = XML.Element("$(pfx)definedNames")
+            len = length(wbdoc[end])
+            if l != len
+                insert!(wbdoc[end].children, l+1, definedNames)
+            else
+                push!(wbdoc[end], definedNames)
+            end
+            j = l + 1
         else
-            definedNames = unlink(wbdoc[i][j], ("definedNames", "definedName")) # Remove old defined names
+            definedNames = unlink(wbdoc[i][j], ("definedNames", "definedName"), pfx) # Remove old defined names
         end
         for (k, v) in wb.workbook_names
             if typeof(v.value) <: DefinedNameRangeTypes
@@ -538,7 +565,7 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
             else
                 v = string(v.value)
             end
-            dn_node = XML.Element("definedName", name=k, XML.Text(v))
+            dn_node = XML.Element("$(pfx)definedName", name=k, XML.Text(v))
             push!(definedNames, dn_node)
         end
         for (k, v) in wb.worksheet_names
@@ -547,24 +574,25 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
             else
                 v = string(v.value)
             end
-            dn_node = XML.Element("definedName", name=last(k), localSheetId=string(first(k) - 1), XML.Text(v))
+            dn_node = XML.Element("$(pfx)definedName", name=last(k), localSheetId=string(first(k) - 1), XML.Text(v))
             push!(definedNames, dn_node)
         end
         wbdoc[i][j] = definedNames # Add the new definedNames block to the workbook's xml file
     end
 
     #update sheets
-    doc = xmlroot(xl, "xl/workbook.xml")
-    i, j = get_idces(doc, "workbook", "sheets")
-    unlink(doc[i][j], ("sheets", "sheet"))
-    sheets_element = XML.Element("sheets")
+#    doc = xmlroot(xl, "xl/workbook.xml")
+
+    i, j = get_idces(wbdoc, "workbook", "sheets")
+    unlink(wbdoc[i][j], ("sheets", "sheet"), pfx)
+    sheets_element = XML.Element("$(pfx)sheets")
     for s in wb.sheets
-        sheet_element = XML.Element("sheet"; name=s.name)
-        sheet_element["sheetId"] = s.sheetId
+        sheet_element = XML.Element("$(pfx)sheet"; name=s.name)
+        sheet_element["sheetId"] = string(s.sheetId)
         sheet_element["r:id"] = s.relationship_id
         push!(sheets_element, sheet_element)
     end
-    doc[i][j] = sheets_element
+    wbdoc[i][j] = sheets_element
 
     return nothing
 end
@@ -639,7 +667,6 @@ function xlsx_encode(ws::Worksheet, val::AbstractString)
         return (CT_EMPTY, UInt64(0))
     end
     sst_ind = add_shared_string!(get_workbook(ws), strip_illegal_chars(val))
-#    sst_ind = add_shared_string!(get_workbook(ws), val)
     ws.sst_count+=1
 
     return (CT_STRING, UInt64(sst_ind))
@@ -689,7 +716,7 @@ function setdata!(ws::Worksheet, ref::CellRef, val::CellFormula)
     setdata!(ws, cell)
 end
 function setdata!(ws::Worksheet, ref::CellRef, val::CellValue, convert_to_string::Bool)
-    # Convert Float64 values NaN, Inf and -Inf to strings. Excel can's handle them as floats
+    # Convert Float64 values NaN, Inf and -Inf to strings. Excel can't handle them as floats
     # Addresses #179 & #342
     @assert convert_to_string == true "Converting values other than NaN, -Inf, Inf is not permitted"
     val = CellValue(string(val.value), val.styleid)
@@ -815,9 +842,6 @@ function setdata!(ws::Worksheet, ref::AbstractString, value)
         return setdata!(ws, SheetRowRange(ref), value)
     elseif is_valid_non_contiguous_cellrange(ref)
         return setdata!(ws, NonContiguousRange(ws, ref), value)
-    elseif is_valid_non_contiguous_sheetcellrange(ref)
-        nc = NonContiguousRange(ref)
-        return do_sheet_names_match(ws, nc) && setdata!(ws, nc, value)
     end
     throw(XLSXError("`$ref` is not a valid cell or range reference."))
 end
@@ -841,6 +865,7 @@ function setdata!(ws::Worksheet, rng::ColumnRange, value)
     setdata!(ws, CellRange(start, stop), value)
 end
 function setdata!(ws::Worksheet, rng::NonContiguousRange, value)
+    do_sheet_names_match(ws, rng)
     for r in rng.rng
         setdata!(ws, r, value) # r may be a single Cell or a CellRange
     end
@@ -919,7 +944,7 @@ function setdata!(sheet::Worksheet, rows::UnitRange{T}, col::Integer, data::Abst
     setdata!(sheet, anchor_cell_ref, data, 1)
 end
 
-function setdata!(sheet::Worksheet, ref_or_rng::AbstractString, matrix::Array{T,2}) where {T}
+function setdata!(sheet::Worksheet, ref_or_rng::AbstractString, matrix::AbstractArray{T,2}) where {T}
     if is_valid_cellrange(ref_or_rng)
         setdata!(sheet, CellRange(ref_or_rng), matrix)
     elseif is_valid_cellname(ref_or_rng)
@@ -929,17 +954,18 @@ function setdata!(sheet::Worksheet, ref_or_rng::AbstractString, matrix::Array{T,
     end
 end
 
-function setdata!(sheet::Worksheet, ref::CellRef, matrix::Array{T,2}) where {T}
-    rows, cols = size(matrix)
+# Generalise to AbstractArray (#158)
+function setdata!(sheet::Worksheet, ref::CellRef, matrix::AbstractArray{T,2}) where {T}
+    row_ax, col_ax = axes(matrix)
     anchor_row = row_number(ref)
     anchor_col = column_number(ref)
 
-    @inbounds for c in 1:cols, r in 1:rows
-        setdata!(sheet, anchor_row + r - 1, anchor_col + c - 1, matrix[r, c])
+    @inbounds for c in col_ax, r in row_ax
+        setdata!(sheet, anchor_row + (r - first(row_ax)), anchor_col + (c - first(col_ax)), matrix[r, c])
     end
 end
 
-function setdata!(sheet::Worksheet, rng::CellRange, matrix::Array{T,2}) where {T}
+function setdata!(sheet::Worksheet, rng::CellRange, matrix::AbstractArray{T,2}) where {T}
     size(rng) != size(matrix) && throw(XLSXError("Target range $rng size ($(size(rng))) must be equal to the input matrix size ($(size(matrix)))"))
     setdata!(sheet, rng.start, matrix)
 end
@@ -952,9 +978,12 @@ function setdata!(sheet::Worksheet, ref::CellRef, rts::RichTextString)
         c=getcell(sheet, ref)
     end
 
+    pfx = get_prefix(sheet)
+    pfx = pfx == "" ? pfx : pfx * ":"
+
     if length(rts.runs) > 1 # add RichTextString as a rich sharedString
         sheet.sst_count += 1
-        c.value = add_formatted_string!(get_workbook(sheet), richTextStringtoXML(rts))
+        c.value = add_formatted_string!(get_workbook(sheet), richTextStringtoXML(rts, pfx))
         c.datatype = CT_STRING
     else # add single run as a normal cell value with a cell level font style
         sheet[ref] = rts.text
@@ -1089,7 +1118,7 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     # updates XML
     xroot = xml_root_element(xmlroot(xf, "xl/workbook.xml"))
     for node in XML.children(xroot)
-        if XML.tag(node) == "sheets"
+        if localname(node) == "sheets"
 
             for sheet_node in xml_elements(node)
                 if sheet_node["name"] == ws.name
@@ -1110,6 +1139,9 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     nothing
 end
 
+include_dependency(joinpath(@__DIR__, "data", "sheet_template.xml"))
+const SHEET_TEMPLATE_XML_DATA = read(joinpath(@__DIR__, "data", "sheet_template.xml"))
+
 """
     addsheet!(wb::Workbook, [name::AbstractString=""]) --> ::Worksheet
     addsheet!(xf::XLSXFile, [name::AbstractString=""]) --> ::Worksheet
@@ -1121,10 +1153,9 @@ See also [renamesheet!](@ref), [copysheet!](@ref), [deletesheet!](@ref)
 
 """
 addsheet!(xl::XLSXFile, name::AbstractString="")::Worksheet = addsheet!(get_workbook(xl), name)::Worksheet
-function addsheet!(wb::Workbook, name::AbstractString=""; relocatable_data_path::String=_relocatable_data_path())::Worksheet
-    file_sheet_template = joinpath(relocatable_data_path, "sheet_template.xml")
-    !isfile(file_sheet_template) && throw(XLSXError("Couldn't find template file $file_sheet_template."))
-    xml_str = read(file_sheet_template, String)
+function addsheet!(wb::Workbook, name::AbstractString=""; sheet_template_data::Vector{UInt8}=SHEET_TEMPLATE_XML_DATA)::Worksheet
+    # XML.jl 0.4 has no `XML.Raw`; parse the template string and trim <sheetData>.
+    xml_str = String(copy(sheet_template_data))
     xdoc, _ = splitNode(xml_str, "sheetData")
 
     new_cache = XLSX.WorksheetCache(
@@ -1137,7 +1168,7 @@ function addsheet!(wb::Workbook, name::AbstractString=""; relocatable_data_path:
         nothing,
         false
     )
-    new_ws = insertsheet!(wb, xdoc, new_cache, 0, name)
+    new_ws = insertsheet!(wb, xdoc, new_cache, 0, "", name)
     return new_ws
 end
 
@@ -1153,6 +1184,7 @@ To copy worksheets, the `XLSXFile` must be writable (opened with `mode="rw"` or 
 See also [`XLSX.openxlsx`](@ref) and [XLSX.opentemplate](@ref).
 
 !!! warning "Experimental"
+
     This function is experimental is not guaranteed to work with all XLSX files, 
     especially those with complex features. However, cell formats, conditional formats 
     and worksheet defined names should all copy OK. Please report any issues.
@@ -1206,12 +1238,15 @@ XLSXFile("C:\\...\\general.xlsx") containing 14 Worksheets
 """
 function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
     wb = get_workbook(ws)
+    is_chartsheet(wb, ws.name) && throw(XLSXError("Cannot copy a Chartsheet."))
     xl = get_xlsxfile(ws)
     !is_writable(get_xlsxfile(ws)) && throw(XLSXError("XLSXFile instance is not writable."))
     dim = get_dimension(ws)
 
     # make sure cache and XML are consistent
     update_worksheets_xml!(xl)
+
+    pfx = get_prefix(ws)
 
     # create a copy of the XML document
     xdoc = copynode(get_worksheet_xml_document(ws))
@@ -1249,7 +1284,58 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
     )
 
     # insert the copied sheet into the workbook
-    new_ws = insertsheet!(wb, xdoc, new_cache, ws.sst_count, name; dim)
+    new_ws = insertsheet!(wb, xdoc, new_cache, ws.sst_count, pfx, name; dim)
+
+    # Copy images if the sheet has a drawing
+    sheet_path = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+    drawing_path = _drawing_path_for_sheet(xl, sheet_path)
+
+    if drawing_path !== nothing
+        src_drawing_file = rsplit(drawing_path, "/"; limit=2)[2]
+        src_drawing_rels = "xl/drawings/_rels/$src_drawing_file.rels"
+
+        # Pick a fresh drawing file name
+        i = 1
+        while haskey(xl.data, "xl/drawings/drawing$i.xml"); i += 1; end
+        new_drawing_file = "drawing$i.xml"
+        new_drawing_path = "xl/drawings/$new_drawing_file"
+        new_drawing_rels = "xl/drawings/_rels/$new_drawing_file.rels"
+
+        # Copy drawing XML and rels verbatim
+        xl.data[new_drawing_path]  = copynode(xl.data[drawing_path])
+        xl.files[new_drawing_path] = true
+        xl.data[new_drawing_rels]  = copynode(xl.data[src_drawing_rels])
+        xl.files[new_drawing_rels] = true
+
+        # Register content types for drawing and any media it references
+        register_content_type!(xl, "[Content_Types].xml";
+                            tag="Override", key="PartName", val="/$new_drawing_path",
+                            content_type=MIME_DRAWING)
+        for img in _images_for_drawing(xl, drawing_path, ws.name)
+            ext = detect_image_ext(xl.binary_data["xl/media/$(img.media_name)"])
+            ext_no_dot = String(lstrip(ext, '.'))
+            register_content_type!(xl, "[Content_Types].xml";
+                                tag="Default", key="Extension", val=ext_no_dot,
+                                content_type=get(EXT_MIME, ext, "image/$ext_no_dot"))
+        end
+
+        # Link drawing to new sheet using existing helpers
+        new_sheet_path = get_relationship_target_by_id("xl", wb, new_ws.relationship_id)
+        new_rels_path  = let (d, f) = rsplit(new_sheet_path, "/"; limit=2)
+            "$d/_rels/$f.rels"
+        end
+        if !haskey(xl.data, new_rels_path)
+            xl.data[new_rels_path]  = empty_rels_doc()
+            xl.files[new_rels_path] = true
+        end
+        new_rels_root = root_element(xl.data[new_rels_path])
+        rid = new_relationship_id(new_rels_root)
+        pfx = get_prefix(new_rels_path, xl)
+        push!(new_rels_root, XML.Element(prefixed_tag(pfx, "Relationship");
+            Id=rid, Type=REL_DRAWING, Target="../drawings/$new_drawing_file",
+        ))
+        ensure_drawing_element!(xl, xl.data[new_sheet_path], new_sheet_path, rid)
+    end
 
     # copy defined names from the original worksheet to the new worksheet
     ws_keys = [x for x in keys(wb.worksheet_names) if first(x) == ws.sheetId]
@@ -1261,10 +1347,17 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
         addDefinedName(new_ws, last(k), val; absolute=wb.worksheet_names[k].isabs)
     end
 
+    # Copy the formula cache from the original worksheet to the new worksheet
+    f_keys = [x for x in keys(wb.formulas) if x.sheet == ws.name]
+    for k in f_keys
+        newkey = SheetCellRef(new_ws.name, k.cellref)
+        wb.formulas[newkey] = copy(wb.formulas[k])
+    end
+
     return new_ws
 end
 
-function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, sst_count::Int, name::AbstractString=""; dim=CellRange("A1:A1"))::Worksheet
+function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, sst_count::Int, pfx::String, name::AbstractString=""; dim=CellRange("A1:A1"))::Worksheet
     xf = get_xlsxfile(wb)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable."))
 
@@ -1302,7 +1395,10 @@ function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, s
     sheetId = max(current_sheet_ids...) + 1
 
     # generate a unique ID for the new sheet
-    xml_root_element(xdoc)["xr:uid"] = "{" * uppercase(string(UUIDs.uuid4(wb.package.uuid_rng))) * "}"
+    let sheet_root = xml_root_element(xdoc)
+        !haskey(sheet_root, "xmlns:xr") && (sheet_root["xmlns:xr"] = "http://schemas.microsoft.com/office/spreadsheetml/2016/revision")
+        sheet_root["xr:uid"] = "{" * uppercase(string(UUIDs.uuid4(wb.package.uuid_rng))) * "}"
+    end
 
     # generate a unique name for the XML
     local xml_filename::String
@@ -1319,6 +1415,7 @@ function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, s
     # adds doc do XLSXFile
     xf.files[xml_filename] = true # is read
     xf.data[xml_filename] = xdoc
+    xf.namespace[xml_filename] = pfx
 
     # adds workbook-level relationship
     # <Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"/>
@@ -1341,7 +1438,7 @@ function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, s
 end
 
 add_override!(wb::Workbook, part::String, content::String) = add_override!(get_xlsxfile(wb), part, content)
-function add_override!(xf::XLSXFile, part::String, content::String) 
+function add_override!(xf::XLSXFile, part::String, content::String)
     ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
     XML.tag(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
     override_node = XML.Element("Override";
@@ -1361,7 +1458,7 @@ function renumber_files!(xf::XLSXFile, rId::String)
     w = XML.children(wbdoc[i][j])
     if length(w) > 0
         for c in w
-            if XML.tag(c) == "workbookView"
+            if localname(c) == "workbookView"
                 a = XML.attributes(c)
                 if haskey(a, "activeTab")
                     at = parse(Int64, a["activeTab"])
@@ -1385,6 +1482,7 @@ Delete the given worksheet, the worksheet with the given name or the worksheet w
 (`sheetId` is a 1-based integer representing the order in which worksheet tabs are displayed in Excel).
 
 !!! note "Caution"
+
     Cells in the other sheets that have references to the deleted sheet will fail when the sheet is deleted.
     The formulae are updated to contain a `#Ref!` error in place of each sheetcell reference.
     
@@ -1471,6 +1569,8 @@ deletesheet!(xl::XLSXFile, name::AbstractString) = deletesheet!(get_workbook(xl)
 function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     hassheet(wb, name) || throw(XLSXError("Worksheet `$name` not found in workbook."))
     sheetcount(wb) > 1 || throw(XLSXError("`$name` is this workbook's only sheet. Cannot delete the only sheet!"))
+    is_chartsheet(wb, name) && throw(XLSXError("Cannot delete a Chartsheet."))
+
 
     xf = get_xlsxfile(wb)
 
@@ -1515,6 +1615,46 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     for (oldkey, newkey) in renumber_keys
         wb.worksheet_names[newkey] = wb.worksheet_names[oldkey]
         delete!(wb.worksheet_names, oldkey)
+    end
+
+    # Drawing and image cleanup
+    sheet_path   = "xl/worksheets/sheet" * rId[4:end] * ".xml"
+    drawing_path = _drawing_path_for_sheet(xf, sheet_path)
+
+    if drawing_path !== nothing
+        drawing_file     = rsplit(drawing_path, "/"; limit=2)[2]
+        drawing_rels     = "xl/drawings/_rels/$drawing_file.rels"
+
+        # Remove media — but only if no other sheet references it
+        all_images = getImages(xf)
+        deleted_images = _images_for_drawing(xf, drawing_path, name)
+        deleted_names  = Set(img.media_name for img in deleted_images)
+        still_used     = Set(img.media_name for img in all_images
+                            if img.sheet != name)
+        for media_name in deleted_names
+            if media_name ∉ still_used
+                delete!(xf.binary_data, "xl/media/$media_name")
+            end
+        end
+
+        # Remove drawing XML and rels
+        for path in (drawing_path, drawing_rels)
+            delete!(xf.files, path)
+            delete!(xf.data, path)
+        end
+
+        # Remove drawing Override from [Content_Types].xml
+        ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
+        cont = XML.children(ctype_root)
+        idx = findfirst(i -> haskey(cont[i], "PartName") &&
+                            cont[i]["PartName"] == "/$drawing_path", eachindex(cont))
+        idx !== nothing && deleteat!(cont, idx)
+
+        # Remove sheet rels file (contains the drawing relationship)
+        sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
+        sheet_rels = "$sheet_dir/_rels/$sheet_file.rels"
+        delete!(xf.files, sheet_rels)
+        delete!(xf.data,  sheet_rels)
     end
 
     # Files

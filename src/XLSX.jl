@@ -1,7 +1,6 @@
 
 module XLSX
 
-import Artifacts
 import Base.convert
 import Base.Threads
 import Colors
@@ -23,9 +22,11 @@ export
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet, 
     addsheet!, renamesheet!, copysheet!, deletesheet!, 
+    addImage,
     # Cells & data
     CellRef, row_number, column_number, eachtablerow,
     readdata, getdata, gettable, readtable, readto, 
+    iserror, geterror,
     gettransposedtable, readtransposedtable,
     writetable, writetable!,
     addDefinedName, setFormula,
@@ -43,6 +44,7 @@ xml_elements(node) = filter(n -> XML.nodetype(n) == XML.Element, XML.children(no
 xml_root_element(doc) = last(xml_elements(doc))
 const EXCEL_MAX_COLS = 16_384     # total columns supported by Excel per sheet
 const EXCEL_MAX_ROWS = 1_048_576  # total rows supported by Excel per sheet (including headers)
+const ROW_CHUNKSIZE = 1000        # number of rows to be processed in each thread
 
 include("types.jl")
 include("formula.jl")
@@ -61,6 +63,7 @@ include("cellformat-helpers.jl") # must load before cellformats.jl
 include("cellformats.jl")
 include("conditional-format-helpers.jl") # must load before conditional-formats.jl
 include("conditional-formats.jl")
+include("images.jl")
 include("write.jl")
 include("fileArray.jl")
 
@@ -72,7 +75,7 @@ PCT.@setup_workload begin
     PCT.@compile_workload begin
         # all calls in this block will be precompiled, regardless of whether
         # they belong to your package or not (on Julia 1.8 and higher)
-        f=openxlsx(joinpath(_relocatable_data_path(), "blank.xlsx"), mode="rw")
+        f=openxlsx(joinpath(@__DIR__, "data", "blank.xlsx"), mode="rw")
         f[1]["A1:Z26"] = "hello World"
         openxlsx(s, mode="w") do xf
             xf[1][1:26, 1:26] = pi

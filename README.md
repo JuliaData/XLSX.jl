@@ -6,6 +6,7 @@
 [![codecov][codecov-img]][codecov-url]
 [![dev][docs-dev-img]][docs-dev-url]
 [![stable][docs-stable-img]][docs-stable-url]
+[![DOI][doi-img]][doi-url]
 
 [license-img]: http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square
 [ci-img]: https://github.com/juliadata/XLSX.jl/workflows/CI/badge.svg
@@ -16,6 +17,8 @@
 [docs-dev-url]: https://juliadata.github.io/XLSX.jl/dev
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg?style=flat-square
 [docs-stable-url]: https://juliadata.github.io/XLSX.jl/stable
+[doi-img]: https://zenodo.org/badge/DOI/10.5281/zenodo.19894703.svg
+[doi-url]: https://doi.org/10.5281/zenodo.19894703
 
 Excel file reader/writer for the Julia language.
 

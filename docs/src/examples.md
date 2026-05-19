@@ -327,3 +327,32 @@ XLSX.setBorder(s, "B112:B114,D112:D115"; outside = ["style" => "thin", "color" =
 
 XLSX.writexlsx("myNewTemplate.xlsx", f, overwrite=true)
 ```
+
+## Adding a plot image
+
+Use Julia functionality to create a chart based upon data from a spreadsheet and then add that chart 
+(as a static image) back into the worksheet.
+
+![image|320x500](./images/Add_image_1.png)
+
+```julia
+using CairoMakie, XLSX
+
+f=opentemplate("Example_add_chart.xlsx")
+table = XLSX.gettable(f[1])
+x = 1:length(table.data[1])
+
+fig = Figure()
+ax = Axis(fig[1, 1], xticks=(x, table.data[1]))
+barplot!(ax, x, table.data[2])
+
+# Write PNG to IOBuffer
+io = IOBuffer()
+show(io, MIME("image/png"), fig)
+
+XLSX.addImage(f[1], "D2:H12", io)
+
+XLSX.writexlsx("Example_add_chart_out.xlsx", f, overwrite=true)
+```
+
+![image|320x500](./images/Add_image_2.png)

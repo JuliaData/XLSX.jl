@@ -1,12 +1,11 @@
 name = "XLSX"
 uuid = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 license = "MIT"
-version = "0.11.3-Dev"
+version = "0.11.8"
 authors = ["Felipe Noronha <felipenoris@gmail.com>"]
 repo = "https://github.com/juliadata/XLSX.jl.git"
 
 [deps]
-Artifacts = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
@@ -25,17 +24,16 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 StyledStringsSstsExt = "StyledStrings"
 
 [compat]
-Artifacts = "1"
 CSV = "0.10.15"
-Colors = "0.13.0"
+Colors = "0.12, 0.13"
 Distributions = "0.25.0"
 PrecompileTools = "1"
+StyledStrings = "1.0.3"
 Tables = "1"
 UUIDs = "1.8"
 XML = "0.4"
 ZipArchives = "2.5"
 julia = "1.8"
-
 [extras]
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"

@@ -1,8 +1,6 @@
 
 @inline Base.isempty(::EmptyCell) = true
 @inline Base.isempty(::AbstractCell) = false
-@inline iserror(c::Cell) = c.datatype == CT_ERROR
-@inline iserror(::AbstractCell) = false
 @inline row_number(c::EmptyCell) = row_number(c.ref)
 @inline column_number(c::EmptyCell) = column_number(c.ref)
 @inline row_number(c::Cell) = row_number(c.ref)
@@ -19,58 +17,175 @@ Base.:(==)(c1::EmptyCell, c2::EmptyCell) = c1.ref == c2.ref
 Base.hash(c::EmptyCell, h::UInt) = hash(c.ref, h)
 
 const RGX_INTEGER = r"^\-?[0-9]+$"
+
+const ERROR_STRING_TO_CODE = Dict{String, UInt64}(
+    "#NULL!"  => UInt64(XL_NULL),
+    "#DIV/0!" => UInt64(XL_DIV0),
+    "#VALUE!" => UInt64(XL_VALUE),
+    "#REF!"   => UInt64(XL_REF),
+    "#NAME?"  => UInt64(XL_NAME),
+    "#NUM!"   => UInt64(XL_NUM),
+    "#N/A"    => UInt64(XL_NA),
+    "#SPILL!" => UInt64(XL_SPILL), # Won't happen - #SPILL isn't an actual error. Returns #VALUE! instead.
+)
+
+const ERROR_CODE_TO_STRING = Dict{UInt64, String}(v => k for (k, v) in ERROR_STRING_TO_CODE)
+
 function get_error_type(v::AbstractString)::UInt64
-    if v == "#NULL!"
-        return UInt64(XL_NULL)
-    elseif v == "#DIV/0!"
-        return UInt64(XL_DIV0)
-    elseif v == "#VALUE!"
-        return UInt64(XL_VALUE)
-    elseif v == "#REF!"
-        return UInt64(XL_REF)
-    elseif v == "#NAME?"
-        return UInt64(XL_NAME)
-    elseif v == "#NUM!"
-        return UInt64(XL_NUM)
-    elseif v == "#N/A"
-        return UInt64(XL_NA)
-    elseif v == "#SPILL!"
-        return UInt64(XL_SPILL)
-    else
+    get(ERROR_STRING_TO_CODE, v) do
         throw(XLSXError("Unknown error value: $v"))
     end
 end
 
-#=
-# Only needed if ever cells containing error return something other than missing!
 function get_error_string(e::UInt64)::String
-    if e == UInt64(XL_NULL)
-        return "#NULL!"
-    elseif e == UInt64(XL_DIV0)
-        return "#DIV/0!"
-    elseif e == UInt64(XL_VALUE)
-        return "#VALUE!"
-    elseif e == UInt64(XL_REF)
-        return "#REF!"
-    elseif e == UInt64(XL_NAME)
-        return "#NAME?"
-    elseif e == UInt64(XL_NUM)
-        return "#NUM!"
-    elseif e == UInt64(XL_NA)
-        return "#N/A"
-    elseif e == UInt64(XL_SPILL) # Won't happen - #SPILL isn't an actual error. Returns #VALUE! instead.
-        return "#SPILL!"
-     else
+    get(ERROR_CODE_TO_STRING, e) do
         throw(XLSXError("Unknown error code: $e"))
     end
+end
+
+get_error_string(::Nothing) = ""
+
+"""
+    iserror(s::Worksheet, ref::AbstractString)
+    iserror(s::Worksheet, rows, cols)
+
+Returns `true` if the cell(s) at the given reference contain an error, `false` otherwise.
+An `EmptyCell` is not considered an error and returns `false`.
+
+The return type depends on the type of `ref` and is the same shape as the return 
+type of `getcell` for the same `ref`:
+- If `ref` or (`row`, `col`) refers to a single cell, returns a single Bool.
+- If `ref` or (`rows`, `cols`) refers to a range of cells, returns a matrix of Bools.
+- If `ref` or (`rows`, `cols`) refers to a non-contiguous range of cells, returns a vector of matrices of Bools.
+
+# Examples
+```julia
+julia> XLSX.iserror(sh, "A1") # Cell
+true
+
+julia> XLSX.iserror(sh, "I1") # EmptyCell
+false
+
+julia> XLSX.iserror(sh, "A1:I1") # CellRange - note that I1 is an EmptyCell, which is not an error
+1×9 Matrix{Bool}:
+ 1  1  1  1  1  1  1  1  0
+
+julia> XLSX.iserror(sh, "A1:B1,D1:E1") # non-contiguous range
+2-element Vector{Matrix{Bool}}:
+ [1 1]
+ [1 1]
+```
+
+See also [`XLSX.geterror`](@ref), [`XLSX.getcell`](@ref).
+"""
+iserror(s::Worksheet, ref::AbstractString) = iserror(getcell(s, ref))
+iserror(s::Worksheet, ::Colon) = iserror(getcell(s, :))
+iserror(s::Worksheet, r, c) = iserror(getcell(s, r, c))
+iserror(c::AbstractVector) = collect(iserror.(c))
+iserror(c::AbstractMatrix) = collect(iserror.(c))
+iserror(c::AbstractVector{<:AbstractMatrix}) = [collect(iserror.(M)) for M in c]
+@inline iserror(c::Cell) = c.datatype == CT_ERROR
+@inline iserror(::EmptyCell) = false
+
+getval(x) = hasproperty(x, :datatype) && x.datatype == CT_ERROR && hasproperty(x, :value) ? x.value : nothing
+
+"""
+    geterror(s::Worksheet, ref::AbstractString)
+    geterror(s::Worksheet, rows, cols)
+
+Returns the error value (e.g. `#DIV/0!`) for the cell(s) at the given reference, if any. 
+If there is no error, returns an empty string.
+
+The return type depends on the type of `ref` and is the same shape as the return 
+type of `getcell` for the same `ref`:
+- If `ref` or (`row`, `col`) refers to a single cell, returns a single Bool.
+- If `ref` or (`rows`, `cols`) refers to a range of cells, returns a matrix of Bools.
+- If `ref` or (`rows`, `cols`) refers to a non-contiguous range of cells, returns a vector of matrices of Bools.
+
+# Examples
+```julia
+julia> XLSX.geterror(sh, "A1") # Cell
+"#NULL!"
+
+julia> XLSX.geterror(sh, "I1") # EmptyCell
+""
+
+julia> XLSX.geterror(sh, "A1:I1") # CellRange - note that I1 is an EmptyCell, which returns an empty string
+1×9 Matrix{String}:
+ "#NULL!"  "#DIV/0!"  "#VALUE!"  "#REF!"  "#NAME?"  "#NUM!"  "#N/A"  "#VALUE!"  ""
+
+julia> XLSX.geterror(sh, "A1:B1,D1:E1") # non-contiguous range
+2-element Vector{Matrix{String}}:
+ ["#NULL!" "#DIV/0!"]
+ ["#REF!" "#NAME?"]
+```
+
+See also [`XLSX.iserror`](@ref), [`XLSX.getcell`](@ref).
+"""
+geterror(s::Worksheet, ref::AbstractString) = geterror(getcell(s, ref))
+geterror(s::Worksheet, ::Colon) = geterror(getcell(s, :))
+geterror(s::Worksheet, r, c) = geterror(getcell(s, r, c))
+geterror(c::AbstractVector) = collect(geterror.(c))
+geterror(c::AbstractMatrix) = collect(geterror.(c))
+geterror(c::AbstractVector{<:AbstractMatrix}) = [collect(geterror.(M)) for M in c]
+geterror(c::AbstractCell) = get_error_string(getval(c))
+#=
+# Returns the enums directly rather than the strings:
+# julia> XLSX.geterror(s, "A1")
+# XL_NULL::CellErrorType = 0x0000000000000001
+#
+function geterror(c::AbstractCell)
+    c = getval(c)
+    isnothing(c) && return ""
+    return CellErrorType(c)
 end
 =#
 
 # Extracts the unformatted text from an inlineStr "is" XML element as a <si> XML string.
-function _build_si_xml(child)::String
-    inner = join((XML.write(c) for c in XML.children(child)))
-    return "<si>$inner</si>"
+function _rewrite_node(node::XML.LazyNode, pfx::Union{String,Nothing})::String
+    pfx = something(pfx, "")
+    tag = localname(node)
+    
+    attrs = XML.attributes(node)
+    attr_str = isnothing(attrs) || isempty(attrs) ? "" : " " * join(
+        ("$(k)=\"$(v)\"" for (k, v) in attrs), " "
+    )
+    
+    children = XML.children(node)
+    
+    if tag == "t"
+        # Emit text inline to avoid injecting whitespace text nodes
+        txt = if isempty(children)
+            XML.value(node)
+        else
+            join((XML.is_simple(c) ? XML.simple_value(c) : something(XML.value(c), "") for c in children), "")
+        end
+        return "<$(pfx)$(tag)$(attr_str)>$(something(txt, ""))</$(pfx)$(tag)>"
+    elseif isempty(children)
+        txt = XML.value(node)
+        if txt !== nothing && !isempty(txt)
+            return "<$(pfx)$(tag)$(attr_str)>$(txt)</$(pfx)$(tag)>"
+        else
+            return "<$(pfx)$(tag)$(attr_str)/>"
+        end
+    else
+        inner = join(_rewrite_node.(children, pfx), "\n  ")
+        return "<$(pfx)$(tag)$(attr_str)>\n  $(inner)\n</$(pfx)$(tag)>"
+    end
 end
+
+function _build_si_xml(si_node::XML.LazyNode, pfx::String)::String
+    children = XML.children(si_node)
+    inner = join(_rewrite_node.(children, pfx), "\n  ")
+    prefix_part = isempty(pfx) ? "si" : "$(pfx)si"
+    return "<$(prefix_part)>\n  $(inner)\n</$(prefix_part)>"
+end
+#=
+function _build_si_xml(child::XML.LazyNode, pfx::String)::String
+    inner = join(XML.write.(XML.children(child)), "\n")
+    return "<$(pfx)si>\n  $inner\n</$(pfx)si>"
+end
+=#
 
 # Parses a style string to (UInt32, Int) for use as style and num_style.
 function _parse_style(s::AbstractString)
@@ -82,12 +197,12 @@ end
 # Resolves unhandled_attributes to nothing if empty, for compact Formula construction.
 _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 
-function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothing}=nothing)::Union{Cell,EmptyCell}
+function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{ReentrantLock,Nothing}=nothing)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
 
-    XML.tag(c) == "c" || throw(XLSXError("`Cell` expects a `c` (cell) XML node."))
+    @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
 
-    a = XML.attributes(c)
+    a   = XML.attributes(c)
     chn = XML.children(c)
     ref = CellRef(a["r"])
 
@@ -95,7 +210,6 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
     s_str = get(a, "s", "")
     m_str = get(a, "cm", "")
 
-    # Parse style once, reuse for both UInt32 style field and Int num_style
     style, num_style = _parse_style(s_str)
     meta::UInt32     = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
 
@@ -105,27 +219,28 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
 
     if t == "inlineStr"
         for child in chn
-            XML.tag(child) == "is" || continue
-            uft = unformatted_text(child)
+            localname(child) == "is" || continue
+            uft = unformatted_text(wb, child)
             if !isempty(uft)
-                ft = _build_si_xml(child)
+                ft = _build_si_xml(child, sst_pfx)
                 datatype = CT_STRING
                 value = reinterpret(UInt64, Int64(add_formatted_string!(wb, ft; mylock)))
             end
             break
         end
     else
+#        is_writable = get_xlsxfile(wb).is_writable
         for child in chn
-            tag = XML.tag(child)
+            tag = localname(child)
             if tag == "v"
-                v = XML.is_simple_value(child)
-                isnothing(v) && continue
+                ch = XML.children(child)
+                isempty(ch) && continue
+                # `child` is a `LazyNode`; XML.jl 0.4 already unescapes its value.
+                v = XML.value(ch[1])
                 datatype, value = process_tv(wb, t, v, num_style; mylock)
             elseif tag == "f"
-                if get_xlsxfile(wb).is_writable
-                    f = parse_formula_from_element(child)
-                    wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
-                end
+                f = parse_formula_from_element(wb,child)
+                wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
                 formula = true
             end
         end
@@ -134,9 +249,9 @@ function Cell(c::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothin
     return Cell(ref, value, style, meta, datatype, formula)
 end
 
-function parse_formula_from_element(c_child_element)::AbstractFormula
-    XML.tag(c_child_element) == "f" ||
-        throw(XLSXError("Expected nodename `f`. Found: `$(XML.tag(c_child_element))`"))
+function parse_formula_from_element(wb, c_child_element)::AbstractFormula
+    localname(c_child_element) == "f" ||
+        throw(XLSXError("Expected nodename `f`. Found: `$(localname(c_child_element))`"))
 
     # Extract formula string — `<f>` may have attributes (t="shared", si=…, ref=…)
     # which makes it non-"simple", so collect the first Text child.
@@ -205,15 +320,32 @@ function process_tv(wb::Workbook, t::AbstractString, v::AbstractString, num_styl
     value::UInt64           = UInt64(0)
     isempty(v) && return datatype, value
 
-    if t == "b"
-        datatype = CT_BOOL
-        value = v == "1" ? UInt64(1) :
-                v == "0" ? UInt64(0) :
-                throw(XLSXError("Unknown boolean value: $v"))
+    if t == "n" || t == ""
+        if styles_is_datetime(wb, num_style)
+            value, datatype = _parse_excel_datetime_raw(v)
+        elseif styles_is_float(wb, num_style)
+            datatype = CT_FLOAT
+            value = reinterpret(UInt64, parse(Float64, v))
+        else
+            parsed_int = tryparse(Int64, v)
+            if parsed_int !== nothing
+                datatype = CT_INT
+                value = reinterpret(UInt64, parsed_int)
+            else
+                datatype = CT_FLOAT
+                value = reinterpret(UInt64, parse(Float64, v))
+            end
+        end
 
     elseif t == "s"
         datatype = CT_STRING
         value = reinterpret(UInt64, parse(Int64, v))
+
+    elseif t == "b"
+        datatype = CT_BOOL
+        value = v == "1" ? UInt64(1) :
+                v == "0" ? UInt64(0) :
+                throw(XLSXError("Unknown boolean value: $v"))
 
     elseif t == "str"
         datatype = CT_STRING
@@ -223,23 +355,35 @@ function process_tv(wb::Workbook, t::AbstractString, v::AbstractString, num_styl
         datatype = CT_ERROR
         value = get_error_type(v)
 
-    elseif t == "n" || t == ""
-        if styles_is_datetime(wb, num_style)
-            value, datatype = _parse_excel_datetime_raw(v)
-        elseif styles_is_float(wb, num_style)
-            datatype = CT_FLOAT
-            value = reinterpret(UInt64, parse(Float64, v))
-        else
-            # Use tryparse to distinguish integers from floats, avoiding manual byte scanning
-            parsed_int = tryparse(Int64, v)
-            if !isnothing(parsed_int)
-                datatype = CT_INT
-                value = reinterpret(UInt64, parsed_int)
-            else
-                datatype = CT_FLOAT
-                value = reinterpret(UInt64, parse(Float64, v))
+    elseif t == "d"
+        # Check for 'T' separator (datetime) vs '-' (date) vs time-only
+        T_pos = findfirst(==('T'), v)
+        if T_pos !== nothing && T_pos > firstindex(v)
+            # Datetime: strip trailing Z, truncate sub-milliseconds
+            v2 = rstrip(v, 'Z')
+            dot_pos = findfirst(==('.'), v2)
+            if dot_pos !== nothing && length(v2) - dot_pos > 3
+                v2 = v2[begin:dot_pos+3]
             end
+            dt = Dates.DateTime(v2, Dates.dateformat"yyyy-mm-ddTHH:MM:SS.sss")
+            value = reinterpret(UInt64, datetime_to_excel_value(dt, wb.date1904))
+            datatype = CT_DATETIME
+        elseif findfirst(==('-'), v) !== nothing
+            d = Dates.Date(v, Dates.dateformat"yyyy-mm-dd")
+            value = reinterpret(UInt64, date_to_excel_value(d, wb.date1904))
+            datatype = CT_DATE
+        else
+            # Time-only HH:MM:SS[.frac][Z] — parse without allocating via split
+            v2 = rstrip(v, 'Z')
+            c1 = findfirst(==(':'), v2)
+            c2 = findnext(==(':'), v2, c1+1)
+            h  = parse(Float64, @view v2[begin:c1-1])
+            m  = parse(Float64, @view v2[c1+1:c2-1])
+            s  = parse(Float64, @view v2[c2+1:end])
+            value = reinterpret(UInt64, (h * 3600.0 + m * 60.0 + s) / 86400.0)
+            datatype = CT_TIME
         end
+
     else
         throw(XLSXError("Cannot parse cell value: $v"))
     end
@@ -297,20 +441,6 @@ function datetime_to_excel_value(dt::Dates.DateTime, is1904::Bool)::Float64
     return date_part + time_part
 end
 
-# Shared helper for parsing a raw Excel datetime string into a value and CellValueType.
-function _parse_excel_datetime(v::AbstractString, is1904::Bool)
-    isempty(v) && throw(XLSXError("Cannot convert an empty string into a datetime value."))
-    if occursin('.', v) || v == "0"
-        time_value = parse(Float64, v)
-        time_value >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $time_value"))
-        return time_value < 1.0 ?
-            (excel_value_to_time(time_value), CT_TIME) :
-            (excel_value_to_datetime(time_value, is1904), CT_DATETIME)
-    else
-        return excel_value_to_date(parse(Int64, v), is1904), CT_DATE
-    end
-end
-
 @inline getdata(ws::Worksheet, empty::EmptyCell) = missing
 
 """
@@ -350,91 +480,23 @@ function getdata(ws::Worksheet, cell::Cell)
 end
 
 # Extract cells from a <row> LazyNode and push them (in place) into a Dict(column -> Cell)
-function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet; mylock::Union{ReentrantLock,Nothing}=nothing)
+function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{ReentrantLock,Nothing}=nothing)
 
-    #=
-        # threaded cell extraction causes hugely more lock conflicts for low cellchunk size.
-        # may be worthwhile if many columns (hundreds+), with a cellchunk size > ~10 or ~20, but this is unverified.
+    # debug
+    # @assert localname(row) == "row" "Not a row node"
 
-        # debug
-        # @assert row.tag == "row" "Not a row node"
-        cellchunk=8 # bigger chunks, fewer lock conflicts but columns are generally relatively few.
-        sst_count=0
-        d=row.depth
-
-        row_cellnodes = Channel{Vector{XML.LazyNode}}(1 << 8)
-        row_cells = Channel{Vector{XLSX.Cell}}(1 << 8)
-
-        # consumer task
-        consumer = @async begin
-            for cells in row_cells  
-                for cell in cells      
-                    sst_count += cell.datatype == "s" ? 1 : 0
-                    rowcells[column_number(cell)] = cell
-                end
-            end
-        end
-
-        # Feed row_cellnodes
-        cellnodes = Vector{XML.LazyNode}(undef, cellchunk)
-        pos=0
-        cellnode=XML.next(row)
-        while !isnothing(cellnode) && cellnode.depth > d
-            if cellnode.tag == "c" # This is a cell
-                pos += 1
-                cellnodes[pos] = cellnode
-            end
-            if pos >= cellchunk
-                put!(row_cellnodes, copy(cellnodes))
-                pos=0
-            end
-            cellnode = XML.next(cellnode)
-        end
-        if pos>0 # handle last incomplete chunk
-            put!(row_cellnodes, cellnodes[1:pos])
-        end
-        close(row_cellnodes)
-
-        # Producer tasks
-        mylock = ReentrantLock() # lock for thread-safe access to shared string table in case of inlineStrings
-        @sync for _ in 1:Threads.nthreads()
-            Threads.@spawn begin
-                chunk = Vector{XLSX.Cell}(undef, cellchunk)
-                for cns in row_cellnodes
-                    cell_count=0
-                    for cn in cns
-                        cell_count += 1
-                        chunk[cell_count] = Cell(cn, ws; mylock)
-                        if cell_count >= cellchunk
-                            put!(row_cells, copy(chunk))
-                            cell_count=0
-                        end
-                    end
-                    if cell_count > 0 # handle last incomplete chunk
-                        put!(row_cells, chunk[1:cell_count])
-                    end
-                end
-            end
-        end
-        close(row_cells)
-
-        wait(consumer)  # ensure consumer is done
-
-        if !isnothing(cellnode) && cellnode.tag == "row" # have reached the end of last row, beginning of next
-            return cellnode, sst_count
-        else                                             # no more rows
-            return nothing, sst_count
-        end
-    =#
     sst_count = 0
 
     for child in XML.children(row)
-        if XML.tag(child) == "c"
-            cell = Cell(child, ws; mylock)
+        if localname(child) == "c" # This is a cell
+            cell = Cell(child, ws, sst_pfx; mylock) # construct an XLSX.Cell from an XML.LazyNode
             sst_count += cell.datatype == CT_STRING ? 1 : 0
             rowcells[column_number(cell)] = cell
         end
     end
 
-    return sst_count
+    # Row nodes are materialised up-front (see `_collect_row_nodes`), so callers
+    # advance by index; the first tuple element is unused but kept for the
+    # `next, sst_count = get_rowcells!(...)` call contract.
+    return nothing, sst_count
 end

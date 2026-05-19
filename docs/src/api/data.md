@@ -18,6 +18,8 @@ XLSX.readdata
 XLSX.getdata
 XLSX.getcell
 XLSX.getcellrange
+XLSX.iserror
+XLSX.geterror
 XLSX.gettable
 XLSX.readtable
 XLSX.readto
