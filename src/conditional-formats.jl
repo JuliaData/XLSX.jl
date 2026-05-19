@@ -484,14 +484,18 @@ function getConditionalExtFormats(ws::Worksheet, allcfnodes::Vector{XML.Node})::
     allcfs = Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}()
     for cf in allcfnodes
         let t, p, r, rule = false, ref = false
-            @assert XML.tag(cf) == "x14:conditionalFormatting" "Something wrong here"
-            sqref = cf[end]
-            if XML.tag(sqref) == "xm:sqref"
-                r = XML.simple_value(sqref)
+            @assert localname(cf) == "conditionalFormatting" "Something wrong here"
+            # Children may be interleaved with whitespace text nodes from the
+            # writer's indentation, so locate `xm:sqref` by name rather than
+            # assuming it is the last child.
+            cf_elements = xml_elements(cf)
+            sqref = findlast(c -> localname(c) == "sqref", cf_elements)
+            if !isnothing(sqref)
+                r = XML.simple_value(cf_elements[sqref])
                 ref = true
             end
-            for child in XML.children(cf)
-                if XML.tag(child) == "x14:cfRule"
+            for child in cf_elements
+                if localname(child) == "cfRule"
                     t = child["type"]
                     if t != "dataBar" # This is the other half of a dataBar definition - don't count twice!
                         p = parse(Int, child["priority"])

@@ -149,7 +149,9 @@ end
 unformatted_text(::Workbook, el::XML.LazyNode) :: String = unformatted_text(el)
 
 function gather_strings!(io::IOBuffer, e::XML.LazyNode)
-    tag = XML.tag(e)
+    # Use `localname` (not `XML.tag`) so prefixed elements such as `<x:t>` in
+    # files without a default namespace are matched the same as `<t>`.
+    tag = localname(e)
 
     # Skip phonetic hints entirely
     tag == "rPh" && return nothing

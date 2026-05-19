@@ -88,13 +88,13 @@ function allExtCfs(ws::Worksheet)::Vector{XML.Node}
     let cfs = nothing
         for ext in exts
             for c in XML.children(ext)
-                if XML.tag(c) == "x14:conditionalFormattings"
+                if localname(c) == "conditionalFormattings"
                     cfs = c
                     break
                 end
             end
         end
-        return isnothing(cfs) ? Vector{XML.Node}() : XML.children(cfs)
+        return isnothing(cfs) ? Vector{XML.Node}() : xml_elements(cfs)
     end
 end
 function make_extLst!(s)
