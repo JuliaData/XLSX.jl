@@ -240,7 +240,13 @@ function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{Ree
                 datatype, value = process_tv(wb, t, v, num_style; mylock)
             elseif tag == "f"
                 f = parse_formula_from_element(wb,child)
-                wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
+                if isnothing(mylock)
+                    wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
+                else
+                    lock(mylock) do # avoid concurrent writes to wb.formulas from Threads.@spawn workers in first_cache_fill!
+                        wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
+                    end
+                end
                 formula = true
             end
         end
