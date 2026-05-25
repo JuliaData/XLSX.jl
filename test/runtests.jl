@@ -753,6 +753,31 @@ end
         @test XLSX.get_formula_from_cache(s2, XLSX.CellRef("C1")) ==XLSX.Formula("SECOND(NOW())", nothing, "C1", Dict("ca" => "1"))
 
     end
+    isfile("mytest.xlsx") && rm("mytest.xlsx")
+    @testset "Multi-threaded read" begin
+        N_FORMULAS = 5000
+        N_ITER = 10
+
+        xf = XLSX.newxlsx()
+        sheet = xf[1]
+        sheet["A1"] = "n"; sheet["B1"] = "double n"; sheet["C1"] = "formula"
+        for i in 1:N_FORMULAS
+            sheet["A$(i+1)"] = i
+            XLSX.setFormula(sheet, "B$(i+1)", "A$(i+1)*2")
+            sheet["C$(i+1)"] = "= A$(i+1) * 2"
+        end
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        seekstart(io)
+
+        for iter in 1:N_ITER
+            try
+                df = XLSX.readtable(io, 1)
+            catch e
+                @test false
+            end
+        end
+    end 
 end
 
 @testset "getcell" begin

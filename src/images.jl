@@ -96,12 +96,12 @@ If multiple, overlapping images are added, newer images overly older ones.
 
 # Arguments
 
-- `s::Worksheet`: the target worksheet.
-- `ref::AbstractString`: Either a valid cell reference (e.g. `"A1"`) or a valid cell range (e.g. `"B2:D4"`). 
+`s::Worksheet`: the target worksheet.
+`ref::AbstractString`: Either a valid cell reference (e.g. `"A1"`) or a valid cell range (e.g. `"B2:D4"`). 
 The image will be anchored to the top left of the reference and sized to fit within the reference bounds. 
 If a cell range is given, the `size` keyword argument is ignored.
 
-- `image::Union{AbstractString, IOBuffer}`: Specifies the image to be inserted. Either:  
+`image::Union{AbstractString, IOBuffer}`: Specifies the image to be inserted. Either:  
   - a file path (`String`)  
   - an `IOBuffer` containing raw image bytes  
 
@@ -109,7 +109,7 @@ Supported formats (auto-detected): PNG, JPEG, GIF.
 
 # Keyword Arguments
 
-- `size`: provide the desired size of the image as a tuple of integers: `(width_px, height_px)`. 
+`size`: provide the desired size of the image as a tuple of integers: `(width_px, height_px)`. 
 If `nothing` (default), the image's native pixel size is used. Ignored if `ref` is a cell range. 
 Actual size will snap to the nearest cell boundaries.
 
@@ -146,6 +146,13 @@ Insert with explicit size:
 ```julia
 info = XLSX.addImage(sheet, "A1", "icon.png"; size=(128, 128))
 ```
+
+!!! note
+    When a specified `size` is used or when the image's native pixel size 
+    is used, the size of the image is always snapped to the nearest cell boundary. 
+    The calculation assumes a default cell size of 64 pixels width and 20 
+    pixels height. If cells have been resized from these assumed dimensions, 
+    the image will be stretched or squeezed to fit the snapped cell range.
 
 """
 addImage(s::Worksheet, row::Integer, col::Integer, image; kw...) =

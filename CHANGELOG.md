@@ -5,7 +5,11 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [v0.11.9](https://github.com/JuliaData/XLSX.jl/tree/v0.11.9) - 2026-05-25
 - fix bug in `setFormula` when a function name occured inside a quoted string
+- fix issue [#395](https://github.com/JuliaData/XLSX.jl/issues/395)(@mathieu17g)
+- add tests for multi-threaded reading formulas and shared strings
 
 ## [v0.11.8](https://github.com/JuliaData/XLSX.jl/tree/v0.11.8) - 2026-05-15
 - add `dependabot` support ([#130](https://github.com/JuliaData/XLSX.jl/issues/130))
@@ -30,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Widen Compat on Colors.jl to "0.12, 0.13" ([[#370](https://github.com/JuliaData/XLSX.jl/issues/370)])
 
 ## [v0.11.3](https://github.com/JuliaData/XLSX.jl/tree/v0.11.3) - 2026-04-14
-- Bake in relocatable data (issue [#351](https://github.com/JuliaData/XLSX.jl/issues/351))
+- Bake in relocatable data (issue [#351](https://github.com/JuliaData/XLSX.jl/issues/351) @nhz2)
 - Add type inference to `eachtablerow` (issue [#225](https://github.com/JuliaData/XLSX.jl/issues/225))
 - Add support for custom missing strings (issue [#90](https://github.com/JuliaData/XLSX.jl/issues/90))
 - Widen `setdata!` to accept an AbstractArray (issue [#158](https://github.com/JuliaData/XLSX.jl/issues/158))
@@ -38,7 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Move test data files to /test/data
 
 ## [v0.11.2](https://github.com/JuliaData/XLSX.jl/tree/v0.11.2) - 2026-04-01
-Bug-fix to support 32-bit Julia
+Bug-fix to support 32-bit Julia (@davidanthoff)
 
 ## [v0.11.1](https://github.com/JuliaData/XLSX.jl/tree/v0.11.1) - 2026-03-30
 Minor bug-fix to get the StyledStrings extension working in Julia v1.14
