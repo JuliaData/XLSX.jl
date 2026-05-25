@@ -801,12 +801,12 @@ function setdata!(ws::Worksheet, ref::CellRef, val::Union{AbstractFormula,CellCo
     end
 end
 function setdata!(ws::Worksheet, ref::AbstractString, value)
-    if value isa String
-        i = findfirst(!isspace, value)
-        if !isnothing(i) && length(value[i:end]) > 1 && value[i] == '=' # it's a formula!
-            value = Formula(last(split(value, '=')))
-        end
-    end
+#    if value isa String # Don't do this! Only way to set a formula is with `setFormula` function. This should set a string value.
+#        i = findfirst(!isspace, value)
+#        if !isnothing(i) && length(value[i:end]) > 1 && value[i] == '=' # it's a formula!
+#            value = Formula(string(last(split(value, '='))))
+#        end
+#    end
     if is_worksheet_defined_name(ws, ref)
         v = get_defined_name_value(ws, ref)
         if is_defined_name_value_a_reference(v)

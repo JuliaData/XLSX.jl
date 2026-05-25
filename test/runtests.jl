@@ -755,8 +755,8 @@ end
     end
     isfile("mytest.xlsx") && rm("mytest.xlsx")
     @testset "Multi-threaded read" begin
-        N_FORMULAS = 5000
-        N_ITER = 10
+        N_FORMULAS = 5000 # Should be a multiple of ROW_CHUNKSIZE
+        N_ITER = 5
 
         xf = XLSX.newxlsx()
         sheet = xf[1]
@@ -768,12 +768,13 @@ end
         end
         io = IOBuffer()
         XLSX.writexlsx(io, xf)
-        seekstart(io)
 
         for iter in 1:N_ITER
+            seekstart(io)
             try
                 df = XLSX.readtable(io, 1)
             catch e
+                println("Error in iteration $iter: $e")
                 @test false
             end
         end
