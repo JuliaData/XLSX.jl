@@ -19,7 +19,7 @@ function savexlsx(f::XLSXFile)
     if isa(f.source, AbstractString)
         if f.source == "blank.xlsx"
             throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
-        elseif f.is_xltx
+        elseif f.template_type != NotATemplate
             throw(XLSXError("Can't save back to an Excel template file. Use `writexlsx` instead to specify a file name."))
         end
     end

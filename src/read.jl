@@ -476,9 +476,10 @@ function openxlsx(f::F, source::Union{AbstractString,IO};
 
     finally
         if _write
-            if xf.is_xltx 
+            if xf.template_type != NotATemplate
                 if isa(xf.source, AbstractString)
-                    xf.source = splitext(xf.source)[1] * ".xlsx"
+                    ext = xf.template_type == XLTMTemplate ? ".xlsm" : ".xlsx"
+                    xf.source = splitext(xf.source)[1] * ext
                 end
             end
             writexlsx(xf.source, xf, overwrite=true)
@@ -684,6 +685,10 @@ function ensure_workbook_is_xlsx!(xf::XLSXFile)
     if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
         return nothing
     end
+    # XLSM — treat as normal workbook, just ignore macros
+    if ctype == "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+        return nothing
+    end
 
     # Template .xltx → convert to .xlsx
     if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml"
@@ -703,7 +708,27 @@ function ensure_workbook_is_xlsx!(xf::XLSXFile)
             end
         end
 
-        xf.is_xltx = true # mark the file as originally being a template, so that we can rename it to .xlsx on save
+        xf.template_type = XLTXTemplate # mark the file as originally being a an .xltx template.
+        return nothing
+    end
+
+    # Template .xltm → convert to .xlsm (macro-enabled workbook)
+    if ctype == "application/vnd.ms-excel.template.macroEnabled.main+xml"
+
+        if !isnothing(workbook_override)
+            workbook_override["ContentType"] =
+                "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+        else
+            for child in XML.children(root)
+                if localname(child) == "Default" &&
+                child["Extension"] == "xml"
+                    child["ContentType"] =
+                        "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+                end
+            end
+        end
+
+        xf.template_type = XLTMTemplate  # mark the file as originally being a an .xltx template
         return nothing
     end
 
