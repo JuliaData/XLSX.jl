@@ -20,7 +20,7 @@ function savexlsx(f::XLSXFile)
         if f.source == "blank.xlsx"
             throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
         elseif f.is_xltx
-            throw(XLSXError("Can't save to a back to an Excel template file. Use `writexlsx` instead to specify a file name."))
+            throw(XLSXError("Can't save back to an Excel template file. Use `writexlsx` instead to specify a file name."))
         end
     end
     return writexlsx(f.source, f; overwrite=true)
