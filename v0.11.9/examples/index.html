@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · XLSX.jl</title><meta name="title" content="Examples · XLSX.jl"/><meta property="og:title" content="Examples · XLSX.jl"/><meta property="twitter:title" content="Examples · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../tutorial/">Tutorial</a></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../formatting/cellFormatting/">Cell formats</a></li><li><a class="tocitem" href="../formatting/conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../formatting/widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../formatting/mergedCells/">Merged cells</a></li></ul></li><li><a class="tocitem" href="../formulae/formulas/">Using Formulas</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Applying-formulas"><span>Applying formulas</span></a></li><li><a class="tocitem" href="#Applying-cell-format-to-an-existing-table"><span>Applying cell format to an existing table</span></a></li><li><a class="tocitem" href="#Creating-a-formatted-form"><span>Creating a formatted form</span></a></li><li><a class="tocitem" href="#Adding-a-plot-image"><span>Adding a plot image</span></a></li></ul></li><li><a class="tocitem" href="../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../api/files/">Files and worksheets</a></li><li><a class="tocitem" href="../api/data/">Cells and data</a></li><li><a class="tocitem" href="../api/formats/">Formats</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><h2 id="Applying-formulas"><a class="docs-heading-anchor" href="#Applying-formulas">Applying formulas</a><a id="Applying-formulas-1"></a><a class="docs-heading-anchor-permalink" href="#Applying-formulas" title="Permalink"></a></h2><p>Using the widely used <a href="https://archive.ics.uci.edu/dataset/53/iris">Iris data set</a>:</p><pre><code class="language-julia hljs">
+using CSV
+using DataFrames
+using XLSX
+
+f = CSV.read(&quot;iris.csv&quot;, XLSXFile)
+f[1][1, 6]=&quot;year&quot; # arbitrary data column for aggregation purposes
+f[1][2:3:151, 6]=1993
+f[1][3:3:151, 6]=1994
+f[1][4:3:151, 6]=1995
+XLSX.setFormula(f[1], &quot;J3&quot;, &quot;=GROUPBY(E1:E151,A1:D151,AVERAGE,3,1)&quot;)
+f[1][&quot;P3&quot;] = &quot;versicolor&quot;
+XLSX.setFormula(f[1], &quot;P4&quot;, &quot;=VLOOKUP(P3,J3#,3,FALSE)&quot;)
+XLSX.setFormula(f[1], &quot;J11&quot;, &quot;=PIVOTBY(E1:E151,F1:F151,A1:D151,COUNT,3,1,,0)&quot;)
+XLSX.setFormula(f[1], &quot;J21&quot;, &quot;_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)&quot;; raw=true)
+XLSX.setFormula(f[1], &quot;H2&quot;, &quot;=A2:A151+B2:B151+C2:C151+D2:D151&quot;)
+
+f[1][&quot;H1&quot;] = &quot;Using ranges in simple formula:&quot;
+f[1][&quot;J2&quot;] = &quot;Using GROUPBY:&quot;
+f[1][&quot;P2&quot;] = &quot;Using VLOOKUP with a spill range:&quot;
+f[1][&quot;J10&quot;] = &quot;Using PIVOTBY:&quot;
+f[1][&quot;J20&quot;] = &quot;Using LAMBDA with &#39;raw=true&#39;:&quot;
+setFont(f[1], &quot;H1,J2,P2,J10,J20&quot;; size=12, bold=true)
+setAlignment(f[1], &quot;H1&quot;; horizontal=&quot;center&quot;)
+</code></pre><p><img src="../images/iris.png" alt="image|320x500"/></p><h2 id="Applying-cell-format-to-an-existing-table"><a class="docs-heading-anchor" href="#Applying-cell-format-to-an-existing-table">Applying cell format to an existing table</a><a id="Applying-cell-format-to-an-existing-table-1"></a><a class="docs-heading-anchor-permalink" href="#Applying-cell-format-to-an-existing-table" title="Permalink"></a></h2><p>Consider a simple table, created from scratch, like this:</p><pre><code class="language-julia hljs">using XLSX
+using Dates
+
+# First create some data in an empty XLSXfile
+xf = XLSX.newxlsx()
+sheet = xf[&quot;Sheet1&quot;]
+
+col_names = [&quot;Integers&quot;, &quot;Strings&quot;, &quot;Floats&quot;, &quot;Booleans&quot;, &quot;Dates&quot;, &quot;Times&quot;, &quot;DateTimes&quot;, &quot;AbstractStrings&quot;, &quot;Rational&quot;, &quot;Irrationals&quot;, &quot;MixedStringNothingMissing&quot;]
+data = Vector{Any}(undef, 11)
+data[1] = [1, 2, missing, UInt8(4)]
+data[2] = [&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;]
+data[3] = [101.5, 102.5, missing, 104.5]
+data[4] = [true, false, missing, true]
+data[5] = [Date(2018, 2, 1), Date(2018, 3, 1), Date(2018, 5, 20), Date(2018, 6, 2)]
+data[6] = [Dates.Time(19, 10), Dates.Time(19, 20), Dates.Time(19, 30), Dates.Time(0, 0)]
+data[7] = [Dates.DateTime(2018, 5, 20, 19, 10), Dates.DateTime(2018, 5, 20, 19, 20), Dates.DateTime(2018, 5, 20, 19, 30), Dates.DateTime(2018, 5, 20, 19, 40)]
+data[8] = SubString.([&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;], 1, 2)
+data[9] = [1 // 2, 1 // 3, missing, 22 // 3]
+data[10] = [pi, sqrt(2), missing, sqrt(5)]
+data[11] = [nothing, &quot;middle&quot;, missing, &quot;rotated&quot;]
+
+XLSX.writetable!(
+    sheet,
+    data,
+    col_names;
+    anchor_cell=XLSX.CellRef(&quot;B2&quot;),
+    write_columnnames=true,
+)
+
+XLSX.writexlsx(&quot;mytable_unformatted.xlsx&quot;, xf, overwrite=true)</code></pre><p>By default, this table will look like this in Excel:</p><p><img src="../images/unformatted-table.png" alt="image|320x500"/></p><p>We can apply some formatting choices to change the table&#39;s appearance:</p><p><img src="../images/formatted-table.png" alt="image|320x500"/></p><p>This is achieved with the following code:</p><pre><code class="language-julia hljs"># Cell borders
+XLSX.setUniformBorder(sheet, &quot;B2:L6&quot;;
+    top    = [&quot;style&quot; =&gt; &quot;hair&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;],
+    bottom = [&quot;style&quot; =&gt; &quot;hair&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;],
+    left   = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;],
+    right  = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;]
+)
+XLSX.setBorder(sheet, &quot;B2:L2&quot;; bottom = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;]) 
+XLSX.setBorder(sheet, &quot;B6:L6&quot;; top = [&quot;style&quot; =&gt; &quot;double&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;])
+XLSX.setOutsideBorder(sheet, &quot;B2:L6&quot;; outside = [&quot;style&quot; =&gt; &quot;thick&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;])
+
+# Cell fill
+XLSX.setFill(sheet, &quot;B2:L2&quot;; pattern = &quot;solid&quot;, fgColor = &quot;FF444444&quot;)
+
+# Cell fonts
+XLSX.setFont(sheet, &quot;B2:L2&quot;; bold=true, color = &quot;FFFFFFFF&quot;)
+XLSX.setFont(sheet, &quot;B3:L6&quot;; color = &quot;FF444444&quot;)
+XLSX.setFont(sheet, &quot;C3&quot;; name = &quot;Times New Roman&quot;)
+XLSX.setFont(sheet, &quot;C6&quot;; name = &quot;Wingdings&quot;, color = &quot;FF2F75B5&quot;)
+
+# Cell alignment
+XLSX.setAlignment(sheet, &quot;L2&quot;; wrapText = true)
+XLSX.setAlignment(sheet, &quot;I4&quot;; horizontal=&quot;right&quot;)
+XLSX.setAlignment(sheet, &quot;I6&quot;; horizontal=&quot;right&quot;)
+XLSX.setAlignment(sheet, &quot;C4&quot;; indent=2)
+XLSX.setAlignment(sheet, &quot;F4&quot;; vertical=&quot;top&quot;)
+XLSX.setAlignment(sheet, &quot;G4&quot;; vertical=&quot;center&quot;)
+XLSX.setAlignment(sheet, &quot;L4&quot;; horizontal=&quot;center&quot;, vertical=&quot;center&quot;)
+XLSX.setAlignment(sheet, &quot;G3:G6&quot;; horizontal = &quot;center&quot;)
+XLSX.setAlignment(sheet, &quot;H3:H6&quot;; shrink = true)
+XLSX.setAlignment(sheet, &quot;L6&quot;; horizontal = &quot;center&quot;, rotation = 90, wrapText=true)
+
+# Row height and column width
+XLSX.setRowHeight(sheet, &quot;B4&quot;; height=50)
+XLSX.setRowHeight(sheet, &quot;B6&quot;; height=15)
+XLSX.setColumnWidth(sheet, &quot;I&quot;; width = 20.5)
+
+# Conditional formatting
+function blankmissing(sheet, rng) # Fill with grey and apply both diagonal borders on cells
+    for c in rng                  # with missing values
+        if ismissing(sheet[c])
+            XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;grey&quot;)
+            XLSX.setBorder(sheet, c; diagonal = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+           end
+    end
+end
+function trueorfalse(sheet, rng) # Use green or red font for true or false respectively
+    for c in rng
+        if !ismissing(sheet[c]) &amp;&amp; sheet[c] isa Bool
+            XLSX.setFont(sheet, c, bold=true, color = sheet[c] ? &quot;FF548235&quot; : &quot;FFC00000&quot;)
+        end
+    end
+end
+function redgreenminmax(sheet, rng) # Fill light green / light red the cell with maximum / minimum value
+    mn, mx = extrema(x for x in sheet[rng] if !ismissing(x))
+    for c in rng
+        if !ismissing(sheet[c])
+            if sheet[c] == mx
+               XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;FFC6EFCE&quot;)
+            elseif sheet[c] == mn
+                XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;FFFFC7CE&quot;)
+            end
+        end
+    end
+end
+
+blankmissing(sheet, XLSX.CellRange(&quot;B3:L6&quot;))
+trueorfalse(sheet, XLSX.CellRange(&quot;B2:L6&quot;))
+redgreenminmax(sheet, XLSX.CellRange(&quot;D3:D6&quot;))
+redgreenminmax(sheet, XLSX.CellRange(&quot;J3:J6&quot;))
+redgreenminmax(sheet, XLSX.CellRange(&quot;K3:K6&quot;))
+
+# Number formats
+XLSX.setFormat(sheet, &quot;J3&quot;; format = &quot;Percentage&quot;)
+XLSX.setFormat(sheet, &quot;J4&quot;; format = &quot;Currency&quot;)
+XLSX.setFormat(sheet, &quot;J6&quot;; format = &quot;Number&quot;)
+XLSX.setFormat(sheet, &quot;K3&quot;; format = &quot;0.0&quot;)
+XLSX.setFormat(sheet, &quot;K4&quot;; format = &quot;0.000&quot;)
+XLSX.setFormat(sheet, &quot;K6&quot;; format = &quot;0.0000&quot;)
+
+# Save to an actual XLSX file
+XLSX.writexlsx(&quot;mytable_formatted.xlsx&quot;, xf, overwrite=true)</code></pre><h2 id="Creating-a-formatted-form"><a class="docs-heading-anchor" href="#Creating-a-formatted-form">Creating a formatted form</a><a id="Creating-a-formatted-form-1"></a><a class="docs-heading-anchor-permalink" href="#Creating-a-formatted-form" title="Permalink"></a></h2><p>There is a file, customXml.xlsx, in the \data folder of this project that looks like a template  file - a form to be filled in. The code below creates this form from scratch and makes  extensive use of vector indexing for rows and columns and of non-contiguous ranges:</p><pre><code class="language-julia hljs">using XLSX
+
+f = XLSX.newxlsx()
+s = f[1]
+s[&quot;A1:K116&quot;] = &quot;&quot;
+
+s[&quot;B2&quot;] = &quot;Catalogue Entry Form&quot;
+
+s[&quot;B5&quot;] = &quot;User Data&quot;
+s[&quot;B7&quot;] = &quot;Recipient ID&quot;
+s[&quot;B9&quot;] = &quot;Recipient Name&quot;
+s[&quot;B11&quot;] = &quot;Address 1&quot;
+s[&quot;B12&quot;] = &quot;Address 2&quot;
+s[&quot;B13&quot;] = &quot;Address 3&quot;
+s[&quot;B14&quot;] = &quot;Town&quot;
+s[&quot;B16&quot;] = &quot;Postcode&quot;
+s[&quot;B18&quot;] = &quot;Ward&quot;
+s[&quot;B20&quot;] = &quot;Region&quot;
+s[&quot;H18&quot;] = &quot;Local Authority&quot;
+s[&quot;H20&quot;] = &quot;UK Constituency&quot;
+s[&quot;B22&quot;] = &quot;GrantID&quot;
+s[&quot;D22&quot;] = &quot;Grant Date&quot;
+s[&quot;F22&quot;] = &quot;Grant Amount&quot;
+s[&quot;H22&quot;] = &quot;Grant Title&quot;
+s[&quot;J22&quot;] = &quot;Distributor&quot;
+s[&quot;B32&quot;] = &quot;Distributor&quot;
+
+s[&quot;B30&quot;] = &quot;Creator&quot;
+s[&quot;B34&quot;] = &quot;Created by&quot;
+s[&quot;D36&quot;] = &quot;Email&quot;
+s[&quot;H36&quot;] = &quot;Phone&quot;
+s[&quot;B38&quot;] = &quot;Grant Manager&quot;
+s[&quot;D40&quot;] = &quot;Email&quot;
+s[&quot;H40&quot;] = &quot;Phone number&quot;
+
+s[&quot;B43&quot;] = &quot;Summary&quot;
+s[&quot;B45&quot;] = &quot;Summary ID&quot;
+s[&quot;H45&quot;] = &quot;Date Created&quot;
+s[&quot;B47&quot;] = &quot;Summary Name&quot;
+s[&quot;B49&quot;] = &quot;Headline&quot;
+s[&quot;B51&quot;] = &quot;Short Description&quot;
+s[&quot;B55&quot;] = &quot;Long Description&quot;
+s[&quot;B62&quot;] = &quot;Quote 1&quot;
+s[&quot;D65&quot;] = &quot;Quote Attribution&quot;
+s[&quot;H65&quot;] = &quot;Quote Date&quot;
+s[&quot;B67&quot;] = &quot;Quote 2&quot;
+s[&quot;D70&quot;] = &quot;Quote Attribution&quot;
+s[&quot;H70&quot;] = &quot;Quote Date&quot;
+s[&quot;B72&quot;] = &quot;Keywords&quot;
+s[&quot;B74&quot;] = &quot;Website&quot;
+s[&quot;B76&quot;] = &quot;Social media handles&quot;
+s[&quot;D76&quot;] = &quot;Twitter&quot;
+s[&quot;D78&quot;] = &quot;Facebook&quot;
+s[&quot;D80&quot;] = &quot;Instagram&quot;
+s[&quot;H76&quot;] = &quot;LinkedIn&quot;
+s[&quot;H78&quot;] = &quot;TikTok&quot;
+s[&quot;H80&quot;] = &quot;YouTube&quot;
+s[&quot;B82&quot;] = &quot;Image 1 filename&quot;
+s[&quot;D84&quot;] = &quot;Alt-Text&quot;
+s[&quot;D86&quot;] = &quot;Image Attribution&quot;
+s[&quot;D88&quot;] = &quot;Image Date&quot;
+s[&quot;D90&quot;] = &quot;Confirm permission to use image&quot;
+s[&quot;B92&quot;] = &quot;Image 2 filename&quot;
+s[&quot;D94&quot;] = &quot;Alt-Text&quot;
+s[&quot;D96&quot;] = &quot;Image Attribution&quot;
+s[&quot;D98&quot;] = &quot;Image Date&quot;
+s[&quot;D100&quot;] = &quot;Confirm permission to use image&quot;
+
+s[&quot;B103&quot;] = &quot;Penultimate category&quot;
+s[&quot;B105&quot;] = &quot;Competition Details&quot;
+s[&quot;D105&quot;] = &quot;Last year of entry&quot;
+s[&quot;D107&quot;] = &quot;Year of last win&quot;
+s[&quot;H105&quot;] = &quot;Categories of entry&quot;
+s[&quot;H107&quot;] = &quot;Categories of win&quot;
+
+s[&quot;B110&quot;] = &quot;Last category&quot;
+s[&quot;B112&quot;] = &quot;Use for Comms&quot;
+s[&quot;D112&quot;] = &quot;Comms Priority&quot;
+s[&quot;F112&quot;] = &quot;Comms End Date&quot;
+
+XLSX.setColumnWidth(s, 1:2:11; width=1.3)
+XLSX.setColumnWidth(s, 2:2:10; width=18)
+XLSX.setRowHeight(s, :; height=15)
+XLSX.setRowHeight(s, [3, 4, 19, 28, 29, 35, 39, 41, 42, 64, 69, 77, 79, 83, 85, 87, 89, 93, 95, 97, 99, 101, 102, 106, 108, 109, 116]; height=5.5)
+XLSX.setRowHeight(s, [5, 30, 43, 103, 110]; height=18)
+XLSX.setRowHeight(s, 2; height=23)
+
+XLSX.setFont(s, &quot;B2&quot;; size=18, bold=true)
+XLSX.setUniformFont(s, [5, 30, 43, 103, 110], 2; size=14, bold=true)
+
+XLSX.setUniformFill(s, [1, 2, 3, 4, 5, 6, 8, 10, 15, 17, 19, 21, 28, 29, 30, 31, 33, 35, 37, 39, 41, 42, 43, 44, 46, 48, 50, 52, 53, 54, 56, 57, 58, 59, 60, 61, 63, 64, 66, 68, 69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 102, 103, 104, 106, 108, 109, 110, 111, 115, 116], :; pattern=&quot;solid&quot;, fgColor=&quot;lightgrey&quot;)
+XLSX.setUniformFill(s, :, [1, 3, 5, 7, 9, 11]; pattern=&quot;solid&quot;, fgColor=&quot;lightgrey&quot;)
+XLSX.setFill(s, &quot;F7,H7,J7,J9,H11:J16,F14,F16:F20,H32:J32,B36,B40,F45,J47:J49,B65,B70,B78:B80,B84:B90,B94:B100,H88:J90,H98:J100,B107,F114,H112:J115&quot;; pattern=&quot;solid&quot;, fgColor=&quot;lightgrey&quot;)
+XLSX.setFill(s, &quot;D18,D20,J18,J20,D45&quot;; pattern=&quot;solid&quot;, fgColor=&quot;darkgrey&quot;)
+XLSX.setFill(s, &quot;B112:B114,D112:D115&quot;; pattern=&quot;solid&quot;, fgColor=&quot;white&quot;)
+XLSX.setFill(s, &quot;E90,E100,D115&quot;; pattern=&quot;none&quot;)
+
+XLSX.mergeCells(s, &quot;D9:H9&quot;)
+XLSX.mergeCells(s, &quot;D11:G11,D12:G12,D13:G13&quot;)
+XLSX.mergeCells(s, &quot;D32:F32,D34:J34,D38:J38&quot;)
+XLSX.mergeCells(s, &quot;D47:H47,D49:H49&quot;)
+XLSX.mergeCells(s, &quot;D51:J53,D55:J60&quot;)
+XLSX.mergeCells(s, &quot;D62:J63,D67:J68&quot;)
+XLSX.mergeCells(s, &quot;D72:J72,D74:J74&quot;)
+XLSX.mergeCells(s, &quot;D82:J82,F84:J84,F86:J86&quot;)
+XLSX.mergeCells(s, &quot;D92:J92,F94:J94,F96:J96&quot;)
+
+XLSX.setAlignment(s, &quot;D51:J53,D55:J60,D62:J63,D67:J68&quot;; vertical=&quot;top&quot;, wrapText=true)
+
+XLSX.setBorder(s, &quot;A1:K3&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A4:K28&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A29:K41&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A42:K101&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A102:K108&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A109:K116&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B7:D7,B9:H9&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B11:G13,B14:D14,B16:D16&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B18:D18,B20:D20,H18:J18,H20:J20&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setUniformBorder(s, &quot;B22:J27&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B32:F32&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B34:C34,D34:J34,D36:F36,H36:J36&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B38:C38,D38:J38,D40:F40,H40:J40&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D34:J36,D38:J40&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B45:D45,H45:J45&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B47:H47,B49:H49&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B51:C51,B55:C55&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D51:J53,D55:J60&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B62:C62,D65:F65,H65:J65&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B67:C67,D70:F70,H70:J70&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D62:J63,D67:J68&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D62:J65,D67:J70&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B72:J72,B74:J74&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B76:F76,H76:J76,D78:F78,H78:J78,D80:F80,H80:J80&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D76:J80&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B82:J82,D84:J84,D86:J86,D88:F88,D90:F90&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D82:J90&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B92:J92,D94:J94,D96:J96,D98:F98,D100:F100&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D92:J100&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B105:F105,H105:J105,D107:F107,H107:J107&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D105:J107&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;F112,F113&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B112:B114,D112:D115&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.writexlsx(&quot;myNewTemplate.xlsx&quot;, f, overwrite=true)</code></pre><h2 id="Adding-a-plot-image"><a class="docs-heading-anchor" href="#Adding-a-plot-image">Adding a plot image</a><a id="Adding-a-plot-image-1"></a><a class="docs-heading-anchor-permalink" href="#Adding-a-plot-image" title="Permalink"></a></h2><p>Use Julia functionality to create a chart based upon data from a spreadsheet and then add that chart  (as a static image) back into the worksheet.</p><p><img src="../images/Add_image_1.png" alt="image|320x500"/></p><pre><code class="language-julia hljs">using CairoMakie, XLSX
+
+f=opentemplate(&quot;Example_add_chart.xlsx&quot;)
+table = XLSX.gettable(f[1])
+x = 1:length(table.data[1])
+
+fig = Figure()
+ax = Axis(fig[1, 1], xticks=(x, table.data[1]))
+barplot!(ax, x, table.data[2])
+
+# Write PNG to IOBuffer
+io = IOBuffer()
+show(io, MIME(&quot;image/png&quot;), fig)
+
+XLSX.addImage(f[1], &quot;D2:H12&quot;, io)
+
+XLSX.writexlsx(&quot;Example_add_chart_out.xlsx&quot;, f, overwrite=true)</code></pre><p><img src="../images/Add_image_2.png" alt="image|320x500"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../formulae/formulas/">« Using Formulas</a><a class="docs-footer-nextpage" href="../migration/">Migration Guide »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Tuesday 26 May 2026 06:44">Tuesday 26 May 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
