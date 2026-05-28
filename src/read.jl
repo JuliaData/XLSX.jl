@@ -933,14 +933,20 @@ function skipNode(r::XML.Raw, skipnode::String) # separate rows or ssts to speed
     return take!(new), take!(skipped)
 end
 
-function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, channel_size::Int=1 << 8)
-    Channel{String}(channel_size) do out
+# list of filename prefixes to pass through as binary files.
+const BINARY_PREFIXES = ["customXml"]
+
+function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
+                      channel_size::Int=1 << 8,
+                      binary_prefixes::Vector{String}=BINARY_PREFIXES)
+
+        Channel{String}(channel_size) do out
         for f in ZipArchives.zip_names(zip_io)
 
             # ignore xl/calcChain.xml in any case (#31)
             if f != "xl/calcChain.xml"
 
-                if pass==1 && (!startswith(f, "customXml") && (endswith(f, ".xml") || endswith(f, ".rels")))
+                if pass==1 && (!any(p -> startswith(f, p), binary_prefixes) && (endswith(f, ".xml") || endswith(f, ".rels")))
                     # Identify usable xml files in XLSXFile
                     internal_xml_file_add!(xf, f)
                 end
@@ -949,10 +955,6 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, ch
         end
     end
 end
-
-# list of filename prefixes to pass through as binary files.
-const BINARY_PREFIXES = ["customXml"]
-
 
 # Read xml files in three passes
 # pass 1 - read all but worksheets and sharedStrings
@@ -965,7 +967,7 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
     wb = get_workbook(xf)
 
     read_files = Channel{ReadFile}(1 << 8)
-    all_files = stream_files(xf, zip_io; pass)
+    all_files = stream_files(xf, zip_io; pass, binary_prefixes)
    
     # Filter files based on pass BEFORE parallel processing
     filtered_files = Channel{String}(1 << 8) do out
