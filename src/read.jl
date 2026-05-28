@@ -658,84 +658,51 @@ function ensure_workbook_is_xlsx!(xf::XLSXFile)
     workbook_override = nothing
     default_xml_type = nothing
 
-    # Scan once, collecting both possible sources of the workbook content type
     for child in XML.children(root)
         name = localname(child)
-
-        if name == "Override" &&
-           lowercase(child["PartName"]) == "/xl/workbook.xml"
+        if name == "Override" && lowercase(child["PartName"]) == "/xl/workbook.xml"
             workbook_override = child
-
-        elseif name == "Default" &&
-               child["Extension"] == "xml"
+        elseif name == "Default" && child["Extension"] == "xml"
             default_xml_type = child["ContentType"]
         end
     end
 
-    # Excel-compatible fallback:
-    # 1. Prefer the Override
-    # 2. Fall back to the Default
-    # 3. Only error if both missing
     ctype =
         !isnothing(workbook_override) ? workbook_override["ContentType"] :
         !isnothing(default_xml_type) ? default_xml_type :
         throw(XLSXError("Malformed XLSX: workbook.xml content type not found."))
 
-    # Normal .xlsx
-    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
-        return nothing
-    end
-    # XLSM — treat as normal workbook, just ignore macros
-    if ctype == "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
-        return nothing
-    end
+    # Passthrough types — no conversion needed
+    ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" && return nothing
+    ctype == "application/vnd.ms-excel.sheet.macroEnabled.main+xml"                       && return nothing
 
-    # Template .xltx → convert to .xlsx
-    if ctype == "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml"
+    # Template types — convert to their workbook equivalent
+    template_conversions = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml" =>
+            ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml", XLTXTemplate),
+        "application/vnd.ms-excel.template.macroEnabled.main+xml" =>
+            ("application/vnd.ms-excel.sheet.macroEnabled.main+xml", XLTMTemplate),
+    )
+
+    for (template_ctype, (target_ctype, template_type)) in template_conversions
+        ctype == template_ctype || continue
 
         if !isnothing(workbook_override)
-            # Update the Override entry
-            workbook_override["ContentType"] =
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+            workbook_override["ContentType"] = target_ctype
         else
-            # Update the Default entry instead
             for child in XML.children(root)
-                if localname(child) == "Default" &&
-                   child["Extension"] == "xml"
-                    child["ContentType"] =
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"
+                if localname(child) == "Default" && child["Extension"] == "xml"
+                    child["ContentType"] = target_ctype
                 end
             end
         end
 
-        xf.template_type = XLTXTemplate # mark the file as originally being a an .xltx template.
+        xf.template_type = template_type
         return nothing
     end
 
-    # Template .xltm → convert to .xlsm (macro-enabled workbook)
-    if ctype == "application/vnd.ms-excel.template.macroEnabled.main+xml"
-
-        if !isnothing(workbook_override)
-            workbook_override["ContentType"] =
-                "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
-        else
-            for child in XML.children(root)
-                if localname(child) == "Default" &&
-                child["Extension"] == "xml"
-                    child["ContentType"] =
-                        "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
-                end
-            end
-        end
-
-        xf.template_type = XLTMTemplate  # mark the file as originally being a an .xltx template
-        return nothing
-    end
-
-    # Unknown workbook type
     throw(XLSXError("Unknown workbook content type: $ctype"))
 end
-
 
 # See section 12.2 - Package Structure
 function check_minimum_requirements(xf::XLSXFile)
@@ -973,7 +940,7 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, ch
             # ignore xl/calcChain.xml in any case (#31)
             if f != "xl/calcChain.xml"
 
-                if pass==1 && (endswith(f, ".xml") || endswith(f, ".rels"))
+                if pass==1 && (!startswith(f, "customXml") && (endswith(f, ".xml") || endswith(f, ".rels")))
                     # Identify usable xml files in XLSXFile
                     internal_xml_file_add!(xf, f)
                 end
@@ -998,14 +965,15 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
     # Filter files based on pass BEFORE parallel processing
     filtered_files = Channel{String}(1 << 8) do out
         for file in all_files
+            is_sst = occursin(r"^xl/sharedStrings\.xml$", file)
+            is_worksheet = occursin(r"^xl/worksheets/[^/]+\.xml$", file)
             should_process = if pass == 1
-                !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", file)
+                !is_sst && !is_worksheet
             elseif pass == 2
-                occursin(r"xl/sharedStrings\.xml", file)
+                is_sst
             else  # pass == 3
-                occursin(r"^xl/worksheets/[^/]+\.xml$", file)
-            end
-           
+                is_worksheet
+            end           
             if should_process
                 put!(out, file)
             end
@@ -1020,11 +988,11 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
             end
             if !isnothing(file.raw)
                 if xf.is_writable || pass==2
-                    if occursin("xl/sharedStrings.xml", file.name)
+                    if occursin(r"^xl/sharedStrings\.xml$", file.name)
                         if has_sst(wb)
                             sst_load!(wb)
                         end
-                    elseif xf.use_cache_for_sheet_data && !occursin("xl/sharedStrings.xml", file.name)
+                    elseif xf.use_cache_for_sheet_data && !occursin(r"^xl/sharedStrings\.xml$", file.name)
                         rid = get_relationship_id_by_target(wb, file.name)
                         for sheet in wb.sheets
                             if sheet.relationship_id == rid
@@ -1062,10 +1030,12 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String)
 
     try
         bytes = ZipArchives.zip_readentry(zip_io, filename)
-        if (endswith(filename, ".xml") || endswith(filename, ".rels"))
-            if occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", filename)
+        if !startswith(filename, "customXml") && (endswith(filename, ".xml") || endswith(filename, ".rels"))
+#        if (endswith(filename, ".xml") || endswith(filename, ".rels"))
+            is_sst = occursin(r"^xl/sharedStrings\.xml$", filename)
+            if is_sst || occursin(r"^xl/worksheets/[^/]+\.xml$", filename)
                 strip_bom_and_lf!(bytes)
-                skipnode = filename == "xl/sharedStrings.xml" ? "sst" : "sheetData"
+                skipnode = is_sst ? "sst" : "sheetData"  
                 f, s = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
                 node = XML.Node(XML.Raw(f))
                 raw = XML.Raw(s)
@@ -1098,8 +1068,9 @@ function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.
         try
             bytes = ZipArchives.zip_readentry(zip_io, filename)
             strip_bom_and_lf!(bytes)
-            if occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", filename)
-                skipnode = filename == "xl/sharedStrings.xml" ? "sst" : "sheetData"
+            is_sst = occursin(r"^xl/sharedStrings\.xml$", filename)
+            if is_sst || occursin(r"^xl/worksheets/[^/]+\.xml$", filename)
+                skipnode = is_sst ? "sst" : "sheetData"
                 f, _ = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
                 xf.data[filename] = XML.Node(XML.Raw(f))
             else

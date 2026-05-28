@@ -67,6 +67,61 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
 
     end
 
+    # Issue #293
+    @testset "read .xltx file" begin
+        xf = XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="rw")
+        s=xf[1]
+        @test s["P5"] == 5
+        @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
+        @test_throws XLSX.XLSXError XLSX.savexlsx(xf) # can't use save on a template file.
+
+        XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="rw") do xf
+            s=xf[1]
+            @test s["P5"] == 5
+            @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
+        end
+        @test isfile(joinpath(data_directory, "Template File.xlsx"))
+        isfile(joinpath(data_directory, "Template File.xlsx")) && rm(joinpath(data_directory, "Template File.xlsx"))
+    end
+
+    # Issue #402
+    @testset "macro enabled files" begin
+        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled.xlsm"); mode="rw")
+        @test mf[1]["A1"] == "hello"
+        XLSX.writexlsx("mytest.xlsm", mf; overwrite=true)
+        mf = XLSX.openxlsx("mytest.xlsm"; mode="rw")
+        @test mf[1]["A1"] == "hello"
+        isfile("mytest.xlsm") && rm("mytest.xlsm")
+
+        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rw")
+        @test mf[1]["A1"] == "hello"
+        @test_throws XLSX.XLSXError XLSX.savexlsx(mf) # can't save a template file
+        
+        XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rw") do mf
+            @test mf[1]["A1"] == "hello"
+        end
+        @test isfile(joinpath(data_directory, "macro-enabled2.xlsm"))
+        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xlsm"); mode="rw")
+        @test mf[1]["A1"] == "hello"
+        isfile(joinpath(data_directory, "macro-enabled2.xlsm")) && rm(joinpath(data_directory, "macro-enabled2.xlsm"))
+
+    end
+
+    # Issue #403
+    @testset "UTF-16 customXml" begin
+        try
+            xf1 = XLSX.openxlsx(joinpath(data_directory, "UTF-16.xlsx"); mode="rw")
+            XLSX.writexlsx("UTF-16_test.xlsx", xf1; overwrite=true)
+            xf2 = XLSX.openxlsx("UTF-16_test.xlsx"; mode="rw")
+            @test xf1[1]["E3"] == xf2[1]["E3"]
+            @test xf1[1]["R99"] == xf2[1]["R99"]
+        catch e
+            @test false
+        end
+
+        isfile("UTF-16_test.xlsx") && rm("UTF-16_test.xlsx")
+
+    end
     @testset "Read password protected file error" begin
         @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "password.xlsx")) # password for this file is simply "password"
         try
@@ -86,21 +141,8 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
         catch e
             @test occursin("is not a valid XLSX file", "$e")
         end
-#        @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-#        try
-#            XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-#            @test false # didn't throw exception
-#        catch e
-#            @test occursin("does not support Excel template files", "$e")
-#        end
     end
 
-    @testset "read .xltx file" begin
-        xf = XLSX.readxlsx(joinpath(data_directory, "Template File.xltx"))
-        s=xf[1]
-        @test s["P5"] == 5
-        @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
-    end
     @testset "missing file or bad `mode`" begin
         @test_throws XLSX.XLSXError XLSX.openxlsx("noSuchFile.xlsx")
         @test_throws XLSX.XLSXError XLSX.openxlsx(joinpath(data_directory, "Book1.xlsx"); mode="tg")
