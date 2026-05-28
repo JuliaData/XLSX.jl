@@ -956,6 +956,10 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
     end
 end
 
+# list of filename prefixes to pass through as binary files.
+const BINARY_PREFIXES = ["customXml"]
+
+
 # Read xml files in three passes
 # pass 1 - read all but worksheets and sharedStrings
 # pass 2 - only read sharedStrings (needed before worksheets)
