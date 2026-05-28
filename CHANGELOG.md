@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [v0.11.10](https://github.com/JuliaData/XLSX.jl/tree/v0.11.10) - 2026-05-28
+- support macro-enabled files ([#401](https://github.com/JuliaData/XLSX.jl/issues/401))
+- support pass-through of customXml files (again). ([#403](https://github.com/JuliaData/XLSX.jl/issues/403))
+
 ## [v0.11.9](https://github.com/JuliaData/XLSX.jl/tree/v0.11.9) - 2026-05-26
 - fix bug in `setFormula` when a function name occured inside a quoted string
 - fix issue [#395](https://github.com/JuliaData/XLSX.jl/issues/395)(@mathieu17g)
