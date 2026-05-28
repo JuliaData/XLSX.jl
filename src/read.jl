@@ -950,11 +950,16 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int, ch
     end
 end
 
+# list of filename prefixes to pass through as binary files.
+const BINARY_PREFIXES = ["customXml"]
+
+
 # Read xml files in three passes
 # pass 1 - read all but worksheets and sharedStrings
 # pass 2 - only read sharedStrings (needed before worksheets)
 # pass 3 - only read worksheets
-function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
+function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
+                     binary_prefixes::Vector{String}=BINARY_PREFIXES)
 
     (pass < 1 || pass > 3) && throw(XLSXError("Unknown pass to read files."))
     wb = get_workbook(xf)
@@ -1012,7 +1017,7 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
     @sync for _ in 1:Threads.nthreads()
         Threads.@spawn begin
             for file in filtered_files
-                readfile = process_file(zip_io, file)
+                readfile = process_file(zip_io, file; binary_prefixes)
                 put!(read_files, readfile)
             end
         end
@@ -1022,29 +1027,31 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
     wait(consumer)
 end
 
-function process_file(zip_io::ZipArchives.ZipReader, filename::String)
+function process_file(zip_io::ZipArchives.ZipReader, filename::String;
+                      binary_prefixes::Vector{String}=BINARY_PREFIXES)
 
-    node=nothing
-    raw=nothing
-    bin=nothing
+    node = nothing
+    raw  = nothing
+    bin  = nothing
+
+    is_binary_path = any(p -> startswith(filename, p), binary_prefixes)
 
     try
         bytes = ZipArchives.zip_readentry(zip_io, filename)
-        if !startswith(filename, "customXml") && (endswith(filename, ".xml") || endswith(filename, ".rels"))
-#        if (endswith(filename, ".xml") || endswith(filename, ".rels"))
+        if !is_binary_path && (endswith(filename, ".xml") || endswith(filename, ".rels"))
             is_sst = occursin(r"^xl/sharedStrings\.xml$", filename)
             if is_sst || occursin(r"^xl/worksheets/[^/]+\.xml$", filename)
                 strip_bom_and_lf!(bytes)
-                skipnode = is_sst ? "sst" : "sheetData"  
-                f, s = skipNode(XML.Raw(bytes), skipnode) # <row> and <sst> elements can be very numerous in large files, so split out and keep as Raw XML data for speed
+                skipnode = is_sst ? "sst" : "sheetData"
+                f, s = skipNode(XML.Raw(bytes), skipnode)
                 node = XML.Node(XML.Raw(f))
-                raw = XML.Raw(s)
+                raw  = XML.Raw(s)
             else
                 strip_bom_and_lf!(bytes)
                 node = XML.Node(XML.Raw(bytes))
             end
         else
-            bin = bytes                
+            bin = bytes
         end
     catch err
         throw(XLSXError("Failed to parse internal XML file `$filename`"))
