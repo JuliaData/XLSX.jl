@@ -73,18 +73,28 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
         s=xf[1]
         @test s["P5"] == 5
         @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
-        @test_throws XLSX.XLSXError XLSX.savexlsx(xf) # can't use save on a template file.
+        @test xf.template_type == XLSX.XLTXTemplate
+
+        XLSX.savexlsx(xf)
+        @test isfile(joinpath(data_directory, "Template File.xlsx"))
+        xf = XLSX.readxlsx(joinpath(data_directory, "Template File.xlsx"))
+        s=xf[1]
+        @test s["P5"] == 5
+        @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
+        @test xf.template_type == XLSX.NotATemplate
+        isfile(joinpath(data_directory, "Template File.xlsx")) && rm(joinpath(data_directory, "Template File.xlsx"))
 
         XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="rw") do xf
             s=xf[1]
             @test s["P5"] == 5
             @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
+            @test xf.template_type == XLSX.XLTXTemplate
         end
         @test isfile(joinpath(data_directory, "Template File.xlsx"))
         isfile(joinpath(data_directory, "Template File.xlsx")) && rm(joinpath(data_directory, "Template File.xlsx"))
     end
 
-    # Issue #402
+    # Issue #401
     @testset "macro enabled files" begin
         mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled.xlsm"); mode="rw")
         @test mf[1]["A1"] == "hello"
@@ -95,14 +105,23 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
 
         mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rw")
         @test mf[1]["A1"] == "hello"
-        @test_throws XLSX.XLSXError XLSX.savexlsx(mf) # can't save a template file
+        @test mf.template_type == XLSX.XLTMTemplate
+        XLSX.savexlsx(mf)
+        @test isfile(joinpath(data_directory, "macro-enabled2.xlsm"))
+        mf = XLSX.readxlsx(joinpath(data_directory, "macro-enabled2.xlsm"))
+        s=mf[1]
+        @test mf[1]["A1"] == "hello"
+        @test mf.template_type == XLSX.NotATemplate
+        isfile(joinpath(data_directory, "macro-enabled2.xlsm")) && rm(joinpath(data_directory, "macro-enabled2.xlsm"))
         
         XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rw") do mf
             @test mf[1]["A1"] == "hello"
+            @test mf.template_type == XLSX.XLTMTemplate
         end
         @test isfile(joinpath(data_directory, "macro-enabled2.xlsm"))
         mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xlsm"); mode="rw")
         @test mf[1]["A1"] == "hello"
+        @test mf.template_type == XLSX.NotATemplate
         isfile(joinpath(data_directory, "macro-enabled2.xlsm")) && rm(joinpath(data_directory, "macro-enabled2.xlsm"))
 
     end

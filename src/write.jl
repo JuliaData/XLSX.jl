@@ -9,8 +9,9 @@ A new `XLSXFile` created with `XLSX.newxlsx` (or using `openxlsx` without specif
 have `source` set to `"blank.xlsx"` and cannot be saved with this function. Use [`writexlsx`](@ref) instead 
 to specify a new file name for the saved file.
 
-An `XLSXFile` created from a native Excel template (`.xltx`) file cannot be saved with this function. 
-Use [`writexlsx`](@ref) instead to specify a new file name for the saved file.
+An `XLSXFile` created from a native Excel template (`.xltx`) file or a macro-enabled template (`.xltm`) file
+will be saved as standard worksheet (`.xlsx`) or macro-enabled worksheet (`.xlsm`) respectively, regardless 
+of the extension of the original template file.
 
 Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
 
@@ -20,7 +21,10 @@ function savexlsx(f::XLSXFile)
         if f.source == "blank.xlsx"
             throw(XLSXError("Can't save to a blank `XLSXFile` instance. Use `writexlsx` instead to specify a file name."))
         elseif f.template_type != NotATemplate
-            throw(XLSXError("Can't save back to an Excel template file. Use `writexlsx` instead to specify a file name."))
+            if isa(f.source, AbstractString)
+                ext = f.template_type == XLTMTemplate ? ".xlsm" : ".xlsx"
+                f.source = splitext(f.source)[1] * ext
+            end
         end
     end
     return writexlsx(f.source, f; overwrite=true)

@@ -397,9 +397,10 @@ The `mode` argument controls how the file is opened. The following modes are all
 
 !!! note
 
-    When a native Excel template (`.xltx`) file is opened in "rw" mode using do-block syntax, it will always be written 
-    back out as a regular Excel file with a `.xlsx` extension at the termination of the do block. It is not written out 
-    as an Excel template file.
+    When a native Excel template (`.xltx`) file or a macro-enabled template (`.xltm`) file is opened in "rw" mode using 
+    do-block syntax, it will always be written back out as a regular (`.xlsx`) or macro-enabled (`.xlsm`) Excel file 
+    respectively, at the termination of the do block. It is not written out as an Excel template file and will not 
+    overwrite the original template.
 
 # Arguments
 
