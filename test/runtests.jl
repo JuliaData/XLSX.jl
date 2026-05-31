@@ -1656,6 +1656,10 @@ end
     s = f["table"]
     s[:]
     dtable = XLSX.gettable(s)
+
+    plaintext = sprint(show, dtable)
+    @test plaintext == "XLSX.DataTable with 6 columns and 8 rows."
+
     data, col_names = dtable.data, dtable.column_labels
     @test col_names == [Symbol("Column B"), Symbol("Column C"), Symbol("Column D"), Symbol("Column E"), Symbol("Column F"), Symbol("Column G")]
 
