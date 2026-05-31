@@ -1524,7 +1524,3 @@ function unescape(x::AbstractString)
     return result
 end
 
-# Hooks for FileIOloaderExt.jl
-
-function load end  # forward declaration
-function save end  # forward declaration
