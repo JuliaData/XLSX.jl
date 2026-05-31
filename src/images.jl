@@ -97,6 +97,7 @@ If multiple, overlapping images are added, newer images overly older ones.
 # Arguments
 
 `s::Worksheet`: the target worksheet.
+
 `ref::AbstractString`: Either a valid cell reference (e.g. `"A1"`) or a valid cell range (e.g. `"B2:D4"`). 
 The image will be anchored to the top left of the reference and sized to fit within the reference bounds. 
 If a cell range is given, the `size` keyword argument is ignored.

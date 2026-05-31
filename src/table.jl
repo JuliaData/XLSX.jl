@@ -3,6 +3,9 @@
 # Table
 #
 
+Base.show(io::IO, ::MIME"text/plain", dt::DataTable) =
+    print(io, "DataTable with $(length(dt.data)) columns and $(length(dt.data[1])) rows.")
+
 # Returns a tuple with the first and last index of the columns for a `SheetRow`.
 function column_bounds(sr::SheetRow)
     isempty(sr) && throw(XLSXError("Can't get column bounds from an empty row."))

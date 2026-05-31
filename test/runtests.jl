@@ -69,7 +69,7 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
 
     # Issue #293
     @testset "read .xltx file" begin
-        xf = XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="rw")
+        xf = XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="RW")
         s=xf[1]
         @test s["P5"] == 5
         @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
@@ -84,7 +84,7 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
         @test xf.template_type == XLSX.NotATemplate
         isfile(joinpath(data_directory, "Template File.xlsx")) && rm(joinpath(data_directory, "Template File.xlsx"))
 
-        XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="rw") do xf
+        XLSX.openxlsx(joinpath(data_directory, "Template File.xltx"); mode="RW") do xf
             s=xf[1]
             @test s["P5"] == 5
             @test XLSX.getFormula(s, "B5") == "=RANDBETWEEN(0,100)"
@@ -96,14 +96,14 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
 
     # Issue #401
     @testset "macro enabled files" begin
-        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled.xlsm"); mode="rw")
+        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled.xlsm"); mode="Rw")
         @test mf[1]["A1"] == "hello"
         XLSX.writexlsx("mytest.xlsm", mf; overwrite=true)
         mf = XLSX.openxlsx("mytest.xlsm"; mode="rw")
         @test mf[1]["A1"] == "hello"
         isfile("mytest.xlsm") && rm("mytest.xlsm")
 
-        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rw")
+        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rW")
         @test mf[1]["A1"] == "hello"
         @test mf.template_type == XLSX.XLTMTemplate
         XLSX.savexlsx(mf)
@@ -114,12 +114,12 @@ src_data_directory = joinpath(dirname(pathof(XLSX)), "data")
         @test mf.template_type == XLSX.NotATemplate
         isfile(joinpath(data_directory, "macro-enabled2.xlsm")) && rm(joinpath(data_directory, "macro-enabled2.xlsm"))
         
-        XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rw") do mf
+        XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="wr") do mf
             @test mf[1]["A1"] == "hello"
             @test mf.template_type == XLSX.XLTMTemplate
         end
         @test isfile(joinpath(data_directory, "macro-enabled2.xlsm"))
-        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xlsm"); mode="rw")
+        mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xlsm"); mode="WR")
         @test mf[1]["A1"] == "hello"
         @test mf.template_type == XLSX.NotATemplate
         isfile(joinpath(data_directory, "macro-enabled2.xlsm")) && rm(joinpath(data_directory, "macro-enabled2.xlsm"))
@@ -815,6 +815,8 @@ end
 
     end
     isfile("mytest.xlsx") && rm("mytest.xlsx")
+
+    # Issue #395
     @testset "Multi-threaded read" begin
         N_FORMULAS = 5000 # Should be a multiple of ROW_CHUNKSIZE
         N_ITER = 5
