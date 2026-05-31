@@ -3,10 +3,12 @@
 # Table
 #
 
-Base.show(io::IO,  dt::DataTable) = Base.show(io::IO, ::MIME"text/plain", dt::DataTable)
+Base.show(io::IO, dt::DataTable) =
+    Base.show(io, MIME"text/plain"(), dt)
 
 Base.show(io::IO, ::MIME"text/plain", dt::DataTable) =
-    print(io, "XLSX.DataTable with $(length(dt.data)) columns and $(length(dt.data[1])) rows.")
+    print(io, "DataTable with $(length(dt.data)) columns and $(length(dt.data[1])) rows.")
+
 
 # Returns a tuple with the first and last index of the columns for a `SheetRow`.
 function column_bounds(sr::SheetRow)
