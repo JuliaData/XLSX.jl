@@ -1524,7 +1524,81 @@ function unescape(x::AbstractString)
     return result
 end
 
-# Hooks for FileIOloaderExt.jl
+# Hooks for FileIOExt.jl
 
-function load end  # forward declaration
-function save end  # forward declaration
+"""
+```julia
+    load(
+        source::String,
+        [sheet::String,
+        [columns::String]];
+        [first_row::Int],
+        [first_column::String]
+        [column_labels::Vector{String}],
+        [header::Bool],
+        [normalizenames::Bool],
+        [transpose::Bool]
+    )
+```
+Read tabular data from an Excel file, `source`, and return it as a `Tables.jl` compatible table.
+The resulting table object can be passed directly to any function that accepts `Tables.jl` data 
+(e.g. `DataFrame` from package `DataFrames.jl`).
+
+This function requires FileIO.jl to be active in the current environment.
+
+#### Arguments:
+
+* `source`: The name of the file to be loaded.
+* `sheet`: Specifies the sheet name to be loaded. If `sheet` is not given, the first Excel sheet in the file will be used.
+* `columns`: Determines which columns to read. For example, `"B:D"` will select columns B, C and D. If columns is not given, the algorithm will find the first sequence of consecutive non-empty cells. A valid sheet **must** be specified when specifying columns. If `transpose = true` or is omitted, `columns` should be used to specify rows. For example, specifying `"2:4"` with `transpose = true` will read only from these rows.
+
+#### Keywords:
+
+* `first_row`: Indicates the first row of the data table to be read. For example, `first_row=5` will look for a table starting at sheet row 5. If first_row is not given, the algorithm will look for the first non-empty row in the sheet (ignored if `transpose = true`).
+* `first_column`: Indicates the first row of the data table to be read. For example, `first_column="B"` will look for a table starting at sheet row 5. If first_row is not given, the algorithm will look for the first non-empty row in the sheet (ignored if `transpose = false` or is omitted).
+* `column_labels`: Specifies column names for the header of the table. If `column_labels` are given and `header=true`, the headers given by `column_labels` will be used, and the first row of the table (containing headers) will be ignored.
+* `header`: Indicates if the first row (column if `transpose = true`) is a header. If `header=true` and `column_labels` is not specified, the column labels for the table will be read from the first row (column) of the table. If `header=false` and `column_labels` is not specified, the algorithm will generate column labels. The default value is `header=true`.
+* `normalizenames`: Set to `true` to normalize column names to valid Julia identifiers. Default=`false`.
+* `transpose`: Set to `true` to transpose the table to read data from rows not columns.
+
+#### Examples
+
+```julia
+julia> PrettyTable(load("HTable.xlsx", "Offset"; first_row=2))
+
+julia> df = DataFrame(load("HTable.xlsx", "Offset", "2:7"; transpose=true, first_column="B"))
+
+julia> df = DataFrame(load("HTable.xlsx"; normalizenames=true, transpose=true, column_labels=["Date", "Name1", "Name2", "Name3", "Name4", "Name5"]))
+
+```
+"""
+function load end
+
+"""
+```julia
+    save(
+        source::String;
+        [sheetname::String],
+        [overwrite::Bool]
+    )
+```
+Save a `Tables.jl` compatible table to an Excel file, `source`.
+
+This function requires FileIO.jl to be active in the current environment.
+
+#### Arguments:
+
+* `source`: The name of the file to be created on save.
+
+#### Keywords:
+
+* `sheetname`: Specify the sheetname to be used in the created file. By default, the sheetname will be `Sheet1`.
+* `overwrite`: Set `overwrite=true` to overwite any existing file of the same name. Default = `false`.
+
+#### Examples
+
+```julia
+julia> save("myfile.xlsx", myTable; sheetname="myname", overwrite=true)
+```
+"""
+function save end

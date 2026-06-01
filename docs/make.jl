@@ -6,7 +6,10 @@ makedocs(
     modules = [ XLSX ],
     pages = [
         "Home" => "index.md",
-        "Tutorial" => "tutorial.md",
+        "Tutorial" => Any[
+            "Using XLSX" => "tutorial/XLSXtutorial.md",
+            "Using FileIO" => "tutorial/FileIOtutorial.md",
+        ],
         "Formatting Guide" => Any[
             "Cell formats" => "formatting/cellFormatting.md",
             "Conditional formats" => "formatting/conditionalFormatting.md",

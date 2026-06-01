@@ -5,6 +5,7 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- add a package extension to support [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
 
 ## [v0.11.10](https://github.com/JuliaData/XLSX.jl/tree/v0.11.10) - 2026-05-28
 - support macro-enabled files ([#401](https://github.com/JuliaData/XLSX.jl/issues/401))

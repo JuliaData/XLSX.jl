@@ -13,6 +13,12 @@ XLSX.writexlsx
 XLSX.savexlsx
 ```
 
+## Files (using FileIO)
+```@docs
+XLSX.load
+XLSX.save
+```
+
 ## Worksheets
 
 ```@docs

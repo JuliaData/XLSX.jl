@@ -1,9 +1,9 @@
 
-# Tutorial
+# XLSX Tutorial
 
 ## Setup
 
-First, make sure you have **XLSX.jl** package installed.
+First, make sure you have the **XLSX.jl** package installed.
 
 ```julia
 julia> using Pkg
