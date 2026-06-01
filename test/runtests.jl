@@ -7,7 +7,6 @@ import DataFrames, Random
 import Distributions as Dist
 import CSV
 using StyledStrings
-using FileIO
 
 
 data_directory = joinpath(dirname(pathof(XLSX)), "..", "test", "data")
@@ -7778,6 +7777,26 @@ end
 function get_cols(source::XLSX.DataTable)
     return source.data, source.column_labels
 end
+
+@testset "No FileIO" verbose=true begin
+
+    filename = joinpath(data_directory, "TestData.xlsx")
+
+    try
+        XLSX.load(filename, "Sheet1")
+        @test false  # should error before this line
+    catch e
+        @test  e isa XLSX.XLSXError && occursin("requires the FileIO.jl package", e.msg)
+    end
+    try
+        XLSX.save(filename, "Sheet1")
+        @test false  # should error before this line
+    catch e
+        @test  e isa XLSX.XLSXError && occursin("requires the FileIO.jl package", e.msg)
+    end
+end
+
+using FileIO
 
 @testset "FileIO" verbose=true begin
 

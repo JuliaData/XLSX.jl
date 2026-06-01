@@ -1528,7 +1528,7 @@ end
 
 """
 ```julia
-    load(
+    FileIO.load(
         source::String,
         [sheet::String,
         [columns::String]];
@@ -1572,11 +1572,27 @@ julia> df = DataFrame(load("HTable.xlsx"; normalizenames=true, transpose=true, c
 
 ```
 """
-function load end
+function load(args...; kwargs...)
+    throw(XLSXError(
+        """
+        load requires the FileIO.jl package.
+
+        Please install and load it with:
+
+            using Pkg
+            Pkg.add("FileIO")
+            using FileIO
+
+        Then retry FileIO.load.
+        """
+    ))
+
+    return nothing
+end
 
 """
 ```julia
-    save(
+    FileIO.save(
         source::String;
         [sheetname::String],
         [overwrite::Bool]
@@ -1601,4 +1617,20 @@ This function requires FileIO.jl to be active in the current environment.
 julia> save("myfile.xlsx", myTable; sheetname="myname", overwrite=true)
 ```
 """
-function save end
+function save(args...; kwargs...)
+    throw(XLSXError(
+        """
+        save requires the FileIO.jl package.
+
+        Please install and load it with:
+
+            using Pkg
+            Pkg.add("FileIO")
+            using FileIO
+
+        Then retry FileIO.save.
+        """
+    ))
+
+    return nothing
+end
