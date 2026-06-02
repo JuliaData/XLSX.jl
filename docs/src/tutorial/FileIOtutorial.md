@@ -2,13 +2,16 @@
 
 ## Introduction
 
-A package extension to XLSX.jl provides support for Excel 
-files under the [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) package.
+A package extension to XLSX.jl provides support for Excel files 
+under the [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) package.
 
-Through [FileIO.jl](https://github.com/JuliaIO/FileIO.jl), 
-you can read simple tabular data from an Excel (.xlsx) file and save 
-tabular data to an Excel file using simple `load` and `save` 
-functions without needing to know anything about XLSX.jl itself.
+[FileIO.jl](https://github.com/JuliaIO/FileIO.jl) aims to provide a common 
+framework for detecting file formats and dispatching to appropriate readers/writers.
+
+Through [FileIO.jl](https://github.com/JuliaIO/FileIO.jl), you can read 
+simple tabular data from an Excel (.xlsx) file and save tabular data 
+to an Excel file using simple `load` and `save` functions without needing 
+to know anything about XLSX.jl itself.
 
 XLSX.jl provides much more extensive functionality if you need it.
 Check out the rest of the documentation for full details.

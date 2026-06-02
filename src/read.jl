@@ -1598,7 +1598,8 @@ end
 """
 ```julia
     FileIO.save(
-        source::String;
+        source::String,
+        data;
         [sheetname::String],
         [overwrite::Bool]
     )
@@ -1610,6 +1611,7 @@ This function requires both FileIO.jl v1.20.0 or higher to be active in the curr
 #### Arguments:
 
 * `source`: The name of the file to be created on save.
+* `data`: A `Tables.jl` compatible table to be saved to the file. For example, a `DataFrame` from package `DataFrames.jl`.
 
 !!! note
 
