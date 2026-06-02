@@ -1552,6 +1552,11 @@ This function requires both FileIO.jl v1.20.0 or higher to be active in the curr
 * `sheet`: Specifies the sheet name to be loaded. If `sheet` is not given, the first Excel sheet in the file will be used.
 * `columns`: Determines which columns to read. For example, `"B:D"` will select columns B, C and D. If columns is not given, the algorithm will find the first sequence of consecutive non-empty cells. A valid sheet **must** be specified when specifying columns. If `transpose = true` or is omitted, `columns` should be used to specify rows. For example, specifying `"2:4"` with `transpose = true` will read only from these rows.
 
+!!! note
+
+    The file extension provided in `source` must be `.xlsx`, `.xltx`, `.xlsm`, 
+    or `.xltm` for FileIO to recognize the file format as an Excel file.
+
 #### Keywords:
 
 * `first_row`: Indicates the first row of the data table to be read. For example, `first_row=5` will look for a table starting at sheet row 5. If first_row is not given, the algorithm will look for the first non-empty row in the sheet (ignored if `transpose = true`).
@@ -1605,6 +1610,13 @@ This function requires both FileIO.jl v1.20.0 or higher to be active in the curr
 #### Arguments:
 
 * `source`: The name of the file to be created on save.
+
+!!! note
+
+    The file extension provided in `source` must be `.xlsx`, `.xltx`, `.xlsm`, 
+    or `.xltm` for FileIO to recognize the file format as an Excel file. The 
+    file created will be a standard workbook (ie not an Excel template nor a 
+    macro-enabled workbook) regardless of which of these four extensions is used.
 
 #### Keywords:
 
