@@ -14,6 +14,12 @@ XLSX.savexlsx
 ```
 
 ## Files (using FileIO)
+
+!!! note
+
+    These functions extend `FileIO.load` and `FileIO.save`. Call them as
+    `FileIO.load(...)` and `FileIO.save(...)` after doing `using FileIO`.
+
 ```@docs
 XLSX.load
 XLSX.save

@@ -38,7 +38,9 @@ using FileIO, DataFrames
 df = DataFrame(load("data.xlsx", "Sheet1"))
 ```
 
-The call to `load` returns an object that is a [Tables.jl](https://github.com/JuliaData/Tables.jl) table, so it can be passed to any function that can handle Tables.jl tables. Here are some examples of materializing an Excel file into such data structures:
+The call to `load` returns an object that is a [Tables.jl](https://github.com/JuliaData/Tables.jl) table, 
+so it can be passed to any function that can handle Tables.jl tables. Here are some examples of 
+materializing an Excel file into such data structures:
 
 ```julia
 using FileIO, DataFrames, PrettyTables
@@ -116,7 +118,8 @@ For more information, see [`XLSX.save`](@ref)
 
 ### Using the pipe syntax
 
-The `load` and `save` functions also support the pipe syntax. For example, to load an Excel file into a `DataFrame`, one can use the following code:
+The `load` and `save` functions also support the pipe syntax. For example, to load an 
+Excel file into a `DataFrame`, one can use the following code:
 
 ```julia
 using FileIO, DataFrame
