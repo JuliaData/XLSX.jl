@@ -7801,7 +7801,7 @@ using FileIO
 
 @static if VERSION >= v"1.9-"
 
-    if Pkg.pkgversion(FileIO) >= v"1.20.0"
+    if Pkg.pkgversion(FileIO) > v"1.19.0"
 
         @testset "FileIO" verbose=true begin
 
