@@ -5,6 +5,8 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+
+## [v0.11.11](https://github.com/JuliaData/XLSX.jl/tree/v0.11.11) - 2026-06-03
 - add a package extension to support [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
 - update copyright notice end-date
 
