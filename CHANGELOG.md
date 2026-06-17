@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [v0.11.11](https://github.com/JuliaData/XLSX.jl/tree/v0.11.11) - 2026-06-18
+- Fix [#410](https://github.com/JuliaData/XLSX.jl/issues/410) by making `is_binary_path` case insensitive
+
 ## [v0.11.10](https://github.com/JuliaData/XLSX.jl/tree/v0.11.10) - 2026-05-28
 - support macro-enabled files ([#401](https://github.com/JuliaData/XLSX.jl/issues/401))
 - support pass-through of customXml files (again). ([#403](https://github.com/JuliaData/XLSX.jl/issues/403))
