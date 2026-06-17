@@ -936,7 +936,8 @@ function skipNode(r::XML.Raw, skipnode::String) # separate rows or ssts to speed
 end
 
 # list of filename prefixes to pass through as binary files.
-const BINARY_PREFIXES = ["customXml"]
+const BINARY_PREFIXES = ["customxml"]
+is_binary_path(filename) = any(p -> startswith(lowercase(filename), p), BINARY_PREFIXES)
 
 function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
                       channel_size::Int=1 << 8,
@@ -948,7 +949,7 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
             # ignore xl/calcChain.xml in any case (#31)
             if f != "xl/calcChain.xml"
 
-                if pass==1 && (!any(p -> startswith(f, p), binary_prefixes) && (endswith(f, ".xml") || endswith(f, ".rels")))
+                if pass==1 && !is_binary_path(f) && (endswith(f, ".xml") || endswith(f, ".rels"))
                     # Identify usable xml files in XLSXFile
                     internal_xml_file_add!(xf, f)
                 end
@@ -1038,11 +1039,9 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String;
     raw  = nothing
     bin  = nothing
 
-    is_binary_path = any(p -> startswith(filename, p), binary_prefixes)
-
     try
         bytes = ZipArchives.zip_readentry(zip_io, filename)
-        if !is_binary_path && (endswith(filename, ".xml") || endswith(filename, ".rels"))
+        if !is_binary_path(filename) && (endswith(filename, ".xml") || endswith(filename, ".rels"))
             is_sst = occursin(r"^xl/sharedStrings\.xml$", filename)
             if is_sst || occursin(r"^xl/worksheets/[^/]+\.xml$", filename)
                 strip_bom_and_lf!(bytes)
