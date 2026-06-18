@@ -940,8 +940,7 @@ const BINARY_PREFIXES = ["customxml"]
 is_binary_path(filename) = any(p -> startswith(lowercase(filename), p), BINARY_PREFIXES)
 
 function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
-                      channel_size::Int=1 << 8,
-                      binary_prefixes::Vector{String}=BINARY_PREFIXES)
+                      channel_size::Int=1 << 8)
 
         Channel{String}(channel_size) do out
         for f in ZipArchives.zip_names(zip_io)
@@ -963,14 +962,13 @@ end
 # pass 1 - read all but worksheets and sharedStrings
 # pass 2 - only read sharedStrings (needed before worksheets)
 # pass 3 - only read worksheets
-function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
-                     binary_prefixes::Vector{String}=BINARY_PREFIXES)
+function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int)
 
     (pass < 1 || pass > 3) && throw(XLSXError("Unknown pass to read files."))
     wb = get_workbook(xf)
 
     read_files = Channel{ReadFile}(1 << 8)
-    all_files = stream_files(xf, zip_io; pass, binary_prefixes)
+    all_files = stream_files(xf, zip_io; pass)
    
     # Filter files based on pass BEFORE parallel processing
     filtered_files = Channel{String}(1 << 8) do out
@@ -1022,7 +1020,7 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
     @sync for _ in 1:Threads.nthreads()
         Threads.@spawn begin
             for file in filtered_files
-                readfile = process_file(zip_io, file; binary_prefixes)
+                readfile = process_file(zip_io, file)
                 put!(read_files, readfile)
             end
         end
@@ -1032,8 +1030,7 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
     wait(consumer)
 end
 
-function process_file(zip_io::ZipArchives.ZipReader, filename::String;
-                      binary_prefixes::Vector{String}=BINARY_PREFIXES)
+function process_file(zip_io::ZipArchives.ZipReader, filename::String)
 
     node = nothing
     raw  = nothing
