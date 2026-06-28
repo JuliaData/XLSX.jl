@@ -2,6 +2,7 @@
 docs/build/*
 **/*.swp
 Manifest.toml
+!/Manifest.toml
 docs/Manifest.toml
 .vscode
 *.gz
