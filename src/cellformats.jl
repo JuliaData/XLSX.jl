@@ -337,7 +337,7 @@ function getFont(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFont}
         current_font = font_nodes[fontid_int + 1]  # index into filtered list, not raw children
 #        current_font = XML.children(font_elements)[fontid_int+1] # Zero based!
         font_atts = Dict{String,Union{Dict{String,String},Nothing}}()
-        for c in XML.children(current_font)
+        for c in xml_elements(current_font)
             if isnothing(XML.attributes(c)) || length(XML.attributes(c)) == 0
                 font_atts[localname(c)] = nothing
             else
@@ -437,13 +437,14 @@ function getBorder(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellBorder
         applyborder = haskey(cell_style, "applyBorder") ? cell_style["applyBorder"] : "0"
         xroot = styles_xmlroot(wb)
         border_elements = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":borders", xroot)[begin]
-        if parse(Int, border_elements["count"]) != length(XML.children(border_elements))
-            throw(XLSXError("Unexpected number of border definitions found : $(length(XML.children(border_elements))). Expected $(parse(Int, border_elements["count"]))"))
+        border_nodes = xml_elements(border_elements)
+        if parse(Int, border_elements["count"]) != length(border_nodes)
+            throw(XLSXError("Unexpected number of border definitions found : $(length(border_nodes)). Expected $(parse(Int, border_elements["count"]))"))
         end
-        current_border = XML.children(border_elements)[parse(Int, borderid)+1] # Zero based!
+        current_border = border_nodes[parse(Int, borderid)+1] # Zero based!
         diag_atts = XML.attributes(current_border)
         border_atts = Dict{String,Union{Dict{String,String},Nothing}}()
-        for side in XML.children(current_border)
+        for side in xml_elements(current_border)
             if isnothing(XML.attributes(side)) || length(XML.attributes(side)) == 0
                 border_atts[localname(side)] = nothing
             else
@@ -463,7 +464,7 @@ function getBorder(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellBorder
                             throw(XLSXError("No direction set for `diagonal` border"))
                         end
                     end
-                    for subc in XML.children(side) # color is a child of a border element
+                    for subc in xml_elements(side) # color is a child of a border element
                         for (k, v) in XML.attributes(subc)
                             border_atts[localname(side)][k] = v
                         end
@@ -1369,7 +1370,7 @@ function setAlignment(sh::Worksheet, cellref::CellRef;
     cell_alignment = getAlignment(wb, cell_style)
     old_atts       = isnothing(cell_alignment) ? Dict{String,String}() : cell_alignment.alignment["alignment"]
 
-    atts = OrderedDict{String,String}()
+    atts = Dict{String,String}()
     _merge_alignment_att(atts, "horizontal",   horizontal, old_atts)
     _merge_alignment_att(atts, "vertical",     vertical,   old_atts)
     _merge_alignment_att(atts, "wrapText",     wrapText,   old_atts, b -> b ? "1" : "0")
@@ -1377,7 +1378,7 @@ function setAlignment(sh::Worksheet, cellref::CellRef;
     _merge_alignment_att(atts, "indent",       indent,     old_atts)
     _merge_alignment_att(atts, "textRotation", rotation,   old_atts)
 
-    alignment_node = XML.Node(XML.Element, "$(pfx)alignment", atts, nothing, nothing)
+    alignment_node = XML.Node{String}(XML.Element, "alignment", Pair{String,String}[k => v for (k,v) in atts], nothing, nothing)
     newstyle       = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), alignment_node).id
     cell.style     = newstyle
 
@@ -1519,8 +1520,8 @@ function getFormat(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFormat
         isnothing(idx) && throw(XLSXError("No format definition found for numFmtId $numfmtid_int."))
         current_format = format_nodes[idx]
 
-        atts = Dict{String,String}(k => XLSX.unescape(v) for (k, v) in XML.attributes(current_format))
-        format_atts[localname(current_format)] = atts
+        atts = Dict{String,String}(k => XML.unescape(v) for (k, v) in XML.attributes(current_format))
+        format_atts[XML.tag(current_format)] = atts
 
     else
         # Built-in format — validate it falls in a known range
@@ -1929,7 +1930,7 @@ function setColumnWidth(ws::Worksheet, rng::CellRange; width::Union{Nothing,Real
 
     # Build a map of existing column definitions keyed by min (column index string)
     col_defs = Dict{String,Dict{String,String}}()
-    for c in XML.children(sheetdoc[i][j])
+    for c in xml_elements(sheetdoc[i][j])
         col_defs[c["min"]] = Dict{String,String}(XML.attributes(c))
     end
 
@@ -2015,7 +2016,7 @@ function getColumnWidth(ws::Worksheet, cellref::CellRef)::Union{Nothing,Real}
     if isnothing(j) # There are no existing column formats defined.
         return nothing
     end
-    for c in XML.children(sheetdoc[i][j])
+    for c in xml_elements(sheetdoc[i][j])
         if c["min"] == string(cellref.column_number)
             if haskey(c, "width")
                 return parse(Float64, c["width"])
@@ -2239,7 +2240,7 @@ function getMergedCells(ws::Worksheet)::Union{Vector{CellRange},Nothing}
         return nothing
     end
 
-    c = XML.children(sheetdoc[i][j])
+    c = xml_elements(sheetdoc[i][j])
     if length(c) != parse(Int, sheetdoc[i][j]["count"])
         throw(XLSXError("Unexpected number of mergeCells found: $(length(c)). Expected $(sheetdoc[i][j]["count"])."))
     end
@@ -2458,26 +2459,24 @@ function mergeCells(ws::Worksheet, cr::CellRange)
         throw(XLSXError("Cannot get merged cells because cache is not enabled."))
     end
 
-    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
-    pfx = get_prefix(ws)
-    pfx = pfx == "" ? pfx : pfx * ":"
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # find the <mergeCells> block in the worksheet's xml file
+    i, j = get_idces(sheetdoc, "worksheet", "mergeCells")
 
-    l = insert_index(sheetdoc[end], "mergeCells", WORKSHEET_ORDER)
-
-    if localname(sheetdoc[end][l]) != "mergeCells" # There are no existing merged cells. Insert immediately after the <sheetData> block and push everything else down one.
-        len = length(sheetdoc[end])
-        merge_node=XML.Node(XML.Element, "$(pfx)mergeCells", OrderedDict{String,String}(), nothing, Vector{XML.Node}())
+    if isnothing(j) # There are no existing merged cells. Insert immediately after the <sheetData> block and push everything else down one.
+        k, l = get_idces(sheetdoc, "worksheet", "sheetData")
+        len = length(sheetdoc[k])
+        i != k && throw(XLSXError("Some problem here!"))
         if l != len
-            insert!(sheetdoc[end].children, l+1, merge_node)
+            insert!(sheetdoc[k].children, l+1, XML.Element("mergeCells"))
         else
-            push!(sheetdoc[end], merge_node)
+            push!(sheetdoc[k], XML.Element("mergeCells"))
         end
-        l += 1
+        j = l + 1
         count = 0
     else # There are already some existing merged cells
-        c = XML.children(sheetdoc[end][l])
+        c = xml_elements(sheetdoc[i][j])
         count = length(c)
-        if count != parse(Int, sheetdoc[end][l]["count"])
+        if count != parse(Int, sheetdoc[i][j]["count"])
             throw(XLSXError("Unexpected number of mergeCells found: $(length(c)). Expected $(sheetdoc[i][j]["count"])."))
         end
         for child in c
@@ -2487,9 +2486,9 @@ function mergeCells(ws::Worksheet, cr::CellRange)
         end
     end
 
-    push!(sheetdoc[end][l], XML.Element("$(pfx)mergeCell", ref=string(cr))) # Add the new merged cell range.
+    push!(sheetdoc[i][j], XML.Element("mergeCell", ref=string(cr))) # Add the new merged cell range.
     count += 1
-    sheetdoc[end][l]["count"] = count
+    sheetdoc[i][j]["count"] = count
 
     # All cells except the base cell are set to missing.
     let first = true

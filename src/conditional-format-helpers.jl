@@ -61,7 +61,7 @@ function update_worksheet_cfx!(allcfs, cfx, ws, rng)
     matchcfs = filter(x -> x["sqref"] == string(rng), allcfs)   # Match range with existing conditional formatting blocks.
     l = length(matchcfs)
     if l == 0                                                   # No existing conditional formatting blocks for this range so create a new one.
-        new_cf = XML.Element("$(pfx)conditionalFormatting"; sqref=rng)
+        new_cf = XML.Element("conditionalFormatting"; sqref=string(rng))
         push!(new_cf, cfx)
         add_cf_to_XML(ws, new_cf)                               # Add the new conditional formatting block to the worksheet XML.
     elseif l == 1                                               # Existing conditional formatting block found for this range so add new rule to that block.
@@ -88,13 +88,13 @@ function allExtCfs(ws::Worksheet)::Vector{XML.Node}
     let cfs = nothing
         for ext in exts
             for c in XML.children(ext)
-                if XML.tag(c) == "x14:conditionalFormattings"
+                if localname(c) == "conditionalFormattings"
                     cfs = c
                     break
                 end
             end
         end
-        return isnothing(cfs) ? Vector{XML.Node}() : XML.children(cfs)
+        return isnothing(cfs) ? Vector{XML.Node}() : xml_elements(cfs)
     end
 end
 function make_extLst!(s)
@@ -113,7 +113,6 @@ end
 function update_worksheet_ext_cfx!(allcfs, cfx, ws, rng)
     wb = get_workbook(ws)
     sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
-#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
     i, j = get_idces(sheetdoc, "worksheet", "extLst")
     if isnothing(j)
         make_extLst!(sheetdoc[i])
@@ -177,23 +176,8 @@ function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
 
     if isnothing(j) # No existing conditional formats so need to add a block (is this even possible?). Push everything lower down one.
         throw(XLSXError("No <dxfs> block found in the styles.xml file. Please submit an issue to report this and attach the Excel file you were working with."))
-        #=  I don't think this can ever happen, so I've commented it out to improve coverage.
-            k, l = get_idces(xroot, "styleSheet", "cellStyles")
-            l += 1 # The dxfs block comes after the cellXfs block.
-            len = length(xroot[k])
-            i != k && throw(XLSXError("Some problem here!"))
-            push!(xroot[k], xroot[k][end]) # duplicate last element then move everything else down one
-            if l < len
-                for pos = len-1:-1:l
-                    xroot[k][pos+1] = xroot[k][pos]
-                end
-            end
-            xroot[k][l] = XML.Element("dxsf", count="0")
-            j = l
-            println(XML.write(xroot[i][j]))
-        =#
     else
-        existing_dxf_elements_count = length(XML.children(xroot[i][j]))
+        existing_dxf_elements_count = length(xml_elements(xroot[i][j]))
 
         if parse(Int, xroot[i][j]["count"]) != existing_dxf_elements_count
             throw(XLSXError("Wrong number of xf elements found: $existing_cellxf_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
@@ -201,8 +185,8 @@ function Add_Cf_Dx(wb::Workbook, new_dx::XML.Node)::DxFormat
     end
 
     #   Don't reuse duplicates here. Always create new!
-    existingdx = XML.children(xroot[i][j])
-    dxfs = unlink(xroot[i][j], ("dxfs", "dxf"), pfx) # Create the new <dxfs> Node
+    existingdx = xml_elements(xroot[i][j])
+    dxfs = unlink(xroot[i][j], ("dxfs", "dxf")) # Create the new <dxfs> Node
     if length(existingdx) > 0
         for c in existingdx
             push!(dxfs, c) # Copy each existing <dxf> into the new <dxfs> Node
@@ -242,83 +226,58 @@ function get_dx(dxStyle::Union{Nothing,String}, format::Union{Nothing,Vector{Pai
 end
 function get_new_dx(wb::Workbook, dx::Dict{String,Dict{String,String}})::XML.Node
     new_dx = XML.Element("dxf")
-    for k in ["font", "format", "fill", "border"] # Order seems to be important to Excel.
-        if haskey(dx, k)
-            v = dx[k]
-            if k == "fill"
-                if !isnothing(v)
-                    filldx = XML.Element("fill")
-                    patterndx = XML.Element("patternFill")
-                    for (y, z) in v
-                        y in ["pattern", "bgColor", "fgColor"] || throw(XLSXError("Invalid fill attribute: $k. Valid options are: `pattern`, `bgColor`, `fgColor`."))
-                        if y in ["fgColor", "bgColor"]
-                            push!(patterndx, XML.Element(y, rgb=get_color(z)))
-                        elseif y == "pattern" && z != "none"
-                            patterndx["patternType"] = z
-                        end
-                    end
-                    push!(filldx, patterndx)
+
+    for k in ["font", "format", "fill", "border"]
+        haskey(dx, k) || continue
+        v = dx[k]
+
+        if k == "fill"
+            filldx = XML.Element("fill")
+            patterndx = XML.Element("patternFill")
+            for (y, z) in v
+                y in ["pattern", "bgColor", "fgColor"] || throw(XLSXError("Invalid fill attribute: $y. Valid options are: `pattern`, `bgColor`, `fgColor`."))
+                if y in ["fgColor", "bgColor"]
+                    push!(patterndx, XML.Element(y, rgb=get_color(z)))
+                elseif y == "pattern" && z != "none"
+                    patterndx["patternType"] = z
                 end
-                push!(new_dx, filldx)
-            elseif k == "font"
-                if !isnothing(v)
-                    fontdx = XML.Element("font")
-                    for (y, z) in v
-                        y in ["color", "bold", "italic", "under", "strike"] || throw(XLSXError("Invalid font attribute: $y. Valid options are: `color`, `bold`, `italic`, `under`, `strike`."))
-                        if y == "color"
-                            push!(fontdx, XML.Element(y, rgb=get_color(z)))
-                        elseif y == "bold"
-                            z == "true" && push!(fontdx, XML.Element("b", val="0"))
-                        elseif y == "italic"
-                            z == "true" && push!(fontdx, XML.Element("i", val="0"))
-                        elseif y == "under"
-                            z != "none" && push!(fontdx, XML.Element("u"; val="v"))
-                        elseif y == "strike"
-                            z == "true" && push!(fontdx, XML.Element(y))
-                        end
-                    end
+            end
+            push!(filldx, patterndx)
+            push!(new_dx, filldx)
+
+        elseif k == "font"
+            fontdx = XML.Element("font")
+            for (y, z) in v
+                y in ["color", "bold", "italic", "under", "strike"] || throw(XLSXError("Invalid font attribute: $y. Valid options are: `color`, `bold`, `italic`, `under`, `strike`."))
+                if     y == "color"                  ; push!(fontdx, XML.Element(y, rgb=get_color(z)))
+                elseif y == "bold"   && z == "true"  ; push!(fontdx, XML.Element("b", val="0"))
+                elseif y == "italic" && z == "true"  ; push!(fontdx, XML.Element("i", val="0"))
+                elseif y == "under"  && z != "none"  ; push!(fontdx, XML.Element("u"; val="v"))
+                elseif y == "strike" && z == "true"  ; push!(fontdx, XML.Element(y))
                 end
-                push!(new_dx, fontdx)
-            elseif k == "border"
-                if !isnothing(v)
-                    all([y in ["color", "style"] for y in keys(v)]) || throw(XLSXError("Invalid border attribute. Valid options are: `color`, `style`."))
-                    borderdx = XML.Element("border")
-                    cdx = haskey(v, "color") ? XML.Element("color", rgb=get_color(v["color"])) : nothing
-                    sdx = haskey(v, "style") ? v["style"] : nothing
-                    leftdx = XML.Element("left")
-                    rightdx = XML.Element("right")
-                    topdx = XML.Element("top")
-                    bottomdx = XML.Element("bottom")
-                    if !isnothing(sdx)
-                        leftdx["style"] = sdx
-                        rightdx["style"] = sdx
-                        topdx["style"] = sdx
-                        bottomdx["style"] = sdx
-                    end
-                    if !isnothing(cdx)
-                        push!(leftdx, cdx)
-                        push!(rightdx, cdx)
-                        push!(topdx, cdx)
-                        push!(bottomdx, cdx)
-                    end
-                end
-                push!(borderdx, leftdx)
-                push!(borderdx, rightdx)
-                push!(borderdx, topdx)
-                push!(borderdx, bottomdx)
-                push!(new_dx, borderdx)
-            elseif k == "format"
-                if !isnothing(v)
-                    if haskey(v, "format")
-                        fmtCode = v["format"]
-                        new_formatId = get_new_formatId(wb, fmtCode)
-                        new_fmtCode = styles_numFmt_formatCode(wb, new_formatId)
-                        fmtdx = XML.Element("numFmt"; numFmtId=string(new_formatId), formatCode=new_fmtCode)
-                        push!(new_dx, fmtdx)
-                    end
-                end
+            end
+            push!(new_dx, fontdx)
+
+        elseif k == "border"
+            all(y in ["color", "style"] for y in keys(v)) || throw(XLSXError("Invalid border attribute. Valid options are: `color`, `style`."))
+            borderdx = XML.Element("border")
+            cdx = haskey(v, "color") ? XML.Element("color", rgb=get_color(v["color"])) : nothing
+            sdx = get(v, "style", nothing)
+            for side in ["left", "right", "top", "bottom"]
+                el = XML.Element(side)
+                isnothing(sdx) || (el["style"] = sdx)
+                isnothing(cdx) || push!(el, cdx)
+                push!(borderdx, el)
+            end
+            push!(new_dx, borderdx)
+
+        elseif k == "format"
+            if haskey(v, "format")
+                new_formatId = get_new_formatId(wb, v["format"])
+                push!(new_dx, XML.Element("numFmt"; numFmtId=string(new_formatId), formatCode=styles_numFmt_formatCode(wb, new_formatId)))
             end
         end
     end
+
     return new_dx
 end

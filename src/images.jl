@@ -149,6 +149,7 @@ info = XLSX.addImage(sheet, "A1", "icon.png"; size=(128, 128))
 ```
 
 !!! note
+
     When a specified `size` is used or when the image's native pixel size 
     is used, the size of the image is always snapped to the nearest cell boundary. 
     The calculation assumes a default cell size of 64 pixels width and 20 
@@ -250,7 +251,7 @@ function ensure_drawing!(xf::XLSXFile, sheet_path::String)::String
         Target = "../drawings/$drawing_file",
     ))
 
-    ensure_drawing_element!(xf, xf.data[sheet_path], sheet_path, rid)
+    ensure_drawing_element!(xf, get_xml_data(xf, sheet_path), sheet_path, rid)
     register_content_type!(xf, "[Content_Types].xml";
                            tag="Override", key="PartName", val="/$drawing_path",
                            content_type=MIME_DRAWING)

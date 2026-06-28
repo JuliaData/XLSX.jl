@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [v0.12.0](https://github.com/JuliaData/XLSX.jl/tree/v0.12.0) - 2026-06-30
+- Adopt XML.jl v0.4
+- add a package extension to support [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
+- update copyright notice end-date
+- modularize tests
+- Julia floor raised to 1.10 (LTS)
+- Fix [#414](https://github.com/JuliaData/XLSX.jl/issues/410)
+
+No changes to existing public API.
+
 ## [v0.11.11](https://github.com/JuliaData/XLSX.jl/tree/v0.11.11) - 2026-06-18
 - Fix [#410](https://github.com/JuliaData/XLSX.jl/issues/410) by making `is_binary_path` case insensitive
 

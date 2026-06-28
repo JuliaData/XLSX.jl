@@ -350,11 +350,18 @@ Implementations: SheetRowStreamIterator, WorksheetCache.
 =#
 abstract type SheetRowIterator end
 
-mutable struct SheetRowStreamIteratorState
-    next_rownode::Union{Nothing, XML.LazyNode} # Worksheet row being processed
+mutable struct SheetRowStreamIteratorState{I}
+    row_iter::I
     rowcells::Dict{Int,Cell}
-    lock::ReentrantLock
+    local_formulas::Dict{SheetCellRef,AbstractFormula}
+    rows_since_merge::Int
 end
+#=
+struct SheetRowStreamIteratorState{I}
+    row_iter::I
+    rowcells::Dict{Int,Cell}
+end
+=#
 
 mutable struct WorksheetCacheIteratorState
     row_from_last_iteration::Int
@@ -370,6 +377,8 @@ mutable struct WorksheetCache{I<:SheetRowIterator} <: SheetRowIterator
     stream_state::Union{Nothing, SheetRowStreamIteratorState}
     dirty::Bool #indicate that data are not sorted, avoid sorting if we dont use the iterator
 end
+
+Base.isempty(wc::WorksheetCache) = isempty(wc.rows_in_cache)
 
 """
 A `Worksheet` represents a reference to an Excel Worksheet.
@@ -395,11 +404,12 @@ mutable struct Worksheet
     dimension::Union{Nothing, CellRange}
     is_hidden::Bool
     cache::Union{WorksheetCache, Nothing}
+    next_formula_id::Int
     unhandled_attributes::Union{Nothing,Dict{Int,Dict{String,String}}} # row => attributes(name=>value)
     sst_count::Int # number of cells containing a shared string
 
     function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, is_hidden::Bool)
-        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, nothing, 0)
+        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0)
     end
 end
 
@@ -410,16 +420,9 @@ end
 #------------------------------------------------------------------------------ sharedStrings
 mutable struct SharedStringTable
     shared_strings::Vector{String}
+    unformatted::Vector{String}
     index::Dict{String, Int64} # for search optimisation. Tuple of indices to handle hash collisions.
     is_loaded::Bool
-end
-struct SstToken
-    n::XML.LazyNode
-    idx::Int
-end
-struct Sst
-    formatted::String
-    idx::Int
 end
 
 const ValidRichTextAttributes = [:bold, :italic, :under, :strike, :vertAlign, :color, :size, :name]
@@ -544,18 +547,21 @@ end
 # worksheet_names from here when a workbook is saved in case any new defined 
 # names have been created.
 mutable struct Workbook
-    package::MSOfficePackage # parent XLSXFile
-    sheets::Vector{Worksheet} # workbook -> sheets -> <sheet name="Sheet1" r:id="rId1" sheetId="1"/>. sheetId determines the index of the WorkSheet in this vector.
-    date1904::Bool              # workbook -> workbookPr -> attribute date1904 = "1" or absent
-    relationships::Vector{Relationship} # contains workbook level relationships
-    formulas::Dict{SheetCellRef, AbstractFormula} # eg SheetCellRef("mysheet!A1") => formula (not deduped)
-    sst::SharedStringTable # shared string table
-    buffer_styles_is_float::Dict{Int, Bool}      # cell style -> true if is float
-    buffer_styles_is_datetime::Dict{Int, Bool}   # cell style -> true if is datetime
-    styles_lock::ReentrantLock # Prevent race conditions when accessing Styles
-    workbook_names::Dict{String, DefinedNameValue} # definedName
-    worksheet_names::Dict{Tuple{Int, String}, DefinedNameValue} # definedName. (sheetId, name) -> value.
+    package::MSOfficePackage
+    sheets::Vector{Worksheet}
+    date1904::Bool
+    relationships::Vector{Relationship}
+    formulas::Dict{SheetCellRef, AbstractFormula}
+    sst::SharedStringTable
+    buffer_styles_is_float::Dict{Int, Bool}
+    buffer_styles_is_datetime::Dict{Int, Bool}
+    styles_lock::ReentrantLock
+    formulas_lock::ReentrantLock
+    sst_lock::ReentrantLock
+    workbook_names::Dict{String, DefinedNameValue}
+    worksheet_names::Dict{Tuple{Int, String}, DefinedNameValue}
     styles_xroot::Union{XML.Node, Nothing}
+    num_style_index_cache::Dict{Int, CellDataFormat}  # cache for get_num_style_index
 end
 
 @enum TemplateType begin
@@ -582,9 +588,44 @@ sh = xf["mysheet"] # get a reference to a Worksheet
 """
 mutable struct XLSXFile <: MSOfficePackage
     source::Union{AbstractString, IO}
+    use_cache_for_sheet_data::Bool
+    files::Dict{String, Bool}
+    data::Dict{String, Union{XML.Node, String}}
+    namespace::Dict{String, Union{String, Nothing}}
+    binary_data::Dict{String, Vector{UInt8}}
+    workbook::Workbook
+    relationships::Vector{Relationship}
+    is_writable::Bool
+    template_type::TemplateType
+    uuid_rng::Random.Xoshiro
+#    worksheet_xml_cache::Dict{String, XML.LazyNode}  # filename => decompressed, parsed worksheet doc
+
+    function XLSXFile(source::Union{AbstractString, IO}, use_cache::Bool, is_writable::Bool)
+        check_for_xlsx_file_format(source)
+        xl = new(
+            source,
+            use_cache,
+            Dict{String, Bool}(),
+            Dict{String, Union{XML.Node, String}}(),
+            Dict{String, Union{String, Nothing}}(),
+            Dict{String, Vector{UInt8}}(),
+            EmptyWorkbook(),
+            Vector{Relationship}(),
+            is_writable,
+            NotATemplate,
+            Random.Xoshiro(2468),
+#            Dict{String, XML.LazyNode}()
+        )
+        xl.workbook.package = xl
+        return xl
+    end
+end
+#=
+mutable struct XLSXFile <: MSOfficePackage
+    source::Union{AbstractString, IO}
     use_cache_for_sheet_data::Bool # indicates whether Worksheet.cache will be fed while reading worksheet cells.
     files::Dict{String, Bool} # maps filename => isread bool
-    data::Dict{String, XML.Node} # maps filename => XMLDocument (with row/sst elements removed)
+    data::Dict{String, Union{XML.Node, String}}  # String = deferred parse for worksheets
     namespace::Dict{String, Union{String, Nothing}} # maps filename => prefix for each read xml file
     binary_data::Dict{String, Vector{UInt8}} # maps filename => file content in bytes
     workbook::Workbook
@@ -595,17 +636,29 @@ mutable struct XLSXFile <: MSOfficePackage
 
     function XLSXFile(source::Union{AbstractString, IO}, use_cache::Bool, is_writable::Bool)
         check_for_xlsx_file_format(source)
-        xl = new(source, use_cache, Dict{String, Bool}(), Dict{String, XML.Node}(), Dict{String, String}(), Dict{String, Vector{UInt8}}(), EmptyWorkbook(), Vector{Relationship}(), is_writable, NotATemplate, Random.Xoshiro(2468))
+        xl = new(
+            source,
+            use_cache,
+            Dict{String, Bool}(),
+            Dict{String, Union{XML.Node, String}}(),   # ← was Dict{String, XML.Node}()
+            Dict{String, Union{String, Nothing}}(),     # ← was Dict{String, String}()
+            Dict{String, Vector{UInt8}}(),
+            EmptyWorkbook(),
+            Vector{Relationship}(),
+            is_writable,
+            NotATemplate,
+            Random.Xoshiro(2468)
+        )
         xl.workbook.package = xl
         return xl
     end
 end
-
+=#
 
 
 struct ReadFile
-    node::Union{Nothing,XML.Node}
-    raw::Union{Nothing,XML.Raw}
+    node::Union{Nothing,XML.Node,String}
+    raw::Union{Nothing,String}
     bin::Union{Nothing,Vector{UInt8}}
     name::String
 end
@@ -696,11 +749,11 @@ struct DataTable
     end
 end
 
-struct xpath
+struct XPathInfo
     node::XML.Node
     path::String
 
-    function xpath(node::XML.Node, path::String)
+    function XPathInfo(node::XML.Node, path::String)
         new(node, path)
     end
 end

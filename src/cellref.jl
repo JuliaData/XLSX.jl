@@ -29,13 +29,7 @@ function CellRef(n::AbstractString)
     
     return CellRef(Int32(row), Int32(col))
 end
-#=
-function CellRef(n::AbstractString)
-    !is_valid_cellname(n) && throw(XLSXError("$n is not a valid CellRef."))
-    column_name, row_number = split_cellname(n)
-    return CellRef(Int32(row_number), Int32(decode_column_number(column_name)))
-end
-=#
+
 @inline CellRef(row::Integer, col::Integer) = CellRef(Int32(row), Int32(col))
 @inline CellPosition(ref::CellRef) = CellPosition(row_number(ref), column_number(ref))
 @inline row_number(p::CellPosition) = p.row
@@ -87,8 +81,29 @@ function encode_column_number(column_number::Integer) :: String
     end
 end
 
-Base.string(c::CellRef) = string(encode_column_number(column_number(c))) * string(row_number(c))
-Base.show(io::IO, c::CellRef) = print(io, string(c))
+function Base.print(io::IO, c::CellRef)
+    col = column_number(c)
+    third_letter_sequence = div(col - 26 - 1, 26*26)
+    col = col - third_letter_sequence*(26*26)
+    second_letter_sequence = div(col - 1, 26)
+    col = col - second_letter_sequence*26
+    first_letter_sequence = col
+
+    if third_letter_sequence > 0
+        write(io, Char(third_letter_sequence+64))
+        write(io, Char(second_letter_sequence+64))
+        write(io, Char(first_letter_sequence+64))
+    elseif second_letter_sequence > 0
+        write(io, Char(second_letter_sequence+64))
+        write(io, Char(first_letter_sequence+64))
+    else
+        write(io, Char(first_letter_sequence+64))
+    end
+    print(io, row_number(c))
+end
+
+Base.show(io::IO, c::CellRef) = print(io, c)
+Base.string(c::CellRef) = sprint(print, c)
 Base.:(==)(c1::CellRef, c2::CellRef) = c1.row_number == c2.row_number && c1.column_number == c2.column_number
 Base.hash(c::CellRef, h::UInt) = hash(c.column_number, hash(c.row_number, h))
 Base.isless(c1::CellRef, c2::CellRef) = Base.isless(string(c1), string(c2))

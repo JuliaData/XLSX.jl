@@ -68,7 +68,7 @@ function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
     a = XML.attributes(sheet_element)
     sheetId = parse(Int, a["sheetId"])
     relationship_id = a["r:id"]
-    name = XLSX.unescape(a["name"])
+    name = a["name"]
     is_hidden = haskey(a, "state") && a["state"] in ["hidden", "veryHidden"]
 
     return Worksheet(xf, sheetId, relationship_id, name, nothing, is_hidden)
@@ -95,56 +95,88 @@ end
 
 # 18.3.1.35 - dimension (Worksheet Dimensions). This is optional, and not required.
 function read_worksheet_dimension(xf::XLSXFile, relationship_id, name)::Union{Nothing,CellRange}
-
     wb = get_workbook(xf)
-    if hassheet(wb, name) # use worksheet cache if possible
+    local result::Union{Nothing,CellRange} = nothing
+    target_file = get_relationship_target_by_id("xl", wb, relationship_id)
+
+    doc = if haskey(xf.data, target_file)
+        xf.data[target_file]
+    else
+        open_internal_file_stream(xf, target_file)
+    end
+
+    if doc isa String || doc isa XML.LazyNode
+        # Cursor-based fast path: stop scanning as soon as we've passed
+        # sheetPr/dimension, without materializing the whole tree.
+        lznode = doc isa String ? parse(doc, XML.LazyNode) : doc
+        root = xml_root_element(lznode)
+        c = XML.Cursor(root)
+        XML.next!(c)  # land on root <worksheet> element itself, depth 1
+        while XML.next!(c) !== nothing
+            XML.depth(c) <= 1 && break
+            if XML.depth(c) == 2 && XML.nodetype(c) == XML.Element
+                lname = localname(c)
+                if lname == "dimension"
+                    ref_str = XML.get(c, "ref", nothing)
+                    if !isnothing(ref_str)
+                        if is_valid_cellname(ref_str)
+                            result = CellRange("$(ref_str):$(ref_str)")
+                        else
+                            result = CellRange(ref_str)
+                        end
+                    end
+                    break
+                elseif lname == "sheetPr"
+                    XML.skip_element!(c)
+                    continue
+                else
+                    break
+                end
+            end
+        end
+    else
+        # Already a fully-parsed XML.Node (e.g. chartsheets) — no Cursor
+        # support, fall back to a plain child scan.
+        root = xml_root_element(doc)
+        for child in XML.children(root)
+            if XML.nodetype(child) == XML.Element && localname(child) == "dimension"
+                ref_str = child["ref"]
+                if is_valid_cellname(ref_str)
+                    result = CellRange("$(ref_str):$(ref_str)")
+                else
+                    result = CellRange(ref_str)
+                end
+                break
+            end
+        end
+    end
+
+    !isnothing(result) && return result
+
+    if hassheet(wb, name)
         let ws = first(wb.sheets)
             for s in wb.sheets
                 if s.name == unquoteit(name)
-                    ws=s
+                    ws = s
                 end
             end
             if !isnothing(ws.cache) && !isempty(ws.cache) && ws.cache.is_full
-                return get_dimension(ws::Worksheet)
+                return get_dimension(ws)
             end
         end
     end
-
-    local result::Union{Nothing,CellRange} = nothing
-    target_file = get_relationship_target_by_id("xl", wb, relationship_id)
-    doc = open_internal_file_stream(xf, target_file)
-    reader = iterate(doc)
-    # Now let's look for a row element, if it exists
-    while reader !== nothing # go next node
-        (sheet_row, state) = reader
-        if XML.nodetype(sheet_row) == XML.Element && localname(sheet_row) == "dimension"
-
-            XML.depth(sheet_row) != 2 && throw(XLSXError("Malformed Worksheet \"$name\": unexpected node depth for dimension node: $(XML.depth(sheet_row))."))
-
-            ref_str = XML.attributes(sheet_row)["ref"]
-            if is_valid_cellname(ref_str)
-                result = CellRange("$(ref_str):$(ref_str)")
-            else
-                result = CellRange(ref_str)
-            end
-
-            break
-        end
-        reader = iterate(doc, state)
-    end
-
-    return result
+    return nothing
 end
 
 @inline isdate1904(ws::Worksheet) = isdate1904(get_workbook(ws))
 
 # Returns the dimension of this worksheet as a CellRange.
 # If the dimension is unknown, computes a dimension from cells in cache.
-# If the cache is empty or is not being used, set dimension to A1:A1.
+# If the cache is empty or is not being used, return (but don't set) A1:A1.
 function get_dimension(ws::Worksheet)::Union{Nothing,CellRange}
     !isnothing(ws.dimension) && return ws.dimension
     if isnothing(ws.cache) || isempty(ws.cache) || !ws.cache.is_full
-        set_dimension!(ws, CellRange(CellRef(1, 1), CellRef(1, 1)))
+        return CellRange(CellRef(1, 1), CellRef(1, 1))  # best-effort answer for display purposes; NOT persisted
     else
         row_extr = extrema(keys(ws.cache.cells))
         row_min = first(row_extr)

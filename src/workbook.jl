@@ -20,10 +20,9 @@ const WORKBOOK_ORDER = String[
     "extLst"
 ]
 
-    
 EmptyWorkbook() = Workbook(EmptyMSOfficePackage(), Vector{Worksheet}(), false, 
     Vector{Relationship}(), Dict{SheetCellRef, AbstractFormula}(), SharedStringTable(), Dict{Int,Bool}(), Dict{Int,Bool}(),
-    ReentrantLock(), Dict{String,DefinedNameValueTypes}(), Dict{Tuple{Int,String},DefinedNameValueTypes}(), nothing)
+    ReentrantLock(), ReentrantLock(), ReentrantLock(), Dict{String,DefinedNameValueTypes}(), Dict{Tuple{Int,String},DefinedNameValueTypes}(), nothing, Dict{Int, CellDataFormat}())
 
 #=
 Indicates whether this XLSX file can be edited.
@@ -96,9 +95,13 @@ function Base.show(io::IO, xf::XLSXFile)
             return "$sc Worksheets"
         end
     end
+    function source(xf)
+        xf.source isa IOBuffer && return "IOBuffer"
+        return "\"$(xf.source)\""
+    end
 
     wb = xf.workbook
-    print(io, "XLSXFile(\"$(xf.source)\") ",
+    print(io, "XLSXFile($(source(xf))) ",
         "containing $(sheetcountstr(wb))\n")
     @printf(io, "%21s %-13s %-13s\n", "sheetname", "size", "range")
     println(io, "-"^(21 + 1 + 13 + 1 + 13))

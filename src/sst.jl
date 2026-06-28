@@ -1,5 +1,5 @@
 
-SharedStringTable() = SharedStringTable(Vector{String}(), Dict{String, Int64}(), false)
+SharedStringTable() = SharedStringTable(Vector{String}(), Vector{String}(), Dict{String, Int64}(), false)
 
 @inline get_sst(wb::Workbook) = wb.sst
 @inline get_sst(xl::XLSXFile) = get_sst(get_workbook(xl))
@@ -24,8 +24,8 @@ function create_new_sst(wb::Workbook, sst::SharedStringTable)
         add_relationship!(wb, "sharedStrings.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings")
 
         # add Content Type <Override ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml" PartName="/xl/sharedStrings.xml"/>
-        ctype_root = xmlroot(get_xlsxfile(wb), "[Content_Types].xml")[end]
-        localname(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
+        ctype_root = xml_root_element(xmlroot(get_xlsxfile(wb), "[Content_Types].xml"))
+        XML.tag(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
         override_node = XML.Element("Override";
             ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml",
             PartName = "/xl/sharedStrings.xml"
@@ -34,173 +34,110 @@ function create_new_sst(wb::Workbook, sst::SharedStringTable)
         init_sst_index(sst)
     end
 end
+
 function add_to_sst!(ss::SharedStringTable, si_xml::String)::Int64
-    
-    # Check for match
+    isempty(ss.index) && init_sst_index(ss)
     ind = get(ss.index, si_xml, nothing)
-    if ind !== nothing
-        return ind  # Found exact match
-    end
-    
-    # No match found, add new entry
-    new_idx = length(ss.shared_strings)  # 0-based index
+    ind !== nothing && return ind
+    new_idx = length(ss.shared_strings)
     push!(ss.shared_strings, si_xml)
-
+    push!(ss.unformatted, unformatted_text(xml_root_element(parse(si_xml, XML.LazyNode))))
     ss.index[si_xml] = new_idx
-
     return new_idx
 end
 
-function add_formatted_string!(sst::SharedStringTable, str::String; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int64
-    if isnothing(mylock)
-        return add_to_sst!(sst, str)
-    else
-        lock(mylock) do
-            return add_to_sst!(sst, str)
-        end
+# Adds a string to shared string table. Returns the 0-based index of the shared string in the shared string table.
+function add_formatted_string!(wb::Workbook, sst::SharedStringTable, str::String)::Int64
+    lock(wb.sst_lock) do
+        add_to_sst!(sst, str)
     end
 end
-
-# Adds a string to shared string table. Returns the 0-based index of the shared string in the shared string table.
-function add_formatted_string!(wb::Workbook, str_formatted::String; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int64
-    if isempty(str_formatted)
-        throw(XLSXError("Can't add empty string to Shared String Table."))
-    end
+function add_formatted_string!(wb::Workbook, str_formatted::String)::Int64
+    isempty(str_formatted) && throw(XLSXError("Can't add empty string to Shared String Table."))
     sst = get_sst(wb)
-
-        # if got to this point, the file was opened as template but doesn't have a Shared String Table.
-        # Will create a new one.
-    if !sst.is_loaded
-        if isnothing(mylock)
-            create_new_sst(wb, sst)
-        else
-            lock(mylock) do # ensure thread-safety if multiple threads are trying to add inlineStrings
-                create_new_sst(wb, sst)
-            end
-        end
-    end
     
-    return add_formatted_string!(sst, str_formatted; mylock)
+    lock(wb.sst_lock) do
+        if has_sst(wb) && !sst.is_loaded
+            sst_load!(wb)
+        elseif !sst.is_loaded
+            create_new_sst(wb, sst)
+        end
+        add_to_sst!(sst, str_formatted)
+    end
 end
 
 # check if unformatted shared string needs xml:space="preserve"
-needs_preserve(s::String) = startswith(s, ' ') || endswith(s, ' ') || contains(s, '\n')  || contains(s, "  ")
+needs_preserve(s::AbstractString) = startswith(s, ' ') || endswith(s, ' ') || contains(s, '\n')  || contains(s, "  ")
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
-function add_shared_string!(wb::Workbook, str_unformatted::AbstractString; mylock::Union{Nothing,ReentrantLock}=nothing) :: Int
-    escaped = XLSX.escape(str_unformatted)
-
+function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int
+    escaped = XML.escape(str_unformatted)
+    # pfx is stable for the lifetime of the workbook — could be cached on wb
     pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
-    pfx = pfx == "" ? "" : "$(pfx):"
-    
-    io = IOBuffer()
-    write(io, "<$(pfx)si>\n  <$(pfx)t")
-    if needs_preserve(str_unformatted)
-        write(io, " xml:space=\"preserve\"")
+    pfx_colon = pfx == "" ? "" : "$(pfx):"
+
+    str_formatted = if needs_preserve(str_unformatted)
+        "<$(pfx_colon)si>\n  <$(pfx_colon)t xml:space=\"preserve\">$(escaped)</$(pfx_colon)t>\n</$(pfx_colon)si>"
+    else
+        "<$(pfx_colon)si>\n  <$(pfx_colon)t>$(escaped)</$(pfx_colon)t>\n</$(pfx_colon)si>"
     end
-    write(io, ">", escaped, "</$(pfx)t>\n</$(pfx)si>")
-    str_formatted = String(take!(io))
-    return add_formatted_string!(wb, str_formatted; mylock)
+
+    return add_formatted_string!(wb, str_formatted)
+end
+
+function _si_unformatted(child::XML.LazyNode)::String
+    # Fast path: find first <t> child and try is_simple_value on it
+    for t_node in XML.eachchildnode(child)
+        XML.nodetype(t_node) == XML.Element || continue
+        localname(t_node) == "t" || continue
+        sv = XML.is_simple_value(t_node)
+        isnothing(sv) || return String(sv)
+        break  # <t> exists but isn't simple — fall through
+    end
+    # Fallback for rich text / phonetic hints / complex structure
+    unformatted_text(child)
 end
 
 function sst_load!(workbook::Workbook)
-    chunksize = ROW_CHUNKSIZE
     sst = get_sst(workbook)
-    if !sst.is_loaded
+    sst.is_loaded && return
+    has_sst(workbook) || return
 
-        relationship_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"
-        if has_relationship_by_type(workbook, relationship_type)
-            sst_chan = stream_ssts(open_internal_file_stream(get_xlsxfile(workbook), "xl/sharedStrings.xml")[end], chunksize)
-            load_sst_table!(workbook, sst_chan, Threads.nthreads())
-            init_sst_index(sst)
-            
-            return
-        end
-
-        throw(XLSXError("Shared Strings Table not found for this workbook."))
-    end
-end
-@inline _is_tag(n::String, tag::String) = n == tag
-@inline _is_tag(n::Nothing, tag::String) = false
- function produce_sstchunks(out, n, ssts, chunksize)
-    i = 0           # Position within current chunk
-    global_idx = 0  # Global position in SST table
-   
-    while !isnothing(n)
-        if _is_tag(localname(n), "si")
-            i += 1
-            global_idx += 1
-            ssts[i] = SstToken(n, global_idx)  # ← Use global index
-        end
-        if i >= chunksize
-            put!(out, copy(ssts))
-            i = 0  # Reset chunk position, but global_idx keeps going
-        end
-        n = XML.next(n)
-    end
-    if i > 0
-        put!(out, copy(ssts[1:i]))
-    end
-end
-
-function stream_ssts(n::XML.LazyNode, chunksize::Int; channel_size::Int=1 << 8)
-    n = XML.next(n)
-    ssts = Vector{SstToken}(undef, chunksize)
-    Channel{Vector{SstToken}}(channel_size) do out
-        produce_sstchunks(out, n, ssts, chunksize)
-    end
-end
-
-function process_sst(wb, sst::SstToken)
-    el = sst.n
-    i = sst.idx
-
-    if XML.nodetype(el) != XML.Text
-        localname(el) != "si" && throw(XLSXError("Unsupported node $(localname(el)) in sst table."))
-        sst = Sst(XML.write(el), i)
-        return sst
-
+    xlsxfile = get_xlsxfile(workbook)
+    if !internal_xml_file_exists(xlsxfile, "xl/sharedStrings.xml")
+        sst.is_loaded = true
+        return
     end
 
-end
+    doc = open_internal_file_stream(xlsxfile, "xl/sharedStrings.xml")
+    empty!(sst.shared_strings)
+    empty!(sst.unformatted)
 
- function load_sst_table!(wb::Workbook, chan::Channel, nthreads::Int)
-    sst_table = get_sst(wb)
-    sst_table.is_loaded = true
-    sst_results = Channel{Vector{Sst}}(1 << 8)
-    all_ssts = Vector{Tuple{Int,Sst}}()
-   
-    consumer = @async begin
-        for ssts in sst_results        
-            for sst in ssts
-                push!(all_ssts, (sst.idx, sst))
-            end
-        end    
-        sort!(all_ssts, by = x -> x[1])
-   
-        empty!(sst_table.shared_strings)
-        empty!(sst_table.index)
+    sst_root = xml_root_element(doc)
+    xml_str = sst_root.data   # underlying string for zero-copy slice
 
-        for (i, sst) in all_ssts
-            push!(sst_table.shared_strings, sst.formatted)
-            sst_table.index[sst.formatted] = i - 1   # 0-based
-        end
-
+    uc = XML.get(sst_root, "uniqueCount", nothing)
+    if !isnothing(uc)
+        n = parse(Int, uc)
+        sizehint!(sst.shared_strings, n)
+        sizehint!(sst.unformatted, n)
     end
-   
-    # Producer tasks
-    @sync for _ in 1:nthreads
-        Threads.@spawn begin
-            for ssts in chan
-                # ssts is already a chunk - just process it
-                processed = [process_sst(wb, tok) for tok in ssts]
-                put!(sst_results, processed)
-            end
-        end
+
+    c = XML.Cursor(sst_root)
+    while XML.next!(c) !== nothing
+        XML.depth(c) == 1 && continue
+        XML.depth(c) != 2 && (XML.skip_element!(c); continue)
+        XML.nodetype(c) == XML.Element || continue
+        localname(c) == "si" || (XML.skip_element!(c); continue)
+        child = XML.LazyNode(c)
+        si_start = c.token.offset + 1
+        XML.skip_element!(c)
+        si_end = c.st.state.pos
+        push!(sst.shared_strings, xml_str[si_start:si_end-1])
+        push!(sst.unformatted, _si_unformatted(child))
     end
-   
-    close(sst_results)
-    wait(consumer)
+
+    sst.is_loaded = true
 end
 
 # Checks whether this workbook has a Shared String Table.
@@ -212,47 +149,42 @@ end
 # Helper function to gather unformatted text from Excel data files.
 # It looks at all children of `el` for tag name `t` and returns
 # a join of all the strings found.
-function unformatted_text(wb::Workbook, el::XML.LazyNode) :: String
+function unformatted_text(el::XML.LazyNode) :: String
     io = IOBuffer()
-    gather_strings!(wb, io, el)
-    s = XLSX.unescape(String(take!(io)))
-    return s
+    gather_strings!(io, el)
+    # XML.jl 0.4 `LazyNode` already unescapes entity references in `XML.value`,
+    # so no extra unescape is needed here.
+    return String(take!(io))
 end
 
-function gather_strings!(wb::Workbook, io::IOBuffer, e::XML.LazyNode)
-    tag = localname(e)
+# 2-arg form retained for call sites that thread the workbook (e.g. inlineStr cells).
+unformatted_text(::Workbook, el::XML.LazyNode) :: String = unformatted_text(el)
 
-    # Skip phonetic hints entirely
-    tag == "rPh" && return nothing
+function gather_strings!(io::IOBuffer, e::XML.LazyNode)
+    XML.nodetype(e) == XML.Element || return
+    tag = localname(e)
+    tag == "rPh" && return
 
     if tag == "t"
-        for c in XML.children(e)
-            if XML.nodetype(c) == XML.Text
-                val = XML.is_simple(c) ? XML.simple_value(c) : XML.value(c)
-                !isnothing(val) && write(io, val)
+        for ch in XML.eachchildnode(e)
+            nt = XML.nodetype(ch)
+            if nt === XML.Text || nt === XML.CData
+                v = XML.value(ch)
+                isnothing(v) || write(io, v)
             end
         end
-
-        # Fallback for truly empty <t>
-        if isempty(XML.children(e))
-            val = XML.is_simple(e) ? XML.simple_value(e) : XML.value(e)
-            !isnothing(val) && write(io, val)
-        end
     else
-        for ch in XML.children(e)
-            gather_strings!(wb, io, ch)
+        for ch in XML.eachchildnode(e)
+            gather_strings!(io, ch)
         end
     end
-
-    return nothing
 end
 
 # Looks for a string inside the Shared Strings Table (sst).
 # `index` starts at 0.
 @inline function sst_unformatted_string(wb::Workbook, index::Int64)::String
     sst_load!(wb)
-    uss = get_sst(wb).shared_strings[index+1]
-    return unformatted_text(wb, parse(XML.LazyNode, uss))
+    return get_sst(wb).unformatted[index+1]
 end
 
 @inline sst_unformatted_string(xl::XLSXFile, index::Int64) :: String = sst_unformatted_string(get_workbook(xl), index)
@@ -338,7 +270,7 @@ function richTextRunToXML!(io::IO, run::RichTextRun, pfx)
         contains(run.text, '\n') ||
         contains(run.text, "  ")
 
-    escaped = XLSX.escape(run.text)
+    escaped = XML.escape(run.text)
 
     if needs_preserve
         write(io, "<$(pfx)t xml:space=\"preserve\">", escaped, "</$(pfx)t>")
@@ -683,9 +615,9 @@ function resolve_theme_color(theme_index::Int, tint::Float64)
 end
 
 # Create a RichTextString from a shared string with multiple runs (or nothing if a simple text)
-function getRichTextString(wb::Workbook, xml_string::String)::Union{RichTextString, Nothing}
-    doc = parse(XML.Node, xml_string)
-    si = doc[end]
+function getRichTextString(::Workbook, xml_string::String)::Union{RichTextString, Nothing}
+    doc = parse(xml_string, XML.Node)
+    si = xml_root_element(doc)
     
     # Check for rich text runs <r> elements
     runs = [child for child in XML.children(si) if localname(child) == "r"]

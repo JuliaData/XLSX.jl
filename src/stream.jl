@@ -41,97 +41,205 @@ The iterator element is a SheetRow.
 
 #Base.show(io::IO, state::SheetRowStreamIteratorState) = print(io, "SheetRowStreamIteratorState( itr = $(state.itr), itr_state = $(state.itr_state), row = $(state.row) )")
 
+xml_elements(node) = filter(n -> XML.nodetype(n) == XML.Element, XML.children(node))
+
+## 1. Parsed DOM document
+#xml_root_element(doc::XML.Document) = XML.root(doc)
+xml_root_element(doc) = last(xml_elements(doc))
+
+# 2. Parsed DOM node
+#xml_root_element(n::XML.Node) = n
+
+# 3. LazyNode
+function xml_root_element(lz::XML.LazyNode)
+    c = XML.Cursor(lz)
+    while XML.next!(c) !== nothing
+        if XML.nodetype(c) == XML.Element
+            return XML.LazyNode(c)
+        end
+    end
+    error("No root element found")
+end
+
 # Opens a file for streaming.
-@inline function open_internal_file_stream(xf::XLSXFile, filename::String) :: XML.LazyNode
+#=@inline function open_internal_file_stream(xf::XLSXFile, filename::String) :: XML.LazyNode
+
+    cached = get(xf.worksheet_xml_cache, filename, nothing)
+    cached !== nothing && return cached
 
     !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
-#    if xf.use_cache_for_sheet_data || (xf.source isa IO)
     if xf.source isa IO
         seekstart(xf.source)
         zip_io = ZipArchives.ZipReader(read(xf.source))
     else
-        zip_io = ZipArchives.ZipReader(FileArray(abspath(xf.source))) # FileArray is marginally slower than mmap
-#       zip_io = ZipArchives.ZipReader(Mmap.mmap(abspath(xf.source))) # but Mmap is unreliable : https://discourse.julialang.org/t/struggling-to-use-mmap-with-ziparchives/129839
+        zip_io = ZipArchives.ZipReader(FileArray(abspath(xf.source)))
+    end
+    doc = parse(String(ZipArchives.zip_readentry(zip_io, filename)), XML.LazyNode)
+    xf.worksheet_xml_cache[filename] = doc
+    return doc
+end
+=#
+@inline function open_internal_file_stream(xf::XLSXFile, filename::String) :: XML.LazyNode
+
+    !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
+    if xf.source isa IO
+        seekstart(xf.source)
+        zip_io = ZipArchives.ZipReader(read(xf.source))
+    else
+        zip_io = ZipArchives.ZipReader(FileArray(abspath(xf.source)))
     end
 
-    return XML.LazyNode(XML.Raw(ZipArchives.zip_readentry(zip_io, filename)))
+    return parse(String(ZipArchives.zip_readentry(zip_io, filename)), XML.LazyNode)
 
 end
 
+
+# Collect all row LazyNodes from a worksheet's sheetData element.
+function _collect_row_nodes(doc::XML.LazyNode)
+    root = xml_root_element(doc)
+    localname(root) != "worksheet" && throw(XLSXError("Expecting to find a worksheet node. Found a $(localname(root))."))
+
+    # Find sheetData
+    sheetdata = nothing
+    for child in XML.children(root)
+        if localname(child) == "sheetData"
+            sheetdata = child
+            break
+        end
+    end
+    sheetdata === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
+
+    # Collect row nodes
+    return XML.LazyNode[child for child in XML.children(sheetdata) if localname(child) == "row"]
+end
+
+function _read_row_attrs(row::XML.LazyNode, wsname::String)
+    current_row = nothing
+    current_row_ht = nothing
+    for (k, v) in XML.eachattribute(row)
+        if k == "r"
+            current_row = parse(Int, v)
+        elseif k == "ht"
+            current_row_ht = parse(Float64, v)
+        end
+    end
+    current_row === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $wsname."))
+    return current_row, current_row_ht
+end
+
+# Creates an iterator for row elements in the Worksheet's XML.
 # Creates an iterator for row elements in the Worksheet's XML.
 function Base.iterate(itr::SheetRowStreamIterator)
     ws = get_worksheet(itr)
-    wb = get_workbook(ws)
     target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
-    sheetnode = open_internal_file_stream(get_xlsxfile(ws), target_file) # worksheet target files are LazyNodes
+    xf = get_xlsxfile(ws)
+    doc = open_internal_file_stream(xf, target_file)
     sst_pfx = get_sst_prefix(ws)
-
-    length(sheetnode) <= 0 && throw(XLSXError("Couldn't open reader for Worksheet $(ws.name)."))
-    localname(sheetnode[end]) !=  "worksheet"  && throw(XLSXError("Expecting to find a worksheet node: Found a $(localname(sheetnode[end]))."))
-
-    sheetnode=XML.next(sheetnode)
-
-    while localname(sheetnode) != "sheetData" # Check for `sheetData`
-        sheetnode = XML.next(sheetnode)
-        sheetnode === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
+    sheetdata = _find_sheetdata(doc, ws.name)
+    row_iter = XML.eachchildnode(sheetdata)
+    # Find first row
+    rownode = nothing
+    for child in row_iter
+        if XML.nodetype(child) == XML.Element && localname(child) == "row"
+            rownode = child
+            break
+        end
     end
-
-    XML.depth(sheetnode) != 2 && throw(XLSXError("Malformed Worksheet \"$(ws.name)\": unexpected node depth for sheetData node: $(XML.depth(sheetnode))."))
-
-    rownode=XML.next(sheetnode)
-
-    while localname(rownode) != "row" # Check for at least one `row`
-        rownode = XML.next(rownode)
-        rownode === nothing && return nothing # no rows found
-    end
-
-    # rownode is now the first row
-    a = XML.attributes(rownode) # get row number and row height (if specified)
-    current_row = parse(Int, a["r"])
-    current_row_ht = haskey(a, "ht") ? parse(Float64, a["ht"]) : nothing
-
-    # collect all cells in this row
-    rowcells = Dict{Int, Cell}()
-    mylock=ReentrantLock()
-    next_rownode, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx; mylock) # update rowcells in place
-    
+    isnothing(rownode) && return nothing
+    rowcells = Dict{Int,Cell}()
+    local_formulas = Dict{SheetCellRef,AbstractFormula}()
+    current_row, current_row_ht = _read_row_attrs(rownode, ws.name)
+    _, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx, local_formulas)
     itr.sheet.sst_count += sst_count
-
-    sheet_row = SheetRow(ws, current_row, current_row_ht, rowcells) # create the sheet_row
-
-    # debug
-#    @assert sheetnode.raw.data == next_rownode.raw.data "LazyNode data don't match"
-
-    return sheet_row, SheetRowStreamIteratorState(next_rownode, rowcells, mylock)
+    _merge_local_formulas!(get_workbook(ws), local_formulas)
+    state = SheetRowStreamIteratorState(row_iter, rowcells, local_formulas, 1)
+    return SheetRow(ws, current_row, current_row_ht, rowcells), state
 end
 
 function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIteratorState)
     ws = get_worksheet(itr)
-    rownode = state.next_rownode
-    rowcells = state.rowcells
-    mylock = state.lock
     sst_pfx = get_sst_prefix(ws)
-
-    empty!(rowcells)
-
-    if rownode === nothing # there is no next_rownode - all rows processed
-        return nothing
+    empty!(state.rowcells)
+    rownode = nothing
+    for child in state.row_iter
+        if XML.nodetype(child) == XML.Element && localname(child) == "row"
+            rownode = child
+            break
+        end
     end
-
-    # get row number and row height (if specified)
-    a = XML.attributes(rownode)
-    current_row = parse(Int, a["r"])
-    current_row_ht = haskey(a, "ht") ? parse(Float64, a["ht"]) : nothing
-
-    # collect all cells in this row
-    next_rownode, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx; mylock) # update rowcells in place
+    isnothing(rownode) && return nothing
+    current_row, current_row_ht = _read_row_attrs(rownode, ws.name)
+    _, sst_count = get_rowcells!(state.rowcells, rownode, ws, sst_pfx, state.local_formulas)
     itr.sheet.sst_count += sst_count
 
-    sheet_row = SheetRow(ws, current_row, current_row_ht, rowcells) # create the sheet_row
+    state.rows_since_merge += 1
+    if state.rows_since_merge >= 500
+        _merge_local_formulas!(get_workbook(ws), state.local_formulas)
+        state.rows_since_merge = 0
+    end
 
-    return sheet_row, SheetRowStreamIteratorState(next_rownode, rowcells, mylock)
+    return SheetRow(ws, current_row, current_row_ht, state.rowcells), state
 end
-    
+
+@inline function _merge_local_formulas!(wb::Workbook, local_formulas::Dict{SheetCellRef,AbstractFormula})
+    isempty(local_formulas) && return nothing
+    lock(wb.formulas_lock) do
+        merge!(wb.formulas, local_formulas)
+    end
+    empty!(local_formulas)
+    return nothing
+end
+#=
+function Base.iterate(itr::SheetRowStreamIterator)
+    ws = get_worksheet(itr)
+    target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
+    doc = open_internal_file_stream(get_xlsxfile(ws), target_file)
+    sst_pfx = get_sst_prefix(ws)
+
+    sheetdata = _find_sheetdata(doc, ws.name)
+    row_iter = XML.eachchildnode(sheetdata)
+
+    # Find first row
+    rownode = nothing
+    for child in row_iter
+        if XML.nodetype(child) == XML.Element && localname(child) == "row"
+            rownode = child
+            break
+        end
+    end
+    isnothing(rownode) && return nothing
+
+    rowcells = Dict{Int,Cell}()
+    mylock = ReentrantLock()
+    current_row, current_row_ht = _read_row_attrs(rownode, ws.name)
+    _, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx)
+    itr.sheet.sst_count += sst_count
+
+    state = SheetRowStreamIteratorState(row_iter, rowcells)
+    return SheetRow(ws, current_row, current_row_ht, rowcells), state
+end
+
+function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIteratorState)
+    ws = get_worksheet(itr)
+    sst_pfx = get_sst_prefix(ws)
+    empty!(state.rowcells)
+
+    rownode = nothing
+    for child in state.row_iter
+        if XML.nodetype(child) == XML.Element && localname(child) == "row"
+            rownode = child
+            break
+        end
+    end
+    isnothing(rownode) && return nothing
+
+    current_row, current_row_ht = _read_row_attrs(rownode, ws.name)
+    _, sst_count = get_rowcells!(state.rowcells, rownode, ws, sst_pfx)
+    itr.sheet.sst_count += sst_count
+
+    return SheetRow(ws, current_row, current_row_ht, state.rowcells), state
+end
+=#    
 #
 # WorksheetCache
 #
@@ -285,10 +393,15 @@ end
 """
 function eachrow(ws::Worksheet) :: SheetRowIterator
     if is_cache_enabled(ws)
-        if ws.cache === nothing # fill cache if enabled but empty on first use of eachrow iterator
+        if ws.cache === nothing
             target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
-            lznode = open_internal_file_stream(get_xlsxfile(ws), target_file)
-            first_cache_fill!(ws, lznode, Threads.nthreads()) # eagerly fill cache
+            xf = get_xlsxfile(ws)
+            raw = xf.data[target_file]
+            raw isa String || throw(XLSXError("Expected raw XML string for $target_file, got parsed node."))
+            lznode = parse(raw, XML.LazyNode)
+            first_cache_fill!(ws, lznode)
+            stripped, _ = splitNode(raw, "sheetData")
+            xf.data[target_file] = stripped   # swap back to stub
         end
         return ws.cache
     else
@@ -296,101 +409,161 @@ function eachrow(ws::Worksheet) :: SheetRowIterator
     end
 end
 
+#=
+function eachrow(ws::Worksheet) :: SheetRowIterator
+    if is_cache_enabled(ws)
+        if ws.cache === nothing # fill cache if enabled but empty on first use of eachrow iterator
+            target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
+            lznode = open_internal_file_stream(get_xlsxfile(ws), target_file)
+            first_cache_fill!(ws, lznode) # eagerly fill cache
+        end
+        return ws.cache
+    else
+        return SheetRowStreamIterator(ws)
+    end
+end
+=#
+
 function Base.isempty(sr::SheetRow)
     return isempty(sr.rowcells)
 end
 
 Base.length(r::WorksheetCache)=length(r.cells)
 
+const _EMPTY_ROW_ATTRS = Dict{String,String}()
+
 #--------------------------------------------------------------------- Fill cache on first read (multi-threaded)
-function produce_rowchunks!(out, n, rows, chunksize)
-    pos=0
-    while !isnothing(n)
-        if _is_tag(localname(n), "row")
-            pos += 1
-            rows[pos] = n
+
+function _find_sheetdata(doc::XML.LazyNode, wsname::String)::XML.LazyNode
+    c = XML.Cursor(doc)
+    while XML.next!(c) !== nothing
+        d = XML.depth(c)
+        d < 2 && continue
+        d > 2 && (XML.skip_element!(c); continue)
+        if XML.nodetype(c) == XML.Element && localname(c) == "sheetData"
+            return XML.LazyNode(c)
         end
-        if pos >= chunksize
-            put!(out, copy(rows))
-            pos=0
-        end
-        n = XML.next(n)
+        XML.skip_element!(c)
     end
-    if pos>0 # handle last incomplete chunk
-        put!(out, copy(@view rows[1:pos]))
-    end
+    throw(XLSXError("No `sheetData` node found in worksheet $wsname."))
 end
-
-function stream_rows(n::XML.LazyNode, chunksize::Int; channel_size::Int=1 << 8)
-    rows = Vector{XML.LazyNode}(undef, chunksize)
-    Channel{Vector{XML.LazyNode}}(channel_size) do out
-        produce_rowchunks!(out, n, rows, chunksize)
-    end
-end
-
-function process_row(row::XML.LazyNode, handled_attributes::Set{String}, ws::Worksheet, sst_pfx::String, mylock::ReentrantLock)
-    unhandled_attributes = Dict{String,String}()
-    current_row_ht = nothing   # initialise here
-    row_num = nothing          # initialise here
-
-    atts = XML.attributes(row)
-    isnothing(atts) && return nothing   # skip rows with no attributes
-
-    current_row_ht = haskey(atts, "ht") ? parse(Float64, atts["ht"]) : nothing
-    row_num = haskey(atts, "r") ? parse(Int, atts["r"]) : nothing
-    row_num === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
-    unhandled_attributes = Dict(filter(attr -> !in(first(attr), handled_attributes), atts))
-
-    rowcells = Dict{Int,Cell}()
-    _, sst_count = get_rowcells!(rowcells, row, ws, sst_pfx; mylock)
-
-    return sst_count, SheetRow(ws, row_num, current_row_ht, rowcells), unhandled_attributes
-end
-
-function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode, nthreads::Int)
-    chunksize = ROW_CHUNKSIZE
+function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
     handled_attributes = Set{String}(["r", "spans", "ht", "customHeight"])
     unhandled_attributes = Dict{Int,Dict{String,String}}()
     sst_pfx = get_sst_prefix(ws)
-   
+    wb = get_workbook(ws)
+    local_formulas = Dict{SheetCellRef, AbstractFormula}()  # ← local dict
+
     if ws.cache === nothing
         ws.cache = WorksheetCache(ws)
     else
         throw(XLSXError("Expecting empty cache but cache not empty!"))
     end
-   
-    sheet_rows = Channel{Vector{Tuple{Int, SheetRow, Dict{String,String}}}}(1 << 8)
-   
-    consumer = @async begin
-        sst_total = 0
-        for rows in sheet_rows
-            for (row_sst_count, sheet_row, unatt) in rows
-                if !isempty(unatt)
-                    unhandled_attributes[row_number(sheet_row)] = unatt
-                end
-                push_sheetrow!(ws.cache, sheet_row)
-                sst_total += row_sst_count
-            end
-        end
-        ws.sst_count = sst_total
-        ws.unhandled_attributes = isempty(unhandled_attributes) ? nothing : unhandled_attributes
-    end
-   
-    streamed_rows = stream_rows(lznode, chunksize)
-    mylock = ReentrantLock()
-   
-    @sync for _ in 1:nthreads
-        Threads.@spawn begin
-            for rows in streamed_rows
-                processed = filter!(!isnothing, [process_row(row, handled_attributes, ws, sst_pfx, mylock) for row in rows])
-                put!(sheet_rows, processed)
-            end
-        end
-    end
-   
-    close(sheet_rows)
 
-    wait(consumer)
+    sheetdata_lazy = nothing
+    c = XML.Cursor(lznode)
+    while XML.next!(c) !== nothing
+        d = XML.depth(c)
+        d < 2 && continue
+        d > 2 && (XML.skip_element!(c); continue)
+        if XML.nodetype(c) == XML.Element && localname(c) == "sheetData"
+            sheetdata_lazy = XML.LazyNode(c)
+            break
+        end
+        XML.skip_element!(c)
+    end
+    sheetdata_lazy === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
+
+    sst_total = 0
+    rowcells  = Dict{Int,Cell}()
+    row_num   = nothing
+    row_ht    = nothing
+    unhandled = _EMPTY_ROW_ATTRS
+
+    # Pre-compute expected column count from sheet dimension for Dict sizehint
+    dim = ws.dimension
+    expected_cols = isnothing(dim) ? 16 :
+        XLSX.column_number(dim.stop) - XLSX.column_number(dim.start) + 1
+
+    c2 = XML.Cursor(sheetdata_lazy)
+    while XML.next!(c2) !== nothing
+        d  = XML.depth(c2)
+        nt = XML.nodetype(c2)
+
+        if d == 2 && nt == XML.Element && localname(c2) == "row"
+            if !isnothing(row_num)
+                sr = SheetRow(ws, row_num, row_ht, rowcells)
+                !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
+                push_sheetrow!(ws.cache, sr)
+                rowcells  = Dict{Int,Cell}()
+                sizehint!(rowcells, expected_cols)
+                unhandled = _EMPTY_ROW_ATTRS
+                row_ht    = nothing
+            end
+            r_val = XML.get(c2, "r", nothing)
+            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
+            row_num = parse(Int, r_val)
+            ht_val  = XML.get(c2, "ht", nothing)
+            row_ht  = isnothing(ht_val) ? nothing : parse(Float64, ht_val)
+
+            let ln = XML.LazyNode(c2)
+                XML.foreach_attr(ln) do name_tok, val_tok
+                    k = XML.XMLTokenizer.raw(name_tok, ln.data)
+                    k in handled_attributes && return
+                    if unhandled === _EMPTY_ROW_ATTRS
+                        unhandled = Dict{String,String}()
+                    end
+                    unhandled[String(k)] = String(XML.XMLTokenizer.attr_value(val_tok, ln.data))
+                end
+            end
+
+        elseif d == 3 && nt == XML.Element && localname(c2) == "c"
+            cell_node = XML.LazyNode(c2)
+            XML.skip_element!(c2)
+            cell = Cell(cell_node, ws, sst_pfx, local_formulas)
+            sst_total += cell.datatype == CT_STRING ? 1 : 0
+            rowcells[column_number(cell)] = cell
+
+        elseif d == 2 && nt == XML.Element
+            XML.skip_element!(c2)
+
+        elseif d == 3 && nt == XML.Element
+            XML.skip_element!(c2)
+
+        end
+    end
+
+    if !isnothing(row_num)
+        sr = SheetRow(ws, row_num, row_ht, rowcells)
+        !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
+        push_sheetrow!(ws.cache, sr)
+    end
+
+    ws.sst_count = sst_total
+    ws.unhandled_attributes = isempty(unhandled_attributes) ? nothing : unhandled_attributes
+    
+    # Merge local formulas into workbook dict under single lock
+    if !isempty(local_formulas)
+        lock(wb.formulas_lock) do
+            merge!(wb.formulas, local_formulas)
+        end
+    end
+
+    # Update next_formula_id from merged formulas
+    if !isempty(wb.formulas)
+        ws_name = ws.name
+        max_id = -1
+        lock(wb.formulas_lock) do
+            for (ref, f) in wb.formulas
+                if ref.sheet == ws_name && f isa ReferencedFormula
+                    max_id = max(max_id, f.id)
+                end
+            end
+        end
+        if max_id >= ws.next_formula_id
+            ws.next_formula_id = max_id + 1
+        end
+    end
 
     ws.cache.is_full = true
 end
@@ -398,41 +571,79 @@ end
 # Materialise specific rows from a worksheet.xml file into SheetRows
 # (faster than using eachrow which materialises every row).
 function match_rows(ws::Worksheet, rows_to_match::Vector{Int})::Vector{SheetRow}
-    matched_rows=Vector{SheetRow}()
+    matched_rows = Vector{SheetRow}()
     sst_pfx = get_sst_prefix(ws)
-
+    local_formulas = Dict{SheetCellRef,AbstractFormula}()
     sort!(rows_to_match)
-    i=1
-    l=length(rows_to_match)
-    
+
     target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
-    lznode = open_internal_file_stream(get_xlsxfile(ws), target_file)
+    xf = get_xlsxfile(ws)
+    doc = open_internal_file_stream(xf, target_file)
+    sheetdata = _find_sheetdata(doc, ws.name)
 
-    n = XML.next(lznode)
-    mylock=ReentrantLock()
-    while !isnothing(n)
-        if localname(n) == "row" # find each row
-            atts = XML.attributes(n)
-            if !isnothing(atts)
-                row_num = haskey(atts, "r") ? parse(Int, atts["r"]) : nothing
-            end
-            row_num === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
-            if !isnothing(row_num) && row_num == rows_to_match[i] # process matching rows into SheetRows
-                current_row_ht = haskey(atts, "ht") ? parse(Float64, atts["ht"]) : nothing
+    i = 1
+    c = XML.Cursor(sheetdata)
+    while XML.next!(c) !== nothing && i <= length(rows_to_match)
+        XML.depth(c) == 1 && continue
+        XML.depth(c) != 2 && (XML.skip_element!(c); continue)
+        XML.nodetype(c) == XML.Element && localname(c) == "row" || (XML.skip_element!(c); continue)
 
-                # Process cells
-                rowcells = Dict{Int,Cell}()
-                n, _ = get_rowcells!(rowcells, n, ws, sst_pfx; mylock)
+        row_num_str = XML.get(c, "r", nothing)
+        row_num_str === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
+        row_num = parse(Int, row_num_str)
 
-                sheetrow = SheetRow(ws, row_num, current_row_ht, rowcells)
-                push!(matched_rows, sheetrow)
-                i+=1
-                i>l && break # stop once all rows matched
-                continue
-            end
+        row_num < rows_to_match[i] && (XML.skip_element!(c); continue)
+        row_num != rows_to_match[i] && (XML.skip_element!(c); continue)
+
+        ht_str = XML.get(c, "ht", nothing)
+        row_node = XML.LazyNode(c)
+        rowcells = Dict{Int,Cell}()
+        get_rowcells!(rowcells, row_node, ws, sst_pfx, local_formulas)
+        push!(matched_rows, SheetRow(ws, row_num, isnothing(ht_str) ? nothing : parse(Float64, ht_str), rowcells))
+        i += 1
+    end
+
+    if !isempty(local_formulas)
+        wb = get_workbook(ws)
+        lock(wb.formulas_lock) do
+            merge!(wb.formulas, local_formulas)
         end
-        n=XML.next(n)
     end
 
     return matched_rows
 end
+#=
+function match_rows(ws::Worksheet, rows_to_match::Vector{Int})::Vector{SheetRow}
+    matched_rows = Vector{SheetRow}()
+    sst_pfx = get_sst_prefix(ws)
+    sort!(rows_to_match)
+
+    target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
+    doc = open_internal_file_stream(get_xlsxfile(ws), target_file)
+    sheetdata = _find_sheetdata(doc, ws.name)
+
+    i = 1
+    c = XML.Cursor(sheetdata)
+    while XML.next!(c) !== nothing && i <= length(rows_to_match)
+        XML.depth(c) == 1 && continue
+        XML.depth(c) != 2 && (XML.skip_element!(c); continue)
+        XML.nodetype(c) == XML.Element && localname(c) == "row" || (XML.skip_element!(c); continue)
+
+        row_num_str = XML.get(c, "r", nothing)
+        row_num_str === nothing && throw(XLSXError("Row without 'r' attribute encountered in worksheet $(ws.name)."))
+        row_num = parse(Int, row_num_str)
+
+        row_num < rows_to_match[i] && (XML.skip_element!(c); continue)
+        row_num != rows_to_match[i] && (XML.skip_element!(c); continue)
+
+        ht_str = XML.get(c, "ht", nothing)
+        row_node = XML.LazyNode(c)
+        rowcells = Dict{Int,Cell}()
+        get_rowcells!(rowcells, row_node, ws, sst_pfx)
+        push!(matched_rows, SheetRow(ws, row_num, isnothing(ht_str) ? nothing : parse(Float64, ht_str), rowcells))
+        i += 1
+    end
+
+    return matched_rows
+end
+=#

@@ -131,24 +131,8 @@ copyfield(x) = x                  # everything else is immutable
 Base.copy(f::T) where T<:AbstractFormula = T(map(copyfield, getfield.(Ref(f), fieldnames(T)))...)
 
 function new_ReferencedFormula_Id(ws::Worksheet)
-    # return the first positive integer (or 0) not currently used as a ReferencedFormula Id
-
-    ids = Set{Int}()
-    for r in eachrow(ws) # first find all Ids currently in use
-        for cell in values(r.rowcells)
-            if cell.formula
-                rf = get_formula_from_cache(ws, cell.ref)
-                if rf isa ReferencedFormula
-                    push!(ids, rf.id)
-                end
-            end
-        end
-    end
-
-    id = 0
-    while id ∈ ids # then find first Id not currently in use
-        id += 1
-    end
+    id = ws.next_formula_id
+    ws.next_formula_id += 1
     return id
 end
 
@@ -168,7 +152,7 @@ function build_reference_index(ws::Worksheet)
     return refs
 end
 
-formula(f::ReferencedFormula)::Formula = Formula(f.formula, nothing, f.ref, f.unhandled) 
+formula(f::ReferencedFormula)::Formula = Formula(f.formula, nothing, nothing, f.unhandled) 
 
 function get_referenced_formula(ws::Worksheet, cellref::CellRef; refs::Union{Nothing,Dict{Int,ReferencedFormula}}=nothing)
     # find the actual formula a cell's FormulaReference refers to
@@ -215,10 +199,11 @@ function rereference_formulae(ws::Worksheet, cell::Cell)
 
     for newrng in ranges
         if size(newrng) == (1, 1) # replace with simple formula for single cell
-            f=get_formula_from_cache(ws, cell.ref)
-            f.ref=string(newrng.stop)
-            add_formula_to_cache(ws, newrng.stop, formula(f)) 
-         else # update reference and re-index all referring formulas
+            f = get_formula_from_cache(ws, cell.ref)
+            offset = cell_offset(cell.ref, newrng.start)
+            shifted = shift_excel_references(f.formula, offset)
+            add_formula_to_cache(ws, newrng.stop, Formula(shifted, nothing, nothing, f.unhandled))
+        else # update reference and re-index all referring formulas
             f = get_formula_from_cache(ws, cell.ref)
             delete!(wb.formulas, SheetCellRef(ws.name, cell.ref))
             cell.formula=false
@@ -254,7 +239,7 @@ function rereference_formulae(ws::Worksheet, oldcell::Cell, f::AbstractFormula, 
     return nothing
 end
 
-# shift the relative cell references ina formula when shifting a ReferencedFormula
+# shift the relative cell references in a formula when shifting a ReferencedFormula
 function shift_excel_references(formula::String, offset::Tuple{Int32,Int32})
     # Regex to match Excel-style cell references (e.g., A1, $A$1, A$1, $A1)
     pattern = r"\$?[A-Z]{1,3}\$?[1-9][0-9]*"
@@ -495,6 +480,12 @@ function needs_array_attr(fname::AbstractString, args::Vector{String})
     return false
 end
 
+const _RANGE_RE = r"^\=[A-Z\$]+\d+:[A-Z\$]+\d+$"
+const _BINOP_RANGE_RE = Regex("[+\\-*/^]\\s*[\\\$]?[A-Z]+[\\\$]?\\d+:[\\\$]?[A-Z]+[\\\$]?\\d+|[\\\$]?[A-Z]+[\\\$]?\\d+:[\\\$]?[A-Z]+[\\\$]?\\d+\\s*[+\\-*/^]")
+const _ARRAY_FUNC_RE = Regex("\\b(?:FREQUENCY|LINEST|LOGEST|MINVERSE|MMULT|MUNIT|MODE\\.MULT|TRANSPOSE|TREND|GROWTH)\\s*\\(")
+const _SPILL_FUNC_RE = Regex("\\b(?:" * join(SPILL_FUNCTIONS, "|") * ")\\s*\\(")
+const _INDEX_OFFSET_RE = Regex("\\b(?:INDEX|OFFSET|IF|CHOOSE)\\s*\\(")
+
 """
     is_array_formula(formula::String) -> Bool
 
@@ -504,37 +495,17 @@ Currently flags:
   - Functions with range arguments that return arrays (e.g. MMULT, TRANSPOSE)
 """
 function is_array_formula(formula::String)
-    # Simplistic regex for a cell/range reference like A1:B13
-    range_re = "[\$]?[A-Z]+[\$]?\\d+:[\$]?[A-Z]+[\$]?\\d+"
-
-    # Case 1: is a bare range
-    if occursin(Regex("^=$(range_re)\$"), formula)
-        return true
-    end
-    # Case 2: binary operator applied to a range
-    if occursin(Regex("[+\\-*/^]\\s*$(range_re)|$(range_re)\\s*[+\\-*/^]"), formula)
-        return true
-    end
-
-    # Case 3: known array-returning functions
-    array_funcs = ["FREQUENCY", "LINEST", "LOGEST", "MINVERSE", "MMULT", "MUNIT", "MODE.MULT", "TRANSPOSE", "TREND", "GROWTH"]
-    for f in array_funcs
-        if occursin(Regex("\\b$f\\s*\\("), formula)
-            return true
-        end
-    end
-
-    # Case 4: _xlfn functions
-    #    array_funcs = SPILL_FUNCTIONS # not all of these do? May need a different set here!
-    for f in SPILL_FUNCTIONS
-        if occursin(Regex("\\b$f\\s*\\("), formula)
-            return true
-        end
-    end
-
-    # Case 5: functions that spill conditional on given range
-    array_funcs = ["INDEX", "OFFSET", "IF", "CHOOSE"]
-    for f in array_funcs
+    # Fast path: simple arithmetic formulas can't be array formulas
+    # If no uppercase letters followed by digits and colon (range pattern),
+    # and no known function names, skip expensive checks
+    occursin(':', formula) || occursin('(', formula) || return false
+    
+    occursin(_RANGE_RE, formula)       && return true
+    occursin(_BINOP_RANGE_RE, formula) && return true
+    occursin(_ARRAY_FUNC_RE, formula)  && return true
+    occursin(_SPILL_FUNC_RE, formula)  && return true
+    
+    for f in ["INDEX", "OFFSET", "IF", "CHOOSE"]
         args = split_function_args(formula; fname=f)
         !isempty(args) && return needs_array_attr(f, args)
     end
@@ -600,21 +571,25 @@ function split_quoted(s::String)
     return parts
 end
 
-function prefix_excel_functions(formula::String, prefixes::Dict{String,String})
-    parts = split_quoted(formula)
+const EXCEL_FUNCTION_REGEXES = Dict(
+    k => (Regex("(?i)\\b" * k * "\\b"), v * k)
+    for (k, v) in EXCEL_FUNCTION_PREFIX
+)
 
-    for idx in 1:2:length(parts)   # only unquoted segments
+function prefix_excel_functions(formula::String, prefixes::Dict{String,String})
+    # Fast path: no Excel functions present
+    any(k -> occursin(k, uppercase(formula)) , keys(prefixes)) || return formula
+    
+    parts = split_quoted(formula)
+    for idx in 1:2:length(parts)
         seg = parts[idx]
-        for (k, v) in prefixes
-            r = Regex("(?i)\\b" * k * "\\b")
-            seg = replace(seg, r => v * k)
+        for (k, (r, replacement)) in EXCEL_FUNCTION_REGEXES
+            seg = replace(seg, r => replacement)
         end
         parts[idx] = seg
     end
-
     return join(parts)
 end
-
 
 function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::String; raw::Bool, spill::Union{Nothing,Bool})
 
@@ -660,7 +635,7 @@ function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::St
         ref = cellname(cellref) * ":" * cellname(cellref)
         cm = "1"
         if !haskey(xf.files, "xl/metadata.xml") # add metadata.xml on first use of a dynamicArray formula
-            xf.data["xl/metadata.xml"] = XML.Node(XML.Raw(copy(METADATA_XML_DATA)))
+            xf.data["xl/metadata.xml"] = parse(String(copy(METADATA_XML_DATA)), XML.Node)
             xf.files["xl/metadata.xml"] = true # set file as read
             add_override!(xf, "/xl/metadata.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml")
             rId = add_relationship!(get_workbook(xf), "metadata.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata")
@@ -706,7 +681,7 @@ function get_external_workbook_path(xf::XLSXFile, id::Int)
         haskey(atts, "r:id") || throw(XLSXError("Something wrong here!"))
         rId = atts["r:id"]
         # now need a second lookup of this further r:id
-        altUrls = XML.children(xmlroot(xf, "xl/externalLinks/_rels/$(basename(rel)).rels")[end])
+        altUrls = xml_elements(xml_root_element(xmlroot(xf, "xl/externalLinks/_rels/$(basename(rel)).rels")))
         for c in altUrls
             atts = XML.attributes(c)
             if haskey(atts, "Id") && atts["Id"] == rId
@@ -884,7 +859,7 @@ setFormula(ws::Worksheet, ::Colon; kw...) = process_colon(setFormula, ws, nothin
 #setFormula(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint(setFormula, ws, row, col; kw...)
 #setFormula(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_vecint(setFormula, ws, row, col; kw...)
 #setFormula(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint(setFormula, ws, row, col; kw...)
-function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Bool, spill::Union{Nothing,Bool}=nothing)
+function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Bool=false, spill::Union{Nothing,Bool}=nothing)
 
     xf = get_xlsxfile(ws)
 

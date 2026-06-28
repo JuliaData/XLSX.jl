@@ -1,0 +1,11 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
+XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
+
+[sources]
+XLSX = {path = "../../.."}
+XML = {path = "C:\\Users\\tim\\OneDrive\\Documents\\Julia\\XLSX-Cursor\\XML.jl"}
+
+[compat]
+julia = "1"

@@ -9,7 +9,6 @@ Base.show(io::IO, dt::DataTable) =
 Base.show(io::IO, ::MIME"text/plain", dt::DataTable) =
     print(io, "XLSX.DataTable with $(length(dt.data)) columns and $(length(dt.data[1])) rows.")
 
-
 # Returns a tuple with the first and last index of the columns for a `SheetRow`.
 function column_bounds(sr::SheetRow)
     isempty(sr) && throw(XLSXError("Can't get column bounds from an empty row."))
@@ -478,7 +477,7 @@ infer_eltype(v::Vector{T}) where T = T
 # Address issue 225
 #Tables.columnaccess(::Type{<:TableRowIterator}) = true # Not needed, it seems.
 function typed_column(v::Vector{Any})
-    T = XLSX.infer_eltype(v)
+    T = infer_eltype(v)
     result = Vector{T}(undef, length(v))
     for (i, x) in enumerate(v)
         result[i] = x

@@ -11,7 +11,6 @@ import Tables
 import Unicode
 import UUIDs
 import XML
-using OrderedCollections: OrderedDict
 import ZipArchives
 
 import PrecompileTools as PCT    # this is a small dependency.
@@ -40,9 +39,11 @@ export
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells
   
 const SPREADSHEET_NAMESPACE_XPATH_ARG = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-const EXCEL_MAX_COLS = 16_384     # total columns supported by Excel per sheet
-const EXCEL_MAX_ROWS = 1_048_576  # total rows supported by Excel per sheet (including headers)
-const ROW_CHUNKSIZE = 1000        # number of rows to be processed in each thread
+
+const EXCEL_MAX_COLS =    16_384           # total columns supported by Excel per sheet
+const EXCEL_MAX_ROWS = 1_048_576           # total rows supported by Excel per sheet (including headers)
+const ROW_CHUNKSIZE  =     1_000           # number of rows to be processed in each thread
+const MAX_THREADS    = Threads.nthreads()  # maximum number of threads to use for parallel processing
 
 include("types.jl")
 include("formula.jl")
@@ -65,7 +66,6 @@ include("images.jl")
 include("write.jl")
 include("fileArray.jl")
 
-
 PCT.@setup_workload begin
     # Putting some things in `@setup_workload` instead of `@compile_workload` can reduce the size of the
     # precompile file and potentially make loading faster.
@@ -79,7 +79,7 @@ PCT.@setup_workload begin
         openxlsx(s, mode="w") do xf
             xf[1][1:26, 1:26] = pi
         end
-        _ = XLSX.readtable(seekstart(s), 1, "A:Z")
+        _ = readtable(seekstart(s), 1, "A:Z")
         f= openxlsx(seekstart(s), mode="rw")
         f[1][1:26, 1:26] = pi
         setConditionalFormat(f[1], :, :cellIs)

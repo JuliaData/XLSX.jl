@@ -484,14 +484,18 @@ function getConditionalExtFormats(ws::Worksheet, allcfnodes::Vector{XML.Node})::
     allcfs = Vector{Pair{CellRange,NamedTuple{(:type, :priority),Tuple{String,Int64}}}}()
     for cf in allcfnodes
         let t, p, r, rule = false, ref = false
-            @assert XML.tag(cf) == "x14:conditionalFormatting" "Something wrong here"
-            sqref = cf[end]
-            if XML.tag(sqref) == "xm:sqref"
-                r = XML.simple_value(sqref)
+            @assert localname(cf) == "conditionalFormatting" "Something wrong here"
+            # Children may be interleaved with whitespace text nodes from the
+            # writer's indentation, so locate `xm:sqref` by name rather than
+            # assuming it is the last child.
+            cf_elements = xml_elements(cf)
+            sqref = findlast(c -> localname(c) == "sqref", cf_elements)
+            if !isnothing(sqref)
+                r = XML.simple_value(cf_elements[sqref])
                 ref = true
             end
-            for child in XML.children(cf)
-                if XML.tag(child) == "x14:cfRule"
+            for child in cf_elements
+                if localname(child) == "cfRule"
                     t = child["type"]
                     if t != "dataBar" # This is the other half of a dataBar definition - don't count twice!
                         p = parse(Int, child["priority"])
@@ -1455,16 +1459,16 @@ function setCfCellIs(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=())
     if isnothing(value)
         value = all(ismissing.(ws[rng])) ? nothing : string(sum(skipmissing(ws[rng])) / count(!ismissing, ws[rng]))
     end
-    cfx = XML.Element("$(pfx)cfRule"; type="cellIs", dxfId=Int(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="cellIs", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
     cfx["operator"] = operator
-    push!(cfx, XML.Element("$(pfx)formula", XML.Text(XLSX.escape(value))))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text(value)))
     if !isnothing(value2) && operator ∈ ["between", "notBetween"]
 
-        push!(cfx, XML.Element("$(pfx)formula", XML.Text(XLSX.escape(value2))))
+        push!(cfx, XML.Element("$(pfx)formula", XML.Text(value2)))
     end
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
@@ -1550,14 +1554,14 @@ function setCfContainsText(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
     end
     formula = replace(formula, "__txt__" => value, "__CR__" => string(first(rng)))
 
-    cfx = XML.Element("$(pfx)cfRule"; type=type, dxfId=Int(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type=type, dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
     cfx["operator"] = operator
     cfx["text"] = value
-    push!(cfx, XML.Element("$(pfx)formula", XML.Text(XLSX.escape(formula))))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text(formula)))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -1627,7 +1631,7 @@ function setCfTop10(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()):
 
     percent = ""
     bottom = ""
-    cfx = XML.Element("$(pfx)cfRule"; type="top10", dxfId=Int(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="top10", dxfId=string(dxid.id))
     if operator == "topN"
     elseif operator == "topN%"
         percent = "1"
@@ -1714,25 +1718,25 @@ function setCfAboveAverage(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,An
     dxid = Add_Cf_Dx(wb, new_dx)
 
     if operator == "aboveAverage"
-        cfx = XML.Element("$(pfx)cfRule"; type=operator, dxfId=Int(dxid.id), priority="1")
+        cfx = XML.Element("$(pfx)cfRule"; type=operator, dxfId=string(dxid.id), priority="1")
     elseif operator == "aboveEqAverage"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", equalAverage="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", equalAverage="1")
     elseif operator == "plus1StdDev"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", stdDev="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="1")
     elseif operator == "plus2StdDev"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", stdDev="2")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="2")
     elseif operator == "plus3StdDev"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", stdDev="3")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", stdDev="3")
     elseif operator == "belowAverage"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", aboveAverage="0")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0")
     elseif operator == "belowEqAverage"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", aboveAverage="0", equalAverage="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", equalAverage="1")
     elseif operator == "minus1StdDev"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", aboveAverage="0", stdDev="1")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="1")
     elseif operator == "minus2StdDev"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", aboveAverage="0", stdDev="2")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="2")
     elseif operator == "minus3StdDev"
-        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=Int(dxid.id), priority="1", aboveAverage="0", stdDev="3")
+        cfx = XML.Element("$(pfx)cfRule"; type="aboveAverage", dxfId=string(dxid.id), priority="1", aboveAverage="0", stdDev="3")
     else
         throw(XLSXError("Invalid operator: $operator. Valid options are: `aboveAverage`, `aboveEqAverage`, `plus1sStdDev`, `plus2StdDev`, `plus3StdDev`, `belowAverage`, `belowEqAverage`, `minus1StdDev`, `minus2StdDev`, `minus3StdDev`."))
     end
@@ -1811,14 +1815,14 @@ function setCfTimePeriod(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("$(pfx)cfRule"; type="timePeriod", dxfId=Int(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="timePeriod", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
     cfx["timePeriod"] = operator
 
-    push!(cfx, XML.Element("$(pfx)formula", XML.Text(XLSX.escape(formula))))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text(formula)))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -1895,12 +1899,12 @@ function setCfContainsBlankErrorUniqDup(ws::Worksheet, rng::CellRange; allkws::D
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("$(pfx)cfRule"; type=operator, dxfId=Int(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type=operator, dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
-    formula != "" && push!(cfx, XML.Element("$(pfx)formula", XML.Text(XLSX.escape(formula))))
+    formula != "" && push!(cfx, XML.Element("$(pfx)formula", XML.Text(formula)))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -1964,13 +1968,13 @@ function setCfFormula(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
     new_dx = get_new_dx(wb, dx)
     dxid = Add_Cf_Dx(wb, new_dx)
 
-    cfx = XML.Element("$(pfx)cfRule"; type="expression", dxfId=Int(dxid.id))
+    cfx = XML.Element("$(pfx)cfRule"; type="expression", dxfId=string(dxid.id))
     cfx["priority"] = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
     if !isnothing(stopIfTrue) && stopIfTrue == "true"
         cfx["stopIfTrue"] = "1"
     end
 
-    push!(cfx, XML.Element("$(pfx)formula", XML.Text("(" * XLSX.escape(uppercase_unquoted(formula)) * ")")))
+    push!(cfx, XML.Element("$(pfx)formula", XML.Text("(" * uppercase_unquoted(formula) * ")")))
 
     update_worksheet_cfx!(allcfs, cfx, ws, rng)
 
@@ -2039,7 +2043,7 @@ function setCfColorScale(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
 
     let new_pr, new_cf
 
-        new_pr = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
+        new_pr = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : "1"
 
         if isnothing(colorscale)
 
@@ -2064,7 +2068,7 @@ function setCfColorScale(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}
                         do_sheet_names_match(ws, SheetCellRef(val))
                         val = string(SheetCellRef(val).cellref)
                     end
-                    val = XLSX.escape(uppercase_unquoted(val))
+                    val = uppercase_unquoted(val)
                 end
             end
 
@@ -2196,7 +2200,7 @@ function setCfIconSet(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
 
     let new_pr, new_cf
 
-        new_pr = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : 1
+        new_pr = length(old_cf) > 0 ? string(maximum([last(x).priority for x in values(old_cf)]) + 1) : "1"
 
         isnothing(min_type) || min_type in ["percentile", "percent", "num", "formula"] || throw(XLSXError("Invalid min_type: $min_type. Valid options are: percentile, percent, num, formula."))
         (!isnothing(min_type) && min_type == "formula") || isnothing(min_val) || is_valid_fixed_cellname(min_val) || is_valid_fixed_sheet_cellname(min_val) || !isnothing(tryparse(Float64, min_val)) || throw(XLSXError("Invalid min_val: `$min_val`. Valid options (unless min_type is `formula`) are a CellRef (e.g. `\$A\$1`) or a number."))
@@ -2213,7 +2217,7 @@ function setCfIconSet(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
                     do_sheet_names_match(ws, SheetCellRef(val))
                     val = string(SheetCellRef(val).cellref)
                 end
-                val = XLSX.escape(uppercase_unquoted(val))
+                val = uppercase_unquoted(val)
             end
         end
         if !haskey(iconsets, iconset)
@@ -2273,8 +2277,9 @@ function setCfIconSet(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
                     else
                         c = XML.Element("xm:f", XML.Text(val))
                     end
-                    if isnothing(XML.children(cfx[1][i+1]))
-                        cfx[1][i+1] = XML.Node(cfx[1][i+1], c)
+                    if isempty(XML.children(cfx[1][i+1]))
+                        old = cfx[1][i+1]
+                        cfx[1][i+1] = XML.Node{String}(XML.Element, XML.tag(old), old.attributes, nothing, XML.Node{String}[c])
                     else
                         cfx[1][i+1][1] = c
                     end
@@ -2435,7 +2440,7 @@ function setCfDataBar(ws::Worksheet, rng::CellRange; allkws::Dict{Symbol,Any}=()
                     do_sheet_names_match(ws, SheetCellRef(val))
                     val = string(SheetCellRef(val).cellref)
                 end
-                val = XLSX.escape(uppercase_unquoted(val))
+                val = uppercase_unquoted(val)
             end
         end
         if !haskey(databars, databar)

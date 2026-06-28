@@ -129,66 +129,71 @@ geterror(c::AbstractVector) = collect(geterror.(c))
 geterror(c::AbstractMatrix) = collect(geterror.(c))
 geterror(c::AbstractVector{<:AbstractMatrix}) = [collect(geterror.(M)) for M in c]
 geterror(c::AbstractCell) = get_error_string(getval(c))
-#=
-# Returns the enums directly rather than the strings:
-# julia> XLSX.geterror(s, "A1")
-# XL_NULL::CellErrorType = 0x0000000000000001
-#
-function geterror(c::AbstractCell)
-    c = getval(c)
-    isnothing(c) && return ""
-    return CellErrorType(c)
-end
-=#
 
 # Extracts the unformatted text from an inlineStr "is" XML element as a <si> XML string.
-function _rewrite_node(node::XML.LazyNode, pfx::Union{String,Nothing})::String
-    pfx = something(pfx, "")
+function _rewrite_node(io::IOBuffer, node::XML.LazyNode, pfx::String)
+    XML.nodetype(node) == XML.Element || return nothing
     tag = localname(node)
-    
-    attrs = XML.attributes(node)
-    attr_str = isnothing(attrs) || isempty(attrs) ? "" : " " * join(
-        ("$(k)=\"$(v)\"" for (k, v) in attrs), " "
-    )
-    
-    children = XML.children(node)
-    
-    if tag == "t"
-        # Emit text inline to avoid injecting whitespace text nodes
-        txt = if isempty(children)
-            XML.value(node)
-        else
-            join((XML.is_simple(c) ? XML.simple_value(c) : something(XML.value(c), "") for c in children), "")
-        end
-        return "<$(pfx)$(tag)$(attr_str)>$(something(txt, ""))</$(pfx)$(tag)>"
-    elseif isempty(children)
-        txt = XML.value(node)
-        if txt !== nothing && !isempty(txt)
-            return "<$(pfx)$(tag)$(attr_str)>$(txt)</$(pfx)$(tag)>"
-        else
-            return "<$(pfx)$(tag)$(attr_str)/>"
-        end
-    else
-        inner = join(_rewrite_node.(children, pfx), "\n  ")
-        return "<$(pfx)$(tag)$(attr_str)>\n  $(inner)\n</$(pfx)$(tag)>"
+
+    write(io, '<', pfx, tag)
+    for (k, v) in XML.eachattribute(node)
+        write(io, ' ', k, '=', '"', v, '"')
     end
+
+    first_child = iterate(XML.eachchildnode(node))
+
+    if isnothing(first_child)
+        txt = XML.value(node)
+        if txt isa AbstractString && !isempty(txt)
+            write(io, '>', txt, '<', '/', pfx, tag, '>')
+        else
+            write(io, '/', '>')
+        end
+    elseif tag == "t"
+        write(io, '>')
+        for child in XML.eachchildnode(node)
+            sv = XML.is_simple_value(child)
+            if !isnothing(sv)
+                write(io, sv)
+            else
+                v = XML.value(child)
+                !isnothing(v) && write(io, v)
+            end
+        end
+        write(io, '<', '/', pfx, tag, '>')
+    else
+        write(io, '>')
+        for child in XML.eachchildnode(node)
+            XML.nodetype(child) == XML.Element || continue
+            write(io, "\n  ")
+            _rewrite_node(io, child, pfx)
+        end
+        write(io, '\n', '<', '/', pfx, tag, '>')
+    end
+    return nothing
+end
+
+function _rewrite_node(node::XML.LazyNode, pfx::Union{String,Nothing})::String
+    io = IOBuffer()
+    _rewrite_node(io, node, something(pfx, ""))
+    return String(take!(io))
 end
 
 function _build_si_xml(si_node::XML.LazyNode, pfx::String)::String
-    children = XML.children(si_node)
-    inner = join(_rewrite_node.(children, pfx), "\n  ")
+    io = IOBuffer()
     prefix_part = isempty(pfx) ? "si" : "$(pfx)si"
-    return "<$(prefix_part)>\n  $(inner)\n</$(prefix_part)>"
+    write(io, '<', prefix_part, '>')
+    for child in XML.eachchildnode(si_node)
+        XML.nodetype(child) == XML.Element || continue
+        write(io, "\n  ")
+        _rewrite_node(io, child, pfx)
+    end
+    write(io, '\n', '<', '/', prefix_part, '>')
+    return String(take!(io))
 end
-#=
-function _build_si_xml(child::XML.LazyNode, pfx::String)::String
-    inner = join(XML.write.(XML.children(child)), "\n")
-    return "<$(pfx)si>\n  $inner\n</$(pfx)si>"
-end
-=#
 
 # Parses a style string to (UInt32, Int) for use as style and num_style.
-function _parse_style(s::String)
+function _parse_style(s::AbstractString)
     isempty(s) && return UInt32(0), 0
     n = parse(Int, s)
     return UInt32(n), n
@@ -197,55 +202,61 @@ end
 # Resolves unhandled_attributes to nothing if empty, for compact Formula construction.
 _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 
-function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{ReentrantLock,Nothing}=nothing)::Union{Cell,EmptyCell}
+function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
+              local_formulas::Union{Nothing, Dict{SheetCellRef, AbstractFormula}}=nothing)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
-
     @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
 
-    a   = XML.attributes(c)
-    chn = XML.children(c)
-    ref = CellRef(a["r"])
+    ref_str::Union{SubString{String},String} = ""
+    t::Union{SubString{String},String}       = ""
+    s_str::Union{SubString{String},String}   = ""
+    m_str::Union{SubString{String},String}   = ""
+    XML.foreach_attr(c) do name_tok, val_tok
+        k = XML.XMLTokenizer.raw(name_tok, c.data)
+        if k == "r";      ref_str = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        elseif k == "t";  t       = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        elseif k == "s";  s_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        elseif k == "cm"; m_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        end
+    end
 
-    t     = get(a, "t", "")
-    s_str = get(a, "s", "")
-    m_str = get(a, "cm", "")
-
+    ref   = CellRef(ref_str)
     style, num_style = _parse_style(s_str)
-    meta::UInt32     = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
+    meta::UInt32 = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
 
     datatype::CellValueType = CT_EMPTY
     value::UInt64           = UInt64(0)
     formula::Bool           = false
 
-    if t == "inlineStr"
-        for child in chn
-            localname(child) == "is" || continue
+    for child in XML.eachchildnode(c)
+        XML.nodetype(child) == XML.Element || continue
+        tag = localname(child)
+
+        if t == "inlineStr"
+            tag == "is" || continue
             uft = unformatted_text(wb, child)
             if !isempty(uft)
                 ft = _build_si_xml(child, sst_pfx)
                 datatype = CT_STRING
-                value = reinterpret(UInt64, Int64(add_formatted_string!(wb, ft; mylock)))
+                value = reinterpret(UInt64, Int64(add_formatted_string!(wb, ft)))
             end
             break
-        end
-    else
-#        is_writable = get_xlsxfile(wb).is_writable
-        for child in chn
-            tag = localname(child)
+        else
             if tag == "v"
-                ch = XML.children(child)
-                isempty(ch) && continue
-                raw = XML.value(ch[1])
-                v = occursin('&', raw) ? XLSX.unescape(raw) : raw
-                datatype, value = process_tv(wb, t, v, num_style; mylock)
+                sv = XML.is_simple_value(child)
+                if !isnothing(sv) && !isempty(sv)
+                    datatype, value = process_tv(wb, t, sv, num_style)
+                end
             elseif tag == "f"
-                f = parse_formula_from_element(wb,child)
-                if isnothing(mylock)
-                    wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
-                else
-                    lock(mylock) do # avoid concurrent writes to wb.formulas from Threads.@spawn workers in first_cache_fill!
+                f = parse_formula_from_element(wb, child)
+                if isnothing(local_formulas)
+                    # streaming path — write directly under lock
+                    lock(wb.formulas_lock) do
                         wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
                     end
+                else
+                    # cache fill path — write to local dict, merged later
+                    local_formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
                 end
                 formula = true
             end
@@ -259,47 +270,50 @@ function parse_formula_from_element(wb, c_child_element)::AbstractFormula
     localname(c_child_element) == "f" ||
         throw(XLSXError("Expected nodename `f`. Found: `$(localname(c_child_element))`"))
 
-    # Extract formula string
-    formula_string = if XML.is_simple(c_child_element)
-        XLSX.unescape(XML.simple_value(c_child_element))
-    else
-        text_nodes = filter(x -> XML.nodetype(x) == XML.Text, XML.children(c_child_element))
-        isempty(text_nodes) ? "" : XLSX.unescape(XML.value(text_nodes[1]))
-    end
-
-    a = XML.attributes(c_child_element)
-
-    # Collect unhandled attributes
+    # Single pass over attributes — no Attributes dict allocated
+    t_val  = nothing
+    si_val = nothing
+    ref_val = nothing
     unhandled = Dict{String,String}()
-    if !isnothing(a)
-        for (k, v) in a
-            k ∉ ("t", "si", "ref") && push!(unhandled, k => v)
+    for (k, v) in XML.eachattribute(c_child_element)
+        if k == "t"
+            t_val = String(v)
+        elseif k == "si"
+            si_val = String(v)
+        elseif k == "ref"
+            ref_val = String(v)
+        else
+            unhandled[String(k)] = String(v)
         end
     end
 
-    is_array = false
-    ref      = nothing
+    # Extract text content — is_simple_value handles the common no-attribute case,
+    # fall back to eachchildnode for <f> elements that have attributes
+    formula_string = something(XML.is_simple_value(c_child_element), "")
+    if isempty(formula_string)
+        for ch in XML.eachchildnode(c_child_element)
+            if XML.nodetype(ch) === XML.Text
+                v = XML.value(ch)
+                isnothing(v) || (formula_string = v)
+                break
+            end
+        end
+    end
 
-    if !isnothing(a) && haskey(a, "t")
-        if a["t"] == "shared"
-            haskey(a, "si") || throw(XLSXError("Expected shared formula to have an index. `si` attribute is missing: $c_child_element"))
-            si = parse(Int, a["si"])
+    if !isnothing(t_val)
+        if t_val == "shared"
+            isnothing(si_val) && throw(XLSXError("Expected shared formula to have an index. `si` attribute is missing: $c_child_element"))
+            si = parse(Int, si_val)
             extra = _extra_attrs(unhandled)
-            return haskey(a, "ref") ?
-                ReferencedFormula(formula_string, si, a["ref"], extra) :
-                FormulaReference(si, extra)
-        elseif a["t"] == "array"
-            is_array = true
-            ref = get(a, "ref", nothing)
+            return isnothing(ref_val) ?
+                FormulaReference(si, extra) :
+                ReferencedFormula(formula_string, si, ref_val, extra)
+        elseif t_val == "array"
+            return Formula(formula_string, "array", ref_val, _extra_attrs(unhandled))
         end
     end
 
-    return Formula(
-        formula_string,
-        is_array ? "array" : nothing,
-        ref,
-        _extra_attrs(unhandled)
-    )
+    return Formula(formula_string, nothing, ref_val, _extra_attrs(unhandled))
 end
 
 # Returns (raw_value::UInt64, datatype::CellValueType) for datetime strings,
@@ -318,7 +332,7 @@ function _parse_excel_datetime_raw(v::AbstractString)
     end
 end
 
-function process_tv(wb::Workbook, t::String, v::String, num_style::Int; mylock::Union{ReentrantLock,Nothing}=nothing)
+function process_tv(wb::Workbook, t::AbstractString, v::AbstractString, num_style::Int)
     datatype::CellValueType = CT_EMPTY
     value::UInt64           = UInt64(0)
     isempty(v) && return datatype, value
@@ -341,9 +355,10 @@ function process_tv(wb::Workbook, t::String, v::String, num_style::Int; mylock::
         end
 
     elseif t == "s"
+        parsed = tryparse(Int64, v)
+        parsed === nothing && throw(XLSXError("Expected SST index in cell value, got: $v"))
         datatype = CT_STRING
-        value = reinterpret(UInt64, parse(Int64, v))
-
+        value = reinterpret(UInt64, parsed::Int64)
     elseif t == "b"
         datatype = CT_BOOL
         value = v == "1" ? UInt64(1) :
@@ -352,7 +367,7 @@ function process_tv(wb::Workbook, t::String, v::String, num_style::Int; mylock::
 
     elseif t == "str"
         datatype = CT_STRING
-        value = reinterpret(UInt64, Int64(add_shared_string!(wb, v; mylock)))
+        value = reinterpret(UInt64, Int64(add_shared_string!(wb, v)))
 
     elseif t == "e"
         datatype = CT_ERROR
@@ -483,31 +498,28 @@ function getdata(ws::Worksheet, cell::Cell)
 end
 
 # Extract cells from a <row> LazyNode and push them (in place) into a Dict(column -> Cell)
-function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String; mylock::Union{ReentrantLock,Nothing}=nothing)
-
-    # unthreaded cell extraction is (exceedingly marginally) slower but no lock conflicts introduced.
-
-    # debug
-    # @assert row.tag == "row" "Not a row node"
-
+# Extract cells from a <row> LazyNode and push them (in place) into a Dict(column -> Cell)
+function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String,
+                        local_formulas::Dict{SheetCellRef,AbstractFormula})
     sst_count = 0
-
-    d = row.depth
-
-    cellnode = XML.next(row)
-
-    while !isnothing(cellnode) && cellnode.depth > d
-        if localname(cellnode) == "c" # This is a cell
-            cell = Cell(cellnode, ws, sst_pfx; mylock) # construct an XLSX.Cell from an XML.LazyNode
-            sst_count += cell.datatype == CT_STRING ? 1 : 0
-            rowcells[column_number(cell)] = cell
-        end
-        cellnode = XML.next(cellnode)
+    for child in XML.eachchildnode(row)
+        XML.nodetype(child) == XML.Element || continue
+        localname(child) == "c" || continue
+        cell = Cell(child, ws, sst_pfx, local_formulas)
+        sst_count += cell.datatype == CT_STRING ? 1 : 0
+        rowcells[column_number(cell)] = cell
     end
-    if !isnothing(cellnode) && localname(cellnode) == "row" # have reached the beginning of next row
-        return cellnode, sst_count
-    else                                             # no more rows
-        return nothing, sst_count
-    end
-
+    return nothing, sst_count
 end
+#=function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String)
+    sst_count = 0
+    for child in XML.eachchildnode(row)
+        XML.nodetype(child) == XML.Element || continue
+        localname(child) == "c" || continue
+        cell = Cell(child, ws, sst_pfx)
+        sst_count += cell.datatype == CT_STRING ? 1 : 0
+        rowcells[column_number(cell)] = cell
+    end
+    return nothing, sst_count
+end
+=#

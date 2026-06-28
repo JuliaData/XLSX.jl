@@ -858,7 +858,7 @@ julia> XLSX.setConditionalFormat(s, "B2:B6", :cellIs; operator="greaterThan", va
     (e.g. "OtherSheet!A1"), but this is handled differently internally than references within the 
     same sheet. This functionality is not universally implemented in XLSX.jl yet. 
 
-### Overlaying conditional formats
+## Overlaying conditional formats
 
 It is possible to overlay multiple conditional formats over each other in a 
 cell range or even in different, overlapping cell ranges. Starting with a table of 

@@ -1,6 +1,6 @@
 name: CI
 on:
-#  workflow_dispatch:  # <-- Add this to allow manual execution
+ workflow_dispatch:  # <-- Add this to allow manual execution
   pull_request:
     branches:
       - master
@@ -16,8 +16,6 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.8'
-          - '1.9'
           - '1' # automatically expands to the latest stable 1.x release of Julia
           - 'lts'
           - 'pre'
