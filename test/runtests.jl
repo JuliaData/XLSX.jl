@@ -8,7 +8,7 @@ import CSV
 using StyledStrings
 
 # If SAVE_FILES is true then every testset that creates an XLSXFile in memory
-# or that writes an xlsx file will have a file creted in `outdir`.
+# or that writes an xlsx file will have a file created in `outdir`.
 # It may be possible to create files that XLSX.jl can handle but Excel, which 
 # has stricter rules, rejects. By creating the output of every testset as a 
 # file explicitly, it is possible to confirm that this never happens in practice 
