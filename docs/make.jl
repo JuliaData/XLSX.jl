@@ -1,12 +1,13 @@
-
 using Documenter, XLSX
-
 makedocs(
     sitename = "XLSX.jl",
     modules = [ XLSX ],
     pages = [
         "Home" => "index.md",
-        "Tutorial" => "tutorial.md",
+        "Tutorial" => Any[
+            "XLSX Tutorial" => "tutorial/XLSXtutorial.md",
+            "FileIO Tutorial" => "tutorial/FileIOtutorial.md",
+        ],
         "Formatting Guide" => Any[
             "Cell formats" => "formatting/cellFormatting.md",
             "Conditional formats" => "formatting/conditionalFormatting.md",
@@ -24,8 +25,6 @@ makedocs(
      ],
     checkdocs=:none,
 )
-
-
 deploydocs(
     repo = "github.com/JuliaData/XLSX.jl.git",
     target = "build",
@@ -34,4 +33,3 @@ deploydocs(
         "dev" => "dev"
     ],
 )
-
