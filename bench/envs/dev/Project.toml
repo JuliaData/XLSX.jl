@@ -5,7 +5,7 @@ XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
 
 [sources]
 XLSX = {path = "../../.."}
-XML = {url = "https://github.com/JuliaData/XML.jl.git", rev = "v0.4-dev"}
+XML = {rev = "v0.4-dev", url = "https://github.com/JuliaData/XML.jl.git"}
 
 [compat]
 julia = "1"
