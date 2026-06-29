@@ -203,10 +203,10 @@ end
 _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 
 function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
-              local_formulas::Union{Nothing, Dict{SheetCellRef, AbstractFormula}}=nothing)::Union{Cell,EmptyCell}
+              local_formulas::Union{Nothing, Dict{SheetCellRef, AbstractFormula}}=nothing,
+              load_formulas::Bool=true)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
     @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
-
     ref_str::Union{SubString{String},String} = ""
     t::Union{SubString{String},String}       = ""
     s_str::Union{SubString{String},String}   = ""
@@ -219,19 +219,15 @@ function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
         elseif k == "cm"; m_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
         end
     end
-
     ref   = CellRef(ref_str)
     style, num_style = _parse_style(s_str)
     meta::UInt32 = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
-
     datatype::CellValueType = CT_EMPTY
     value::UInt64           = UInt64(0)
     formula::Bool           = false
-
     for child in XML.eachchildnode(c)
         XML.nodetype(child) == XML.Element || continue
         tag = localname(child)
-
         if t == "inlineStr"
             tag == "is" || continue
             uft = unformatted_text(wb, child)
@@ -248,21 +244,22 @@ function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
                     datatype, value = process_tv(wb, t, sv, num_style)
                 end
             elseif tag == "f"
-                f = parse_formula_from_element(wb, child)
-                if isnothing(local_formulas)
-                    # streaming path — write directly under lock
-                    lock(wb.formulas_lock) do
-                        wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
+                if load_formulas
+                    f = parse_formula_from_element(wb, child)
+                    if isnothing(local_formulas)
+                        # streaming path — write directly under lock
+                        lock(wb.formulas_lock) do
+                            wb.formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
+                        end
+                    else
+                        # cache fill path — write to local dict, merged later
+                        local_formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
                     end
-                else
-                    # cache fill path — write to local dict, merged later
-                    local_formulas[SheetCellRef(combine_sheet_ref(ws, ref))] = f
                 end
                 formula = true
             end
         end
     end
-
     return Cell(ref, value, style, meta, datatype, formula)
 end
 
@@ -500,26 +497,15 @@ end
 # Extract cells from a <row> LazyNode and push them (in place) into a Dict(column -> Cell)
 # Extract cells from a <row> LazyNode and push them (in place) into a Dict(column -> Cell)
 function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String,
-                        local_formulas::Dict{SheetCellRef,AbstractFormula})
+                        local_formulas::Dict{SheetCellRef,AbstractFormula}, load_formulas::Bool=true)
     sst_count = 0
     for child in XML.eachchildnode(row)
         XML.nodetype(child) == XML.Element || continue
         localname(child) == "c" || continue
-        cell = Cell(child, ws, sst_pfx, local_formulas)
+        cell = Cell(child, ws, sst_pfx, local_formulas, load_formulas)
         sst_count += cell.datatype == CT_STRING ? 1 : 0
         rowcells[column_number(cell)] = cell
     end
     return nothing, sst_count
 end
-#=function get_rowcells!(rowcells::Dict{Int,Cell}, row::XML.LazyNode, ws::Worksheet, sst_pfx::String)
-    sst_count = 0
-    for child in XML.eachchildnode(row)
-        XML.nodetype(child) == XML.Element || continue
-        localname(child) == "c" || continue
-        cell = Cell(child, ws, sst_pfx)
-        sst_count += cell.datatype == CT_STRING ? 1 : 0
-        rowcells[column_number(cell)] = cell
-    end
-    return nothing, sst_count
-end
-=#
+

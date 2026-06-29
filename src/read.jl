@@ -718,12 +718,14 @@ end
 =#
 
 function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable_cache::Bool, _write::Bool;
-                            target_sheet::Union{Nothing,AbstractString,Integer}=nothing)::XLSXFile
+                            target_sheet::Union{Nothing,AbstractString,Integer}=nothing,
+                            load_formulas::Bool=true)::XLSXFile
+
     if _write
         !(_read && enable_cache) && throw(XLSXError("Cache must be enabled for files in `write` mode."))
     end
-    xf = XLSXFile(source, enable_cache, _write)
-
+    xf = XLSXFile(source, enable_cache, _write, load_formulas)
+    
     if source isa IO
         zip_io = ZipArchives.ZipReader(read(source))
     else
@@ -1476,7 +1478,7 @@ function readtable(source::Union{AbstractString,IO};
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
-    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=1)
+    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=1, load_formulas=false)
     return gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
@@ -1495,7 +1497,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
-    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet)
+    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet, load_formulas=false)
     return gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
@@ -1514,7 +1516,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
-    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet)
+    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet, load_formulas=false)
     return gettable(getsheet(xf, sheet), columns; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
@@ -1693,7 +1695,7 @@ function readtransposedtable(filename::AbstractString, sheetname::AbstractString
     if !isfile(filename)
         throw(XLSXError("File $filename not found."))
     end
-    xf = open_or_read_xlsx(filename, true, true, false; target_sheet=sheetname)
+    xf = open_or_read_xlsx(filename, true, true, false; load_formulas=false, target_sheet=sheetname)
     hassheet(xf, sheetname) || throw(XLSX.XLSXError("Sheet $sheetname not found in file $filename"))
     return gettransposedtable(xf[sheetname], rows; first_column, column_labels, header, normalizenames)
 end
@@ -1702,7 +1704,7 @@ function readtransposedtable(filename::AbstractString, sheetname::AbstractString
     if !isfile(filename)
         throw(XLSXError("File $filename not found."))
     end
-    xf = open_or_read_xlsx(filename, true, true, false; target_sheet=sheetname)
+    xf = open_or_read_xlsx(filename, true, true, false; load_formulas=false, target_sheet=sheetname)
     hassheet(xf, sheetname) || throw(XLSX.XLSXError("Sheet $sheetname not found in file $filename"))
     dim = get_dimension(xf[sheetname])
     return gettransposedtable(xf[sheetname], "$(dim.start.row_number):$(dim.stop.row_number)"; first_column, column_labels, header, normalizenames)
@@ -1712,7 +1714,7 @@ function readtransposedtable(filename::AbstractString; first_column=nothing, col
     if !isfile(filename)
         throw(XLSXError("File $filename not found."))
     end
-    xf = open_or_read_xlsx(filename, true, true, false; target_sheet=1)
+    xf = open_or_read_xlsx(filename, true, true, false; target_sheet=1, load_formulas=false)
     dim = get_dimension(xf[1])
     return gettransposedtable(xf[1], "$(dim.start.row_number):$(dim.stop.row_number)"; first_column, column_labels, header, normalizenames)
 end
