@@ -180,8 +180,11 @@ end
 @inline localname(tag::AbstractString) = _localname(tag)
 
 @inline function _localname(t::AbstractString)
-    i = findlast(':', t)
-    isnothing(i) ? t : SubString(t, i+1)
+    n = ncodeunits(t)
+    @inbounds for i in 1:n
+        codeunit(t, i) == 0x3a && return SubString(t, i+1)
+    end
+    return t
 end
 
 # Build a lookup dictionary for element names, qualified with the default namespace prefix if it exists.
