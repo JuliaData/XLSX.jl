@@ -178,7 +178,14 @@ function eachtablerow(
 
     if isnothing(column_labels)
         if header
-            sheet_row = find_row(itr, first_row)
+            sheet_row = if is_cache_enabled(sheet)
+                find_row(itr, first_row)   # cheap: itr is the persistent cache
+            else
+                # Streaming mode: avoid restarting the whole iterator just to
+                # fetch one already-known row — do a targeted single-row lookup.
+                matched = match_rows(sheet, [first_row])
+                isempty(matched) ? throw(XLSXError("Row $first_row not found in worksheet $(sheet.name).")) : matched[1]
+            end
             for column_index in column_range.start:column_range.stop
                 cell = getcell(sheet_row, column_index)
                 push_unique!(col_lab, sheet, cell)
