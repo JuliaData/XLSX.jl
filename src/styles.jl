@@ -92,7 +92,6 @@ function styles_xmlroot(workbook::Workbook)
     return workbook.styles_xroot
 end
 
-
 # Returns the xf XML node element for style `index`.
 # `index` is 0-based.
 function styles_cell_xf(wb::Workbook, index::Integer)::XML.Node

@@ -547,6 +547,11 @@ RichTextString: "Hello Kitty Hello"
  "Hello"                  [:color => "FF008000", :size => 14.0, :under => true]
 ```
 
+A rich text cell value created in Excel may have its colors defined using an Excel theme. Reading 
+such a value to a RichTextString will convert the theme color to the actual RGB color in the current 
+theme. If this RichTextString is subsequently written back to the same or a different cell, the 
+color will be written as an RGB color and the link to the theme will be lost.
+
 When they are written to a cell, named colors are converted to RGB values for Excel. However, 
 two RichTextStrings will be considered equal regardless of this representation so long as the 
 colors are identical. So:
@@ -568,54 +573,8 @@ function getRichTextString(s::Worksheet, c::CellRef)::Union{RichTextString, Noth
     return getRichTextString(get_workbook(s), uss)
 end
 
-const INDEXED_PALETTE = [
-    "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
-    "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
-    "800000", "008000", "000080", "808000", "800080", "008080", "C0C0C0", "808080",
-    "9999FF", "993366", "FFFFCC", "CCFFFF", "660066", "FF8080", "0066CC", "CCCCFF",
-    "000080", "FF00FF", "FFFF00", "00FFFF", "800080", "800000", "008080", "0000FF",
-    "00CCFF", "CCFFFF", "CCFFCC", "FFFF99", "99CCFF", "FF99CC", "CC99FF", "FFCC99",
-    "3366FF", "33CCCC", "99CC00", "FFCC00", "FF9900", "FF6600", "666699", "969696",
-    "003366", "339966", "003300", "333300", "993300", "993366", "333399", "333333"
-]
-
-# Excel tint algorithm
-@inline function apply_tint(channel::UInt8, tint::Float64)::UInt8
-    c = Float64(channel)
-    if tint > 0
-        c = c + (255 - c) * tint
-    else
-        c = c * (1 + tint)
-    end
-    return UInt8(clamp(round(Int, c), 0, 255))
-end
-
-# Convert theme + tint to RGB
-function resolve_theme_color(theme_index::Int, tint::Float64)
-    # Default Excel theme colors - assume these are never customised.
-     theme = [
-    0x000000, 0xFFFFFF, 0x1F497D, 0xEEECE1,
-    0x4F81BD, 0xC0504D, 0x9BBB59, 0x8064A2,
-    0x4BACC6, 0xF79646,
-    0x0000FF,  # hyperlink
-    0x800080   # followed hyperlink
-]
-
-    base = theme[theme_index + 1]
-    r = apply_tint(UInt8(base >> 16), tint)
-    g = apply_tint(UInt8((base >> 8) & 0xFF), tint)
-    b = apply_tint(UInt8(base & 0xFF), tint)
-
-   buf = IOBuffer()
-    print(buf, "FF")
-    print(buf, uppercase(string(r, base=16, pad=2)))
-    print(buf, uppercase(string(g, base=16, pad=2)))
-    print(buf, uppercase(string(b, base=16, pad=2)))
-    return String(take!(buf))
-end
-
 # Create a RichTextString from a shared string with multiple runs (or nothing if a simple text)
-function getRichTextString(::Workbook, xml_string::String)::Union{RichTextString, Nothing}
+function getRichTextString(wb::Workbook, xml_string::String)::Union{RichTextString, Nothing}
     doc = parse(xml_string, XML.Node)
     si = xml_root_element(doc)
     
@@ -655,23 +614,8 @@ function getRichTextString(::Workbook, xml_string::String)::Union{RichTextString
             color_node = findfirst(c -> localname(c) == "color", rpr_children)
             if !isnothing(color_node)
                 atts = XML.attributes(rpr_children[color_node])
-
-                if haskey(atts, "rgb")
-                    push!(pairs, :color => atts["rgb"])
-                elseif haskey(atts, "theme")
-                    theme = parse(Int, atts["theme"])
-                    tint  = haskey(atts, "tint") ? parse(Float64, atts["tint"]) : 0.0
-                    rgb = resolve_theme_color(theme, tint)
-                    push!(pairs, :color => rgb)
-                elseif haskey(atts, "indexed")
-                    idx = parse(Int, atts["indexed"])
-                    idx = clamp(idx, 0, length(INDEXED_PALETTE)-1)
-                    rgb = INDEXED_PALETTE[idx + 1]
-                    push!(pairs, :color => "FF" * rgb)
-                elseif haskey(atts, "auto")
-                    push!(pairs, :color => "000000")  # Excel default
-                end
-            end            
+                push!(pairs, :color => resolveColor(wb, atts))
+            end
             font_node = findfirst(c -> localname(c) == "rFont", rpr_children)
             !isnothing(font_node) && push!(pairs, :name => XML.attributes(rpr_children[font_node])["val"])
             

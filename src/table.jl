@@ -211,11 +211,6 @@ end
 function TableRowIterator(sheet::Worksheet, index::Index, first_data_row::Int, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, keep_empty_rows::Bool=false, missing_strings::Set{String}=Set{String}(), resume::Union{Nothing,Tuple}=nothing)
     return TableRowIterator(eachrow(sheet), index, first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, missing_strings, resume)
 end
-#=
-function TableRowIterator(sheet::Worksheet, index::Index, first_data_row::Int, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, keep_empty_rows::Bool=false, missing_strings::Set{String}=Set{String}())
-    return TableRowIterator(eachrow(sheet), index, first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, missing_strings)
-end
-=#
 
 # Detects the contiguous column range starting from `columns_ordered[ci]`
 function _detect_column_range(row, columns_ordered::Vector, ci::Int)::ColumnRange
@@ -395,7 +390,7 @@ end
 # Constructs and returns a data TableRow and its successor state.
 function _return_table_row(itr::TableRowIterator, table_row_index::Int,
                            actual_row::Int, sheet_row, sheet_row_iterator_state)
-    table_row = TableRow(table_row_index, itr.index, sheet_row, itr.missing_strings)  # ← pass ms
+    table_row = TableRow(table_row_index, itr.index, sheet_row, itr.missing_strings)
     _should_stop(itr, table_row) && return nothing
     newstate = TableRowIteratorState(table_row_index, actual_row, sheet_row_iterator_state, 0, nothing)
     return table_row, newstate
@@ -486,7 +481,6 @@ infer_eltype(v::Vector{T}) where T = T
 
 
 # Address issue 225
-#Tables.columnaccess(::Type{<:TableRowIterator}) = true # Not needed, it seems.
 function typed_column(v::Vector{Any})
     T = infer_eltype(v)
     result = Vector{T}(undef, length(v))
