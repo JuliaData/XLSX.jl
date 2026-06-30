@@ -208,9 +208,14 @@ function eachtablerow(
     return TableRowIterator(sheet, Index(column_range, column_labels), first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, ms)
 end
 
+function TableRowIterator(sheet::Worksheet, index::Index, first_data_row::Int, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, keep_empty_rows::Bool=false, missing_strings::Set{String}=Set{String}(), resume::Union{Nothing,Tuple}=nothing)
+    return TableRowIterator(eachrow(sheet), index, first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, missing_strings, resume)
+end
+#=
 function TableRowIterator(sheet::Worksheet, index::Index, first_data_row::Int, stop_in_empty_row::Bool=true, stop_in_row_function::Union{Nothing,Function}=nothing, keep_empty_rows::Bool=false, missing_strings::Set{String}=Set{String}())
     return TableRowIterator(eachrow(sheet), index, first_data_row, stop_in_empty_row, stop_in_row_function, keep_empty_rows, missing_strings)
 end
+=#
 
 # Detects the contiguous column range starting from `columns_ordered[ci]`
 function _detect_column_range(row, columns_ordered::Vector, ci::Int)::ColumnRange
@@ -238,32 +243,30 @@ function eachtablerow(
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )::TableRowIterator
-
     if isnothing(first_row)
         first_row = 1
     end
-
     # Bundle shared kwargs to avoid repetition in recursive calls
     shared_kwargs = (; column_labels, header, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
-
-    for r in eachrow(sheet)
+    itr = eachrow(sheet)
+    next = iterate(itr)
+    while next !== nothing
+        r, state = next
         if row_number(r) < first_row || (isempty(r) && !keep_empty_rows)
+            next = iterate(itr, state)
             continue
         end
-
         columns_ordered = sort(collect(keys(r.rowcells)))
-
         # Find the first column with non-missing data
         ci = findfirst(cn -> !ismissing(getdata(r, cn)), columns_ordered)
         if isnothing(ci)
+            next = iterate(itr, state)
             continue
         end
-
         first_row = row_number(r)
         column_range = _detect_column_range(r, columns_ordered, ci)
         return eachtablerow(sheet, column_range; first_row, shared_kwargs...)
     end
-
     throw(XLSXError("Couldn't find a table in sheet $(sheet.name)"))
 end
 
@@ -399,15 +402,16 @@ function _return_table_row(itr::TableRowIterator, table_row_index::Int,
 end
 
 function Base.iterate(itr::TableRowIterator)
-    # Advance iterator to first_data_row
-    next = iterate(itr.itr)
+    next = if !isnothing(itr.resume)
+        itr.resume  # already-fetched (row, state) — skip the expensive restart
+    else
+        iterate(itr.itr)
+    end
     while !isnothing(next) && row_number(next[1]) < itr.first_data_row
         next = iterate(itr.itr, next[2])
     end
     isnothing(next) && return nothing
 
-    # Synthesize an initial state as if we just returned the row before first_data_row,
-    # with the current sheet_row pending, so the stateful method handles all real logic.
     sheet_row, sheet_row_state = next
     initial_state = TableRowIteratorState(0, itr.first_data_row - 1, sheet_row_state, 0, sheet_row)
     return iterate(itr, initial_state)

@@ -1,3 +1,19 @@
+#=
+When a .xlsx file is read, the read may be lazy or eager and the approach differs depending on the
+options selected, as follows:
+
+- `mode="rw"`: every sheet's data fully, eagerly, parallel-cached at open.
+
+- `mode="r"`, plain `openxlsx`/`readxlsx`: every sheet's structural XML decompressed/stripped 
+    at open (cheap, scales with total file size); each sheet's actual row data lazily cache-filled only on 
+    first access to that sheet. Any sheets from which cell data are never accessed do not get cached.
+
+- `readtable`/`readtransposedtable`: only the one target worksheet's XML is ever 
+    decompressed at all — structural processing for every other sheet is skipped entirely, and the 
+    target sheet's row data is then cache-filled (or streamed, if enable_cache=false) exactly as in the 
+    `mode="r"` case, just scoped to a single worksheet file from the very first byte read.
+=#
+
 # Name space conversion map for converting Strict OOXML files (ISO/IEC 29500) to Transitional format (ECMA-376)
 const STRICT_TO_TRANSITIONAL = Dict(
     # core markup

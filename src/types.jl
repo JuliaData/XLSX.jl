@@ -671,7 +671,8 @@ struct TableRowIterator{I<:SheetRowIterator}
     stop_in_empty_row::Bool
     stop_in_row_function::Union{Nothing, Function}
     keep_empty_rows::Bool
-    missing_strings::Set{String} # issue 90
+    missing_strings::Set{String}
+    resume::Union{Nothing, Tuple{SheetRow, Any}}  # pre-fetched (row, state) to start from, or nothing
 end
 
 struct TableRow
