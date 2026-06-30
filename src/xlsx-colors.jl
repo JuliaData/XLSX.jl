@@ -11,18 +11,18 @@ function get_colorant(color_string::String)
 end
 get_color(s::Symbol)::String = get_color(String(s))
 function get_color(str::String)::String
-    if occursin(r"^[0-9A-F]{8}$", str) # is a valid 8 digit hexadecimal color
-        return str
+    if occursin(r"^[0-9A-F]{8}$"i, str) # is a valid 8 digit hexadecimal color
+        return uppercase(str)
     end
     s = replace(lowercase(str), "grey" => "gray")
     c = get_colorant(s)
     if isnothing(c)
-        throw(XLSXError("Invalid color specified: $s. Either give a valid color name (from Colors.jl) or an 8-digit rgb color in the form FFRRGGBB"))
+        throw(XLSXError("Invalid color specified: $s. Either give a valid color name (from Colors.jl) or an 8-digit rgb color in the form AARRGGBB"))
     end
     return c
 end
 
-# This is the 64-entry legacy indexed palette
+# This is Excel's 64-entry legacy indexed color palette
 const INDEXED_PALETTE = [
     "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
     "000000", "FFFFFF", "FF0000", "00FF00", "0000FF", "FFFF00", "FF00FF", "00FFFF",
