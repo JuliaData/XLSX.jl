@@ -92,4 +92,37 @@
         b2_top = XLSX.getBorder(s, "B2").border["top"]
         @test XLSX.resolveColor(s, b2_top) == "FF000000"
     end
+
+    @testset "rgb normalization" begin
+        @test XLSX.resolveColor(wb, Dict("rgb" => "aabbcc")) == "FFAABBCC"
+        @test XLSX.resolveColor(wb, Dict("rgb" => "  aabbcc  ")) == "FFAABBCC"
+        @test XLSX.resolveColor(wb, Dict("rgb" => "00ff00")) == "FF00FF00"
+        @test XLSX.resolveColor(wb, Dict("rgb" => "80AABBCC")) == "80AABBCC"
+        @test XLSX.resolveColor(wb, Dict("rgb" => "80aabbcc")) == "80AABBCC"
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("rgb" => "ABC"))   # if you choose to throw on bad format
+    end
+
+    @testset "indexed bounds" begin
+        maxidx = length(XLSX.INDEXED_PALETTE) - 1
+        @test XLSX.resolveColor(wb, Dict("indexed" => "0")) == "FF" * XLSX.INDEXED_PALETTE[1]
+        @test XLSX.resolveColor(wb, Dict("indexed" => string(maxidx))) == "FF" * XLSX.INDEXED_PALETTE[maxidx+1]
+        # If you choose to throw on out-of-range:
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("indexed" => string(maxidx+1)))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("indexed" => "-1"))
+    end
+
+    @testset "extremes and invalid values" begin
+        @test XLSX.resolveColor(wb, Dict("theme" => "3", "tint" => "0")) == XLSX.resolveColor(wb, Dict("theme" => "3"))
+        @test XLSX.resolveColor(wb, Dict("theme" => "3", "tint" => "1.0"))  == "FFFFFFFF"
+        @test XLSX.resolveColor(wb, Dict("theme" => "3", "tint" => "-1.0")) == "FF000000"
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "3", "tint" => "nan"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "3", "tint" => "inf"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "3", "tint" => "notanumber"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("indexed" => "64"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "notanint"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("indexed" => "foo"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "-1"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "12"))
+        @test_throws XLSX.XLSXError XLSX.resolveColor(wb, Dict("theme" => "notanumber"))
+    end
 end

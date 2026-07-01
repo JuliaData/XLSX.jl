@@ -81,7 +81,15 @@ function get_theme_colors(wb::Workbook)::Vector{String}
             isnothing(val) || (lookup[localname(c)] = val)
         end
 
-        wb.theme_colors = [get(lookup, name, "000000") for name in THEME_COLOR_ORDER]
+        wb.theme_colors = String[]
+        for name in THEME_COLOR_ORDER
+            if haskey(lookup, name)
+                push!(wb.theme_colors, lookup[name])
+            else
+                @warn "Theme color $name missing in theme1.xml; using 000000 fallback"
+                push!(wb.theme_colors, "000000")
+            end
+        end
     end
     return wb.theme_colors
 end
@@ -89,10 +97,10 @@ end
 # Excel tint algorithm
 @inline function apply_tint(channel::UInt8, tint::Float64)::UInt8
     c = Float64(channel)
-    if tint > 0
-        c = c + (255 - c) * tint
+    if tint > 0.0
+        c = c + (255.0 - c) * tint
     else
-        c = c * (1 + tint)
+        c = c * (1.0 + tint)
     end
     return UInt8(clamp(round(Int, c), 0, 255))
 end
@@ -100,7 +108,7 @@ end
 # Convert theme + tint to RGB, using the workbook's actual theme colors.
 function resolve_theme_color(wb::Workbook, theme_index::Int, tint::Float64)
     colors = get_theme_colors(wb)
-    (theme_index < 0 || theme_index >= length(colors)) && throw(XLSXError("Invalid theme color index: $theme_index"))
+    (theme_index < 0 || theme_index >= length(colors)) && throw(XLSXError("Invalid theme color index: $theme_index (expected 0..$(length(colors)-1))"))
     base = parse(UInt32, colors[theme_index + 1]; base=16)
 
     r = apply_tint(UInt8(base >> 16), tint)
@@ -178,14 +186,51 @@ resolveColor(ws::Worksheet, atts::AbstractDict; prefix::AbstractString="") = res
 resolveColor(xl::XLSXFile, atts::AbstractDict; prefix::AbstractString="") = resolveColor(get_workbook(xl), atts; prefix)
 function resolveColor(wb::Workbook, atts::AbstractDict; prefix::AbstractString="")::String
     if haskey(atts, prefix*"rgb")
-        return atts[prefix*"rgb"]
+        raw = uppercase(strip(atts[prefix*"rgb"]))
+        if length(raw) == 6
+            return "FF" * raw
+        elseif length(raw) == 8
+            return raw
+        else
+            throw(XLSXError("Invalid rgb color format: $raw"))
+        end
+
     elseif haskey(atts, prefix*"theme")
-        theme = parse(Int, atts[prefix*"theme"])
-        tint  = haskey(atts, prefix*"tint") ? parse(Float64, atts[prefix*"tint"]) : 0.0
+        rawtheme = strip(atts[prefix*"theme"])
+        theme = try
+            parse(Int, rawtheme)
+        catch
+            throw(XLSXError("Invalid theme index: $rawtheme"))
+        end
+
+        tint = 0.0
+        if haskey(atts, prefix*"tint")
+            rawt = strip(atts[prefix*"tint"])
+            tint = try
+                parse(Float64, rawt)
+            catch
+                throw(XLSXError("Invalid tint value: $rawt. Must be between -1.0 and 1.0."))
+            end
+            if !isfinite(tint)
+                throw(XLSXError("Invalid tint value: $rawt. Must be between -1.0 and 1.0."))
+            end
+            tint = clamp(tint, -1.0, 1.0)
+        end
+
         return resolve_theme_color(wb, theme, tint)
+
     elseif haskey(atts, prefix*"indexed")
-        idx = clamp(parse(Int, atts[prefix*"indexed"]), 0, length(INDEXED_PALETTE)-1)
+        rawidx = strip(atts[prefix*"indexed"])
+        idx = try
+            parse(Int, rawidx)
+        catch
+            throw(XLSXError("Invalid indexed color index: $rawidx. Must be an integer between 0 and $(length(INDEXED_PALETTE)-1)."))
+        end
+        if idx < 0 || idx >= length(INDEXED_PALETTE)
+            throw(XLSXError("Invalid indexed color index: $idx. Must be between 0 and $(length(INDEXED_PALETTE)-1)."))
+        end
         return "FF" * INDEXED_PALETTE[idx+1]
+
     elseif haskey(atts, prefix*"auto")
         return "FF000000"
     else
