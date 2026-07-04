@@ -173,7 +173,7 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 version = "1.11.0"
 
 [[deps.XLSX]]
-deps = ["Colors", "Dates", "OrderedCollections", "PrecompileTools", "Printf", "Random", "Tables", "UUIDs", "Unicode", "XML", "ZipArchives"]
+deps = ["Colors", "Dates", "OrderedCollections", "PrecompileTools", "Printf", "Random", "Tables", "UUIDs", "Unicode", "ZipArchives"]
 path = "."
 uuid = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 version = "0.12.0"
@@ -187,9 +187,7 @@ version = "0.12.0"
     StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 
 [[deps.XML]]
-git-tree-sha1 = "1ce8f047831e1309f6dc1a59e7d73603d5f67b4c"
-repo-rev = "v0.4-dev"
-repo-url = "https://github.com/JuliaData/XML.jl.git"
+git-tree-sha1 = "18c0e7ecdc1c18bedb879db01825f67460a1b0b0"
 uuid = "72c71f33-b9b6-44de-8c94-c961784809e2"
 version = "0.4.0"
 

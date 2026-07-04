@@ -7,8 +7,8 @@ const RESULTS_DIR = joinpath(ROOT, "results")
 
 VERSIONS = [
     ("v0.10.4",  joinpath(ROOT, "envs", "v0_10_4")),
-    ("v0.11.10", joinpath(ROOT, "envs", "v0_11_10")),
-    ("dev",      joinpath(ROOT, "envs", "dev")),
+    ("v0.11.11", joinpath(ROOT, "envs", "v0_11_11")),
+    ("v0.12.0",  joinpath(ROOT, "envs", "v0_12_0")),
 ]
 
 const fixtures = [
@@ -67,7 +67,7 @@ let
             row *= @sprintf("%14.1fms", t)
         end
         base = get(medians, "v0.10.4", NaN)
-        for (_, key) in [("v0.11/v0.10", "v0.11.10"), ("dev/v0.10", "dev")]
+        for (_, key) in [("v0.11/v0.10", "v0.11.11"), ("v0.12/v0.10", "v0.12.0")]
             t = get(medians, key, NaN)
             row *= isnan(base) || isnan(t) || base == 0 ?
                 @sprintf("%15s", "N/A") :

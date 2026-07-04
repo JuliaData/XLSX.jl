@@ -11,8 +11,8 @@ mkpath(RESULTS_DIR)
 
 VERSIONS = [
     ("v0.10.4",  joinpath(ROOT, "envs", "v0_10_4")),
-    ("v0.11.10", joinpath(ROOT, "envs", "v0_11_10")),
-    ("dev",      joinpath(ROOT, "envs", "dev")),
+    ("v0.11.11", joinpath(ROOT, "envs", "v0_11_11")),
+    ("v0.12.0",  joinpath(ROOT, "envs", "v0_12_0")),
 ]
 
 for (ver_label, env_path) in VERSIONS
