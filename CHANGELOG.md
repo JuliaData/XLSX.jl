@@ -15,9 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Apply dependabot updates
 
 Adoption XML.jl v0.4 involves a major rewrite of package internals but provides a
-significant speed improvement in most use cases. Please report any issues.
+significant speed improvement in most use cases. Please [report any issues](https://github.com/JuliaData/XLSX.jl/issues).
 
-There are **no changes to existing public API.**
+[FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) version greater than v1.19.0.
+
+There are **no changes to the existing public API.**
 
 ## [v0.11.11](https://github.com/JuliaData/XLSX.jl/tree/v0.11.11) - 2026-06-18
 - Fix [#410](https://github.com/JuliaData/XLSX.jl/issues/410) by making `is_binary_path` case insensitive
