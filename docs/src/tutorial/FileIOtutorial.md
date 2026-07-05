@@ -28,7 +28,7 @@ julia> Pkg.add(["FileIO", "XLSX"])
 
 !!! note
 
-   FileIO support requires a FileIO version greater than v1.19.0
+   [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a version of [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) greater than v1.19.0
 
 ## Usage
 
