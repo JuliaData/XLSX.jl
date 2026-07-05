@@ -26,6 +26,10 @@ julia> using Pkg
 julia> Pkg.add(["FileIO", "XLSX"])
 ```
 
+!!! note
+
+   FileIO support requires a FileIO version greater than v1.19.0
+
 ## Usage
 
 ### Load an Excel file

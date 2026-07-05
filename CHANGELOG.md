@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [v0.12.0](https://github.com/JuliaData/XLSX.jl/tree/v0.12.0) - 2026-07-04
+## [v0.12.0](https://github.com/JuliaData/XLSX.jl/tree/v0.12.0) - 2026-07-05
 - Adopt XML.jl v0.4
 - add a package extension to support [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
 - update copyright notice end-date
@@ -14,7 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Julia floor raised to 1.10 (LTS)
 - Apply dependabot updates
 
-**No changes to existing public API.**
+Adoption XML.jl v0.4 involves a major rewrite of package internals but provides a
+significant speed improvement in most use cases. Please report any issues.
+
+There are **no changes to existing public API.**
 
 ## [v0.11.11](https://github.com/JuliaData/XLSX.jl/tree/v0.11.11) - 2026-06-18
 - Fix [#410](https://github.com/JuliaData/XLSX.jl/issues/410) by making `is_binary_path` case insensitive

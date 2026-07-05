@@ -10,9 +10,9 @@ const RESULTS_DIR  = joinpath(ROOT, "results")
 mkpath(RESULTS_DIR)
 
 VERSIONS = [
-    ("v0.10.4",  joinpath(ROOT, "envs", "v0_10_4")),
-    ("v0.11.11", joinpath(ROOT, "envs", "v0_11_11")),
-    ("v0.12.0",  joinpath(ROOT, "envs", "v0_12_0")),
+    ("v0.10", joinpath(ROOT, "envs", "v0_10")),
+    ("v0.11", joinpath(ROOT, "envs", "v0_11")),
+    ("v0.12", joinpath(ROOT, "envs", "v0_12")),
 ]
 
 for (ver_label, env_path) in VERSIONS

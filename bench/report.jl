@@ -6,9 +6,9 @@ const ROOT        = @__DIR__
 const RESULTS_DIR = joinpath(ROOT, "results")
 
 VERSIONS = [
-    ("v0.10.4",  joinpath(ROOT, "envs", "v0_10_4")),
-    ("v0.11.11", joinpath(ROOT, "envs", "v0_11_11")),
-    ("v0.12.0",  joinpath(ROOT, "envs", "v0_12_0")),
+    ("v0.10", joinpath(ROOT, "envs", "v0_10")),
+    ("v0.11", joinpath(ROOT, "envs", "v0_11")),
+    ("v0.12", joinpath(ROOT, "envs", "v0_12")),
 ]
 
 const fixtures = [
@@ -66,8 +66,8 @@ let
             medians[v] = t
             row *= @sprintf("%14.1fms", t)
         end
-        base = get(medians, "v0.10.4", NaN)
-        for (_, key) in [("v0.11/v0.10", "v0.11.11"), ("v0.12/v0.10", "v0.12.0")]
+        base = get(medians, "v0.10", NaN)
+        for (_, key) in [("v0.11/v0.10", "v0.11"), ("v0.12/v0.10", "v0.12")]
             t = get(medians, key, NaN)
             row *= isnan(base) || isnan(t) || base == 0 ?
                 @sprintf("%15s", "N/A") :
@@ -75,7 +75,7 @@ let
         end
         println(row)
     end
-    println("\nMedian times in milliseconds. Ratio < 1.0x = faster than v0.10.4.")
+    println("\nMedian times in milliseconds. Ratio < 1.0x = faster than v0.10.")
 end
 
 #=

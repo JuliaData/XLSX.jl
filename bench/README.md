@@ -4,28 +4,59 @@ This directory contains a benchmark suite comparing XLSX.jl performance across t
 
 ### Setup
 
-From the `bench/` directory:
+1. Create a benchmark folder with a structure like:
 
-1. Clone the repo and enter the bench directory:
+        path_to_bench_folder/bench
+            fixtures/
+            results/
+            envs/
+                dev/
+                v0_10/
+                v0_11/
+                v0_12/
 
-        git clone -b Explicit-Test-Output https://github.com/TimG1964/XLSX.jl.git
-        cd XLSX.jl/bench
+   This folder is your local standalone benchmark project.  
+   It is **not** inside the XLSX.jl repository and does **not** contain a checkout of XLSX.jl.
 
-2. Instantiate all three environments:
+2. Copy the benchmark scripts from the XLSX.jl repo into your benchmark folder:
 
-        julia --project=envs/dev -e "using Pkg; Pkg.instantiate()"
-        julia --project=envs/v0_10_4 -e "using Pkg; Pkg.instantiate()"
-        julia --project=envs/v0_11_10 -e "using Pkg; Pkg.instantiate()"
+        bench/bench_worker.jl
+        bench/generate_fixtures.jl
+        bench/report.jl
+        bench/run_benchmarks.jl
 
-3. Generate fixtures (written to `bench/fixtures/`, not committed to git):
+   These scripts will load XLSX.jl **from the active environment**, i.e. the installed version.
+
+3. Copy the appropriate `Project.toml` into each env sub-folder:
+
+        env/dev/Project.toml
+        env/v0_10/Project.toml
+        env/v0_11/Project.toml
+        env/v0_12/Project.toml
+        
+4. Instantiate all three environments (each pins a specific XLSX.jl version):
+
+        julia --project=envs/dev   -e "using Pkg; Pkg.instantiate()"
+        julia --project=envs/v0_12 -e "using Pkg; Pkg.instantiate()"
+        julia --project=envs/v0_10 -e "using Pkg; Pkg.instantiate()"
+        julia --project=envs/v0_11 -e "using Pkg; Pkg.instantiate()"
+
+   Each environment contains a different XLSX.jl version.  
+   Julia will load the correct version automatically when benchmarks run.
+
+5. Generate fixtures (written to `bench/fixtures/`):
 
         julia --project=envs/dev generate_fixtures.jl
 
-4. Run benchmarks (results written to `bench/results/`):
+   Fixtures are shared across all versions and are not committed to git.
+
+6. Run benchmarks (results written to `bench/results/`):
 
         julia --project=envs/dev run_benchmarks.jl
 
-5. Report results:
+   This script internally calls `bench_worker.jl` once per version, activating the correct environment each time.
+
+7. Report results:
 
         julia --project=envs/dev report.jl
 
@@ -46,6 +77,6 @@ From the `bench/` directory:
 
 ### Versions compared
 
-- `v0.10.4` — EzXML.jl based implementation (JuliaIO/XLSX.jl tag v0.10.4)
-- `v0.11.10` — XML.jl based implementation (JuliaIO/XLSX.jl tag v0.11.10)
-- `dev` — WIP XLSX v0.12 based on WIP XML.jl v0.4 implementation
+- `v0.10` — EzXML.jl based implementation
+- `v0.11` — First XML.jl based implementation using XML.jl v0.3
+- `v0.12` — Updated XLSX.jl implementation adopting XML.jl v0.4 
