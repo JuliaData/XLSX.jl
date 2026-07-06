@@ -92,12 +92,27 @@ function styles_xmlroot(workbook::Workbook)
     return workbook.styles_xroot
 end
 
+#=
 # Returns the xf XML node element for style `index`.
 # `index` is 0-based.
 function styles_cell_xf(wb::Workbook, index::Integer)::XML.Node
     xroot = styles_xmlroot(wb)
     xf_elements = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", xroot)
     return xf_elements[index+1]
+end
+=#
+# Returns (and lazily builds/caches) the vector of `cellXfs/xf` nodes.
+# Built once per workbook, O(K); kept in sync by styles_add_cell_xf.
+function get_cellXfs_nodes(wb::Workbook)::Vector{XML.Node}
+    if wb.cellXfs_cache === nothing
+        xroot = styles_xmlroot(wb)
+        wb.cellXfs_cache = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", xroot)
+    end
+    return wb.cellXfs_cache
+end
+
+function styles_cell_xf(wb::Workbook, index::Integer)::XML.Node
+    return styles_cell_xf(get_cellXfs_nodes(wb), index)   # reuses existing O(1) overload
 end
 function styles_cell_xf(allXfNodes::Vector{XML.Node}, index::Integer)::XML.Node
     return allXfNodes[index+1]
@@ -144,12 +159,47 @@ function styles_add_numFmt(wb::Workbook, format_code::AbstractString)::Integer
     )
     push!(numfmts, new_fmt)
     numfmts["count"] = string(existing_numFmt_elements_count + 1)
+    wb.numFmt_cache !== nothing && (wb.numFmt_cache[fmt_code] = format_code)
     return fmt_code
 end
 
 const FontAttribute = Union{String,Pair{String,Pair{String,String}}}
 
 # Queries numFmt formatCode field by numFmtId.
+# Returns (and lazily builds/caches) numFmtId => formatCode for custom formats.
+function get_numFmt_cache(wb::Workbook)::Dict{Int, String}
+    if wb.numFmt_cache === nothing
+        xroot = styles_xmlroot(wb)
+        containers = find_all_nodes(_xpath("styleSheet", "numFmts"), xroot)
+        nodes = if isempty(containers)
+            XML.Node[]
+        else
+            container = containers[begin]
+            fmt_nodes = filter(n -> XML.nodetype(n) == XML.Element, XML.children(container))
+            if parse(Int, container["count"]) != length(fmt_nodes)
+                throw(XLSXError("Unexpected number of format definitions found: $(length(fmt_nodes)). Expected $(container["count"])."))
+            end
+            fmt_nodes
+        end
+        wb.numFmt_cache = Dict{Int, String}(parse(Int, n["numFmtId"]) => n["formatCode"] for n in nodes)
+    end
+    return wb.numFmt_cache
+end
+
+function styles_numFmt_formatCode(wb::Workbook, numFmtId::AbstractString)::String
+    haskey(builtinFormats, numFmtId) && return builtinFormats[numFmtId]
+    id = parse(Int, numFmtId)
+    cache = get_numFmt_cache(wb)
+    if !haskey(cache, id)
+        # Stale cache — some path added a numFmt without notifying numFmt_cache.
+        # Rebuild once from the live XML before giving up.
+        wb.numFmt_cache = nothing
+        cache = get_numFmt_cache(wb)
+    end
+    haskey(cache, id) || throw(XLSXError("numFmtId $numFmtId not found."))
+    return cache[id]
+end
+#=
 function styles_numFmt_formatCode(wb::Workbook, numFmtId::AbstractString)::String
     if haskey(builtinFormats, numFmtId)
         return builtinFormats[numFmtId]
@@ -160,7 +210,7 @@ function styles_numFmt_formatCode(wb::Workbook, numFmtId::AbstractString)::Strin
     length(elements_found) != 1 && throw(XLSXError("numFmtId $numFmtId not found."))
     return XML.attributes(elements_found[1])["formatCode"]
 end
-
+=#
 styles_numFmt_formatCode(wb::Workbook, numFmtId::Int)::String = styles_numFmt_formatCode(wb, string(numFmtId))
 
 const DATETIME_CODES = ["d", "m", "yy", "h", "s", "a/p", "am/pm"]
@@ -258,10 +308,15 @@ Returns -1 if not found.
 ```
 =#
 function styles_get_cellXf_with_numFmtId(wb::Workbook, numFmtId::Int)::AbstractCellDataFormat
+    return styles_get_cellXf_with_numFmtId(get_cellXfs_nodes(wb), numFmtId)
+end
+#=
+function styles_get_cellXf_with_numFmtId(wb::Workbook, numFmtId::Int)::AbstractCellDataFormat
     xroot = styles_xmlroot(wb)
     allXfNodes = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", xroot)
     return styles_get_cellXf_with_numFmtId(allXfNodes, numFmtId)
 end
+=#
 function styles_get_cellXf_with_numFmtId(allXfNodes::Vector{XML.Node}, numFmtId::Int)::AbstractCellDataFormat
     if isempty(allXfNodes)
         return EmptyCellDataFormat()
@@ -303,7 +358,7 @@ function styles_add_cell_xf(wb::Workbook, new_xf::XML.Node)::CellDataFormat
     end
     push!(xroot[i][j], new_xf)
     xroot[i][j]["count"] = string(existing_cellxf_elements_count + 1)
-
+    wb.cellXfs_cache !== nothing && push!(wb.cellXfs_cache, new_xf)
     return CellDataFormat(existing_cellxf_elements_count) # turns out this is the new index (because it's zero-based)
 
 end

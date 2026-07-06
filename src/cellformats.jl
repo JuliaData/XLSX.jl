@@ -131,7 +131,7 @@ function setFont(sh::Worksheet, cellref::CellRef;
     cell = getcell(sh, cellref)
     cell isa EmptyCell && throw(XLSXError("Cannot set font for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
 
-    allXfNodes = find_all_nodes(_xpath("styleSheet", "cellXfs", "xf"), styles_xmlroot(wb))
+    allXfNodes = get_cellXfs_nodes(wb)
 
     if cell.style == UInt32(0)
         cell.style = get_num_style_index(sh, allXfNodes, 0).id
@@ -661,7 +661,7 @@ function setBorder(sh::Worksheet, cellref::CellRef;
     cell isa EmptyCell &&
         throw(XLSXError("Cannot set border for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
 
-    allXfNodes = find_all_nodes(_xpath("styleSheet", "cellXfs", "xf"), styles_xmlroot(wb))
+    allXfNodes = get_cellXfs_nodes(wb)
 
     if cell.style == UInt32(0)
         cell.style = get_num_style_index(sh, allXfNodes, 0).id
@@ -1065,7 +1065,7 @@ function setFill(sh::Worksheet, cellref::CellRef;
     cell = getcell(sh, cellref)
     cell isa EmptyCell && throw(XLSXError("Cannot set fill for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
 
-    allXfNodes = find_all_nodes(_xpath("styleSheet", "cellXfs", "xf"), styles_xmlroot(wb))
+    allXfNodes = get_cellXfs_nodes(wb)
 
     if cell.style == UInt32(0)
         cell.style = get_num_style_index(sh, allXfNodes, 0).id
@@ -1360,7 +1360,7 @@ function setAlignment(sh::Worksheet, cellref::CellRef;
     cell isa EmptyCell &&
         throw(XLSXError("Cannot set alignment for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
 
-    allXfNodes = find_all_nodes(_xpath("styleSheet", "cellXfs", "xf"), styles_xmlroot(wb))
+    allXfNodes = get_cellXfs_nodes(wb)
 
     if cell.style == UInt32(0)
         cell.style = get_num_style_index(sh, allXfNodes, 0).id
@@ -1508,20 +1508,14 @@ function getFormat(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFormat
     format_atts       = Dict{String,Union{Dict{String,String},Nothing}}()
 
     if numfmtid_int >= PREDEFINED_NUMFMT_COUNT
-        # Custom format — look up in the numFmts table
-        format_elements = find_all_nodes(_xpath("styleSheet", "numFmts"), styles_xmlroot(wb))[begin]
-        format_nodes    = filter(n -> XML.nodetype(n) == XML.Element, XML.children(format_elements))
+        # Custom format — look up in the cached numFmtId => formatCode map
+        cache = get_numFmt_cache(wb)
+        haskey(cache, numfmtid_int) || throw(XLSXError("No format definition found for numFmtId $numfmtid_int."))
 
-        if parse(Int, format_elements["count"]) != length(format_nodes)
-            throw(XLSXError("Unexpected number of format definitions found: $(length(format_nodes)). Expected $(format_elements["count"])."))
-        end
-
-        idx = findfirst(n -> haskey(n, "numFmtId") && n["numFmtId"] == string(numfmtid_int), format_nodes)
-        isnothing(idx) && throw(XLSXError("No format definition found for numFmtId $numfmtid_int."))
-        current_format = format_nodes[idx]
-
-        atts = Dict{String,String}(k => XML.unescape(v) for (k, v) in XML.attributes(current_format))
-        format_atts[XML.tag(current_format)] = atts
+        format_atts["numFmt"] = Dict(
+            "numFmtId"   => string(numfmtid_int),
+            "formatCode" => cache[numfmtid_int]
+        )
 
     else
         # Built-in format — validate it falls in a known range
@@ -1657,7 +1651,7 @@ function setFormat(sh::Worksheet, cellref::CellRef;
     cell isa EmptyCell &&
         throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
 
-    allXfNodes = find_all_nodes(_xpath("styleSheet", "cellXfs", "xf"), styles_xmlroot(wb))
+    allXfNodes = get_cellXfs_nodes(wb)
 
     if cell.style == UInt32(0)
         cell.style = get_num_style_index(sh, allXfNodes, 0).id

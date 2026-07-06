@@ -227,4 +227,142 @@
         SAVE_FILES && save_outfile(f)
 
     end
+
+    @testset "copysheet!/deletesheet! part cleanup (issue #427)" begin
+
+        # Shared helper: map a sheet name to the worksheet XML path it actually
+        # lives at, by reading workbook.xml + workbook.xml.rels directly rather
+        # than assuming file numbering.
+        function sheet_xml_path(zipbytes::Vector{UInt8}, sheetname::String)
+            r = ZipReader(zipbytes)
+            wbxml  = String(zip_readentry(r, "xl/workbook.xml"))
+            wbrels = String(zip_readentry(r, "xl/_rels/workbook.xml.rels"))
+            sheet_rid = Dict(m.captures[1] => m.captures[2]
+                for m in eachmatch(r"<sheet name=\"([^\"]+)\"[^>]*r:id=\"(rId\d+)\"", wbxml))
+            rid_target = Dict(m.captures[1] => m.captures[2]
+                for m in eachmatch(r"<Relationship Id=\"(rId\d+)\"[^>]*Target=\"([^\"]+)\"", wbrels))
+            return "xl/" * rid_target[sheet_rid[sheetname]]
+        end
+
+        @testset "deletesheet! on a table-only sheet (no drawing) removes its rels file" begin
+            # UTF-16.xlsx's SourceData sheet has a table but no drawing.
+            src = joinpath(data_directory, "UTF-16.xlsx")
+            p = tempname() * ".xlsx"
+            cp(src, p)
+
+            XLSX.openxlsx(p; mode="rw") do xf
+                XLSX.deletesheet!(xf, "SourceData")
+            end
+
+            r = ZipReader(read(p))
+            names = zip_names(r)
+
+            @test !("xl/tables/table1.xml" in names)
+            @test !("xl/worksheets/_rels/sheet1.xml.rels" in names)
+            @test !occursin("tables/table1.xml", String(zip_readentry(r, "[Content_Types].xml")))
+
+            XLSX.openxlsx(p) do xf2
+                @test XLSX.sheetnames(xf2) == ["Sheet1"]
+            end
+            rm(p; force=true)
+        end
+
+        @testset "deletesheet! removes table, comments, VML, drawing, media, and their Overrides together" begin
+            src = joinpath(data_directory, "TableCommentsVML.xlsx")
+            p = tempname() * ".xlsx"
+            cp(src, p)
+
+            XLSX.openxlsx(p; mode="rw") do xf
+                XLSX.addsheet!(xf, "Blank")   # deletesheet! refuses to delete the only sheet
+                XLSX.deletesheet!(xf, "Sheet1")
+            end
+
+            r = ZipReader(read(p))
+            names = zip_names(r)
+
+            @test !("xl/tables/table1.xml" in names)
+            @test !("xl/comments1.xml" in names)
+            @test !("xl/drawings/vmlDrawing1.vml" in names)
+            @test !("xl/drawings/drawing1.xml" in names)
+            @test !("xl/media/image1.png" in names)
+            @test !("xl/worksheets/_rels/sheet1.xml.rels" in names)
+            @test !("xl/worksheets/sheet1.xml" in names)
+
+            ctypes = String(zip_readentry(r, "[Content_Types].xml"))
+            @test !occursin("tables/table1.xml", ctypes)
+            @test !occursin("comments1.xml", ctypes)
+            @test !occursin("drawings/drawing1.xml", ctypes)
+
+            XLSX.openxlsx(p) do xf2
+                @test XLSX.sheetnames(xf2) == ["Blank"]
+            end
+            rm(p; force=true)
+        end
+
+        @testset "copysheet! strips table/comments/VML but still duplicates the drawing" begin
+            src = joinpath(data_directory, "TableCommentsVML.xlsx")
+            p = tempname() * ".xlsx"
+            cp(src, p)
+
+            XLSX.openxlsx(p; mode="rw") do xf
+                XLSX.copysheet!(xf["Sheet1"], "Copy")
+            end
+
+            zipbytes = read(p)
+            r = ZipReader(zipbytes)
+            names = zip_names(r)
+
+            source_path = sheet_xml_path(zipbytes, "Sheet1")
+            copy_path   = sheet_xml_path(zipbytes, "Copy")
+            source_xml  = String(zip_readentry(r, source_path))
+            copy_xml    = String(zip_readentry(r, copy_path))
+
+            # Stripped from the copy...
+            @test !occursin("tableParts", copy_xml)
+            @test !occursin("legacyDrawing", copy_xml)
+
+            # ...but the original is untouched (catches copynode() aliasing children
+            # between the original and the copy rather than deep-copying).
+            @test occursin("tableParts", source_xml)
+            @test occursin("legacyDrawing", source_xml)
+
+            # The underlying parts still belong to the original sheet.
+            @test "xl/tables/table1.xml" in names
+            @test "xl/comments1.xml" in names
+            @test "xl/drawings/vmlDrawing1.vml" in names
+
+            # The drawing/image IS carried over — duplicated and relinked, not shared.
+            m = match(r"<drawing r:id=\"(rId\d+)\"", copy_xml)
+            @test m !== nothing
+
+            if m !== nothing
+                copy_rels_path = let (d, f) = rsplit(copy_path, "/"; limit=2)
+                    "$d/_rels/$f.rels"
+                end
+                @test copy_rels_path in names
+
+                if copy_rels_path in names
+                    copy_rels_xml = String(zip_readentry(r, copy_rels_path))
+                    dt = match(Regex("<Relationship Id=\"$(m.captures[1])\"[^>]*Target=\"([^\"]+)\""), copy_rels_xml)
+                    @test dt !== nothing
+                    if dt !== nothing
+                        new_drawing_path = "xl/" * replace(dt.captures[1], "../" => "")
+                        @test new_drawing_path in names
+                        @test new_drawing_path != "xl/drawings/drawing1.xml"
+                    end
+
+                    # The copy's rels must not have picked up comments/VML relationships
+                    # it has no corresponding sheet-XML reference for anymore.
+                    @test !occursin("relationships/comments", copy_rels_xml)
+                    @test !occursin("relationships/vmlDrawing", copy_rels_xml)
+                end
+            end
+
+            XLSX.openxlsx(p) do xf2
+                @test XLSX.sheetnames(xf2) == ["Sheet1", "Copy"]
+            end
+            rm(p; force=true)
+        end
+
+    end
 end

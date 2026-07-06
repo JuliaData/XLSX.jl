@@ -65,6 +65,7 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
     end
 
     update_workbook_xml!(xf)
+    update_app_xml!(xf)
     
     wb=get_workbook(xf)
 
@@ -392,6 +393,102 @@ function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{UInt8}
    
     all_rows = last.(sort(all_cache_rows, by=first))
     return length(all_rows) == 0 ? Vector{UInt8}() : reduce(vcat, all_rows)
+end
+
+const DOCPROPS_VTYPES_NS = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
+
+# Regenerates the "Worksheets" and "Charts" entries in HeadingPairs, and their
+# corresponding slices of TitlesOfParts, from `wb.sheets`. Any other category
+# (e.g. "Named Ranges") and its titles are left untouched, in their original
+# position. A recognized category is dropped entirely if the workbook no
+# longer has any sheets of that kind; a missing-but-needed category is
+# appended if the workbook now has sheets of a kind it didn't declare before.
+#
+# Note: TitlesOfParts groups titles by *category*, not by tab order — a
+# workbook with tab order [Chart1, Sheet1] still lists TitlesOfParts as
+# [Sheet1, Chart1], since "Worksheets" titles are grouped before "Charts"
+# titles regardless of actual tab position. Confirmed against a real
+# Excel-produced chartsheet fixture.
+function update_app_xml!(xl::XLSXFile)
+    haskey(xl.data, "docProps/app.xml") || return nothing
+    wb = get_workbook(xl)
+
+    pfx = get_prefix("docProps/app.xml", xl)
+    pfx = pfx == "" ? "" : "$(pfx):"
+
+    appdoc  = xmlroot(xl, "docProps/app.xml")
+    approot = xml_root_element(appdoc)
+    nss     = get_namespaces(approot)
+    vt_pfx  = something(findfirst(==(DOCPROPS_VTYPES_NS), nss), "vt")
+    vt(tag) = prefixed_tag(vt_pfx, tag)
+
+    i, hj  = get_idces(appdoc, "Properties", "HeadingPairs")
+    i2, tj = get_idces(appdoc, "Properties", "TitlesOfParts")
+    (isnothing(hj) || isnothing(tj)) && return nothing
+
+    heading_vector = only(xml_elements(appdoc[i][hj]))
+    pairs = collect(xml_elements(heading_vector))           # flat [label, count, label, count, ...]
+
+    titles_vector = only(xml_elements(appdoc[i2][tj]))
+    title_nodes = collect(xml_elements(titles_vector))       # original <vt:lpstr> nodes, in title order
+
+    new_names = Dict(
+        "Worksheets" => [s.name for s in wb.sheets if !is_chartsheet(wb, s.name)],
+        "Charts"     => [s.name for s in wb.sheets if  is_chartsheet(wb, s.name)],
+    )
+
+    new_pairs  = Vector{XML.Node}()
+    new_titles = Vector{XML.Node}()
+    handled    = Set{String}()
+    pos = 1
+
+    c = 1
+    while c <= length(pairs) - 1
+        label = _text_value(only(xml_elements(pairs[c])))
+        count = parse(Int, something(_text_value(only(xml_elements(pairs[c+1]))), "0"))
+
+        if haskey(new_names, label)
+            names = new_names[label]
+            if !isempty(names)
+                push!(new_pairs, pairs[c])
+                push!(new_pairs, XML.Element(vt("variant"), XML.Element(vt("i4"), XML.Text(string(length(names))))))
+                append!(new_titles, [XML.Element(vt("lpstr"), XML.Text(nm)) for nm in names])
+            end
+            # else: no sheets of this kind remain — drop the category entirely
+            push!(handled, label)
+        else
+            # Unrecognized category (e.g. "Named Ranges") — pass through untouched.
+            push!(new_pairs, pairs[c], pairs[c+1])
+            append!(new_titles, title_nodes[pos:pos+count-1])
+        end
+        pos += count
+        c += 2
+    end
+
+    for label in ("Worksheets", "Charts")
+        label in handled && continue
+        names = new_names[label]
+        isempty(names) && continue
+        push!(new_pairs,
+            XML.Element(vt("variant"), XML.Element(vt("lpstr"), XML.Text(label))),
+            XML.Element(vt("variant"), XML.Element(vt("i4"), XML.Text(string(length(names))))),
+        )
+        append!(new_titles, [XML.Element(vt("lpstr"), XML.Text(nm)) for nm in names])
+    end
+
+    new_heading_vector = XML.Element(vt("vector"); size=string(length(new_pairs)), baseType="variant")
+    for p in new_pairs; push!(new_heading_vector, p); end
+    heading_el = XML.Element("$(pfx)HeadingPairs")
+    push!(heading_el, new_heading_vector)
+    appdoc[i][hj] = heading_el
+
+    new_titles_vector = XML.Element(vt("vector"); size=string(length(new_titles)), baseType="lpstr")
+    for t in new_titles; push!(new_titles_vector, t); end
+    titles_el = XML.Element("$(pfx)TitlesOfParts")
+    push!(titles_el, new_titles_vector)
+    appdoc[i2][tj] = titles_el
+
+    return nothing
 end
 
 function encode(d::CellValueType)
@@ -1294,14 +1391,29 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
     # if copied sheet is the currently selected sheet, do not copy this attribute over.
     # The original sheet will remain the only selected sheet.
     for c in XML.children(xml_root_element(xdoc))
-        if XML.tag(c) == "sheetViews"
+        if localname(c) == "sheetViews"
             for c2 in XML.children(c)
-                if XML.tag(c2) == "sheetView"
+                if localname(c2) == "sheetView"
                     if haskey(c2, "tabSelected")
                         c2["tabSelected"] = "0"
                     end
                 end
             end
+        end
+    end
+
+    # Strip references to parts this copy can't safely inherit: tables and
+    # legacy-drawing-backed comments belong to exactly one sheet in OOXML, and
+    # insertsheet! only ever wires up a "drawing" relationship for the new
+    # sheet — so any r:id in these elements would dangle. Rather than
+    # duplicating+renaming the underlying parts (real feature work — table
+    # names must be workbook-unique, etc.), drop the referencing elements so
+    # the copy is always structurally valid, consistent with this function's
+    # existing "Experimental" contract.
+    let sheet_root = xml_root_element(xdoc)
+        for tag in ("tableParts", "legacyDrawing", "legacyDrawingHF")
+            idx = findfirst(c -> localname(c) == tag, XML.children(sheet_root))
+            idx !== nothing && deleteat!(XML.children(sheet_root), idx)
         end
     end
 
@@ -1477,6 +1589,33 @@ function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, s
     return ws
 end
 
+# Deletes `path` and, recursively, everything transitively reachable through
+# its own `_rels` file — i.e. second/third/... order orphans. Used for parts
+# that belong exclusively to one sheet (tables, comments, VML legacy drawings,
+# and whatever those in turn reference, e.g. threaded comments off a comments
+# part). Drawings/media are excluded by the caller and handled separately,
+# since media can be reused across multiple drawings and needs a dedup check
+# before deletion rather than unconditional removal.
+function delete_part_and_orphans!(xf::XLSXFile, path::String)
+    for store in (xf.files, xf.data, xf.binary_data)
+        haskey(store, path) && delete!(store, path)
+    end
+    remove_override!(xf, "/$path")
+
+    part_dir, part_file = rsplit(path, "/"; limit=2)
+    part_rels = "$part_dir/_rels/$part_file.rels"
+    if haskey(xf.data, part_rels)
+        for node in elements_with_tag(root_element(xf.data[part_rels]), "Relationship")
+            get_attr(node, "TargetMode") == "External" && continue  # e.g. hyperlinks — not a package part
+            target = resolve_relative_target(part_dir, get_attr(node, "Target"))
+            delete_part_and_orphans!(xf, target)
+        end
+        for store in (xf.files, xf.data)
+            haskey(store, part_rels) && delete!(store, part_rels)
+        end
+    end
+end
+
 add_override!(wb::Workbook, part::String, content::String) = add_override!(get_xlsxfile(wb), part, content)
 function add_override!(xf::XLSXFile, part::String, content::String)
     ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
@@ -1488,6 +1627,16 @@ function add_override!(xf::XLSXFile, part::String, content::String)
     push!(ctype_root, override_node)
     return nothing
 end
+
+remove_override!(wb::Workbook, part::String) = remove_override!(get_xlsxfile(wb), part)
+function remove_override!(xf::XLSXFile, part::String)
+    ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
+    cont = XML.children(ctype_root)
+    idx = findfirst(i -> haskey(cont[i], "PartName") && cont[i]["PartName"] == part, eachindex(cont))
+    idx !== nothing && deleteat!(cont, idx)
+    return nothing
+end
+
 function renumber_files!(xf::XLSXFile, rId::String)
     wb = get_workbook(xf)
     id = parse(Int64, rId[4:end])
@@ -1657,13 +1806,20 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
         delete!(wb.worksheet_names, oldkey)
     end
 
-    # Drawing and image cleanup
-    sheet_path   = "xl/worksheets/sheet" * rId[4:end] * ".xml"
+    # Sheet-owned parts cleanup. Drawings/media keep their existing dedup-aware
+    # logic (media can be shared across drawings). Every other relationship
+    # type the sheet's own rels file holds — tables, comments, VML legacy
+    # drawings, and anything transitively reachable from those — belongs to
+    # exactly one sheet in OOXML, so it's deleted unconditionally, recursively.
+    sheet_path = "xl/worksheets/sheet" * rId[4:end] * ".xml"
+    sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
+    sheet_rels = "$sheet_dir/_rels/$sheet_file.rels"
+
     drawing_path = _drawing_path_for_sheet(xf, sheet_path)
 
     if drawing_path !== nothing
-        drawing_file     = rsplit(drawing_path, "/"; limit=2)[2]
-        drawing_rels     = "xl/drawings/_rels/$drawing_file.rels"
+        drawing_file = rsplit(drawing_path, "/"; limit=2)[2]
+        drawing_rels = "xl/drawings/_rels/$drawing_file.rels"
 
         # Remove media — but only if no other sheet references it
         all_images = getImages(xf)
@@ -1683,18 +1839,20 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
             delete!(xf.data, path)
         end
 
-        # Remove drawing Override from [Content_Types].xml
-        ctype_root = xml_root_element(xmlroot(xf, "[Content_Types].xml"))
-        cont = XML.children(ctype_root)
-        idx = findfirst(i -> haskey(cont[i], "PartName") &&
-                            cont[i]["PartName"] == "/$drawing_path", eachindex(cont))
-        idx !== nothing && deleteat!(cont, idx)
+        remove_override!(xf, "/$drawing_path")
+    end
 
-        # Remove sheet rels file (contains the drawing relationship)
-        sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
-        sheet_rels = "$sheet_dir/_rels/$sheet_file.rels"
-        delete!(xf.files, sheet_rels)
-        delete!(xf.data,  sheet_rels)
+    if haskey(xf.data, sheet_rels)
+        for node in elements_with_tag(root_element(xf.data[sheet_rels]), "Relationship")
+            get_attr(node, "Type") == REL_DRAWING && continue
+            get_attr(node, "TargetMode") == "External" && continue
+            target = resolve_relative_target(sheet_dir, get_attr(node, "Target"))
+            delete_part_and_orphans!(xf, target)
+        end
+    end
+
+    for store in (xf.files, xf.data)
+        haskey(store, sheet_rels) && delete!(store, sheet_rels)
     end
 
     # Files
@@ -1709,22 +1867,10 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
         delete!(xf.binary_data, xml_filename)
     end
 
-    # update [Content_Types].xml
-    ctype_root = xml_root_element(xmlroot(get_xlsxfile(wb), "[Content_Types].xml"))
-    XML.tag(ctype_root) != "Types" && throw(XLSXError("Something wrong here!"))
-    cont = XML.children(ctype_root)
-    let idx = 0
-        for (i, c) in enumerate(cont)
-            if haskey(c, "PartName") && c["PartName"] == "/xl/worksheets/sheet" * rId[4:end] * ".xml"
-                idx = i
-                break
-            end
-        end
-        if idx > 0
-            deleteat!(cont, idx)
-        end
-    end
 
+    # update [Content_Types].xml
+    remove_override!(xf, "/xl/worksheets/sheet" * rId[4:end] * ".xml")
+    
     update_formulas_missing_sheet!(wb, name)
     renumber_files!(xf, rId)
     update_workbook_xml!(xf)

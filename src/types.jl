@@ -561,9 +561,11 @@ mutable struct Workbook
     workbook_names::Dict{String, DefinedNameValue}
     worksheet_names::Dict{Tuple{Int, String}, DefinedNameValue}
     styles_xroot::Union{XML.Node, Nothing}
-    num_style_index_cache::Dict{Int, CellDataFormat}  # cache for get_num_style_index
+    num_style_index_cache::Dict{Int, CellDataFormat}
     theme_xroot::Union{XML.Node, Nothing}
-    theme_colors::Union{Vector{String}, Nothing}      # cache for get_theme_colors, 12 entries, OOXML theme-index order
+    theme_colors::Union{Vector{String}, Nothing}
+    cellXfs_cache::Union{Vector{XML.Node}, Nothing}   # cache for get_cellXfs_nodes
+    numFmt_cache::Union{Dict{Int, String}, Nothing}   # cache for get_numFmt_cache
 end
 
 @enum TemplateType begin

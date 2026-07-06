@@ -39,8 +39,15 @@ end
 # --- Standard conditional formats
 #
 function allCfs(ws::Worksheet)::Vector{XML.Node}
-    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # find all the <conditionalFormatting> blocks in the worksheet's xml file
-#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml") # find all the <conditionalFormatting> blocks in the worksheet's xml file
+    wb = get_workbook(ws)
+    xf = get_xlsxfile(ws)
+    target_file = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+    v = xf.data[target_file]
+    # Parse ephemerally when the raw string is still needed intact — promoting
+    # it to a parsed XML.Node via xmlroot/get_xml_data here would break
+    # eachrow's first_cache_fill!, which requires the raw string the first
+    # time this sheet is read (issue #425).
+    sheetdoc = v isa String ? parse(v, XML.Node) : xmlroot(wb, ws.relationship_id)
     return find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":worksheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":conditionalFormatting", sheetdoc)
 end
 function add_cf_to_XML(ws, new_cf) # Add a new conditional formatting to the worksheet XML.
@@ -77,8 +84,10 @@ end
 #
 function allExtCfs(ws::Worksheet)::Vector{XML.Node}
     wb = get_workbook(ws)
-    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)    
-#    sheetdoc = xmlroot(ws.package, "xl/worksheets/sheet" * string(ws.sheetId) * ".xml")
+    xf = get_xlsxfile(ws)
+    target_file = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+    v = xf.data[target_file]
+    sheetdoc = v isa String ? parse(v, XML.Node) : xmlroot(wb, ws.relationship_id)
     i, j = get_idces(sheetdoc, "worksheet", "extLst")
     if isnothing(j)
         return Vector{XML.Node}()

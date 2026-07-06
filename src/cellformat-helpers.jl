@@ -476,6 +476,9 @@ function styles_add_cell_attribute(wb::Workbook, new_att::XML.Node, att::String)
     push!(xroot[i][j], new_att)
     xroot[i][j]["count"] = string(existing_elements_count + 1)
 
+    if att == "numFmts" && wb.numFmt_cache !== nothing
+        wb.numFmt_cache[parse(Int, new_att["numFmtId"])] = new_att["formatCode"]
+    end
     return existing_elements_count # turns out this is the new index (because it's zero-based)
 end
 function process_sheetcell(f::Function, xl::XLSXFile, sheetcell::String; kw...)
@@ -1029,7 +1032,7 @@ function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange; k
     if !get_xlsxfile(ws).use_cache_for_sheet_data
         throw(XLSXError("Cannot set uniform attributes because cache is not enabled."))
     end
-    allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
+allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     let newid::Union{Int,Nothing}, first::Bool, alignment_node::Union{XML.Node,Nothing}
         newid = nothing
         first = true
@@ -1048,7 +1051,7 @@ function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange; k
     end
 end
 function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int
-    allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
+    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     bounds = nc_bounds(ncrng)
     if length(ncrng) == 1
         single = true
@@ -1100,7 +1103,7 @@ function process_uniform_veccolon(f::Function, ws::Worksheet, row, col; kw...)
         throw(XLSXError("No worksheet dimension found"))
     else
         @assert isnothing(row) || isnothing(col) "Something wrong here!"
-        allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
+        allXfNodes = get_cellXfs_nodes(get_workbook(ws))
         if isnothing(col)
             col = dim.start.column_number:dim.stop.column_number
         else
@@ -1135,7 +1138,7 @@ function process_uniform_vecint(f::Function, ws::Worksheet, row, col; kw...)
         if dim === nothing
             throw(XLSXError("No worksheet dimension found"))
         end
-        allXfNodes=find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", styles_xmlroot(get_workbook(ws)))
+        allXfNodes = get_cellXfs_nodes(get_workbook(ws))
         newid = nothing
         first = true
         alignment_node = nothing

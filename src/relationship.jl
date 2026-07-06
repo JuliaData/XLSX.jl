@@ -1,4 +1,22 @@
 
+# Resolves a relationship Target that's relative to the directory containing
+# the referencing part (e.g. "xl/worksheets"), collapsing ".." segments.
+# Operates on zip-entry-style forward-slash strings only — deliberately not
+# OS-path-aware, since these are in-memory dictionary keys, not filesystem paths.
+function resolve_relative_target(base_dir::AbstractString, target::AbstractString)::String
+    startswith(target, "/") && return String(target[nextind(target, begin):end])
+    parts = split(base_dir, "/")
+    for seg in split(target, "/")
+        if seg == ".."
+            isempty(parts) && throw(XLSXError("Malformed relationship target `$target` relative to `$base_dir`."))
+            pop!(parts)
+        elseif seg != "." && !isempty(seg)
+            push!(parts, seg)
+        end
+    end
+    return join(parts, "/")
+end
+
 function Relationship(wb::Workbook, e::XML.Node)::Relationship
     localname(e) !=   "Relationship" && throw(XLSXError("Unexpected XML Element: $(localname(e)). Expected: \"Relationship\"."))
     a = XML.attributes(e)

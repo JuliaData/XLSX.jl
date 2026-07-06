@@ -315,3 +315,88 @@ end
     end
     isfile(filename_copy) && rm(filename_copy)
 end
+
+@testset "docProps/app.xml" begin # issue #428
+
+    function parse_heading_pairs(app_xml::String)
+        m = match(r"<HeadingPairs>(.*?)</HeadingPairs>"s, app_xml)
+        m === nothing && return Tuple{String,Int}[]
+        inner = m.captures[1]
+        labels = [c.captures[1] for c in eachmatch(r"<vt:lpstr>([^<]*)</vt:lpstr>", inner)]
+        counts = [parse(Int, c.captures[1]) for c in eachmatch(r"<vt:i4>([^<]*)</vt:i4>", inner)]
+        return collect(zip(labels, counts))
+    end
+
+    function parse_titles_of_parts(app_xml::String)
+        m = match(r"<TitlesOfParts>(.*?)</TitlesOfParts>"s, app_xml)
+        m === nothing && return String[]
+        inner = m.captures[1]
+        return [c.captures[1] for c in eachmatch(r"<vt:lpstr>([^<]*)</vt:lpstr>", inner)]
+    end
+
+    @testset "plain worksheets: rename + add updates HeadingPairs and TitlesOfParts" begin
+        src = joinpath(data_directory, "Book1.xlsx")
+        p = tempname() * ".xlsx"
+        cp(src, p)
+ 
+        XLSX.openxlsx(p; mode="rw") do xf
+            XLSX.renamesheet!(xf["Sheet1"], "Renamed")
+            XLSX.addsheet!(xf, "Added")
+        end
+
+        app = String(zip_readentry(ZipReader(read(p)), "docProps/app.xml"))
+
+        @test !occursin(">Sheet1<", app)   # stale title gone
+
+        titles = parse_titles_of_parts(app)
+        @test "Renamed" in titles
+        @test "Added" in titles
+        @test length(titles) == 3
+
+        pairs = parse_heading_pairs(app)
+        ws_idx = findfirst(pr -> pr[1] == "Worksheets", pairs)
+        @test ws_idx !== nothing
+        @test pairs[ws_idx][2] == 3
+
+        rm(p; force=true)
+    end
+
+    @testset "chartsheet workbook: Worksheets/Charts categories stay separate and correctly counted" begin
+        src = joinpath(data_directory, "Chartsheet.xlsx")
+        p = tempname() * ".xlsx"
+        cp(src, p)
+
+        XLSX.openxlsx(p; mode="rw") do xf
+            XLSX.renamesheet!(xf["Sheet1"], "RenamedData")
+            XLSX.addsheet!(xf, "ExtraData")
+        end
+
+        app = String(zip_readentry(ZipReader(read(p)), "docProps/app.xml"))
+        pairs  = parse_heading_pairs(app)
+        titles = parse_titles_of_parts(app)
+
+        ws_idx = findfirst(pr -> pr[1] == "Worksheets", pairs)
+        ch_idx = findfirst(pr -> pr[1] == "Charts", pairs)
+        @test ws_idx !== nothing
+        @test ch_idx !== nothing
+        @test pairs[ws_idx][2] == 2   # RenamedData, ExtraData
+        @test pairs[ch_idx][2] == 1   # Chart1 untouched by a worksheet-only operation
+
+        @test "RenamedData" in titles
+        @test "ExtraData" in titles
+        @test "Chart1" in titles
+        @test !occursin(">Sheet1<", app)
+        @test length(titles) == 3
+
+        # Worksheets titles are grouped before Charts titles regardless of tab
+        # order — with only one chart, it must be the last title.
+        @test titles[end] == "Chart1"
+
+        XLSX.openxlsx(p) do xf2
+            @test issetequal(XLSX.sheetnames(xf2), ["RenamedData", "ExtraData", "Chart1"])
+        end
+
+        rm(p; force=true)
+    end
+
+end

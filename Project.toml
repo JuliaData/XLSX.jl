@@ -50,6 +50,7 @@ Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+ZipArchives = "49080126-0e18-4c2a-b176-c102e4b3760c"
 
 [targets]
-test = ["CSV", "DataFrames", "Distributions", "FileIO", "Pkg", "Random", "StyledStrings", "Test"]
+test = ["CSV", "DataFrames", "Distributions", "FileIO", "Pkg", "Random", "StyledStrings", "Test", "ZipArchives"]

@@ -2018,4 +2018,104 @@
 
     end
 
+    @testset "getConditionalFormats does not break subsequent cell reads (issue #425)" begin
+
+        function build_cf_workbook()
+            path = tempname() * ".xlsx"
+            f = XLSX.newxlsx()
+            s = f[1]
+            for i in 1:5, j in 1:5
+                s[i, j] = i + j
+            end
+            XLSX.setConditionalFormat(s, "A1:E1", :dataBar)
+            XLSX.writexlsx(path, f)
+            return path
+        end
+
+        @testset "getConditionalFormats then getdata (originally-failing order)" begin
+            path = build_cf_workbook()
+            XLSX.openxlsx(path) do xf
+                ws = xf[1]
+                cfs = XLSX.getConditionalFormats(ws)
+                @test length(cfs) == 1
+
+                data = XLSX.getdata(ws)
+                @test data[1, 1] == 2
+                @test size(data) == (5, 5)
+            end
+            rm(path; force=true)
+        end
+
+        @testset "getdata then getConditionalFormats (originally-working order, must not regress)" begin
+            path = build_cf_workbook()
+            XLSX.openxlsx(path) do xf
+                ws = xf[1]
+                data = XLSX.getdata(ws)
+                @test data[1, 1] == 2
+
+                cfs = XLSX.getConditionalFormats(ws)
+                @test length(cfs) == 1
+            end
+            rm(path; force=true)
+        end
+
+        @testset "getConditionalFormats then eachrow" begin
+            path = build_cf_workbook()
+            XLSX.openxlsx(path) do xf
+                ws = xf[1]
+                XLSX.getConditionalFormats(ws)
+
+                rows = collect(XLSX.eachrow(ws))
+                @test length(rows) == 5
+                @test XLSX.getdata(rows[1], 1) == 2
+            end
+            rm(path; force=true)
+        end
+
+        @testset "getConditionalFormats then readtable" begin
+            path = build_cf_workbook()
+            XLSX.openxlsx(path) do xf
+                ws = xf[1]
+                XLSX.getConditionalFormats(ws)
+
+                tbl = XLSX.readtable(path, ws.name; header=false)
+                @test length(tbl.data) == 5          # 5 columns
+                @test length(tbl.data[1]) == 5        # 5 rows
+            end
+            rm(path; force=true)
+        end
+
+        @testset "readxlsx: getConditionalFormats then getdata" begin
+            path = build_cf_workbook()
+            xf = XLSX.readxlsx(path)
+            ws = xf[1]
+            cfs = XLSX.getConditionalFormats(ws)
+            @test length(cfs) == 1
+            data = XLSX.getdata(ws)
+            @test data[1, 1] == 2
+            rm(path; force=true)
+        end
+
+        @testset "getConditionalExtFormats (allExtCfs) does not break subsequent reads" begin
+            path = tempname() * ".xlsx"
+            f = XLSX.newxlsx()
+            s = f[1]
+            for i in 1:5, j in 1:5
+                s[i, j] = i + j
+            end
+            # icon sets / top10 / etc. route through the x14 extension block —
+            # use whichever of these your API exposes as the ext-format path.
+            XLSX.setConditionalFormat(s, "A1:E1", :iconSet; iconset="5Boxes")
+            XLSX.writexlsx(path, f)
+
+            XLSX.openxlsx(path) do xf2
+                ws = xf2[1]
+                XLSX.getConditionalFormats(ws)
+                data = XLSX.getdata(ws)
+                @test data[1, 1] == 2
+            end
+            rm(path; force=true)
+        end
+
+    end
 end

@@ -6,6 +6,7 @@ import DataFrames, Random
 import Distributions as Dist
 import CSV
 using StyledStrings
+using ZipArchives: ZipReader, zip_names, zip_readentry
 
 # If SAVE_FILES is true then every testset that creates an XLSXFile in memory
 # or that writes an xlsx file will have a file created in `outdir`.
