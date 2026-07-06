@@ -478,7 +478,10 @@ function styles_add_cell_attribute(wb::Workbook, new_att::XML.Node, att::String)
 
     if att == "numFmts" && wb.numFmt_cache !== nothing
         wb.numFmt_cache[parse(Int, new_att["numFmtId"])] = new_att["formatCode"]
+    elseif haskey(wb.style_table_cache, att)
+        push!(wb.style_table_cache[att], new_att)
     end
+
     return existing_elements_count # turns out this is the new index (because it's zero-based)
 end
 function process_sheetcell(f::Function, xl::XLSXFile, sheetcell::String; kw...)
@@ -765,15 +768,6 @@ end
 #
 # Most setUniform functions (but not Style or Alignment - see below)
 #
-function get_all_xf_nodes(ws::Worksheet)
-    find_all_nodes(
-        "/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" *
-        SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" *
-        SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf",
-        styles_xmlroot(get_workbook(ws))
-    )
-end
-
 function maybe_update_font!(f::Function, ws::Worksheet, cell, cellref; kw...)
     f == setFont || return
     cell isa EmptyCell && return
@@ -799,7 +793,7 @@ end
 
 function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange, atts::Vector{String}; kw...)
     get_xlsxfile(ws).use_cache_for_sheet_data || throw(XLSXError("Cannot set uniform attributes because cache is not enabled."))
-    allXfNodes = get_all_xf_nodes(ws)
+    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     newid, first = nothing, true
     isInDim(ws, get_dimension(ws), rng)
     for cellref in rng
@@ -810,7 +804,7 @@ function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange, a
 end
 
 function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange, atts::Vector{String}; kw...)::Int
-    allXfNodes = get_all_xf_nodes(ws)
+    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     single = length(ncrng) == 1
     bounds = nc_bounds(ncrng)
     dim = get_dimension(ws)
@@ -844,7 +838,7 @@ end
 
 function process_uniform_veccolon(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
     @assert isnothing(row) || isnothing(col) "Something wrong here!"
-    allXfNodes = get_all_xf_nodes(ws)
+    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     dim = get_dimension(ws)
     isnothing(col) ? (col = dim.start.column_number:dim.stop.column_number) :
                      (row = dim.start.row_number:dim.stop.row_number)
@@ -861,7 +855,7 @@ function process_uniform_veccolon(f::Function, ws::Worksheet, row, col, atts::Ve
 end
 
 function process_uniform_vecint(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
-    allXfNodes = get_all_xf_nodes(ws)
+    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     dim = get_dimension(ws)
     isInDim(ws, dim, row, col)
     newid, first = nothing, true

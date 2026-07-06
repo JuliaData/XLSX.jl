@@ -566,6 +566,7 @@ mutable struct Workbook
     theme_colors::Union{Vector{String}, Nothing}
     cellXfs_cache::Union{Vector{XML.Node}, Nothing}   # cache for get_cellXfs_nodes
     numFmt_cache::Union{Dict{Int, String}, Nothing}   # cache for get_numFmt_cache
+    style_table_cache::Dict{String, Vector{XML.Node}} # cache for fonts/borders/fills, keyed by tag ("fonts","borders","fills")
 end
 
 @enum TemplateType begin

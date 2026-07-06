@@ -577,57 +577,76 @@ end
 function getRichTextString(wb::Workbook, xml_string::String)::Union{RichTextString, Nothing}
     doc = parse(xml_string, XML.Node)
     si = xml_root_element(doc)
-    
-    # Check for rich text runs <r> elements
-    runs = [child for child in XML.children(si) if localname(child) == "r"]
-    
-    # No rich text runs — plain string, return nothing
-    isempty(runs) && return nothing
-    
-    rts_runs = RichTextRun[]
-    
-    for run in runs
-        children = XML.children(run)
-        
-        t_node = findfirst(c -> localname(c) == "t", children)
-        isnothing(t_node) && continue
 
-        text = XML.is_simple(children[t_node]) ? XML.simple_value(children[t_node]) : XML.value(children[t_node][1])
+    # No rich text runs — plain string, return nothing.
+    # (single existence check, no intermediate array of runs)
+    any(c -> localname(c) == "r", XML.children(si)) || return nothing
+
+    rts_runs = RichTextRun[]
+
+    for run in XML.children(si)
+        localname(run) == "r" || continue
+        children = XML.children(run)
+
+        t_child   = nothing
+        rpr_child = nothing
+        for c in children
+            ln = localname(c)
+            if ln == "t" && isnothing(t_child)
+                t_child = c
+            elseif ln == "rPr" && isnothing(rpr_child)
+                rpr_child = c
+            end
+        end
+
+        isnothing(t_child) && continue
+        text = XML.is_simple(t_child) ? XML.simple_value(t_child) : XML.value(t_child[1])
         isempty(text) && continue
-        
-        rpr = findfirst(c -> localname(c) == "rPr", children)
-        atts = if isnothing(rpr)
+
+        atts = if isnothing(rpr_child)
             nothing
         else
-            rpr_node = children[rpr]
-            rpr_children = XML.children(rpr_node)
-            pairs = Pair{Symbol, Any}[]
-            
-            any(c -> localname(c) == "b",      rpr_children) && push!(pairs, :bold      => true)
-            any(c -> localname(c) == "i",      rpr_children) && push!(pairs, :italic    => true)
-            any(c -> localname(c) == "strike", rpr_children) && push!(pairs, :strike    => true)
-            any(c -> localname(c) == "u",      rpr_children) && push!(pairs, :under     => true)
-            
-            sz_node = findfirst(c -> localname(c) == "sz", rpr_children)
-            !isnothing(sz_node) && push!(pairs, :size => parse(Int, XML.attributes(rpr_children[sz_node])["val"]))
-            
-            color_node = findfirst(c -> localname(c) == "color", rpr_children)
-            if !isnothing(color_node)
-                atts = XML.attributes(rpr_children[color_node])
-                push!(pairs, :color => resolveColor(wb, atts))
+            bold = italic = strike = under = false
+            size_val = color_val = name_val = vertAlign_val = nothing
+
+            for c in XML.children(rpr_child)
+                ln = localname(c)
+                if ln == "b"
+                    bold = true
+                elseif ln == "i"
+                    italic = true
+                elseif ln == "strike"
+                    strike = true
+                elseif ln == "u"
+                    under = true
+                elseif ln == "sz" && isnothing(size_val)
+                    size_val = parse(Int, XML.attributes(c)["val"])
+                elseif ln == "color" && isnothing(color_val)
+                    color_val = resolveColor(wb, XML.attributes(c))
+                elseif ln == "rFont" && isnothing(name_val)
+                    name_val = XML.attributes(c)["val"]
+                elseif ln == "vertAlign" && isnothing(vertAlign_val)
+                    vertAlign_val = XML.attributes(c)["val"]
+                end
             end
-            font_node = findfirst(c -> localname(c) == "rFont", rpr_children)
-            !isnothing(font_node) && push!(pairs, :name => XML.attributes(rpr_children[font_node])["val"])
-            
-            va_node = findfirst(c -> localname(c) == "vertAlign", rpr_children)
-            !isnothing(va_node) && push!(pairs, :vertAlign => XML.attributes(rpr_children[va_node])["val"])
-            
+
+            # fixed output order, matching the original's push! sequence exactly
+            pairs = Pair{Symbol, Any}[]
+            bold                      && push!(pairs, :bold      => true)
+            italic                    && push!(pairs, :italic    => true)
+            strike                    && push!(pairs, :strike    => true)
+            under                     && push!(pairs, :under     => true)
+            !isnothing(size_val)      && push!(pairs, :size      => size_val)
+            !isnothing(color_val)     && push!(pairs, :color     => color_val)
+            !isnothing(name_val)      && push!(pairs, :name      => name_val)
+            !isnothing(vertAlign_val) && push!(pairs, :vertAlign => vertAlign_val)
+
             isempty(pairs) ? nothing : pairs
         end
-        
+
         push!(rts_runs, RichTextRun(text, atts))
     end
-    
+
     isempty(rts_runs) && return nothing
     full_text = join(r.text for r in rts_runs)
     return RichTextString(full_text, rts_runs)

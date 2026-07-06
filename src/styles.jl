@@ -92,21 +92,37 @@ function styles_xmlroot(workbook::Workbook)
     return workbook.styles_xroot
 end
 
-#=
-# Returns the xf XML node element for style `index`.
-# `index` is 0-based.
-function styles_cell_xf(wb::Workbook, index::Integer)::XML.Node
+# Returns (and lazily builds/caches) the direct <font>/<border>/<fill> element
+# children of the <fonts>/<borders>/<fills> container, keyed by container tag.
+# Built once per workbook per tag; kept in sync by styles_add_cell_attribute.
+function get_style_nodes(wb::Workbook, att::String)::Vector{XML.Node}
+    haskey(wb.style_table_cache, att) && return wb.style_table_cache[att]
     xroot = styles_xmlroot(wb)
-    xf_elements = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", xroot)
-    return xf_elements[index+1]
+    i, j = get_idces(xroot, "styleSheet", att)
+    nodes = if i === nothing || j === nothing
+        XML.Node[]
+    else
+        container = xroot[i][j]
+        elements  = xml_elements(container)
+        if parse(Int, container["count"]) != length(elements)
+            throw(XLSXError("Unexpected number of $att definitions found: $(length(elements)). Expected $(container["count"])."))
+        end
+        elements
+    end
+    wb.style_table_cache[att] = nodes
+    return wb.style_table_cache[att]
 end
-=#
+get_fonts_nodes(wb::Workbook)::Vector{XML.Node}   = get_style_nodes(wb, "fonts")
+get_borders_nodes(wb::Workbook)::Vector{XML.Node} = get_style_nodes(wb, "borders")
+get_fills_nodes(wb::Workbook)::Vector{XML.Node}   = get_style_nodes(wb, "fills")
+
 # Returns (and lazily builds/caches) the vector of `cellXfs/xf` nodes.
 # Built once per workbook, O(K); kept in sync by styles_add_cell_xf.
 function get_cellXfs_nodes(wb::Workbook)::Vector{XML.Node}
     if wb.cellXfs_cache === nothing
         xroot = styles_xmlroot(wb)
-        wb.cellXfs_cache = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", xroot)
+        i, j = get_idces(xroot, "styleSheet", "cellXfs")
+        wb.cellXfs_cache = (i === nothing || j === nothing) ? XML.Node[] : xml_elements(xroot[i][j])
     end
     return wb.cellXfs_cache
 end
@@ -170,12 +186,12 @@ const FontAttribute = Union{String,Pair{String,Pair{String,String}}}
 function get_numFmt_cache(wb::Workbook)::Dict{Int, String}
     if wb.numFmt_cache === nothing
         xroot = styles_xmlroot(wb)
-        containers = find_all_nodes(_xpath("styleSheet", "numFmts"), xroot)
-        nodes = if isempty(containers)
+        i, j = get_idces(xroot, "styleSheet", "numFmts")
+        nodes = if i === nothing || j === nothing
             XML.Node[]
         else
-            container = containers[begin]
-            fmt_nodes = filter(n -> XML.nodetype(n) == XML.Element, XML.children(container))
+            container = xroot[i][j]
+            fmt_nodes = xml_elements(container)
             if parse(Int, container["count"]) != length(fmt_nodes)
                 throw(XLSXError("Unexpected number of format definitions found: $(length(fmt_nodes)). Expected $(container["count"])."))
             end
@@ -199,18 +215,7 @@ function styles_numFmt_formatCode(wb::Workbook, numFmtId::AbstractString)::Strin
     haskey(cache, id) || throw(XLSXError("numFmtId $numFmtId not found."))
     return cache[id]
 end
-#=
-function styles_numFmt_formatCode(wb::Workbook, numFmtId::AbstractString)::String
-    if haskey(builtinFormats, numFmtId)
-        return builtinFormats[numFmtId]
-    end
-    xroot = styles_xmlroot(wb)
-    nodes_found = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":numFmts/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":numFmt", xroot)
-    elements_found = filter(x -> XML.attributes(x)["numFmtId"] == numFmtId, nodes_found)
-    length(elements_found) != 1 && throw(XLSXError("numFmtId $numFmtId not found."))
-    return XML.attributes(elements_found[1])["formatCode"]
-end
-=#
+
 styles_numFmt_formatCode(wb::Workbook, numFmtId::Int)::String = styles_numFmt_formatCode(wb, string(numFmtId))
 
 const DATETIME_CODES = ["d", "m", "yy", "h", "s", "a/p", "am/pm"]
@@ -310,13 +315,7 @@ Returns -1 if not found.
 function styles_get_cellXf_with_numFmtId(wb::Workbook, numFmtId::Int)::AbstractCellDataFormat
     return styles_get_cellXf_with_numFmtId(get_cellXfs_nodes(wb), numFmtId)
 end
-#=
-function styles_get_cellXf_with_numFmtId(wb::Workbook, numFmtId::Int)::AbstractCellDataFormat
-    xroot = styles_xmlroot(wb)
-    allXfNodes = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":cellXfs/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":xf", xroot)
-    return styles_get_cellXf_with_numFmtId(allXfNodes, numFmtId)
-end
-=#
+
 function styles_get_cellXf_with_numFmtId(allXfNodes::Vector{XML.Node}, numFmtId::Int)::AbstractCellDataFormat
     if isempty(allXfNodes)
         return EmptyCellDataFormat()
@@ -346,6 +345,8 @@ end
 function styles_add_cell_xf(wb::Workbook, new_xf::XML.Node)::CellDataFormat
     xroot = styles_xmlroot(wb)
     i, j = get_idces(xroot, "styleSheet", "cellXfs")
+    (i === nothing || j === nothing) &&
+        throw(XLSXError("Could not find `cellXfs` element in styles.xml — file may be malformed."))
     existing_cellxf_elements_count = length(xml_elements(xroot[i][j]))
     if parse(Int, xroot[i][j]["count"]) != existing_cellxf_elements_count
         throw(XLSXError("Wrong number of xf elements found: $existing_cellxf_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))

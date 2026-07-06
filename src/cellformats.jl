@@ -327,15 +327,9 @@ function getFont(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFont}
     if haskey(cell_style, "fontId")
         fontid = cell_style["fontId"]
         applyfont = haskey(cell_style, "applyFont") ? cell_style["applyFont"] : "0"
-        xroot = styles_xmlroot(wb)
-        font_elements = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":fonts", xroot)[begin]
-        font_nodes = filter(n -> XML.nodetype(n) == XML.Element, XML.children(font_elements))
-        if parse(Int, font_elements["count"]) != length(font_nodes)
-            throw(XLSXError("Unexpected number of font definitions found: $(length(font_nodes)). Expected $(parse(Int, font_elements["count"]))"))
-        end
+        font_nodes = get_fonts_nodes(wb)
         fontid_int = parse(Int, fontid)
-        current_font = font_nodes[fontid_int + 1]  # index into filtered list, not raw children
-#        current_font = XML.children(font_elements)[fontid_int+1] # Zero based!
+        current_font = font_nodes[fontid_int + 1]
         font_atts = Dict{String,Union{Dict{String,String},Nothing}}()
         for c in xml_elements(current_font)
             if isnothing(XML.attributes(c)) || length(XML.attributes(c)) == 0
@@ -435,12 +429,7 @@ function getBorder(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellBorder
     if haskey(cell_style, "borderId")
         borderid = cell_style["borderId"]
         applyborder = haskey(cell_style, "applyBorder") ? cell_style["applyBorder"] : "0"
-        xroot = styles_xmlroot(wb)
-        border_elements = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":borders", xroot)[begin]
-        border_nodes = xml_elements(border_elements)
-        if parse(Int, border_elements["count"]) != length(border_nodes)
-            throw(XLSXError("Unexpected number of border definitions found : $(length(border_nodes)). Expected $(parse(Int, border_elements["count"]))"))
-        end
+        border_nodes = get_borders_nodes(wb)
         current_border = border_nodes[parse(Int, borderid)+1] # Zero based!
         diag_atts = XML.attributes(current_border)
         border_atts = Dict{String,Union{Dict{String,String},Nothing}}()
@@ -938,17 +927,11 @@ function getFill(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFill}
 
     fillid_int  = parse(Int, cell_style["fillId"])
     applyfill = haskey(cell_style, "applyFill") ? cell_style["applyFill"] : "0"
-    fill_elements = find_all_nodes(_xpath("styleSheet", "fills"), styles_xmlroot(wb))[begin]
-    fill_nodes    = filter(n -> XML.nodetype(n) == XML.Element, XML.children(fill_elements))
-
-    if parse(Int, fill_elements["count"]) != length(fill_nodes)
-        throw(XLSXError("Unexpected number of fill definitions found: $(length(fill_nodes)). Expected $(fill_elements["count"])."))
-    end
-
+    fill_nodes = get_fills_nodes(wb)
     current_fill = fill_nodes[fillid_int + 1]  # fillId is zero-based
     fill_atts    = Dict{String,Union{Dict{String,String},Nothing}}()
 
-    for pattern in filter(n -> XML.nodetype(n) == XML.Element, XML.children(current_fill))
+    for pattern in xml_elements(current_fill)
         tag = localname(pattern)
         a   = XML.attributes(pattern)
         if isnothing(a) || isempty(a)

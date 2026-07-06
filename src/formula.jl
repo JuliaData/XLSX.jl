@@ -396,11 +396,7 @@ If `fname` is provided, it will look specifically for that function name.
 If not, it will match the first identifier followed by '('.
 """
 function split_function_args(formula::String; fname::Union{Nothing,String}=nothing)
-    # Build regex for the function name
-    pat = isnothing(fname) ?
-          r"([A-Za-z_][A-Za-z0-9_]*)\s*\(" :
-          Regex("\\b$(fname)\\s*\\(", "i")
-
+    pat = isnothing(fname) ? _GENERIC_FNAME_RE : _fname_pattern(fname)
     m = match(pat, formula)
     isnothing(m) && return String[]
     start = m.offset + length(m.match)
@@ -485,6 +481,21 @@ const _BINOP_RANGE_RE = Regex("[+\\-*/^]\\s*[\\\$]?[A-Z]+[\\\$]?\\d+:[\\\$]?[A-Z
 const _ARRAY_FUNC_RE = Regex("\\b(?:FREQUENCY|LINEST|LOGEST|MINVERSE|MMULT|MUNIT|MODE\\.MULT|TRANSPOSE|TREND|GROWTH)\\s*\\(")
 const _SPILL_FUNC_RE = Regex("\\b(?:" * join(SPILL_FUNCTIONS, "|") * ")\\s*\\(")
 const _INDEX_OFFSET_RE = Regex("\\b(?:INDEX|OFFSET|IF|CHOOSE)\\s*\\(")
+const _GENERIC_FNAME_RE = r"([A-Za-z_][A-Za-z0-9_]*)\s*\("
+const _FNAME_PATTERN_CACHE = Dict{String, Regex}()
+const _FNAME_PATTERN_LOCK = ReentrantLock()
+
+# Only the small, fixed set of names actually used in this codebase's call
+# sites (INDEX/OFFSET/IF/CHOOSE/GROUPBY/PIVOTBY) ever populate this, but it
+# stays general since split_function_args accepts any fname from callers.
+function _fname_pattern(fname::AbstractString)::Regex
+    key = uppercase(fname)
+    lock(_FNAME_PATTERN_LOCK) do
+        get!(_FNAME_PATTERN_CACHE, key) do
+            Regex("\\b$(key)\\s*\\(", "i")
+        end
+    end
+end
 
 """
     is_array_formula(formula::String) -> Bool
@@ -495,23 +506,20 @@ Currently flags:
   - Functions with range arguments that return arrays (e.g. MMULT, TRANSPOSE)
 """
 function is_array_formula(formula::String)
-    # Fast path: simple arithmetic formulas can't be array formulas
-    # If no uppercase letters followed by digits and colon (range pattern),
-    # and no known function names, skip expensive checks
     occursin(':', formula) || occursin('(', formula) || return false
-    
+
     occursin(_RANGE_RE, formula)       && return true
     occursin(_BINOP_RANGE_RE, formula) && return true
     occursin(_ARRAY_FUNC_RE, formula)  && return true
     occursin(_SPILL_FUNC_RE, formula)  && return true
-    
+    occursin(_INDEX_OFFSET_RE, formula) || return false 
+
     for f in ["INDEX", "OFFSET", "IF", "CHOOSE"]
         args = split_function_args(formula; fname=f)
         !isempty(args) && return needs_array_attr(f, args)
     end
     return false
 end
-
 # Finally got one that works from Claude
 const SPILL_REF_RE = r"""
     (                                       # capture group 1: full reference before #

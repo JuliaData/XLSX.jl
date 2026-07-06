@@ -326,11 +326,32 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
     result = Array{Any,2}(undef, size(rng))
     fill!(result, missing)
 
-    top = row_number(rng.start)
+    top    = row_number(rng.start)
     bottom = row_number(rng.stop)
-    left = column_number(rng.start)
-    right = column_number(rng.stop)
+    left   = column_number(rng.start)
+    right  = column_number(rng.stop)
 
+    # Fast path: cache already covers the whole sheet, so we can index
+    # straight into ws.cache.cells for just the rows we need instead of
+    # walking every row from 1 up to `bottom`.
+    if !isnothing(ws.cache) && is_cache_enabled(ws) && ws.cache.is_full
+        cells = ws.cache.cells
+        for r in top:bottom
+            row_dict = get(cells, r, nothing)
+            isnothing(row_dict) && continue
+            for c in left:right
+                cell = get(row_dict, c, nothing)
+                isnothing(cell) && continue
+                if !isempty(cell)
+                    result[r - top + 1, c - left + 1] = getdata(ws, cell)
+                end
+            end
+        end
+        return result
+    end
+
+    # Fallback: cache isn't fully populated (or is disabled), so we still
+    # need to stream rows in order to fill it / read them.
     for sheetrow in eachrow(ws)
         if top <= sheetrow.row && sheetrow.row <= bottom
             for column in left:right
@@ -341,15 +362,12 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
                 end
             end
         end
-
-        # don't need to read any more rows
-        if sheetrow.row > bottom
-            break
-        end
+        sheetrow.row > bottom && break
     end
 
     return result
 end
+
 function getdata(ws::Worksheet, rng::ColumnRange)::Array{Any,2}
     dim = get_dimension(ws)
     start = CellRef(dim.start.row_number, rng.start)

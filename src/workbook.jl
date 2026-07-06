@@ -23,7 +23,8 @@ const WORKBOOK_ORDER = String[
 EmptyWorkbook() = Workbook(EmptyMSOfficePackage(), Vector{Worksheet}(), false,
     Vector{Relationship}(), Dict{SheetCellRef, AbstractFormula}(), SharedStringTable(), Dict{Int,Bool}(), Dict{Int,Bool}(),
     ReentrantLock(), ReentrantLock(), ReentrantLock(), Dict{String,DefinedNameValueTypes}(), Dict{Tuple{Int,String},DefinedNameValueTypes}(),
-    nothing, Dict{Int, CellDataFormat}(), nothing, nothing, nothing, nothing)
+    nothing, Dict{Int, CellDataFormat}(), nothing, nothing, nothing, nothing, Dict{String, Vector{XML.Node}}())
+    
 #=
 Indicates whether this XLSX file can be edited.
 This controls if assignment to worksheet cells is allowed.
@@ -228,19 +229,40 @@ function getcellrange(xl::XLSXFile, rng_str::AbstractString)
 end
 
 # Defined names are case-insensitive in Excel. Need to check on this basis (haskey is insufficient).
-@inline is_workbook_defined_name(wb::Workbook, name::AbstractString)::Bool = !isnothing(findfirst(x -> uppercase(x)==uppercase(name), collect(keys(wb.workbook_names))))
-@inline is_worksheet_defined_name(wb::Workbook, sheetId::Int, name::AbstractString)::Bool = !isnothing(findfirst(x -> uppercase(last(x))==uppercase(name) && first(x)==sheetId, collect(keys(wb.worksheet_names))))
+@inline function is_workbook_defined_name(wb::Workbook, name::AbstractString)::Bool
+    uname = uppercase(name)
+    for k in keys(wb.workbook_names)
+        uppercase(k) == uname && return true
+    end
+    return false
+end
+@inline function is_worksheet_defined_name(wb::Workbook, sheetId::Int, name::AbstractString)::Bool
+    uname = uppercase(name)
+    for k in keys(wb.worksheet_names)
+        first(k) == sheetId && uppercase(last(k)) == uname && return true
+    end
+    return false
+end
 @inline is_workbook_defined_name(xl::XLSXFile, name::AbstractString)::Bool = is_workbook_defined_name(get_workbook(xl), name)
 @inline is_worksheet_defined_name(ws::Worksheet, name::AbstractString)::Bool = is_worksheet_defined_name(get_workbook(ws), ws.sheetId, name)
 @inline is_worksheet_defined_name(wb::Workbook, sheet_name::AbstractString, name::AbstractString)::Bool = is_worksheet_defined_name(wb, getsheet(wb, sheet_name).sheetId, name)
 
-@inline get_defined_name_value(wb::Workbook, name::AbstractString)::DefinedNameValueTypes = wb.workbook_names[name].value
+function get_defined_name_value(wb::Workbook, name::AbstractString)::DefinedNameValueTypes
+    uname = uppercase(name)
+    for (k, v) in wb.workbook_names
+        uppercase(k) == uname && return v.value
+    end
+    throw(XLSXError("Workbook defined name `$name` not found."))
+end
 
 function get_defined_name_value(ws::Worksheet, name::AbstractString)::DefinedNameValueTypes
     wb = get_workbook(ws)
     sheetId = ws.sheetId
-    dn = wb.worksheet_names[(sheetId, name)]
-    return dn.value
+    uname = uppercase(name)
+    for (k, v) in wb.worksheet_names
+        first(k) == sheetId && uppercase(last(k)) == uname && return v.value
+    end
+    throw(XLSXError("Worksheet defined name `$name` not found on this sheet."))
 end
 
 @inline is_defined_name_value_a_reference(v::DefinedNameValueTypes) = isa(v, SheetCellRef) || isa(v, SheetCellRange) || isa(v, NonContiguousRange)
