@@ -183,8 +183,9 @@ end
 # Looks for a string inside the Shared Strings Table (sst).
 # `index` starts at 0.
 @inline function sst_unformatted_string(wb::Workbook, index::Int64)::String
-    sst_load!(wb)
-    return get_sst(wb).unformatted[index+1]
+    sst = get_sst(wb)
+    sst.is_loaded || sst_load!(wb)
+    return sst.unformatted[index+1]
 end
 
 @inline sst_unformatted_string(xl::XLSXFile, index::Int64) :: String = sst_unformatted_string(get_workbook(xl), index)

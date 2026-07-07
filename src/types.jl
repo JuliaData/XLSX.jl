@@ -356,12 +356,6 @@ mutable struct SheetRowStreamIteratorState{I}
     local_formulas::Dict{SheetCellRef,AbstractFormula}
     rows_since_merge::Int
 end
-#=
-struct SheetRowStreamIteratorState{I}
-    row_iter::I
-    rowcells::Dict{Int,Cell}
-end
-=#
 
 mutable struct WorksheetCacheIteratorState
     row_from_last_iteration::Int

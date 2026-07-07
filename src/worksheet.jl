@@ -330,28 +330,48 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
     bottom = row_number(rng.stop)
     left   = column_number(rng.start)
     right  = column_number(rng.stop)
+    width  = right - left + 1
 
-    # Fast path: cache already covers the whole sheet, so we can index
-    # straight into ws.cache.cells for just the rows we need instead of
-    # walking every row from 1 up to `bottom`.
     if !isnothing(ws.cache) && is_cache_enabled(ws) && ws.cache.is_full
         cells = ws.cache.cells
-        for r in top:bottom
-            row_dict = get(cells, r, nothing)
-            isnothing(row_dict) && continue
-            for c in left:right
-                cell = get(row_dict, c, nothing)
-                isnothing(cell) && continue
-                if !isempty(cell)
-                    result[r - top + 1, c - left + 1] = getdata(ws, cell)
+        rows  = ws.cache.rows_in_cache   # sorted Vector{Int} of populated row numbers
+
+        # Binary-search the populated-row range instead of hash-probing every
+        # integer in top:bottom — cheap for dense sheets (same row count, just
+        # a plain index walk instead of hashing) and skips gaps outright for
+        # sparse ones.
+        lo = searchsortedfirst(rows, top)
+        hi = searchsortedlast(rows, bottom)
+
+        @inbounds for k in lo:hi
+            r = rows[k]
+            row_dict = cells[r]   # r came from rows_in_cache, so this key must exist
+
+            if length(row_dict) <= width
+                # Fewer entries than the span — cheaper to walk the row's own
+                # entries (no hashing) and filter to range.
+                for (c, cell) in row_dict
+                    (left <= c <= right) || continue
+                    if !isempty(cell)
+                        result[r - top + 1, c - left + 1] = getdata(ws, cell)
+                    end
+                end
+            else
+                # At least as full as the span — cheaper to probe just the
+                # columns actually requested than to walk past irrelevant ones.
+                for c in left:right
+                    cell = get(row_dict, c, nothing)
+                    isnothing(cell) && continue
+                    if !isempty(cell)
+                        result[r - top + 1, c - left + 1] = getdata(ws, cell)
+                    end
                 end
             end
         end
         return result
     end
 
-    # Fallback: cache isn't fully populated (or is disabled), so we still
-    # need to stream rows in order to fill it / read them.
+    # Fallback: cache isn't fully populated (or is disabled) — unchanged.
     for sheetrow in eachrow(ws)
         if top <= sheetrow.row && sheetrow.row <= bottom
             for column in left:right
@@ -367,7 +387,6 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
 
     return result
 end
-
 function getdata(ws::Worksheet, rng::ColumnRange)::Array{Any,2}
     dim = get_dimension(ws)
     start = CellRef(dim.start.row_number, rng.start)
