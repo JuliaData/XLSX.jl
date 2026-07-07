@@ -43,14 +43,10 @@ function allCfs(ws::Worksheet)::Vector{XML.Node}
     xf = get_xlsxfile(ws)
     target_file = get_relationship_target_by_id("xl", wb, ws.relationship_id)
     v = xf.data[target_file]
-    # Parse ephemerally when the raw string is still needed intact — promoting
-    # it to a parsed XML.Node via xmlroot/get_xml_data here would break
-    # eachrow's first_cache_fill!, which requires the raw string the first
-    # time this sheet is read (issue #425).
     sheetdoc = v isa String ? parse(v, XML.Node) : xmlroot(wb, ws.relationship_id)
     return find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":worksheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":conditionalFormatting", sheetdoc)
 end
-function add_cf_to_XML(ws, new_cf) # Add a new conditional formatting to the worksheet XML.
+function add_cf_to_XML(ws, new_cf)
     wb = get_workbook(ws)
     sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)
     l = insert_index(sheetdoc[end], "conditionalFormatting", WORKSHEET_ORDER)
@@ -60,6 +56,20 @@ function add_cf_to_XML(ws, new_cf) # Add a new conditional formatting to the wor
     else
         push!(sheetdoc[end], new_cf)
     end
+end
+function next_cf_priority!(ws::Worksheet)::Int
+    if ws.next_cf_priority === nothing
+        # One-time O(n) scan over whatever rules already exist (e.g. in a
+        # file opened with existing conditional formatting). Every
+        # subsequent call is O(1).
+        allcfs    = allCfs(ws)
+        allextcfs = allExtCfs(ws)
+        old_cf    = append!(getConditionalFormats(ws, allcfs), getConditionalExtFormats(ws, allextcfs))
+        ws.next_cf_priority = isempty(old_cf) ? 1 : maximum(last(x).priority for x in old_cf) + 1
+    end
+    pr = ws.next_cf_priority
+    ws.next_cf_priority += 1
+    return pr
 end
 function update_worksheet_cfx!(allcfs, cfx, ws, rng)
     pfx = get_prefix(ws)
@@ -106,6 +116,24 @@ function allExtCfs(ws::Worksheet)::Vector{XML.Node}
         return isnothing(cfs) ? Vector{XML.Node}() : xml_elements(cfs)
     end
 end
+
+#=
+function _extcfs_from_doc(sheetdoc::XML.Node)::Vector{XML.Node}
+    i, j = get_idces(sheetdoc, "worksheet", "extLst")
+    isnothing(j) && return Vector{XML.Node}()
+    extlst = sheetdoc[i][j]
+    cfs = nothing
+    for ext in XML.children(extlst)
+        for c in XML.children(ext)
+            if localname(c) == "conditionalFormattings"
+                cfs = c
+                break
+            end
+        end
+    end
+    return isnothing(cfs) ? Vector{XML.Node}() : xml_elements(cfs)
+end
+=#
 function make_extLst!(s)
     ext_list = XML.Element("extLst")
     ext_element = XML.Element("ext")

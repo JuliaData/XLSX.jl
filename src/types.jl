@@ -391,19 +391,20 @@ println( sh[:] ) # all data inside worksheet's dimension
 ```
 """
 mutable struct Worksheet
-    package::MSOfficePackage # parent XLSXFile
+    package::MSOfficePackage
     sheetId::Int
-    relationship_id::String # r:id="rId1"
+    relationship_id::String
     name::String
     dimension::Union{Nothing, CellRange}
     is_hidden::Bool
     cache::Union{WorksheetCache, Nothing}
     next_formula_id::Int
-    unhandled_attributes::Union{Nothing,Dict{Int,Dict{String,String}}} # row => attributes(name=>value)
-    sst_count::Int # number of cells containing a shared string
+    unhandled_attributes::Union{Nothing,Dict{Int,Dict{String,String}}}
+    sst_count::Int
+    next_cf_priority::Union{Int, Nothing}   # next priority to assign; nothing until first computed
 
     function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, is_hidden::Bool)
-        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0)
+        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0, nothing)
     end
 end
 
