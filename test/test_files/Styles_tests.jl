@@ -1876,28 +1876,6 @@
             end
         end
 
-        @testset "reading distinct styles scales ~linearly, not quadratically" begin
-            function time_read(path)
-                XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)  # warm-up
-                times = [@elapsed(XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)) for _ in 1:9]
-                sort!(times)
-                return times[5]  # median of 9, more robust to one slow outlier than min-of-5
-            end
-
-            Ks = (200, 400, 800, 1600)
-            times = Float64[]
-            for K in Ks
-                path = build_styled_workbook(K; distinct=true)
-                try
-                    push!(times, time_read(path))
-                finally
-                    rm(path; force=true)
-                end
-            end
-
-            ratios = [times[i+1] / times[i] for i in 1:length(times)-1]
-            @test all(r -> r < 3.5, ratios)
-        end
         @testset "cellXfs/numFmt caches are built exactly once regardless of K" begin
             K = 50
             path = build_styled_workbook(K; distinct=true)
@@ -2043,24 +2021,24 @@
         @testset "reading distinct fonts scales ~linearly, not quadratically" begin
             function time_read(path)
                 XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)  # warm-up
-                times = [@elapsed(XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)) for _ in 1:9]
-                sort!(times)
-                return times[5]
+                samples = [@elapsed(XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)) for _ in 1:9]
+                sort!(samples)
+                return samples[5]
             end
 
             Ks = (200, 400, 800, 1600)
-            times = Float64[]
+            mediantime = Float64[]
             for K in Ks
                 path = build_font_workbook(K; distinct=true)
                 try
-                    push!(times, time_read(path))
+                    push!(mediantime, time_read(path))
                 finally
                     rm(path; force=true)
                 end
             end
 
-            ratios = [times[i+1] / times[i] for i in 1:length(times)-1]
-            @test all(r -> r < 3.5, ratios)
+            ratios = [mediantime[i+1] / mediantime[i] for i in 1:length(mediantime)-1]
+            @test all(r -> r < 2.5, ratios)
         end
 
         @testset "fonts/borders/fills caches are built exactly once regardless of K" begin
