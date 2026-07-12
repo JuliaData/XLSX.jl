@@ -52,7 +52,9 @@ jobs:
       - uses: julia-actions/julia-runtest@v1
         continue-on-error: ${{ matrix.version == 'nightly' }}
       - uses: julia-actions/julia-processcoverage@v1
+        if: matrix.version == '1'
       - uses: codecov/codecov-action@v7
+        if: matrix.version == '1'
         with:
           files: lcov.info
   docs:
