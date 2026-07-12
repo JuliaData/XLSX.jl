@@ -15,8 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Julia floor raised to 1.10 (LTS)
 - Apply dependabot updates
 
-Adoption XML.jl v0.4 involves a major rewrite of package internals but provides a
-significant speed improvement in most use cases. Please [report any issues](https://github.com/JuliaData/XLSX.jl/issues).
+Adoption of XML.jl v0.4 involves a major rewrite of package internals but provides a
+significant speed improvement in most use cases. Thanks to @joshday and @mathieu17g for support with this.
+Please [report any issues](https://github.com/JuliaData/XLSX.jl/issues).
 
 [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) version greater than v1.19.0 ([release pending](https://github.com/JuliaIO/FileIO.jl/pull/439)).
 
