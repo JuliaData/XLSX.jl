@@ -2,23 +2,23 @@
 
 All notable changes to this package will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
 ## [v0.12.0](https://github.com/JuliaData/XLSX.jl/tree/v0.12.0) - 2026-07-12
 - Adopt XML.jl v0.4
-- add a package extension to support [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
-- Fix issues #425, #426, #427 and #428
-- update copyright notice end-date
-- modularize tests
+- Add a package extension to support [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
+- Fix issues [#425](https://github.com/JuliaData/XLSX.jl/issues/425), [#426](https://github.com/JuliaData/XLSX.jl/issues/426), [#427](https://github.com/JuliaData/XLSX.jl/issues/427) and [#428](https://github.com/JuliaData/XLSX.jl/issues/428)
+- Update copyright notice end-date
+- Modularize tests
 - Julia floor raised to 1.10 (LTS)
 - Apply dependabot updates
 
 Adoption XML.jl v0.4 involves a major rewrite of package internals but provides a
 significant speed improvement in most use cases. Please [report any issues](https://github.com/JuliaData/XLSX.jl/issues).
 
-[FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) version greater than v1.19.0.
+[FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) version greater than v1.19.0 ([release pending](https://github.com/JuliaIO/FileIO.jl/pull/439)).
 
 There are **no changes to the existing public API.**
 

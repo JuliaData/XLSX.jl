@@ -28,13 +28,13 @@ julia> Pkg.add(["FileIO", "XLSX"])
 
 !!! note
 
-   [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a version of [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) greater than v1.19.0
+    [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a version of [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) greater than v1.19.0.
 
 ## Usage
 
 ### Load an Excel file
 
-To read an Excel file into a `DataFrame`, use the following julia code:
+To read tabular data from an Excel file into a `DataFrame`, use the following julia code:
 
 ```julia
 using FileIO, DataFrames
