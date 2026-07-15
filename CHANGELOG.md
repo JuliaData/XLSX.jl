@@ -19,7 +19,7 @@ Adoption of XML.jl v0.4 involves a major rewrite of package internals but provid
 significant speed improvement in most use cases. Thanks to @joshday and @mathieu17g for support with this.
 Please [report any issues](https://github.com/JuliaData/XLSX.jl/issues).
 
-[FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) version greater than v1.19.0 ([release pending](https://github.com/JuliaIO/FileIO.jl/pull/439)).
+[FileIO.jl](https://github.com/JuliaIO/FileIO.jl) support requires a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) version greater than v1.19.0.
 
 There are **no changes to the existing public API.**
 

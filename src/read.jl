@@ -1759,7 +1759,7 @@ Read tabular data from an Excel file, `source`, and return it as a `Tables.jl` c
 The resulting table object can be passed directly to any function that accepts `Tables.jl` data 
 (e.g. `DataFrame` from package `DataFrames.jl`).
 
-This function requires both FileIO.jl v1.20.0 or higher to be active in the current environment and a Julia version >= v1.9.
+This function requires both FileIO.jl v1.20.0 or higher to be active in the current environment and a Julia version >= v1.10.
 
 #### Arguments:
 
@@ -1821,7 +1821,7 @@ end
 ```
 Save a `Tables.jl` compatible table to an Excel file, `source`.
 
-This function requires both FileIO.jl v1.20.0 or higher to be active in the current environment and a Julia version >= v1.9.
+This function requires both FileIO.jl v1.20.0 or higher to be active in the current environment and a Julia version >= v1.10.
 
 #### Arguments:
 
