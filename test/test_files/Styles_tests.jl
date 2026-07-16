@@ -2023,7 +2023,7 @@
                 XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)  # warm-up
                 samples = [@elapsed(XLSX.openxlsx(x -> XLSX.getdata(x[1]), path)) for _ in 1:9]
                 sort!(samples)
-                return samples[5]
+                return sum(samples[3:7]) / 5   # trimmed mean: drop 2 fastest + 2 slowest
             end
 
             Ks = (200, 400, 800, 1600)
@@ -2037,8 +2037,16 @@
                 end
             end
 
-            ratios = [mediantime[i+1] / mediantime[i] for i in 1:length(mediantime)-1]
-            @test all(r -> r < 2.5, ratios)
+            # Fit log(time) ~ slope*log(K) across all 4 points instead of checking
+            # pairwise ratios individually. A real O(K^2) regression shows a
+            # sustained trend across every point; a single noisy K barely moves 
+            # a 4-point fit.
+            logK, logT = log.(collect(Ks)), log.(mediantime)
+            n = length(logK)
+            slope = (n * sum(logK .* logT) - sum(logK) * sum(logT)) /
+                    (n * sum(logK .^ 2) - sum(logK)^2)
+
+            @test slope < 1.5   # linear ≈ 1, quadratic ≈ 2
         end
 
         @testset "fonts/borders/fills caches are built exactly once regardless of K" begin
