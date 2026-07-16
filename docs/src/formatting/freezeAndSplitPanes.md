@@ -6,6 +6,10 @@ split, or remove panes from a worksheet's view.
 
 ## Freeze Panes
 
+Freeze one or more rows (eg header rows) so that they will not scroll vertically with rows beneath 
+and/or one or more columns (eg row labels) so they don't scroll sideways using `freezePanes()`. 
+Frozen rows/columns remain fixed as the main pane scrolls freely.
+
 ```julia
 
 julia> using XLSX
@@ -30,12 +34,19 @@ julia> XLSX.freezePanes(sheet, "C3") # equivalent to nrows=2, ncols=2 (see image
 the first cell of the scrolling region, so `freezePanes(s, "C3")` freezes everything above and to
 the left of `C3`.
 
-    ![image|320x500](../images/freezePanes.png)
+Frozen panes have no effect in XLSX.jl but can be set using `freezePanes()` so that the panes are 
+frozen when a saved file is opened in Excel.
+
+![image|320x500](../images/freezePanes.png)
 
 Calling `freezePanes` again replaces any panes already set with the newly 
 specified panes.
 
 ## Split Panes
+
+Split a worksheet into two or four panes that are separately and independently scrollable 
+using `splitPanes()`. Unlike frozen panes, a split pane's divider can be dragged interactively 
+by the user in Excel.
 
 ```julia
 
@@ -44,10 +55,10 @@ julia> XLSX.splitPanes(sheet; nrows=10) # splits the view below row 10, with a d
 julia> XLSX.splitPanes(sheet, "D11") # Creates 4 scollable panes
 ```
 
-    ![image|320x500](../images/freezePanes.png)
+![image|320x500](../images/splitPanes.png)
 
-Unlike frozen panes, a split pane's divider can be dragged interactively by the user in Excel, 
-and all split panes are independently scrollable.
+Split panes have no effect in XLSX.jl but can be set using `splitPanes()` so that the panes are 
+split when a saved file is opened in Excel.
 
 !!! note
 
@@ -57,16 +68,16 @@ and all split panes are independently scrollable.
 
 ## SplitFreeze panes
 
+The `splitFreeze()` function freezes panes just like `freezePanes()`, but marks them internally 
+as having originated from a split (`state="frozenSplit"`), matching what Excel itself writes 
+when a user freezes panes already created with a draggable split. For a freshly created pane the 
+visible result is the same as `freezePanes`; the distinction only affects how Excel behaves if 
+the pane is later unfrozen interactively.
+
 ```julia
 
 julia> XLSX.splitFreeze(sheet; nrows=3, ncols=2)
 ```
-
-`splitFreeze` freezes panes just like `freezePanes`, but marks them internally as having
-originated from a split (`state="frozenSplit"`), matching what Excel itself writes when a user
-freezes panes while a draggable split already exists. For a freshly created pane the visible
-result is the same as `freezePanes`; the distinction only affects how Excel behaves if the pane
-is later unfrozen interactively.
 
 ## Remove panes
 
