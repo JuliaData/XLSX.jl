@@ -36,8 +36,17 @@ export
     setConditionalFormat,
     RichTextString, RichTextRun,
     setColumnWidth, setRowHeight,
-    getMergedCells, isMergedCell, getMergedBaseCell, mergeCells
-  
+    getMergedCells, isMergedCell, getMergedBaseCell, mergeCells,
+    freezePanes, splitFreeze, splitPanes, removePanes
+
+@static if VERSION >= v"1.11"
+    eval(Meta.parse("""
+    public getcell, getcellrange, getFormula, getRichTextString,
+           getConditionalFormats, getColumnWidth, getRowHeight,
+           getFormat, getFont, getBorder, getFill, getAlignment
+    """))
+end
+
 const SPREADSHEET_NAMESPACE_XPATH_ARG = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 const EXCEL_MAX_COLS =    16_384           # total columns supported by Excel per sheet
@@ -61,6 +70,7 @@ include("cell.jl")
 include("styles.jl")
 include("cellformat-helpers.jl") # must load before cellformats.jl
 include("cellformats.jl")
+include("panes.jl")
 include("conditional-format-helpers.jl") # must load before conditional-formats.jl
 include("conditional-formats.jl")
 include("images.jl")

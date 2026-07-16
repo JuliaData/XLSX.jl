@@ -62,6 +62,14 @@
     @test in(XLSX.SheetCellRef("Sheet1!B2"), XLSX.NonContiguousRange("Sheet1!A1,Sheet1!B2")) == true
     @test in(XLSX.SheetCellRef("Sheet1!A2"), XLSX.NonContiguousRange("Sheet1!A1,Sheet1!B2")) == false
 
+    ncrng_mixed = XLSX.NonContiguousRange("Sheet1!A1,Sheet1!C3:E5")
+    @test in(XLSX.SheetCellRef("Sheet1!D4"), ncrng_mixed) == true  # interior of the range piece
+    @test in(XLSX.SheetCellRef("Sheet1!C3"), ncrng_mixed) == true  # top-left corner of the range piece
+    @test in(XLSX.SheetCellRef("Sheet1!E5"), ncrng_mixed) == true  # bottom-right corner of the range piece
+    @test in(XLSX.SheetCellRef("Sheet1!F6"), ncrng_mixed) == false # just outside the range piece
+    @test in(XLSX.SheetCellRef("Sheet1!B2"), ncrng_mixed) == false # matches neither piece
+    @test in(XLSX.SheetCellRef("Sheet2!D4"), ncrng_mixed) == false # right position, wrong sheet
+
     cn = XLSX.CellRef("A1")
     @test string(cn) == "A1"
     @test XLSX.column_name(cn) == "A"

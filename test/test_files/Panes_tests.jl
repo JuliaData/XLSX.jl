@@ -1,10 +1,7 @@
-@testset "Freeze and split panes" begin
+@testset "freeze/split panes" begin
 
     # White-box helper: walk down to the <pane> element (and any <selection>
     # elements) of a worksheet's first <sheetView>, or `nothing` if absent.
-    # Uses get_idces the same way the real codebase does for this exact kind
-    # of two-hop lookup (see getColumnWidth's `get_idces(sheetdoc, "worksheet", "cols")`),
-    # chained twice to descend doc -> worksheet -> sheetViews -> sheetView -> pane.
     function _pane_and_selections(ws::XLSX.Worksheet)
         doc = XLSX.get_worksheet_xml_document(ws)
 
@@ -230,14 +227,6 @@
         # namespace):
         #   "Sheet1"      -> sheet.xml  -- no <sheetViews> at all
         #   "XLSX-Export" -> sheet5.xml -- existing self-closed <x:sheetView/>
-        #
-        # Uses explicit openxlsx/writexlsx (no do-block, so no autosave --
-        # every save is explicit and always given a name via writexlsx,
-        # never savexlsx's implicit overwrite-in-place) across three
-        # save-then-reopen cycles, with different pane operations applied to
-        # each tab each round, to confirm the XML we write is correctly
-        # re-parsed on a subsequent open -- not just correctly held in memory
-        # for the remainder of the same session.
         src = joinpath(data_directory, "No-Default_NameSpace.xlsx")
         @test isfile(src)
 
