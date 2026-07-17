@@ -221,6 +221,146 @@
         @test_throws XLSX.XLSXError XLSX.freezePanes(s; ncols=-1)
     end
 
+    @testset "anchor_cell / nrows,ncols beyond current sheet dimension" begin
+        # freezing/splitting well beyond the used range specifically
+        # exercises the dimension-membership guard in _col_width_chars/
+        # _row_height_pts.
+        f = XLSX.open_empty_template()
+        s = f["Sheet1"]
+        s["A1:E10"] = ""   # dimension is now A1:E10
+ 
+        XLSX.freezePanes(s, "Z100")
+        _, pane1, _ = _pane_and_selections(s)
+        @test pane1["topLeftCell"] == "Z100"
+        @test pane1["xSplit"] == "25"
+        @test pane1["ySplit"] == "99"
+        @test pane1["state"] == "frozen"
+ 
+        XLSX.splitPanes(s, "Z100")
+        _, pane2, _ = _pane_and_selections(s)
+        @test pane2["topLeftCell"] == "Z100"
+        @test !haskey(pane2, "state")
+        @test parse(Int, pane2["xSplit"]) > 0
+        @test parse(Int, pane2["ySplit"]) > 0
+ 
+        SAVE_FILES && save_outfile(f)
+    end
+ 
+    @testset "splitPanes on a brand new, entirely empty sheet" begin
+        # A freshly-created sheet's dimension is
+        # A1:A1 (nothing written at all), so *any* row/col beyond 1 is
+        # outside get_dimension(ws).
+        f = XLSX.newxlsx()
+        s = f[1]
+ 
+        XLSX.splitPanes(s; nrows=10)
+        _, pane, _ = _pane_and_selections(s)
+        @test pane["topLeftCell"] == "A11"
+        @test parse(Int, pane["ySplit"]) > 0
+ 
+        SAVE_FILES && save_outfile(f)
+    end
+
+    @testset "column-only freezePanes (ncols>0, nrows=0)" begin
+        f = XLSX.open_empty_template()
+        s = f["Sheet1"]
+        s["A1:E10"] = ""
+
+        XLSX.freezePanes(s; ncols=2, nrows=0)
+        _, pane, selections = _pane_and_selections(s)
+
+        @test pane["topLeftCell"] == "C1"
+        @test pane["xSplit"] == "2"
+        @test !haskey(pane, "ySplit")
+        @test pane["activePane"] == "topRight"
+        @test pane["state"] == "frozen"
+
+        @test length(selections) == 1
+        @test only(selections)["pane"] == "topRight"
+        @test only(selections)["activeCell"] == "C1"
+
+        SAVE_FILES && save_outfile(f)
+    end
+
+    @testset "column-only splitPanes (ncols>0, nrows=0)" begin
+        f = XLSX.open_empty_template()
+        s = f["Sheet1"]
+        s["A1:E10"] = ""
+
+        XLSX.splitPanes(s; ncols=2, nrows=0)
+        _, pane, selections = _pane_and_selections(s)
+
+        @test !haskey(pane, "state")
+        @test !haskey(pane, "ySplit")
+        @test haskey(pane, "xSplit")
+        @test pane["activePane"] == "topRight"
+
+        # split's corner pane is selectable, unlike frozen (confirmed above).
+        @test length(selections) == 2
+        panenames = Set(sel["pane"] for sel in selections)
+        @test panenames == Set(["topLeft", "topRight"])
+
+        SAVE_FILES && save_outfile(f)
+    end
+
+    @testset "splitPanes respects explicit column width / row height" begin
+        f = XLSX.open_empty_template()
+        s = f["Sheet1"]
+        s["A1:E10"] = ""
+
+        XLSX.splitPanes(s; nrows=1, ncols=1)
+        _, pane_default, _ = _pane_and_selections(s)
+        default_xsplit = parse(Int, pane_default["xSplit"])
+        default_ysplit = parse(Int, pane_default["ySplit"])
+
+        # Give column A and row 1 explicit, much larger dimensions and
+        # confirm splitPanes actually picks them up rather than falling
+        # through to sheetFormatPr/hardcoded defaults.
+        XLSX.setColumnWidth(s, "A1"; width=40)
+        XLSX.setRowHeight(s, "A1"; height=60)
+
+        XLSX.splitPanes(s; nrows=1, ncols=1)
+        _, pane_custom, _ = _pane_and_selections(s)
+        custom_xsplit = parse(Int, pane_custom["xSplit"])
+        custom_ysplit = parse(Int, pane_custom["ySplit"])
+
+        @test custom_xsplit > default_xsplit
+        @test custom_ysplit > default_ysplit
+
+        SAVE_FILES && save_outfile(f)
+    end
+
+    @testset "invalid anchor_cell string" begin
+        f = XLSX.open_empty_template()
+        s = f["Sheet1"]
+        s["A1:E10"] = ""
+
+        @test_throws XLSX.XLSXError XLSX.freezePanes(s, "not a cell")
+        @test_throws XLSX.XLSXError XLSX.splitPanes(s, "1A")
+    end
+
+    @testset "self-closed-or-empty <sheetViews/> with no <sheetView> inside" begin
+        # Real files always have >=1 sheetView inside sheetViews per schema,
+        # so this shape doesn't occur naturally.
+        f = XLSX.open_empty_template()
+        s = f["Sheet1"]
+        s["A1:E10"] = ""
+
+        doc = XLSX.get_worksheet_xml_document(s)
+        i, j = XLSX.get_idces(doc, "worksheet", "sheetViews")
+        @test j !== nothing
+        XML.children(doc[i])[j] = XML.Element("sheetViews")
+        XLSX.set_worksheet_xml_document!(s, doc)
+
+        XLSX.freezePanes(s; nrows=1, ncols=1)
+        sheetView, pane, selections = _pane_and_selections(s)
+
+        @test sheetView !== nothing
+        @test pane["topLeftCell"] == "B2"
+        @test length(selections) == 3
+
+        SAVE_FILES && save_outfile(f)
+    end
     @testset "save/reopen round trip (namespaced fixture, no do-block)" begin
         # No-Default_NameSpace.xlsx has two sheets that exercise different
         # starting shapes, both under an explicit x: prefix (no bare default

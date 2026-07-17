@@ -9,13 +9,13 @@ panes.jl — freezePanes / splitFreeze / splitPanes / removePanes for XLSX.jl
 #-----------------------------------------------------------------------------
 
 const DEFAULT_MDW = 7              # Calibri 11 / Arial 10 @ 96dpi -- approximation,
-# see caveat in splitPanes docstring below.
+                                   # see caveat in splitPanes docstring below.
 const DEFAULT_COL_WIDTH = 8.43     # Excel's absolute fallback (character units)
 const DEFAULT_ROW_HEIGHT = 15.0    # points, Excel's absolute fallback
 
 # OOXML native column "width" (character units) -> pixels, per ECMA-376 §18.3.1.13
-_charwidth_to_pixels(width::Real, mdw::Int=DEFAULT_MDW) =
-    Int(floor(((256 * width + floor(128 / mdw)) / 256) * mdw))
+_charwidth_to_pixels(width::Real) =
+    Int(floor(((256 * width + floor(128 / DEFAULT_MDW)) / 256) * DEFAULT_MDW))
 
 _pixels_to_twips(px::Real) = round(Int, px * 15)    # 96dpi: 1 inch = 96px = 1440 twips
 _points_to_twips(pts::Real) = round(Int, pts * 20)  # 1 point = 20 twips, always
