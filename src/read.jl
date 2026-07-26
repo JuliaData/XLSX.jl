@@ -701,40 +701,6 @@ function convert_strict_to_transitional!(xf::XLSXFile, pass::Int)
     end
     return nothing
 end
-#=function convert_strict_to_transitional!(xf::XLSXFile, pass::Int)
-
-    for filename in keys(xf.files)
-        should_process = if pass == 1
-            !occursin(r"xl/worksheets/sheet\d*\.xml|xl/sharedStrings\.xml", filename)
-        elseif pass == 2
-            occursin(r"xl/sharedStrings\.xml", filename)
-        else  # pass == 3
-            occursin(r"xl/worksheets/sheet\d*\.xml", filename)
-        end
-           
-        if should_process
-            data = xf.data[filename]
-            # Lazy parse if stored as deferred String
-            if data isa String
-                data = parse(data, XML.Node)
-                xf.data[filename] = data
-            end
-            els = xml_elements(data)            # SST/worksheet files are stored as lightweight placeholders with no
-            # element children; nothing to remap there.
-            isempty(els) && continue
-            xroot = last(els)
-            _strict_to_transitional_node!(xroot, filename)
-
-            # For .rels files, also patch Type= on child Relationship elements
-            for el in xml_elements(xroot)
-                _strict_to_transitional_node!(el, filename)
-            end
-        end
-    end
-
-    return nothing
-end
-=#
 
 function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable_cache::Bool, _write::Bool;
                             target_sheet::Union{Nothing,AbstractString,Integer}=nothing,
@@ -1081,15 +1047,7 @@ function splitNode(xml_str::String, skipnode::String)
 
     isnothing(target_lazy) && return xml_str, ""
 
-    target_tag    = XML.tag(target_lazy)
-    subtree_start = target_lazy.token.offset + 1
-
-    # Use skip_element! for end position — raw byte scan, no sourcetext needed
-    c2 = XML.Cursor(target_lazy)
-    XML.next!(c2)          # land on element
-    XML.skip_element!(c2)  # jump past entire subtree
-    subtree_end = c2.st.state.pos   # byte just past </sheetData>
-
+    target_tag = XML.tag(target_lazy)
     attrs = XML.attributes(target_lazy)
     replacement = if isnothing(attrs) || isempty(attrs)
         "<$(target_tag)/>"
@@ -1098,7 +1056,7 @@ function splitNode(xml_str::String, skipnode::String)
         "<$(target_tag) $(attr_str)/>"
     end
 
-    stripped_xml = xml_str[1:subtree_start-1] * replacement * xml_str[subtree_end:end]
+    stripped_xml = XML.splicetext(target_lazy, replacement)
     return stripped_xml, ""
 end
 

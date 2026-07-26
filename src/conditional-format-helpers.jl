@@ -117,23 +117,6 @@ function allExtCfs(ws::Worksheet)::Vector{XML.Node}
     end
 end
 
-#=
-function _extcfs_from_doc(sheetdoc::XML.Node)::Vector{XML.Node}
-    i, j = get_idces(sheetdoc, "worksheet", "extLst")
-    isnothing(j) && return Vector{XML.Node}()
-    extlst = sheetdoc[i][j]
-    cfs = nothing
-    for ext in XML.children(extlst)
-        for c in XML.children(ext)
-            if localname(c) == "conditionalFormattings"
-                cfs = c
-                break
-            end
-        end
-    end
-    return isnothing(cfs) ? Vector{XML.Node}() : xml_elements(cfs)
-end
-=#
 function make_extLst!(s)
     ext_list = XML.Element("extLst")
     ext_element = XML.Element("ext")
