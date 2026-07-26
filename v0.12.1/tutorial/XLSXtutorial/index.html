@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>XLSX Tutorial · XLSX.jl</title><meta name="title" content="XLSX Tutorial · XLSX.jl"/><meta property="og:title" content="XLSX Tutorial · XLSX.jl"/><meta property="twitter:title" content="XLSX Tutorial · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorial</span><ul><li class="is-active"><a class="tocitem" href>XLSX Tutorial</a><ul class="internal"><li><a class="tocitem" href="#Setup"><span>Setup</span></a></li><li><a class="tocitem" href="#Getting-Started"><span>Getting Started</span></a></li><li><a class="tocitem" href="#Data-Types"><span>Data Types</span></a></li><li><a class="tocitem" href="#Read-Tabular-Data"><span>Read Tabular Data</span></a></li><li><a class="tocitem" href="#Reading-Cells-as-a-Julia-Matrix"><span>Reading Cells as a Julia Matrix</span></a></li><li><a class="tocitem" href="#Reading-Large-Excel-Files-and-Caching"><span>Reading Large Excel Files and Caching</span></a></li><li><a class="tocitem" href="#Writing-Excel-Files"><span>Writing Excel Files</span></a></li><li><a class="tocitem" href="#Tables.jl-interface"><span>Tables.jl interface</span></a></li></ul></li><li><a class="tocitem" href="../FileIOtutorial/">FileIO Tutorial</a></li></ul></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../../formatting/cellFormatting/">Cell formats</a></li><li><a class="tocitem" href="../../formatting/conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../../formatting/widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../../formatting/mergedCells/">Merged cells</a></li><li><a class="tocitem" href="../../formatting/freezeAndSplitPanes/">Freeze/split panes</a></li></ul></li><li><a class="tocitem" href="../../formulae/formulas/">Using Formulas</a></li><li><a class="tocitem" href="../../examples/">Examples</a></li><li><a class="tocitem" href="../../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../../api/files/">Files and worksheets</a></li><li><a class="tocitem" href="../../api/data/">Cells and data</a></li><li><a class="tocitem" href="../../api/formats/">Formats</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Tutorial</a></li><li class="is-active"><a href>XLSX Tutorial</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>XLSX Tutorial</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/tutorial/XLSXtutorial.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="XLSX-Tutorial"><a class="docs-heading-anchor" href="#XLSX-Tutorial">XLSX Tutorial</a><a id="XLSX-Tutorial-1"></a><a class="docs-heading-anchor-permalink" href="#XLSX-Tutorial" title="Permalink"></a></h1><h2 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h2><p>First, make sure you have the <strong>XLSX.jl</strong> package installed.</p><pre><code class="language-julia hljs">julia&gt; using Pkg
+
+julia&gt; Pkg.add(&quot;XLSX&quot;)</code></pre><h2 id="Getting-Started"><a class="docs-heading-anchor" href="#Getting-Started">Getting Started</a><a id="Getting-Started-1"></a><a class="docs-heading-anchor-permalink" href="#Getting-Started" title="Permalink"></a></h2><p>The basic usage is to read an Excel file and read values.</p><pre><code class="language-julia hljs">julia&gt; import XLSX
+
+julia&gt; xf = XLSX.readxlsx(&quot;myfile.xlsx&quot;)
+XLSXFile(&quot;myfile.xlsx&quot;) containing 3 Worksheets
+            sheetname size          range
+-------------------------------------------------
+              mysheet 4x2           A1:B4
+           othersheet 1x1           A1:A1
+                named 1x1           B4:B4
+
+julia&gt; XLSX.sheetnames(xf)
+3-element Vector{String}:
+ &quot;mysheet&quot;
+ &quot;othersheet&quot;
+ &quot;named&quot;
+
+julia&gt; sh = xf[&quot;mysheet&quot;] # get a reference to a Worksheet
+4×2 XLSX.Worksheet: [&quot;mysheet&quot;](A1:B4)
+
+julia&gt; sh[2, 2] # access element &quot;B2&quot; (2nd row, 2nd column)
+&quot;first&quot;
+
+julia&gt; sh[&quot;B2&quot;] # you can also use the cell name
+&quot;first&quot;
+
+julia&gt; sh[&quot;A2:B4&quot;] # or a cell range
+3×2 Matrix{Any}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;
+
+julia&gt; XLSX.readdata(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;, &quot;A2:B4&quot;) # shorthand for all above
+3×2 Matrix{Any}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;
+
+julia&gt; sh[:] # all data inside worksheet&#39;s dimension
+4×2 Matrix{Any}:
+  &quot;HeaderA&quot;  &quot;HeaderB&quot;
+ 1           &quot;first&quot;
+ 2           &quot;second&quot;
+ 3           &quot;third&quot;
+
+julia&gt; xf[&quot;mysheet!A2:B4&quot;] # you can also query values using a sheet reference
+3×2 Matrix{Any}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;
+
+julia&gt; xf[&quot;mysheet!A:B&quot;] # Column ranges are also supported
+4×2 Matrix{Any}:
+  &quot;HeaderA&quot;  &quot;HeaderB&quot;
+ 1           &quot;first&quot;
+ 2           &quot;second&quot;
+ 3           &quot;third&quot;
+
+julia&gt; xf[&quot;mysheet!2:4&quot;] # And so are row ranges
+3×2 Matrix{Any}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;
+ 
+ julia&gt; xf[&quot;NAMED_CELL&quot;] # you can even read named ranges
+&quot;B4 is a named cell from sheet \&quot;named\&quot;&quot;
+</code></pre><p>To inspect the internal representation of each cell, use the <code>getcell</code> or <code>getcellrange</code> methods.</p><p>The example above used <code>xf = XLSX.readxlsx(filename)</code> to open a file, so all file contents are fetched at once from disk.</p><p>You can also use <code>XLSX.openxlsx</code> to read file contents as needed (see <a href="#Reading-Large-Excel-Files-and-Caching">Reading Large Excel Files and Caching</a>).</p><p>If you need to read an Excel file that has been protected with a password, consider using <a href="https://github.com/TimG1964/XLSXDecrypt.jl">XLSXDecrypt.jl</a>  to decrypt the file so it can be read by XLSX.jl.</p><h2 id="Data-Types"><a class="docs-heading-anchor" href="#Data-Types">Data Types</a><a id="Data-Types-1"></a><a class="docs-heading-anchor-permalink" href="#Data-Types" title="Permalink"></a></h2><p>This package uses the following concrete types when handling XLSX files.</p><article><details class="docstring" open="true"><summary id="XLSX.CellConcreteType"><a class="docstring-binding" href="#XLSX.CellConcreteType"><code>XLSX.CellConcreteType</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">CellConcreteType</code></pre><p>Concrete supported data-types.</p><pre><code class="language-julia hljs">Union{String, Missing, Float64, Int, Bool, Dates.Date, Dates.Time, Dates.DateTime}</code></pre><div class="admonition is-info" id="Note-e42ad619e3dc78ee"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-e42ad619e3dc78ee" title="Permalink"></a></header><div class="admonition-body"><p>In julia, the values <code>Inf</code>, <code>-Inf</code> and <code>NaN</code> are of type <code>Float64</code>. However, there is  no way to represent these values as numbers in Excel. Instead, these specific values  are eagerly converted to string representation (<code>&quot;Inf&quot;</code>, <code>&quot;-Inf&quot;</code> and <code>&quot;NaN&quot;</code>) as they  are added to an XLSXFile and they are written out as such to any saved <code>.xlsx</code> file.</p></div></div></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/d64fd740783ea7e1999565a50bf8523e1ead1a91/src/types.jl#L208-L224">source</a></section></details></article><ul><li><p>Abstract types of these concrete types are converted to the appropriate concrete type when writing.</p></li><li><p><code>Nothing</code> values are converted to <code>Missing</code> when writing.</p></li></ul><h2 id="Read-Tabular-Data"><a class="docs-heading-anchor" href="#Read-Tabular-Data">Read Tabular Data</a><a id="Read-Tabular-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Read-Tabular-Data" title="Permalink"></a></h2><p>The <a href="../../api/data/#XLSX.gettable"><code>XLSX.gettable</code></a> method returns tabular data from a spreadsheet as a struct <code>XLSX.DataTable</code> that implements <a href="https://github.com/JuliaData/Tables.jl"><code>Tables.jl</code></a> interface. You can use it to create a <code>DataFrame</code> from <a href="https://github.com/JuliaData/DataFrames.jl">DataFrames.jl</a>. Check the docstring for <code>gettable</code> method for more advanced options.</p><p>There are also two helper methods <a href="../../api/data/#XLSX.readtable"><code>XLSX.readtable</code></a> and <a href="../../api/data/#XLSX.readto"><code>XLSX.readto</code></a> to read from file  directly, as shown in the following examples.</p><pre><code class="language-julia hljs">julia&gt; using DataFrames, XLSX
+
+julia&gt; df = DataFrame(XLSX.readtable(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;)) # Returns a `Tables.jl` table that `DataFrame` can accept
+3×2 DataFrame
+ Row │ HeaderA  HeaderB 
+     │ Int64    String  
+─────┼──────────────────
+   1 │       1  first
+   2 │       2  second
+   3 │       3  third
+
+julia&gt; df = XLSX.readto(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;, DataFrame) # Returns a `DataFrame` directly.
+3×2 DataFrame
+ Row │ HeaderA  HeaderB 
+     │ Int64    String  
+─────┼──────────────────
+   1 │       1  first
+   2 │       2  second
+   3 │       3  third
+
+</code></pre><h2 id="Reading-Cells-as-a-Julia-Matrix"><a class="docs-heading-anchor" href="#Reading-Cells-as-a-Julia-Matrix">Reading Cells as a Julia Matrix</a><a id="Reading-Cells-as-a-Julia-Matrix-1"></a><a class="docs-heading-anchor-permalink" href="#Reading-Cells-as-a-Julia-Matrix" title="Permalink"></a></h2><p>Use <a href="../../api/data/#XLSX.readdata"><code>XLSX.readdata</code></a> or <a href="../../api/data/#XLSX.getdata"><code>XLSX.getdata</code></a> to read content as a Julia matrix.</p><pre><code class="language-julia hljs">julia&gt; import XLSX
+
+julia&gt; m = XLSX.readdata(&quot;myfile.xlsx&quot;, &quot;mysheet!A1:B3&quot;)
+3×2 Array{Any,2}:
+  &quot;HeaderA&quot;  &quot;HeaderB&quot;
+ 1           &quot;first&quot;
+ 2           &quot;second&quot;</code></pre><p>Indexing in a <code>Worksheet</code> will dispatch to <a href="../../api/data/#XLSX.getdata"><code>XLSX.getdata</code></a> method.</p><pre><code class="language-julia hljs">julia&gt; xf = XLSX.readxlsx(&quot;myfile.xlsx&quot;)
+XLSXFile(&quot;myfile.xlsx&quot;) containing 3 Worksheets
+            sheetname size          range
+-------------------------------------------------
+              mysheet 4x2           A1:B4
+           othersheet 1x1           A1:A1
+                named 1x1           B4:B4
+
+julia&gt; xf[&quot;mysheet!A1:B3&quot;]
+3×2 Array{Any,2}:
+  &quot;HeaderA&quot;  &quot;HeaderB&quot;
+ 1           &quot;first&quot;
+ 2           &quot;second&quot;
+
+julia&gt; sheet = xf[&quot;mysheet&quot;]
+4×2 XLSX.Worksheet: [&quot;mysheet&quot;](A1:B4)
+
+julia&gt; sheet[&quot;A1:B3&quot;]
+3×2 Array{Any,2}:
+  &quot;HeaderA&quot;  &quot;HeaderB&quot;
+ 1           &quot;first&quot;
+ 2           &quot;second&quot;</code></pre><p>But indexing in a single cell will return a single value instead of a matrix.</p><pre><code class="language-julia hljs">julia&gt; sheet[&quot;A1&quot;]
+&quot;HeaderA&quot;</code></pre><p>If you don&#39;t know the desired range in advance, you can take advantage of the <a href="../../api/data/#XLSX.readtable"><code>XLSX.readtable</code></a> and <a href="../../api/data/#XLSX.gettable"><code>XLSX.gettable</code></a> methods.</p><pre><code class="language-julia hljs">julia&gt; dtable = XLSX.readtable(&quot;myfile.xlsx&quot;, &quot;mysheet&quot;)
+XLSX.DataTable(Any[Any[1, 2, 3], Any[&quot;first&quot;, &quot;second&quot;, &quot;third&quot;]], [:HeaderA, :HeaderB], Dict(:HeaderB =&gt; 2, :HeaderA =&gt; 1))
+
+julia&gt; m = hcat(dtable.data...)
+3×2 Matrix{Any}:
+ 1  &quot;first&quot;
+ 2  &quot;second&quot;
+ 3  &quot;third&quot;</code></pre><h2 id="Reading-Large-Excel-Files-and-Caching"><a class="docs-heading-anchor" href="#Reading-Large-Excel-Files-and-Caching">Reading Large Excel Files and Caching</a><a id="Reading-Large-Excel-Files-and-Caching-1"></a><a class="docs-heading-anchor-permalink" href="#Reading-Large-Excel-Files-and-Caching" title="Permalink"></a></h2><p>The method <code>XLSX.openxlsx</code> has a <code>enable_cache</code> option to control worksheet cells caching.</p><p>Cache is enabled by default, so if you read a worksheet cell twice it will use the cached value instead of reading from disk  the second time.</p><p>If <code>enable_cache=false</code>, worksheet cells will always be read from disk. In addition, if <code>enable_cache=false</code>  and <code>openxlsx</code> is used with do-syntax, the xlsx file itself will be opened as a <code>FileArray</code> so that the  zip archives themselves are not read into memory. This is useful when you want to read a spreadsheet that  doesn&#39;t fit into memory.</p><p>The following example shows how you would read worksheet cells, one row at a time, where <code>myfile.xlsx</code> is a spreadsheet that doesn&#39;t fit into memory.</p><pre><code class="language-julia hljs">julia&gt; XLSX.openxlsx(&quot;myfile.xlsx&quot;, enable_cache=false) do f
+           sheet = f[&quot;mysheet&quot;]
+           for r in XLSX.eachrow(sheet)
+              # r is a `SheetRow`. Values are read using column references
+              rn = XLSX.row_number(r) # `SheetRow` row number
+              v1 = r[1]    # will read value at column 1
+              v2 = r[&quot;B&quot;]  # will read value at column 2
+
+              println(&quot;v1=$v1, v2=$v2&quot;)
+           end
+      end
+v1=HeaderA, v2=HeaderB
+v1=1, v2=first
+v1=2, v2=second
+v1=3, v2=third</code></pre><p>You could also stream tabular data using <code>XLSX.eachtablerow(sheet)</code>, which is the underlying iterator in the <code>gettable</code> method. Check docstrings for <code>XLSX.eachtablerow</code> for more advanced options.</p><pre><code class="language-julia hljs">julia&gt; XLSX.openxlsx(&quot;myfile.xlsx&quot;, enable_cache=false) do f
+           sheet = f[&quot;mysheet&quot;]
+           for r in XLSX.eachtablerow(sheet)
+               # r is a `TableRow`. Values are read using column labels or numbers
+               rn = XLSX.row_number(r) # `TableRow` row number
+               v1 = r[1] # will read value at table column 1
+               v2 = r[:HeaderB] # will read value at column labeled `:HeaderB`
+
+               println(&quot;v1=$v1, v2=$v2&quot;)
+            end
+       end
+v1=1, v2=first
+v1=2, v2=second
+v1=3, v2=third</code></pre><h2 id="Writing-Excel-Files"><a class="docs-heading-anchor" href="#Writing-Excel-Files">Writing Excel Files</a><a id="Writing-Excel-Files-1"></a><a class="docs-heading-anchor-permalink" href="#Writing-Excel-Files" title="Permalink"></a></h2><h3 id="Create-New-Files"><a class="docs-heading-anchor" href="#Create-New-Files">Create New Files</a><a id="Create-New-Files-1"></a><a class="docs-heading-anchor-permalink" href="#Create-New-Files" title="Permalink"></a></h3><p>Opening a file in <code>write</code> mode with <code>XLSX.openxlsx</code> will open a new (blank) Excel file for editing.</p><pre><code class="language-julia hljs">XLSX.openxlsx(&quot;my_new_file.xlsx&quot;, mode=&quot;w&quot;) do xf
+    sheet = xf[1]
+    XLSX.renamesheet!(sheet, &quot;new_sheet&quot;)
+    sheet[&quot;A1&quot;] = &quot;this&quot;
+    sheet[&quot;A2&quot;] = &quot;is a&quot;
+    sheet[&quot;A3&quot;] = &quot;new file&quot;
+    sheet[&quot;A4&quot;] = 100
+
+    # will add a row from &quot;A5&quot; to &quot;E5&quot;
+    sheet[&quot;A5&quot;] = collect(1:5) # equivalent to `sheet[&quot;A5&quot;, dim=2] = collect(1:4)`
+
+    # will add a column from &quot;B1&quot; to &quot;B4&quot;
+    sheet[&quot;B1&quot;, dim=1] = collect(1:4)
+
+    # will add a matrix from &quot;A7&quot; to &quot;C9&quot;
+    sheet[&quot;A7:C9&quot;] = [ 1 2 3 ; 4 5 6 ; 7 8 9 ]
+end</code></pre><h3 id="Edit-Existing-Files"><a class="docs-heading-anchor" href="#Edit-Existing-Files">Edit Existing Files</a><a id="Edit-Existing-Files-1"></a><a class="docs-heading-anchor-permalink" href="#Edit-Existing-Files" title="Permalink"></a></h3><p>Opening a file in <code>read-write</code> mode with <code>XLSX.openxlsx</code> will open an existing Excel file for editing. This will preserve existing data and formatting in the original file.</p><pre><code class="language-julia hljs">XLSX.openxlsx(&quot;my_new_file.xlsx&quot;, mode=&quot;rw&quot;) do xf
+    sheet = xf[1]
+    sheet[&quot;B1&quot;] = &quot;new data&quot;
+end</code></pre><div class="admonition is-warning" id="Warning-f812fb78a8ae73b0"><header class="admonition-header">Warning<a class="admonition-anchor" href="#Warning-f812fb78a8ae73b0" title="Permalink"></a></header><div class="admonition-body"><p>Using do-block syntax in &quot;rw&quot; mode will overwrite the file you read in with the modified data when the do block ends. Care is needed to ensure data are not inadvertantly overwritten, especially if the xlsx file contains any elements that <code>XLSX.jl</code> cannot process (such as charts, pivot tables, etc), but that would otherwise be preserved if not overwritten. You may avoid this risk by choosing to open files in &quot;rw&quot; mode without using do-block syntax, in which case it becomes necessary explicitly to write the <code>XLSXFile</code> out again, providing the option to write to another file name.</p></div></div><h3 id="Export-Tabular-Data-from-a-Worksheet"><a class="docs-heading-anchor" href="#Export-Tabular-Data-from-a-Worksheet">Export Tabular Data from a Worksheet</a><a id="Export-Tabular-Data-from-a-Worksheet-1"></a><a class="docs-heading-anchor-permalink" href="#Export-Tabular-Data-from-a-Worksheet" title="Permalink"></a></h3><p>Given a sheet reference, use the <code>XLSX.writetable!</code> method. Anchor cell defaults to cell <code>&quot;A1&quot;</code>.</p><pre><code class="language-julia hljs">using XLSX, Test
+
+filename = &quot;myfile.xlsx&quot;
+
+columns = Vector()
+push!(columns, [1, 2, 3])
+push!(columns, [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;])
+
+labels = [ &quot;column_1&quot;, &quot;column_2&quot;]
+
+XLSX.openxlsx(filename, mode=&quot;w&quot;) do xf
+    sheet = xf[1]
+    XLSX.writetable!(sheet, columns, labels, anchor_cell=XLSX.CellRef(&quot;B2&quot;))
+end
+
+# read data back
+XLSX.openxlsx(filename) do xf
+    sheet = xf[1]
+    @test sheet[&quot;B2&quot;] == &quot;column_1&quot;
+    @test sheet[&quot;C2&quot;] == &quot;column_2&quot;
+    @test sheet[&quot;B3&quot;] == 1
+    @test sheet[&quot;B4&quot;] == 2
+    @test sheet[&quot;B5&quot;] == 3
+    @test sheet[&quot;C3&quot;] == &quot;a&quot;
+    @test sheet[&quot;C4&quot;] == &quot;b&quot;
+    @test sheet[&quot;C5&quot;] == &quot;c&quot;
+end</code></pre><p>You can also use <code>XLSX.writetable</code> to write directly to a new file (see next section).</p><h3 id="Export-Tabular-Data-from-any-Tables.jl-compatible-source"><a class="docs-heading-anchor" href="#Export-Tabular-Data-from-any-Tables.jl-compatible-source">Export Tabular Data from any <code>Tables.jl</code> compatible source</a><a id="Export-Tabular-Data-from-any-Tables.jl-compatible-source-1"></a><a class="docs-heading-anchor-permalink" href="#Export-Tabular-Data-from-any-Tables.jl-compatible-source" title="Permalink"></a></h3><p>To export tabular data to Excel, use <code>XLSX.writetable</code> method, which accepts either columns and column names, or any <code>Tables.jl</code> table.</p><pre><code class="language-julia hljs">julia&gt; using Dates
+
+julia&gt; import DataFrames, XLSX
+
+julia&gt; df = DataFrames.DataFrame(integers=[1, 2, 3, 4], strings=[&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;], floats=[10.2, 20.3, 30.4, 40.5], dates=[Date(2018,2,20), Date(2018,2,21), Date(2018,2,22), Date(2018,2,23)], times=[Dates.Time(19,10), Dates.Time(19,20), Dates.Time(19,30), Dates.Time(19,40)], datetimes=[Dates.DateTime(2018,5,20,19,10), Dates.DateTime(2018,5,20,19,20), Dates.DateTime(2018,5,20,19,30), Dates.DateTime(2018,5,20,19,40)])
+4×6 DataFrames.DataFrame
+│ Row │ integers │ strings │ floats │ dates      │ times    │ datetimes           │
+├─────┼──────────┼─────────┼────────┼────────────┼──────────┼─────────────────────┤
+│ 1   │ 1        │ Hey     │ 10.2   │ 2018-02-20 │ 19:10:00 │ 2018-05-20T19:10:00 │
+│ 2   │ 2        │ You     │ 20.3   │ 2018-02-21 │ 19:20:00 │ 2018-05-20T19:20:00 │
+│ 3   │ 3        │ Out     │ 30.4   │ 2018-02-22 │ 19:30:00 │ 2018-05-20T19:30:00 │
+│ 4   │ 4        │ There   │ 40.5   │ 2018-02-23 │ 19:40:00 │ 2018-05-20T19:40:00 │
+
+julia&gt; XLSX.writetable(&quot;df.xlsx&quot;, df)</code></pre><p>You can also export multiple tables to Excel, each table in a separate worksheet, by either passing a tuple (columns, names) to a keyword argument for each sheet name, or a list <code>&quot;sheet name&quot; =&gt; table</code> pairs for any Tables.jl compatible source.</p><pre><code class="language-julia hljs">julia&gt; import DataFrames, XLSX
+
+julia&gt; df1 = DataFrames.DataFrame(COL1=[10,20,30], COL2=[&quot;Fist&quot;, &quot;Sec&quot;, &quot;Third&quot;])
+3×2 DataFrames.DataFrame
+│ Row │ COL1 │ COL2  │
+├─────┼──────┼───────┤
+│ 1   │ 10   │ Fist  │
+│ 2   │ 20   │ Sec   │
+│ 3   │ 30   │ Third │
+
+julia&gt; df2 = DataFrames.DataFrame(AA=[&quot;aa&quot;, &quot;bb&quot;], AB=[10.1, 10.2])
+2×2 DataFrames.DataFrame
+│ Row │ AA │ AB   │
+├─────┼────┼──────┤
+│ 1   │ aa │ 10.1 │
+│ 2   │ bb │ 10.2 │
+
+julia&gt; XLSX.writetable(&quot;report.xlsx&quot;, &quot;REPORT_A&quot; =&gt; df1, &quot;REPORT_B&quot; =&gt; df2)</code></pre><p>This last example shows how to do the same thing, but when you don&#39;t know how many tables you&#39;ll be exporting in advance.</p><pre><code class="language-julia hljs">df1 = DataFrame(A=[1,2], B=[3,4])
+df2 = DataFrame(C=[&quot;Hey&quot;, &quot;you&quot;], D=[&quot;out&quot;, &quot;there&quot;])
+
+sheet_names = [ &quot;1st&quot;, &quot;2nd&quot; ]
+dataframes = [ df1, df2 ]
+
+@assert length(sheet_names) == length(dataframes)
+
+XLSX.openxlsx(&quot;report.xlsx&quot;, mode=&quot;w&quot;) do xf
+    for i in eachindex(sheet_names)
+        sheet_name = sheet_names[i]
+        df = dataframes[i]
+        
+        if i == firstindex(sheet_names)
+            sheet = xf[1]
+            XLSX.renamesheet!(sheet, sheet_name)
+            XLSX.writetable!(sheet, df)
+        else
+            sheet = XLSX.addsheet!(xf, sheet_name)
+            XLSX.writetable!(sheet, df)        
+        end
+    end
+end</code></pre><h2 id="Tables.jl-interface"><a class="docs-heading-anchor" href="#Tables.jl-interface">Tables.jl interface</a><a id="Tables.jl-interface-1"></a><a class="docs-heading-anchor-permalink" href="#Tables.jl-interface" title="Permalink"></a></h2><p>Both types <code>XLSX.DataTable</code> and <code>XLSX.TableRowIterator</code> conforms to <a href="https://github.com/JuliaData/Tables.jl">Tables.jl</a> interface. An instance of <code>XLSX.TableRowIterator</code> is created by the function <code>XLSX.eachtablerow</code>.</p><p>Also, both <code>XLSX.writetable</code> and <code>XLSX.XLSXFile</code> accept an argument that conforms to the <code>Tables.jl</code> interface.</p><p>As an example, the type <code>DataFrame</code> from <a href="https://github.com/JuliaData/DataFrames.jl">DataFrames</a> package supports the <code>Tables.jl</code> interface. The following code writes and reads back a <code>DataFrame</code> to an Excel file.</p><pre><code class="language-julia hljs">julia&gt; using Dates
+
+julia&gt; import DataFrames, XLSX
+
+julia&gt; df = DataFrames.DataFrame(integers=[1, 2, 3, 4], strings=[&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;], floats=[10.2, 20.3, 30.4, 40.5], dates=[Date(2018,2,20), Date(2018,2,21), Date(2018,2,22), Date(2018,2,23)], times=[Dates.Time(19,10), Dates.Time(19,20), Dates.Time(19,30), Dates.Time(19,40)], datetimes=[Dates.DateTime(2018,5,20,19,10), Dates.DateTime(2018,5,20,19,20), Dates.DateTime(2018,5,20,19,30), Dates.DateTime(2018,5,20,19,40)])
+4×6 DataFrames.DataFrame
+│ Row │ integers │ strings │ floats  │ dates      │ times    │ datetimes           │
+│     │ Int64    │ String  │ Float64 │ Date       │ Time     │ DateTime            │
+├─────┼──────────┼─────────┼─────────┼────────────┼──────────┼─────────────────────┤
+│ 1   │ 1        │ Hey     │ 10.2    │ 2018-02-20 │ 19:10:00 │ 2018-05-20T19:10:00 │
+│ 2   │ 2        │ You     │ 20.3    │ 2018-02-21 │ 19:20:00 │ 2018-05-20T19:20:00 │
+│ 3   │ 3        │ Out     │ 30.4    │ 2018-02-22 │ 19:30:00 │ 2018-05-20T19:30:00 │
+│ 4   │ 4        │ There   │ 40.5    │ 2018-02-23 │ 19:40:00 │ 2018-05-20T19:40:00 │
+
+julia&gt; XLSX.writetable(&quot;output_table.xlsx&quot;, df, overwrite=true, sheetname=&quot;report&quot;, anchor_cell=&quot;B2&quot;)
+
+julia&gt; f = XLSX.readxlsx(&quot;output_table.xlsx&quot;)
+XLSXFile(&quot;output_table.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               report 6x7           A1:G6
+
+
+julia&gt; s = f[&quot;report&quot;]
+6×7 XLSX.Worksheet: [&quot;report&quot;](A1:G6)
+
+julia&gt; df2 = XLSX.eachtablerow(s) |&gt; DataFrames.DataFrame
+4×6 DataFrames.DataFrame
+│ Row │ integers │ strings │ floats  │ dates      │ times    │ datetimes           │
+│     │ Int64    │ String  │ Float64 │ Date       │ Time     │ DateTime            │
+├─────┼──────────┼─────────┼─────────┼────────────┼──────────┼─────────────────────┤
+│ 1   │ 1        │ Hey     │ 10.2    │ 2018-02-20 │ 19:10:00 │ 2018-05-20T19:10:00 │
+│ 2   │ 2        │ You     │ 20.3    │ 2018-02-21 │ 19:20:00 │ 2018-05-20T19:20:00 │
+│ 3   │ 3        │ Out     │ 30.4    │ 2018-02-22 │ 19:30:00 │ 2018-05-20T19:30:00 │
+│ 4   │ 4        │ There   │ 40.5    │ 2018-02-23 │ 19:40:00 │ 2018-05-20T19:40:00 │</code></pre><p>Some other packages provide functions (such as <code>CSV.read</code>) that can take a sink function  to accept a <code>Tables.jl</code> table. <code>XLSXFile</code> can serve as such a sink function, allowing  <code>XLSXFile</code> objects to be created directly.</p><p>For example, using the example of <code>CSV.read</code>:</p><pre><code class="nohighlight hljs">julia&gt; using CSV, XLSX
+
+julia&gt; xf = CSV.read(&quot;iris.csv&quot;, XLSXFile)
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 151x5         A1:E151</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../FileIOtutorial/">FileIO Tutorial »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Sunday 26 July 2026 22:30">Sunday 26 July 2026</span>. Using Julia version 1.12.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
