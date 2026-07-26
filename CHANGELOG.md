@@ -5,6 +5,9 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [v0.12.1](https://github.com/JuliaData/XLSX.jl/tree/v0.12.1) - 2026-07-26
+- Adopt [XML.splicetext](https://github.com/JuliaData/XML.jl/issues/92) from XML.jl v0.4.3 [#439](https://github.com/JuliaData/XLSX.jl/issues/439)
 - Fix [#434](https://github.com/JuliaData/XLSX.jl/issues/434) to support freeze/split panes
 
 ## [v0.12.0](https://github.com/JuliaData/XLSX.jl/tree/v0.12.0) - 2026-07-12

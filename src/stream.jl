@@ -62,23 +62,6 @@ function xml_root_element(lz::XML.LazyNode)
 end
 
 # Opens a file for streaming.
-#=@inline function open_internal_file_stream(xf::XLSXFile, filename::String) :: XML.LazyNode
-
-    cached = get(xf.worksheet_xml_cache, filename, nothing)
-    cached !== nothing && return cached
-
-    !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
-    if xf.source isa IO
-        seekstart(xf.source)
-        zip_io = ZipArchives.ZipReader(read(xf.source))
-    else
-        zip_io = ZipArchives.ZipReader(FileArray(abspath(xf.source)))
-    end
-    doc = parse(String(ZipArchives.zip_readentry(zip_io, filename)), XML.LazyNode)
-    xf.worksheet_xml_cache[filename] = doc
-    return doc
-end
-=#
 @inline function open_internal_file_stream(xf::XLSXFile, filename::String) :: XML.LazyNode
 
     !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
