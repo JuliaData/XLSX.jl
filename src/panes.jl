@@ -14,8 +14,8 @@ const DEFAULT_COL_WIDTH = 8.43     # Excel's absolute fallback (character units)
 const DEFAULT_ROW_HEIGHT = 15.0    # points, Excel's absolute fallback
 
 # OOXML native column "width" (character units) -> pixels, per ECMA-376 §18.3.1.13
-_charwidth_to_pixels(width::Real, mdw::Int=DEFAULT_MDW) =
-    Int(floor(((256 * width + floor(128 / mdw)) / 256) * mdw))
+_charwidth_to_pixels(width::Real) =
+    Int(floor(((256 * width + floor(128 / DEFAULT_MDW)) / 256) * DEFAULT_MDW))
 
 _pixels_to_twips(px::Real) = round(Int, px * 15)    # 96dpi: 1 inch = 96px = 1440 twips
 _points_to_twips(pts::Real) = round(Int, pts * 20)  # 1 point = 20 twips, always
@@ -29,19 +29,41 @@ function _sheet_format_default(ws::Worksheet, attr::String)::Union{Nothing,Float
     return parse(Float64, node[attr])
 end
 
-function _col_width_chars(ws::Worksheet, col::Int)::Float64
-    w = getColumnWidth(ws, CellRef(1, col))   # nothing if no explicit width for this column
-    !isnothing(w) && return Float64(w)
+function _default_col_width_chars(ws::Worksheet)::Float64
     d = _sheet_format_default(ws, "defaultColWidth")
     !isnothing(d) && return d
+
+    # defaultColWidth is often absent; Excel then derives it from
+    # baseColWidth (a raw character count with no padding yet applied) via
+    # the same char-count -> stored-width formula used for explicit <col>
+    # widths (ECMA-376 18.3.1.13): width = floor((NoC*MDW+5)/MDW*256)/256.
+    base = _sheet_format_default(ws, "baseColWidth")
+    if !isnothing(base)
+        return floor(((base * DEFAULT_MDW + 5) / DEFAULT_MDW) * 256) / 256
+    end
+
     return DEFAULT_COL_WIDTH
 end
 
+function _col_width_chars(ws::Worksheet, col::Int)::Float64
+    cr = CellRef(1, col)
+    d = get_dimension(ws)
+    if !isnothing(d) && cr ∈ d
+        w = getColumnWidth(ws, cr)
+        !isnothing(w) && return Float64(w)
+    end
+    return _default_col_width_chars(ws)
+end
+
 function _row_height_pts(ws::Worksheet, row::Int)::Float64
-    h = getRowHeight(ws, CellRef(row, 1))     # nothing (unset) or -1 (empty row)
-    !isnothing(h) && h >= 0 && return Float64(h)
-    d = _sheet_format_default(ws, "defaultRowHeight")
-    !isnothing(d) && return d
+    cr = CellRef(row, 1)
+    d = get_dimension(ws)
+    if !isnothing(d) && cr ∈ d
+        h = getRowHeight(ws, cr)
+        !isnothing(h) && h >= 0 && return Float64(h)
+    end
+    d2 = _sheet_format_default(ws, "defaultRowHeight")
+    !isnothing(d2) && return d2
     return DEFAULT_ROW_HEIGHT
 end
 
@@ -62,8 +84,8 @@ _rows_to_twips(ws::Worksheet, nrows::Int)::Int =
 function _selection_cells(nrows::Int, ncols::Int, topLeftCell::CellRef; corner_selectable::Bool)
     sels = Dict{String,CellRef}()
     if ncols > 0 && nrows > 0
-        sels["topRight"]    = CellRef(1, topLeftCell.column_number)
-        sels["bottomLeft"]  = CellRef(topLeftCell.row_number, 1)
+        sels["topRight"] = CellRef(1, topLeftCell.column_number)
+        sels["bottomLeft"] = CellRef(topLeftCell.row_number, 1)
         sels["bottomRight"] = topLeftCell
         corner_selectable && (sels["topLeft"] = CellRef(1, 1))
     elseif ncols > 0
@@ -88,8 +110,8 @@ function _apply_pane!(ws::Worksheet, kind::PaneKind, nrows::Int, ncols::Int)
 
     (nrows < 0 || ncols < 0) && throw(XLSXError("nrows and ncols must be non-negative."))
 
-    doc   = get_worksheet_xml_document(ws)
-    pfx   = get_prefix(ws)
+    doc = get_worksheet_xml_document(ws)
+    pfx = get_prefix(ws)
     pfx_c = isempty(pfx) ? "" : "$(pfx):"
 
     wroot_idx, sv_idx = get_idces(doc, "worksheet", "sheetViews")
@@ -125,8 +147,8 @@ function _apply_pane!(ws::Worksheet, kind::PaneKind, nrows::Int, ncols::Int)
     new_children = XML.Node{String}[]
     if !(nrows == 0 && ncols == 0)
         topLeftCell = CellRef(nrows + 1, ncols + 1)
-        activePane  = nrows > 0 && ncols > 0 ? "bottomRight" :
-                      ncols > 0              ? "topRight"    : "bottomLeft"
+        activePane = nrows > 0 && ncols > 0 ? "bottomRight" :
+                     ncols > 0 ? "topRight" : "bottomLeft"
         xSplit, ySplit = kind == SPLIT ? (_cols_to_twips(ws, ncols), _rows_to_twips(ws, nrows)) : (ncols, nrows)
 
         pane_kw = Dict{Symbol,Any}(:activePane => activePane, :topLeftCell => string(topLeftCell))

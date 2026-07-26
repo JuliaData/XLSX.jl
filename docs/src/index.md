@@ -16,7 +16,7 @@ This package follows the EMCA-376 to parse and generate XLSX files.
 
 ## Requirements
 
-* Julia v1.8
+* Julia v1.10 (LTS) or more recent
 
 * Linux, macOS or Windows.
 
@@ -63,12 +63,6 @@ and send a Pull Request.
 
 ## Alternative Packages
 
+* [FileIO.jl](https://github.com/JuliaIO/FileIO.jl)
+
 * [LibXLSXWriter.jl](https://github.com/jaakkor2/LibXLSXWriter.jl)
-
-* [ExcelFiles.jl](https://github.com/davidanthoff/ExcelFiles.jl)
-
-* [ExcelReaders.jl](https://github.com/davidanthoff/ExcelReaders.jl)
-
-* [XLSXReader.jl](https://github.com/mpastell/XLSXReader.jl)
-
-* [Taro.jl](https://github.com/aviks/Taro.jl)

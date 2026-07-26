@@ -46,7 +46,7 @@ XLSX.mergeCells
 
 # Freeze/Split panes
 
-```
+```@docs
 XLSX.freezePanes
 XLSX.splitFreeze
 XLSX.splitPanes

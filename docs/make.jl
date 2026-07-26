@@ -13,6 +13,7 @@ makedocs(
             "Conditional formats" => "formatting/conditionalFormatting.md",
             "Column width and row height" => "formatting/widthAndHeight.md",
             "Merged cells" => "formatting/mergedCells.md",
+            "Freeze/split panes" => "formatting/freezeAndSplitPanes.md",
         ],
         "Using Formulas" => "formulae/formulas.md",
         "Examples" => "examples.md",

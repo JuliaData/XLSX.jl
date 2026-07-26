@@ -125,7 +125,7 @@ end
 Tests have been split across different files each essentially focused on 
 a different subset of functionality. Note, however, that all functions can 
 be applied in combination with any others, so the perfect separation of 
-functions is tests is not complete and it wouuld be undesirable to make 
+functions in tests is not complete and it wouuld be undesirable to make 
 it so.
 =#
 include(joinpath(files_directory, "Cell-names_tests.jl"))

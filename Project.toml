@@ -1,7 +1,7 @@
 name = "XLSX"
 uuid = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 license = "MIT"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["Felipe Noronha <felipenoris@gmail.com>"]
 repo = "https://github.com/juliadata/XLSX.jl.git"
 
@@ -34,6 +34,6 @@ PrecompileTools = "1"
 StyledStrings = "1.0.3"
 Tables = "1"
 UUIDs = "1.8"
-XML = "0.4.0"
+XML = "0.4.3"
 ZipArchives = "2.5"
 julia = "1.10"
