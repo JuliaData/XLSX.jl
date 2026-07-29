@@ -1172,6 +1172,7 @@ end
         as_table::Bool=false,
         table_name::AbstractString="",
         table_style::Union{AbstractString,Nothing}=nothing,
+        totals::Union{Nothing,AbstractVector{<:Pair}}=nothing,
     )
 
 Write tabular data `data` with labels given by `columnnames` to `sheet`,
@@ -1189,10 +1190,16 @@ before writing.
 Set `as_table=true` to also turn the written range into an Excel Table
 (equivalent to calling [`XLSX.addtable!`](@ref) immediately afterward over
 exactly the range just written). Requires `write_columnnames=true` (a table
-needs a header row) and at least one data row. `table_name` and
-`table_style` are forwarded to `addtable!`'s `name` and `style` keywords —
-see its docstring for accepted values, including the list of Excel's
-built-in table style names.
+needs a header row) and at least one data row. 
+`table_name` and `table_style` are forwarded to `addtable!`'s `name` 
+and `style` keywords — see its docstring for accepted values, including 
+the list of Excel's built-in table style names.
+
+Use `totals` to also set a totals row on the table in the same call —
+equivalent to calling [`XLSX.settotals!`](@ref) immediately afterward.
+`totals` is a vector of `"ColumnName" => value` pairs, using the same
+`value` forms `settotals!` accepts (a `Symbol` for a built-in function, a
+`(:custom, formula)` tuple, or a `String` label). Requires `as_table=true`.
 
 # Examples
 ```julia
@@ -1201,10 +1208,11 @@ julia> using DataFrames
 julia> df = DataFrame(id=[1, 2], name=["alice", "bob"], score=[10.5, 20.0])
 
 julia> XLSX.writetable!(sheet, collect(eachcol(df)), names(df);
-           as_table=true, table_name="Results", table_style="TableStyleMedium2")
+           as_table=true, table_name="Results", table_style="TableStyleMedium2",
+           totals=["id" => "Total", "score" => :sum])
 ```
 
-See also: [`XLSX.writetable`](@ref), [`XLSX.addtable!`](@ref).
+See also: [`XLSX.writetable`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
 function writetable!(
     sheet::Worksheet,
@@ -1215,9 +1223,12 @@ function writetable!(
     as_table::Bool=false,
     table_name::AbstractString="",
     table_style::Union{AbstractString,Nothing}=nothing,
+    totals::Union{Nothing,AbstractVector{<:Pair}}=nothing,
 )
     as_table && !write_columnnames &&
         throw(XLSXError("`as_table=true` requires `write_columnnames=true` — an Excel Table needs a header row, and `writetable!` is what writes it."))
+    !isnothing(totals) && !as_table &&
+        throw(XLSXError("`totals` requires `as_table=true` — there's no table to set a totals row on otherwise."))
 
     col_count = length(data)
     col_count != length(columnnames) && throw(XLSXError("Column count mismatch between `data` ($col_count columns) and `columnnames` ($(length(columnnames)) columns)."))
@@ -1260,7 +1271,8 @@ function writetable!(
             CellRef(anchor_row, anchor_col),
             CellRef(anchor_row + row_count, anchor_col + col_count - 1),
         )
-        addtable!(sheet, table_ref; name=table_name, style=table_style)
+        t = addtable!(sheet, table_ref; name=table_name, style=table_style)
+        !isnothing(totals) && settotals!(sheet, t.name, totals...)
     end
 
     return nothing
@@ -1952,14 +1964,19 @@ function _table_name_from_sheet(wb::Workbook, sheet::Worksheet, sheetname::Abstr
 end
 
 """
-    writetable(filename, data, columnnames; [overwrite], [sheetname], [anchor_cell], [as_table], [table_name], [table_style])
+    writetable(filename, data, columnnames; [overwrite], [sheetname], [anchor_cell], [as_table], [table_name], [table_style], [totals])
 
 - `data` is a vector of columns.
 - `columnames` is a vector of column labels.
 - `overwrite` is a `Bool` to control if `filename` should be overwritten if already exists.
 - `sheetname` is the name for the worksheet.
-- `as_table`, `table_name`, `table_style` — same as [`XLSX.writetable!`](@ref):
-  set `as_table=true` to turn the written range into an Excel Table.
+- `as_table` is a `Bool` to turn the written range into an Excel Table if true.
+- `table_name` is the name of the Excel Table (if `as_table=true`) 
+- `table_style` is the Ezxcel style to use for the Table (if `as_table=true`)
+- `totals` defines whether and how Table totals are defined.
+
+For more details on `table_name`, `table_style`, `totals`, refer to 
+[`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref) and [`XLSX.settotals!`](@ref)
 
 Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
 
@@ -1972,12 +1989,17 @@ colnames = [ "integers", "strings", "floats" ]
 XLSX.writetable("table.xlsx", columns, colnames)
 
 julia> XLSX.writetable("table.xlsx", columns, colnames; as_table=true, table_name="MyData")
+
+julia> XLSX.writetable("table.xlsx", columns, colnames;
+           as_table=true, table_name="MyData",
+           totals=["integers" => :sum, "strings" => "Total"])
 ```
 
-See also: [`XLSX.writetable!`](@ref).
+See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
 function writetable(filename::Union{AbstractString,IO}, data, columnnames; overwrite::Bool=false, sheetname::AbstractString="", anchor_cell::Union{String,CellRef}=CellRef("A1"),
     as_table::Bool=false, table_name::AbstractString="", table_style::Union{AbstractString,Nothing}=nothing,
+    totals::Union{Nothing,AbstractVector{<:Pair}}=nothing,
 )
 
     if filename isa AbstractString && !overwrite
@@ -1991,9 +2013,8 @@ function writetable(filename::Union{AbstractString,IO}, data, columnnames; overw
         anchor_cell = CellRef(anchor_cell)
     end
 
-    writetable!(sheet, data, columnnames; anchor_cell=anchor_cell, as_table=as_table, table_name=table_name, table_style=table_style)
+    writetable!(sheet, data, columnnames; anchor_cell=anchor_cell, as_table=as_table, table_name=table_name, table_style=table_style, totals=totals)
 
-    # write output file
     writexlsx(filename, xf, overwrite=overwrite)
 end
 
@@ -2030,6 +2051,8 @@ julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2)
 julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2;
            as_table=true, table_style="TableStyleMedium2")
 ```
+
+See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
 function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing, kw...)
@@ -2085,6 +2108,8 @@ julia> XLSX.writetable("report.xlsx", [
            ("REPORT_B", columns_b, colnames_b),
        ]; as_table=true)
 ```
+
+See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
 function writetable(filename::Union{AbstractString,IO}, tables::Vector{Tuple{String,S,Vector{T}}};
     overwrite::Bool=false, as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing,

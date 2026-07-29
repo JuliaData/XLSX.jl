@@ -391,6 +391,8 @@ struct Table
     columns::Vector{String}
     has_totals_row::Bool
     style::Union{TableStyleInfo,Nothing}
+    sheet # untyped to resolve circular dependency with Worksheet
+
 end
 
 
@@ -709,6 +711,15 @@ struct TableRowIteratorState{S}
     sheet_row_iterator_state::S
     missing_rows::Int # number of completely empty rows between the last row and the current row
     row_pending::Union{Nothing, SheetRow} # if the last row was empty, this is the row that was pending to be returned
+end
+
+struct XLSXTableRow
+    table::Table
+    row_number::Int
+end
+
+struct XLSXTableRowIterator
+    table::Table
 end
 
 struct DataTable

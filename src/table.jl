@@ -934,7 +934,9 @@ function XLSXFile(table)
     return xf
 end
 
-# ================================================================ Excel Tables
+#
+# ====================================================================================== Excel Tables
+#
 
 const REL_TABLE  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/table"
 const MIME_TABLE = "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"
@@ -1053,7 +1055,7 @@ function parse_table_columns(table_doc::XML.Node)
     return columns
 end
 
-function parse_table_xml(table_doc::XML.Node, filename::AbstractString)::Table
+function parse_table_xml(table_doc::XML.Node, filename::AbstractString, sheet::Worksheet)::Table
     root_els = xml_elements(table_doc)
     isempty(root_els) && throw(XLSXError("Malformed table part $filename: no root element."))
     table_node = last(root_els)
@@ -1074,7 +1076,7 @@ function parse_table_xml(table_doc::XML.Node, filename::AbstractString)::Table
     totals_row_count = something(tryparse(Int, get(attrs, "totalsRowCount", "0")), 0)
     has_totals = totals_row_shown || totals_row_count > 0
 
-    return Table(
+return Table(
         parse(Int, attrs["id"]),
         attrs["name"],
         get(attrs, "displayName", attrs["name"]),
@@ -1082,6 +1084,7 @@ function parse_table_xml(table_doc::XML.Node, filename::AbstractString)::Table
         parse_table_columns(table_doc),
         has_totals,
         parse_table_style_info(table_doc),
+        sheet,
     )
 end
 
@@ -1093,7 +1096,7 @@ function get_worksheet_tables(xf::XLSXFile, ws::Worksheet)::Vector{Table}
     for r_id in r_ids
         target = get_worksheet_relationship_target(xf, ws, r_id)
         table_doc = xmlroot(xf, target)  # table parts are fully parsed like any other part
-        push!(tables, parse_table_xml(table_doc, target))
+        push!(tables, parse_table_xml(table_doc, target, ws))
     end
     return tables
 end
@@ -1120,7 +1123,16 @@ end
 
 """
     table(ws::Worksheet, name::AbstractString) -> Table
+    table(wb::Workbook, name::AbstractString) -> Table
+    table(xf::XLSXFile, name::AbstractString) -> Table
     table(ws::Worksheet, id::Integer) -> Table
+    table(wb::Workbook, id::Integer) -> Table
+    table(xf::XLSXFile, id::Integer) -> Table
+
+Look up a single table by name or workbook-scoped numeric id, searching
+a single worksheet or across every worksheet in the workbook. 
+
+Throws `KeyError` if not found.
 
 # Examples
 ```julia
@@ -1152,6 +1164,24 @@ function table(ws::Worksheet, id::Integer)::Table
     isnothing(idx) && throw(KeyError(id))
     return tables(ws)[idx]
 end
+function table(wb::Workbook, name::AbstractString)::Table
+    for ws in wb.sheets
+        is_chartsheet(wb, ws.name) && continue
+        idx = findfirst(t -> t.name == name, tables(ws))
+        idx !== nothing && return tables(ws)[idx]
+    end
+    throw(KeyError(name))
+end
+function table(wb::Workbook, id::Integer)::Table
+    for ws in wb.sheets
+        is_chartsheet(wb, ws.name) && continue
+        idx = findfirst(t -> t.id == id, tables(ws))
+        idx !== nothing && return tables(ws)[idx]
+    end
+    throw(KeyError(id))
+end
+table(xf::XLSXFile, name::AbstractString) = table(get_workbook(xf), name)
+table(xf::XLSXFile, id::Integer) = table(get_workbook(xf), id)
 
 function build_table_xml(id::Int, name::String, display_name::String, ref::CellRange,
                           columns::Vector{String}, has_totals_row::Bool,

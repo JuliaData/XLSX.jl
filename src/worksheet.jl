@@ -462,6 +462,41 @@ function getdata(ws::Worksheet, rng::NonContiguousRange)::Vector{Array{Any,2}}
     return results
 end
 
+"""
+    getdata(t::Table) -> Matrix{Any}
+
+Return the data rows of Excel Table `t` (as returned by [`XLSX.table`](@ref))
+as a row × column matrix. The header row and, if present, the totals row are
+excluded — only the table's data body is returned, in the same column order
+as `t.columns`.
+
+# Example
+```julia
+julia> t = XLSX.table(sheet, "Sales")
+
+julia> XLSX.getdata(t)
+3×2 Matrix{Any}:
+ 1000  "North"
+ 1500  "South"
+  900  "East"
+```
+
+See also [`XLSX.table`](@ref), [`XLSX.eachtablerow`](@ref).
+"""
+function getdata(t::Table)
+    row_range = _first_data_row(t):_last_data_row(t)
+    col0 = _col_start(t)
+    nrows = length(row_range)
+    ncols = length(t.columns)
+
+    m = Matrix{Any}(undef, nrows, ncols)
+    for (ri, r) in enumerate(row_range)
+        for c in 1:ncols
+            m[ri, c] = getdata(t.sheet, CellRef(r, col0 + c - 1))
+        end
+    end
+    return m
+end
 # Needed for definedName references
 getdata(ws::Worksheet, s::SheetCellRef) = do_sheet_names_match(ws, s) && getdata(ws, s.cellref)
 getdata(ws::Worksheet, s::SheetCellRange) = do_sheet_names_match(ws, s) && getdata(ws, s.rng)

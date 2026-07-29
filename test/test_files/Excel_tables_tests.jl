@@ -1147,4 +1147,379 @@ end
         isfile(outfile) && rm(outfile)
     end
 
+   @testset "Tables.istable / rowaccess / columnaccess" begin
+        @test Tables.istable(XLSX.Table)
+        @test Tables.istable(XLSX.XLSXTableRowIterator)
+        @test Tables.rowaccess(XLSX.Table)
+        @test Tables.rowaccess(XLSX.XLSXTableRowIterator)
+        @test Tables.columnaccess(XLSX.Table)
+    end
+
+    @testset "Tables.schema - column names, types unknown (nothing)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "name"; sh["C1"] = "score"
+        sh["A2"] = 1; sh["B2"] = "alice"; sh["C2"] = 10.5
+
+        t = XLSX.addtable!(sh, "A1:C2"; name="T")
+        sch = Tables.schema(t)
+
+        # `nothing` (not a declared `fill(Any, n)`) is deliberate: declaring
+        # Any explicitly would make DataFrames (and other Tables.jl sinks)
+        # trust that declaration literally and permanently box every column
+        # as Any, rather than inferring real types from the data — exactly
+        # the issue #225 regression.
+        @test sch.names == (:id, :name, :score)
+        @test isnothing(sch.types)
+    end
+
+    @testset "Tables.columns / DataFrame infer concrete column types (issue #225 regression)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "score"; sh["B1"] = "label"
+        sh["A2"] = 10.5;    sh["B2"] = "alice"
+        sh["A3"] = 20.0;    sh["B3"] = "bob"
+        sh["A4"] = 15.25;   sh["B4"] = "carol"
+
+        t = XLSX.addtable!(sh, "A1:B4"; name="T")
+
+        # Direct Tables.columns(t) — the underlying mechanism
+        cols = Tables.columns(t)
+        @test eltype(cols.score) != Any
+        @test eltype(cols.score) <: Union{Missing,Float64}
+        @test eltype(cols.label) <: Union{Missing,String}
+
+        # Same, via the row iterator returned by eachtablerow — this is the
+        # exact path that previously regressed to Any/Any (issue #225)
+        it = XLSX.eachtablerow(t)
+        cols_via_iter = Tables.columns(it)
+        @test eltype(cols_via_iter.score) != Any
+        @test eltype(cols_via_iter.score) <: Union{Missing,Float64}
+
+        # And the full DataFrame(...) round trip
+        df = DataFrames.DataFrame(it)
+        @test eltype(df.score) != Any
+        @test eltype(df.score) <: Union{Missing,Float64}
+        @test eltype(df.label) <: Union{Missing,String}
+    end
+
+    @testset "Tables.schema - matches between Table and its row iterator" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+        it = Tables.rows(t)
+
+        @test it isa XLSX.XLSXTableRowIterator
+        @test Tables.rows(it) === it  # identity, matching TableRowIterator convention
+        @test Tables.schema(it).names == Tables.schema(t).names
+        @test Tables.schema(it).types == Tables.schema(t).types
+    end
+
+    @testset "Tables.columnnames matches table columns" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "x"; sh["B1"] = "y"
+        sh["A2"] = 1;   sh["B2"] = 2
+
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+        row = first(XLSX.eachtablerow(t))
+        @test Tables.columnnames(row) == [:x, :y]
+        @test Tables.columnnames(t) == [:x, :y]
+    end
+
+    @testset "Tables.columns - values match what was written" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "name"; sh["C1"] = "score"
+        sh["A2"] = 1; sh["B2"] = "alice"; sh["C2"] = 10.5
+        sh["A3"] = 2; sh["B3"] = "bob";   sh["C3"] = 20.0
+        sh["A4"] = 3; sh["B4"] = "carol"; sh["C4"] = 15.0
+
+        t = XLSX.addtable!(sh, "A1:C4"; name="People")
+        cols = Tables.columns(t)
+
+        @test cols.id == [1, 2, 3]
+        @test cols.name == ["alice", "bob", "carol"]
+        @test cols.score == [10.5, 20.0, 15.0]
+    end
+
+    @testset "eachtablerow - length excludes header row" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        sh["A3"] = 3;   sh["B3"] = 4
+        sh["A4"] = 5;   sh["B4"] = 6
+
+        t = XLSX.addtable!(sh, "A1:B4"; name="T")
+        rows = collect(XLSX.eachtablerow(t))
+
+        @test length(rows) == 3
+        @test length(XLSX.eachtablerow(t)) == 3  # Base.length via iterator, not just collect
+    end
+
+    @testset "eachtablerow - minimum valid table (one data row)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+        rows = collect(XLSX.eachtablerow(t))
+
+        @test length(rows) == 1
+        @test Tables.getcolumn(rows[1], :a) == 1
+        @test Tables.getcolumn(rows[1], :b) == 2
+        @test Tables.getcolumn(rows[1], 1) == 1
+        @test Tables.getcolumn(rows[1], 2) == 2
+    end
+
+    @testset "eachtablerow - values match by name and by index" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "name"
+        sh["A2"] = 1;    sh["B2"] = "alice"
+        sh["A3"] = 2;    sh["B3"] = "bob"
+
+        t = XLSX.addtable!(sh, "A1:B3"; name="People")
+        rows = collect(XLSX.eachtablerow(t))
+
+        @test Tables.getcolumn(rows[1], :id) == 1
+        @test Tables.getcolumn(rows[1], :name) == "alice"
+        @test Tables.getcolumn(rows[2], 1) == 2
+        @test Tables.getcolumn(rows[2], 2) == "bob"
+    end
+
+    @testset "eachtablerow - totals row excluded (created via settotals!)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item"; sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        t = XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        rows = collect(XLSX.eachtablerow(t))
+        @test length(rows) == 2  # totals row (row 4) must NOT be included
+        @test Tables.getcolumn(rows[1], :item) == "Apples"
+        @test Tables.getcolumn(rows[2], :item) == "Pears"
+
+        cols = Tables.columns(t)
+        @test cols.item == ["Apples", "Pears"]
+        @test cols.amount == [12, 8]
+    end
+
+    @testset "eachtablerow - missing values pass through" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = missing
+        sh["A3"] = missing; sh["B3"] = 4
+
+        t = XLSX.addtable!(sh, "A1:B3"; name="T")
+        rows = collect(XLSX.eachtablerow(t))
+
+        @test ismissing(Tables.getcolumn(rows[1], :b))
+        @test ismissing(Tables.getcolumn(rows[2], :a))
+    end
+
+    @testset "eachtablerow - a fully blank row within ref is preserved, not skipped" begin
+        # Unlike gettable/TableRowIterator (which infers table bounds from
+        # content and offers stop_in_empty_row/keep_empty_rows/
+        # stop_in_row_function to resolve that ambiguity), a Table's `ref` is
+        # already authoritative — every row between header and totals (if
+        # any) is unconditionally part of the table, whether blank or not.
+        # eachtablerow must never drop a row just because it happens to be
+        # entirely empty.
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 10
+        # row 3 deliberately left entirely blank
+        sh["A4"] = 3;   sh["B4"] = 30
+
+        t = XLSX.addtable!(sh, "A1:B4"; name="T")
+        rows = collect(XLSX.eachtablerow(t))
+
+        @test length(rows) == 3  # rows 2, 3, 4 — the blank row 3 must still be present
+        @test Tables.getcolumn(rows[1], :a) == 1
+        @test ismissing(Tables.getcolumn(rows[2], :a))
+        @test ismissing(Tables.getcolumn(rows[2], :b))
+        @test Tables.getcolumn(rows[3], :a) == 3
+
+        cols = Tables.columns(t)
+        @test length(cols.a) == 3
+        @test ismissing(cols.a[2])
+    end
+
+    @testset "Tables.rowtable - generic Tables.jl round trip" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "score"
+        sh["A2"] = 1;    sh["B2"] = 10.5
+        sh["A3"] = 2;    sh["B3"] = 20.0
+
+        t = XLSX.addtable!(sh, "A1:B3"; name="T")
+
+        nt_rows = Tables.rowtable(t)
+        @test length(nt_rows) == 2
+        @test nt_rows[1].id == 1
+        @test nt_rows[1].score == 10.5
+        @test nt_rows[2].id == 2
+        @test nt_rows[2].score == 20.0
+    end
+
+    @testset "real fixture (two_tables.xlsx) - with_total (Sheet2), has a totals row" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            sh2 = xf["Sheet2"]
+            t = XLSX.table(sh2, "with_total")
+            @test t.has_totals_row == true
+            @test t.columns == ["start", "stop", "sin"]
+
+            rows = collect(XLSX.eachtablerow(t))
+            expected_data_rows = (t.ref.stop.row_number - 1) - (t.ref.start.row_number + 1) + 1
+            @test length(rows) == expected_data_rows
+
+            # the last row iterated must be genuine data — not the totals
+            # row. The totals row's "sin" column holds a formula (no cached
+            # value), so getdata would return `missing`; confirm the last
+            # data row's "sin" value is real, present data instead.
+            last_row = rows[end]
+            @test !ismissing(Tables.getcolumn(last_row, :sin))
+        end
+    end
+
+    @testset "real fixture (two_tables.xlsx) - Age_height (Sheet1), no totals row" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            sh = xf["Sheet1"]
+            t = XLSX.table(sh, "Age_height")
+            @test t.has_totals_row == false
+
+            rows = collect(XLSX.eachtablerow(t))
+            @test length(rows) == t.ref.stop.row_number - t.ref.start.row_number  # all rows below header
+        end
+    end
+
+    @testset "real fixture (two_tables.xlsx) - IO_Table, no totals row" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            sh = xf["Sheet1"]
+            t = XLSX.table(sh, "IO_Table")
+            @test t.has_totals_row == false
+
+            rows = collect(XLSX.eachtablerow(t))
+            @test length(rows) == t.ref.stop.row_number - t.ref.start.row_number  # all rows below header
+            @test Tables.columnnames(rows[1]) == Symbol.(t.columns)
+        end
+    end
+
+    @testset "t.sheet identity is preserved" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        t = XLSX.table(sh, "T")
+        @test t.sheet === sh
+    end
+
+    @testset "row-access path (Tables.rows) resolves schema/columnnames without erroring" begin
+        # Regression check: PrettyTables (and other row-access consumers)
+        # call Tables.schema/Tables.columnnames on Tables.rows(t) — the
+        # XLSXTableRowIterator — not on `t` directly.
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "name"
+        sh["A2"] = 1;    sh["B2"] = "alice"
+        sh["A3"] = 2;    sh["B3"] = "bob"
+
+        t = XLSX.addtable!(sh, "A1:B3"; name="T")
+        it = Tables.rows(t)
+
+        @test !isnothing(Tables.schema(it))
+        @test Tables.schema(it).names == (:id, :name)
+        @test !isnothing(Tables.columnnames(first(it)))
+        @test collect(it) isa Vector{XLSX.XLSXTableRow}
+    end
+
+    @testset "basic matrix shape and values" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "region"; sh["B1"] = "revenue"
+        sh["A2"] = "North";  sh["B2"] = 1000
+        sh["A3"] = "South";  sh["B3"] = 1500
+        sh["A4"] = "East";   sh["B4"] = 900
+
+        t = XLSX.addtable!(sh, "A1:B4"; name="Sales")
+        m = XLSX.getdata(t)
+
+        @test m isa Matrix{Any}
+        @test size(m) == (3, 2)
+        @test m[1, 1] == "North"; @test m[1, 2] == 1000
+        @test m[2, 1] == "South"; @test m[2, 2] == 1500
+        @test m[3, 1] == "East";  @test m[3, 2] == 900
+    end
+
+    @testset "excludes totals row" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        t = XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        m = XLSX.getdata(t)
+        @test size(m) == (2, 2)  # totals row (row 4) must not appear
+        @test m[end, 1] == "Pears"
+        @test m[end, 2] == 8
+    end
+
+    @testset "blank row within ref is preserved, not skipped" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 10
+        # row 3 deliberately left entirely blank
+        sh["A4"] = 3;   sh["B4"] = 30
+
+        t = XLSX.addtable!(sh, "A1:B4"; name="T")
+        m = XLSX.getdata(t)
+
+        @test size(m) == (3, 2)
+        @test m[1, 1] == 1
+        @test ismissing(m[2, 1])
+        @test ismissing(m[2, 2])
+        @test m[3, 1] == 3
+    end
+
+    @testset "minimum valid table (one data row)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+        m = XLSX.getdata(t)
+
+        @test size(m) == (1, 2)
+        @test m[1, 1] == 1
+        @test m[1, 2] == 2
+    end
+
+    @testset "real fixture (two_tables.xlsx) - IO_Table" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            sh = xf["Sheet1"]
+            t = XLSX.table(sh, "IO_Table")
+            m = XLSX.getdata(t)
+
+            @test size(m) == (t.ref.stop.row_number - t.ref.start.row_number, length(t.columns))
+        end
+    end
+
 end
