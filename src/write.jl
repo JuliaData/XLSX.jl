@@ -1169,6 +1169,9 @@ end
         columnnames;
         anchor_cell::CellRef=CellRef("A1"),
         write_columnnames::Bool=true,
+        as_table::Bool=false,
+        table_name::AbstractString="",
+        table_style::Union{AbstractString,Nothing}=nothing,
     )
 
 Write tabular data `data` with labels given by `columnnames` to `sheet`,
@@ -1183,8 +1186,25 @@ type `String`, `Float64`, `Int64`, `Bool`, `Date`, `Time`,
 `DateTime`, `Missing`, or `Nothing` will be converted to strings 
 before writing.
 
+Set `as_table=true` to also turn the written range into an Excel Table
+(equivalent to calling [`XLSX.addtable!`](@ref) immediately afterward over
+exactly the range just written). Requires `write_columnnames=true` (a table
+needs a header row) and at least one data row. `table_name` and
+`table_style` are forwarded to `addtable!`'s `name` and `style` keywords —
+see its docstring for accepted values, including the list of Excel's
+built-in table style names.
 
-See also: [`XLSX.writetable`](@ref).
+# Examples
+```julia
+julia> using DataFrames
+
+julia> df = DataFrame(id=[1, 2], name=["alice", "bob"], score=[10.5, 20.0])
+
+julia> XLSX.writetable!(sheet, collect(eachcol(df)), names(df);
+           as_table=true, table_name="Results", table_style="TableStyleMedium2")
+```
+
+See also: [`XLSX.writetable`](@ref), [`XLSX.addtable!`](@ref).
 """
 function writetable!(
     sheet::Worksheet,
@@ -1192,9 +1212,13 @@ function writetable!(
     columnnames;
     anchor_cell::CellRef=CellRef("A1"),
     write_columnnames::Bool=true,
+    as_table::Bool=false,
+    table_name::AbstractString="",
+    table_style::Union{AbstractString,Nothing}=nothing,
 )
+    as_table && !write_columnnames &&
+        throw(XLSXError("`as_table=true` requires `write_columnnames=true` — an Excel Table needs a header row, and `writetable!` is what writes it."))
 
-    # read dimensions
     col_count = length(data)
     col_count != length(columnnames) && throw(XLSXError("Column count mismatch between `data` ($col_count columns) and `columnnames` ($(length(columnnames)) columns)."))
     col_count <= 0 && throw(XLSXError("Can't write table with no columns."))
@@ -1207,11 +1231,13 @@ function writetable!(
         end
     end
 
+    as_table && row_count <= 0 &&
+        throw(XLSXError("`as_table=true` requires at least one data row — Excel does not support header-only tables."))
+
     anchor_row = row_number(anchor_cell)
     anchor_col = column_number(anchor_cell)
     start_from_anchor = 1
 
-    # write table header
     if write_columnnames
         for c in 1:col_count
             target_cell_ref = CellRef(anchor_row, c + anchor_col - 1)
@@ -1220,15 +1246,24 @@ function writetable!(
         start_from_anchor = 0
     end
 
-    # write table data
-    data = [process_vector(col) for col in data] # Address issue #239
+    data = [process_vector(col) for col in data]
     for r in 1:row_count
-        for c in 1:col_count # 15% speed up by inverting nesting of these for-loops!
+        for c in 1:col_count
             target_cell_ref = CellRef(r + anchor_row - start_from_anchor, c + anchor_col - 1)
             v = data[c][r]
-            sheet[target_cell_ref] = v 
+            sheet[target_cell_ref] = v
         end
     end
+
+    if as_table
+        table_ref = CellRange(
+            CellRef(anchor_row, anchor_col),
+            CellRef(anchor_row + row_count, anchor_col + col_count - 1),
+        )
+        addtable!(sheet, table_ref; name=table_name, style=table_style)
+    end
+
+    return nothing
 end
 
 rename!(ws::Worksheet, name::AbstractString) = renamesheet!(ws, name)
@@ -1589,6 +1624,7 @@ function insertsheet!(wb::Workbook, xdoc::XML.Node, new_cache::WorksheetCache, s
     return ws
 end
 
+
 # Deletes `path` and, recursively, everything transitively reachable through
 # its own `_rels` file — i.e. second/third/... order orphans. Used for parts
 # that belong exclusively to one sheet (tables, comments, VML legacy drawings,
@@ -1883,12 +1919,47 @@ end
 #
 
 """
-    writetable(filename, data, columnnames; [overwrite], [sheetname])
+Attempt to derive a table name from `sheetname`, normalized into a valid
+Excel Table name via the same identifier-normalization used elsewhere for
+column names (spaces/invalid characters become underscores, a bad leading
+character is fixed, repeated underscores collapse). Falls back to an
+auto-generated name (via a bare call to addtable! with name="") only if the
+normalized name still collides with an existing table name or defined
+name — sheet names, unlike table names, don't share that namespace.
+"""
+function _table_name_from_sheet(wb::Workbook, sheet::Worksheet, sheetname::AbstractString)::String
+    candidate = string(normalizename(sheetname))
+
+    if candidate != sheetname
+        @warn "Sheet name `$sheetname` isn't a valid Excel Table name; using normalized name `$candidate` instead."
+    end
+
+    existing_names = Set{String}()
+    for ws in wb.sheets
+        is_chartsheet(wb, ws.name) && continue
+        for t in tables(ws)
+            push!(existing_names, t.name)
+        end
+    end
+
+    if candidate ∈ existing_names ||
+       is_workbook_defined_name(wb, candidate) || is_worksheet_defined_name(sheet, candidate)
+        @warn "Normalized table name `$candidate` (from sheet name `$sheetname`) collides with an existing table name or defined name; using an auto-generated table name instead."
+        return ""
+    end
+
+    return candidate
+end
+
+"""
+    writetable(filename, data, columnnames; [overwrite], [sheetname], [anchor_cell], [as_table], [table_name], [table_style])
 
 - `data` is a vector of columns.
 - `columnames` is a vector of column labels.
 - `overwrite` is a `Bool` to control if `filename` should be overwritten if already exists.
 - `sheetname` is the name for the worksheet.
+- `as_table`, `table_name`, `table_style` — same as [`XLSX.writetable!`](@ref):
+  set `as_table=true` to turn the written range into an Excel Table.
 
 Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
 
@@ -1899,11 +1970,15 @@ import XLSX
 columns = [ [1, 2, 3, 4], ["Hey", "You", "Out", "There"], [10.2, 20.3, 30.4, 40.5] ]
 colnames = [ "integers", "strings", "floats" ]
 XLSX.writetable("table.xlsx", columns, colnames)
+
+julia> XLSX.writetable("table.xlsx", columns, colnames; as_table=true, table_name="MyData")
 ```
 
 See also: [`XLSX.writetable!`](@ref).
 """
-function writetable(filename::Union{AbstractString,IO}, data, columnnames; overwrite::Bool=false, sheetname::AbstractString="", anchor_cell::Union{String,CellRef}=CellRef("A1"))
+function writetable(filename::Union{AbstractString,IO}, data, columnnames; overwrite::Bool=false, sheetname::AbstractString="", anchor_cell::Union{String,CellRef}=CellRef("A1"),
+    as_table::Bool=false, table_name::AbstractString="", table_style::Union{AbstractString,Nothing}=nothing,
+)
 
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
@@ -1916,22 +1991,30 @@ function writetable(filename::Union{AbstractString,IO}, data, columnnames; overw
         anchor_cell = CellRef(anchor_cell)
     end
 
-    writetable!(sheet, data, columnnames; anchor_cell=anchor_cell)
+    writetable!(sheet, data, columnnames; anchor_cell=anchor_cell, as_table=as_table, table_name=table_name, table_style=table_style)
 
     # write output file
     writexlsx(filename, xf, overwrite=overwrite)
 end
 
 """
-    writetable(filename::Union{AbstractString, IO}; overwrite::Bool=false, kw...)
-    writetable(filename::Union{AbstractString, IO}, tables::Vector{Tuple{String, Vector{Any}, Vector{String}}}; overwrite::Bool=false)
+    writetable(filename::Union{AbstractString, IO}; overwrite::Bool=false, as_table::Bool=false, table_style=nothing, kw...)
 
 Write multiple tables.
 
 `kw` is a variable keyword argument list. Each element should be in this format: `sheetname=( data, column_names )`,
 where `data` is a vector of columns and `column_names` is a vector of column labels.
 
-Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
+Set `as_table=true` to also turn each sheet's written range into an Excel
+Table. `table_style` (if given) is applied to every table the same way.
+
+When `as_table=true`, each table's name defaults to its sheet's name, if
+that's a valid Excel Table name (no spaces, starts with a letter or
+underscore) and doesn't collide with an existing defined name. Otherwise,
+a warning is issued and an auto-generated name (`"Table1"`, `"Table2"`,
+...) is used instead — sheet names and table names don't share the same
+character rules or, in the case of defined names, the same namespace
+guarantees.
 
 Example:
 
@@ -1943,59 +2026,90 @@ julia> df1 = DataFrames.DataFrame(COL1=[10,20,30], COL2=["Fist", "Sec", "Third"]
 julia> df2 = DataFrames.DataFrame(AA=["aa", "bb"], AB=[10.1, 10.2])
 
 julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2)
+
+julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2;
+           as_table=true, table_style="TableStyleMedium2")
 ```
 """
-function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false, kw...)
+function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
+    as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing, kw...)
 
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
 
     xf = open_empty_template()
+    wb = get_workbook(xf)
     is_first = true
 
     for (sheetname, (data, column_names)) in kw
+        sheetname_str = string(sheetname)
         if is_first
-            # first sheet already exists in template file
             sheet = xf[1]
-            renamesheet!(sheet, string(sheetname))
-            writetable!(sheet, data, column_names)
-
+            renamesheet!(sheet, sheetname_str)
             is_first = false
         else
-            sheet = addsheet!(xf, string(sheetname))
-            writetable!(sheet, data, column_names)
+            sheet = addsheet!(xf, sheetname_str)
         end
+
+        tname = as_table ? _table_name_from_sheet(wb, sheet, sheetname_str) : ""
+        writetable!(sheet, data, column_names; as_table=as_table, table_name=tname, table_style=table_style)
     end
 
-    # write output file
     writexlsx(filename, xf, overwrite=overwrite)
-
 end
 
-function writetable(filename::Union{AbstractString,IO}, tables::Vector{Tuple{String,S,Vector{T}}}; overwrite::Bool=false) where {S<:Vector{U} where {U},T<:Union{String,Symbol}}
+"""
+    writetable(filename::Union{AbstractString, IO}, tables::Vector{Tuple{String, Vector{Any}, Vector{String}}}; overwrite::Bool=false, as_table::Bool=false, table_style=nothing)
+
+Write multiple tables.
+
+Each element of `tables` is `(sheetname, data, column_names)`, where `data`
+is a vector of columns and `column_names` is a vector of column labels.
+
+Set `as_table=true` to also turn each sheet's written range into an Excel
+Table. `table_style` (if given) is applied to every table the same way.
+
+When `as_table=true`, each table's name defaults to its sheet's name, if
+that's a valid Excel Table name (no spaces, starts with a letter or
+underscore) and doesn't collide with an existing defined name. Otherwise,
+a warning is issued and an auto-generated name (`"Table1"`, `"Table2"`,
+...) is used instead — sheet names and table names don't share the same
+character rules or, in the case of defined names, the same namespace
+guarantees.
+
+# Example
+```julia
+julia> XLSX.writetable("report.xlsx", [
+           ("REPORT_A", columns_a, colnames_a),
+           ("REPORT_B", columns_b, colnames_b),
+       ]; as_table=true)
+```
+"""
+function writetable(filename::Union{AbstractString,IO}, tables::Vector{Tuple{String,S,Vector{T}}};
+    overwrite::Bool=false, as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing,
+) where {S<:Vector{U} where {U},T<:Union{String,Symbol}}
 
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
 
     xf = open_empty_template()
-
+    wb = get_workbook(xf)
     is_first = true
+
     for (sheetname, data, column_names) in tables
         if is_first
-            # first sheet already exists in template file
             sheet = xf[1]
-            renamesheet!(sheet, string(sheetname))
-            writetable!(sheet, data, column_names)
-
+            renamesheet!(sheet, sheetname)
             is_first = false
         else
-            sheet = addsheet!(xf, string(sheetname))
-            writetable!(sheet, data, column_names)
+            sheet = addsheet!(xf, sheetname)
         end
+
+        tname = as_table ? _table_name_from_sheet(wb, sheet, sheetname) : ""
+        writetable!(sheet, data, column_names; as_table=as_table, table_name=tname, table_style=table_style)
     end
 
-    # write output file
     writexlsx(filename, xf, overwrite=overwrite)
 end

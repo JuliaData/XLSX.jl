@@ -1224,6 +1224,9 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String)
 end
 
 function get_xml_data(xf::XLSXFile, filename::String)::XML.Node
+    # safe to call unconditionally in write-mode;
+    # in read-only mode, only call after the sheet's cache is confirmed filled, 
+    # or you'll break lazy per-sheet fill for the rest of the session.
     val = xf.data[filename]
     if val isa String
         parsed = parse(val, XML.Node)

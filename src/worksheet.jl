@@ -194,6 +194,56 @@ function set_dimension!(ws::Worksheet, rng::CellRange)
     nothing
 end
 
+function get_worksheet_table_rids(xf::XLSXFile, ws::Worksheet)::Vector{String}
+    wb = get_workbook(xf)
+    target_file = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+
+    doc = if haskey(xf.data, target_file)
+        xf.data[target_file]
+    else
+        open_internal_file_stream(xf, target_file)
+    end
+
+    r_ids = String[]
+
+    if doc isa String || doc isa XML.LazyNode
+        lznode = doc isa String ? parse(doc, XML.LazyNode) : doc
+        root = xml_root_element(lznode)
+        c = XML.Cursor(root)
+        XML.next!(c)  # land on <worksheet> root, depth 1
+        while XML.next!(c) !== nothing
+            XML.depth(c) <= 1 && break
+            if XML.depth(c) == 2 && XML.nodetype(c) == XML.Element && localname(c) == "tableParts"
+                while XML.next!(c) !== nothing
+                    XML.depth(c) <= 2 && break
+                    if XML.depth(c) == 3 && XML.nodetype(c) == XML.Element && localname(c) == "tablePart"
+                        attrs = XML.attributes(c)
+                        if !isnothing(attrs) && haskey(attrs, "r:id")
+                            push!(r_ids, attrs["r:id"])
+                        end
+                    end
+                end
+                break  # tableParts is not repeated; done scanning
+            else
+                XML.skip_element!(c)
+            end
+        end
+    else
+        # Already fully parsed (e.g. chartsheet, or promoted via first_cache_fill!)
+        i, j = get_idces(doc, "worksheet", "tableParts")
+        if !isnothing(j)
+            for tp in xml_elements(doc[i][j])
+                localname(tp) != "tablePart" && continue
+                attrs = XML.attributes(tp)
+                (isnothing(attrs) || !haskey(attrs, "r:id")) && continue
+                push!(r_ids, attrs["r:id"])
+            end
+        end
+    end
+
+    return r_ids
+end
+
 function ref_chooser(f::Function, ws::Worksheet, ref::AbstractString)
     if is_worksheet_defined_name(ws, ref)
         v = get_defined_name_value(ws, ref)

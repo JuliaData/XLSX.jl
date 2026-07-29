@@ -202,29 +202,43 @@ end
 # Resolves unhandled_attributes to nothing if empty, for compact Formula construction.
 _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 
+@inline function cell_attrs(c)
+# XML.foreach_attr plus XML.XMLTokenizer.raw/attr_value is documented by XML.jl
+# as the zero-allocation attribute hot-path API.
+    ref_str = ""
+    t = ""
+    s_str = ""
+    m_str = ""
+
+    XML.foreach_attr(c) do name_tok, val_tok
+        name = XML.XMLTokenizer.raw(name_tok, c.data)
+
+        if name == "r"
+            ref_str = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        elseif name == "t"
+            t = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        elseif name == "s"
+            s_str = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        elseif name == "cm"
+            m_str = XML.XMLTokenizer.attr_value(val_tok, c.data)
+        end
+    end
+
+    return ref_str, t, s_str, m_str
+end
+
 function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
               local_formulas::Union{Nothing, Dict{SheetCellRef, AbstractFormula}}=nothing,
               load_formulas::Bool=true)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
     @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
-    ref_str::Union{SubString{String},String} = ""
-    t::Union{SubString{String},String}       = ""
-    s_str::Union{SubString{String},String}   = ""
-    m_str::Union{SubString{String},String}   = ""
-    XML.foreach_attr(c) do name_tok, val_tok
-        k = XML.XMLTokenizer.raw(name_tok, c.data)
-        if k == "r";      ref_str = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        elseif k == "t";  t       = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        elseif k == "s";  s_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        elseif k == "cm"; m_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        end
-    end
+    ref_str, t, s_str, m_str = cell_attrs(c)
     ref   = CellRef(ref_str)
     style, num_style = _parse_style(s_str)
-    meta::UInt32 = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
-    datatype::CellValueType = CT_EMPTY
-    value::UInt64           = UInt64(0)
-    formula::Bool           = false
+    meta = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
+    datatype = CT_EMPTY
+    value    = UInt64(0)
+    formula  = false
     for child in XML.eachchildnode(c)
         XML.nodetype(child) == XML.Element || continue
         tag = localname(child)
