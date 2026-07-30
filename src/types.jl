@@ -383,6 +383,37 @@ struct TableStyleInfo
     show_column_stripes::Bool
 end
 
+"""
+    Table
+
+A native Excel Table: a named, structured range within a worksheet, created in Excel
+with *Insert → Table* (or `Ctrl+T`), or in XLSX.jl with [`XLSX.addtable!`](@ref).
+
+Obtain one with [`XLSX.table`](@ref) or [`XLSX.tables`](@ref). A `Table` conforms to the
+`Tables.jl` interface, so it can be passed directly to any compatible sink (e.g.
+`DataFrame`), or read with [`XLSX.gettable`](@ref), [`XLSX.getdata`](@ref) or
+[`XLSX.eachtablerow`](@ref). In every case only the Table's data rows are returned: the
+header row and, if present, the totals row are excluded.
+
+# Fields
+- `id::Int`: the Table's id, unique within the workbook.
+- `name::String`: the Table's name, unique within the workbook and sharing a namespace
+  with defined names.
+- `display_name::String`: the name Excel displays. Usually identical to `name`.
+- `ref::CellRange`: the Table's full extent, including its header row and, if present,
+  its totals row.
+- `columns::Vector{String}`: the column names, in order, taken from the header row.
+- `has_totals_row::Bool`: whether the last row of `ref` is a totals row.
+- `style::Union{TableStyleInfo,Nothing}`: the Table's style, or `nothing` if it has none.
+- `sheet`: the `Worksheet` the Table belongs to. Cell values are read from it on demand.
+
+A `Table` is an immutable snapshot of the Table's structure at the time it was read.
+Functions that modify a Table ([`XLSX.settotals!`](@ref), [`XLSX.appendtable!`](@ref))
+return an updated `Table`; any earlier one goes stale and should be discarded.
+
+See also [`XLSX.table`](@ref), [`XLSX.tables`](@ref), [`XLSX.addtable!`](@ref),
+[`XLSX.deletetable!`](@ref), [`XLSX.settotals!`](@ref), [`XLSX.appendtable!`](@ref).
+"""
 struct Table
     id::Int
     name::String

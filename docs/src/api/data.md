@@ -22,6 +22,7 @@ XLSX.iserror
 XLSX.geterror
 XLSX.gettable
 XLSX.readtable
+XLSX.Table
 XLSX.tables
 XLSX.table
 XLSX.addtable!

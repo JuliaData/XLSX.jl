@@ -946,8 +946,8 @@ const MIME_TABLE = "application/vnd.openxmlformats-officedocument.spreadsheetml.
 const TOTALS_ROW_FUNCTIONS = Dict{Symbol,Tuple{String,Int}}(
     :sum       => ("sum",       109),
     :average   => ("average",   101),
-    :counta    => ("count",     103),  # OOXML "count" == Excel COUNTA (counts non-blank, incl. text)
-    :count     => ("countNums", 102),  # OOXML "countNums" == Excel COUNT (counts numeric cells only)
+    :count     => ("count",     103),  # OOXML "count" == Excel COUNTA (counts non-blank, incl. text)
+    :countnums => ("countNums", 102),  # OOXML "countNums" == Excel COUNT (counts numeric cells only)
     :max       => ("max",       104),
     :min       => ("min",       105),
     :stddev    => ("stdDev",    107),
@@ -995,7 +995,8 @@ end
 # Compact one-line form — used implicitly by default Vector{Table} printing,
 # error messages, and anywhere a Table appears embedded in other output.
 function Base.show(io::IO, t::Table)
-    print(io, "Table(id = ", t.id, ", \"", t.name, "\", ", t.ref, ", ", length(t.columns), " cols")
+    nrows = _last_data_row(t) - _first_data_row(t) + 1
+    print(io, nrows, "x", length(t.columns), " Table (id=", t.id, ", \"", t.name, "\", ", t.ref)
     t.has_totals_row && print(io, ", +totals")
     print(io, ")")
 end
@@ -1183,16 +1184,38 @@ end
 
 """
     tables(ws::Worksheet) -> Vector{Table}
+    tables(xf::XLSXFile)  -> Vector{Table}
 
-All Excel Tables defined on `ws`, in document order. Empty if none.
+All Excel Tables defined on `ws` or on `xf` across every worksheet, in sheet order and then in
+document order within each sheet. Empty if the worksheet or workbook has none. Chartsheets are
+skipped.
 
+Each `Table` knows the worksheet it belongs to (its `sheet` field), so the sheet is
+recoverable from the result.
+
+```julia
 # Examples
 ```julia
 julia> XLSX.tables(sheet)
 2-element Vector{XLSX.Table}:
  Table(id=1, "IO_Table", A1:C8, 3 cols)
  Table(id=2, "Age_height", E1:G6, 3 cols, +totals)
+ 
+julia> for t in XLSX.tables(f)
+           println(t.sheet.name, ": ", t.name, " ", t.ref)
+       end
+Sheet1: IO_Table A1:C8
+Sheet1: Age_height E1:G6
+Sheet2: with_total A3:C11
 ```
+
+!!! note
+
+    [`XLSX.tables`](@ref)`(xf::XLSXFile)` must examine every worksheet, so
+    on a large workbook opened lazily it will cause each sheet's Table metadata to be
+    read (Cell data are not read in this process).
+
+See also [`XLSX.table`](@ref).
 """
 function tables(ws::Worksheet)::Vector{Table}
     if isnothing(ws.tables_cache)
@@ -1200,7 +1223,15 @@ function tables(ws::Worksheet)::Vector{Table}
     end
     return ws.tables_cache
 end
-
+function tables(xf::XLSXFile)::Vector{Table}
+    wb = get_workbook(xf)
+    result = Table[]
+    for ws in wb.sheets
+        is_chartsheet(wb, ws.name) && continue
+        append!(result, tables(ws))
+    end
+    return result
+end
 """
     table(ws::Worksheet, name::AbstractString) -> Table
     table(wb::Workbook, name::AbstractString) -> Table
@@ -1521,7 +1552,44 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     xf = get_xlsxfile(sheet)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
 
-    table(sheet, name)  # throws KeyError if not found — fail fast
+    t=table(sheet, name)  # throws KeyError if not found — fail fast
+
+    # Before removing the Table: totals-row formulas refer to the Table by name
+    # (e.g. SUBTOTAL(109,Sales[amount])), which becomes #REF! once it's gone.
+    # Excel rewrites such references to a static, sheet-qualified absolute range
+    # (SUBTOTAL(109,Sheet1!$B$2:$B$5)) when converting a Table to a range; do the
+    # same here. Only the structured reference is substituted — the surrounding
+    # formula is left alone.
+    if t.has_totals_row
+        col0 = _col_start(t)
+        totals_row = t.ref.stop.row_number
+        first_data = _first_data_row(t)
+        last_data  = _last_data_row(t)
+        qsheet = quoteit(sheet.name)
+
+        for (idx, col_name) in enumerate(t.columns)
+            cell_ref = CellRef(totals_row, col0 + idx - 1)
+            c = getcell(sheet, cell_ref)
+            (c isa EmptyCell || !c.formula) && continue
+
+            f = getFormula(sheet, cell_ref)
+            isnothing(f) && continue
+
+            col_letter = encode_column_number(col0 + idx - 1)
+            static_range = "$(qsheet)!\$$(col_letter)\$$(first_data):\$$(col_letter)\$$(last_data)"
+
+            # substitute every column reference of this Table, not just this
+            # column's own — a custom formula may reference several.
+            new_f = f
+            for (j, other) in enumerate(t.columns)
+                other_letter = encode_column_number(col0 + j - 1)
+                other_range = "$(qsheet)!\$$(other_letter)\$$(first_data):\$$(other_letter)\$$(last_data)"
+                new_f = replace(new_f, "$(name)[$(other)]" => other_range)
+            end
+
+            setFormula(sheet, cell_ref; val=lstrip(new_f, '='))
+        end
+    end
 
     target_rid, target_path = _find_table_part(sheet, name)
 
@@ -1534,7 +1602,10 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     # remove <tablePart>, shrink/drop <tableParts>
     tp_container = elements_with_tag(sheet_root, "tableParts")[1]
     tp_children = XML.children(tp_container)
-    deleteat!(tp_children, findfirst(tp -> get_attr(tp, "r:id") == target_rid, tp_children))
+    tp_idx = findfirst(tp -> XML.nodetype(tp) === XML.Element && get_attr(tp, "r:id") == target_rid, tp_children)
+    isnothing(tp_idx) && throw(XLSXError("Internal error: <tablePart> for `$name` not found."))
+    deleteat!(tp_children, tp_idx)
+
     if isempty(tp_children)
         deleteat!(XML.children(sheet_root), findfirst(c -> localname(c) == "tableParts", XML.children(sheet_root)))
     else
@@ -1542,7 +1613,10 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     end
 
     # remove the relationship entry itself
-    deleteat!(XML.children(rels_root), findfirst(r -> get_attr(r, "Id") == target_rid, XML.children(rels_root)))
+    rel_children = XML.children(rels_root)
+    rel_idx = findfirst(r -> XML.nodetype(r) === XML.Element && get_attr(r, "Id") == target_rid, rel_children)
+    isnothing(rel_idx) && throw(XLSXError("Internal error: relationship `$target_rid` not found in $rels_path."))
+    deleteat!(rel_children, rel_idx)
 
     delete_part_and_orphans!(xf, target_path)  # handles the table part + its Content_Types override
 
@@ -1564,7 +1638,7 @@ Each element of `settings` is `"ColumnName" => value` (or, in the kwarg form,
 `ColumnName=value` for identifier-safe column names), where `value` is one of:
 
 - a `Symbol` naming a built-in totals function — `:sum`, `:average`, `:count`,
-  `:counta`, `:max`, `:min`, `:stddev`, or `:var`. Writes both the
+  `:countnums`, `:max`, `:min`, `:stddev`, `:var` or `:none`. Writes both the
   `totalsRowFunction` attribute and an actual `SUBTOTAL(...)` formula into
   the totals row cell for that column; Excel performs the calculation from
   this formula exactly as it would for any other `SUBTOTAL` formula.
@@ -1578,7 +1652,14 @@ Each element of `settings` is `"ColumnName" => value` (or, in the kwarg form,
 
 Columns not mentioned in `settings` are left untouched: if the table already
 has a totals row, their existing totals content (function, label, or blank)
-is preserved as-is.
+is preserved as-is. To *remove* a column's totals, pass `:none` explicitly:
+
+```julia
+julia> XLSX.settotals!(s, "Sales", "margin" => :none)   # margin's totals cell cleared
+```
+
+The totals row itself remains, even if every column's totals is cleared — an empty
+totals row is valid, and Excel displays it.
 
 If the table does not already have a totals row, one is added by extending
 the table by one row — the row immediately following its current last row.
@@ -1613,9 +1694,6 @@ julia> # Add a totals row to a table that doesn't have one yet — the row
 julia> # Update just one column's totals function on a table that already
        # has a totals row — other columns' existing totals are untouched.
        XLSX.settotals!(sheet, "Sales", "Revenue" => :max)
-
-julia> # Blank out a column's totals cell entirely by omitting it from
-       # `settings` — no call needed; simply don't mention that column.
 
 julia> # A custom formula MUST aggregate each column reference itself
        # (e.g. via SUBTOTAL or SUM) — a bare `Sales[Revenue]` in a totals
@@ -1678,7 +1756,12 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
         remove_attr!(col_node, "totalsRowFunction")
         remove_attr!(col_node, "totalsRowLabel")
 
-        if value isa Symbol
+        if value === :none
+            # Clear this column's totals setting entirely. Both attributes were
+            # already removed above; just blank the cell.
+            sheet[cell_ref] = missing
+
+        elseif value isa Symbol
             haskey(TOTALS_ROW_FUNCTIONS, value) ||
                 throw(XLSXError("Unknown totals function `:$value`. Supported: $(join(sort(string.(keys(TOTALS_ROW_FUNCTIONS))), ", ")), or pass `(:custom, \"formula\")` for a custom function."))
             func_name, subtotal_code = TOTALS_ROW_FUNCTIONS[value]

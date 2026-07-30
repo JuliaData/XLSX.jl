@@ -11,11 +11,15 @@ apart:
   [`XLSX.eachtablerow`](@ref)`(sheet, ...)` have always worked this way: they treat
   any rectangular block of cells that *looks* like a table as one, working out its
   extent from the cell content. Nothing about such a range is recorded in the Excel
-  file — it is simply cells, and the "table" exists only in the eye of the caller.
+  file — it is simply cells, and the "table" exists only in the eye of the caller. 
+  (Shown below on the right.)
 - **A native Excel Table.** This is a real object in the workbook, created in Excel
   with *Insert → Table* (or `Ctrl+T`) and represented in XLSX.jl by the
   [`XLSX.Table`](@ref) type. It has a name, a recorded extent, named columns, and
   optionally a style, an autofilter and a totals row.
+  (Shown below on the left. The Table ribbon is shown when a Table is selected)
+
+![image|320x500](../images/tableVsRange.png)
 
 In this guide, a capitalised **Table** always means the native Excel object.
 Where a function name is ambiguous, the argument type resolves it: `gettable(sheet)`
@@ -26,29 +30,12 @@ and may carry a visual style, an autofilter and a totals row. Formulas elsewhere
 in the workbook can refer to it by name and by column (`Sales[revenue]`) rather 
 than by cell address.
 
-```
-![PLACEHOLDER: an Excel worksheet showing a Table selected, with the Table Design
-#ribbon visible, banded rows and filter dropdowns — contrasted with a plain range of
-#cells alongside it](../images/tableVsRange.png)
-```
 Because a Table's extent is recorded in the file itself, XLSX.jl never has to guess
 where the data begins and ends. This is the key difference from
 [`XLSX.gettable`](@ref)`(sheet, ...)`, which infers a table's bounds heuristically from
 cell content and therefore needs options like `first_row`, `stop_in_empty_row` and
 `keep_empty_rows` to resolve the ambiguity. With an Excel Table there is no ambiguity to
 resolve: the header row, the data rows and the totals row are all defined.
-
-The structure of a Table can be shown like this:
-
-```
-              `Table`
-                 │
-    ┌────────────┼────────────┬──────────────┐
-    │            │            │              │
-  header       data        totals        `TableStyleInfo`
-   row         rows         row           (banding, etc.)
-            (1 or more)  (optional)
-```
 
 XLSX.jl represents a Table with the `XLSX.Table` type, holding its `name`, `ref`
 (range), `columns`, whether it has a totals row, and its style.
@@ -75,8 +62,8 @@ julia> s = f["Sheet1"]
 
 julia> XLSX.tables(s)
 2-element Vector{XLSX.Table}:
- Table("IO_Table", A1:C8, 3 cols)
- Table("Age_height", E1:G6, 3 cols)
+7x3 Table (id=1, "IO_Table", A1:C8)
+5x3 Table (id=2, "Age_height", E1:G6)
 
 julia> t = XLSX.table(s, "Age_height")
 XLSX.Table: "Age_height"
@@ -131,14 +118,11 @@ julia> XLSX.getdata(t)                 # as a `Matrix`
 ```
 
 In every case, only the Table's own data rows are returned. The header row is used for
-column names and excluded from the data, as is the totals row if the Table has one. 
+column names and is excluded from the data, as is the totals row if the Table has one. 
 Data elsewhere on the sheet — beside the Table, below it, or in another 
-Table — is never included.
+Table — are never included.
 
-```
-#![PLACEHOLDER: a worksheet with a Table in A1:C4 and unrelated data in E1:F3 and
-#A7:B8, annotated to show that reading the Table returns only A2:C4](../images/tableBounds.png)
-```
+
 ### Iterating rows
 
 [`XLSX.eachtablerow`](@ref) applied to a `Table` returns an iterator over its data rows:
@@ -158,10 +142,10 @@ Erin is 162cm
 
 !!! note "Two `eachtablerow` methods"
 
-    `XLSX.eachtablerow(sheet::Worksheet, ...)` infers a table's bounds from 
+    `XLSX.eachtablerow(sheet, ...)` infers a table's bounds from 
     cell content and accepts options such as `first_row`, `header`, `stop_in_empty_row`,
     `stop_in_row_function` and `keep_empty_rows` to control that inference.
-    `XLSX.eachtablerow(t::Table)` takes none of them: a Table's `ref` is
+    `XLSX.eachtablerow(t::Table)` takes none of these options: a Table's `ref` is
     authoritative. In particular, a completely blank row *within* a Table's range is
     still part of the Table and is returned like any other row — it is never treated
     as the end of the data.
@@ -215,11 +199,12 @@ julia> XLSX.readto("tables.xlsx", DataFrame; table_name="Age_height")
 julia> XLSX.readtable("tables.xlsx", "Sheet1"; table_name="Age_height")
 ```
 
-Supplying the sheet name is (marginally) faster: only that one worksheet is 
-decompressed, exactly as for a normal single-sheet read. Omitting it searches 
-every worksheet for the named Table — Table names are unique across a workbook, 
-so this is unambiguous — but each sheet's Table metadata must be scanned to 
-find it. Cell data for the non-matching sheets is still never read.
+Supplying the sheet name is faster on a workbook with many sheets: only that 
+one worksheet is decompressed, exactly as for a normal single-sheet read. 
+Omitting it searches every worksheet for the named Table — Table names are 
+unique across a workbook, so this is unambiguous — but each sheet's Table 
+metadata must be scanned until the Table is found. Cell data for the 
+non-matching sheets are still never read.
 
 `table_name` cannot be combined with a `columns` range, since a Table's own range is
 authoritative; doing so throws an `XLSXError`.
@@ -256,12 +241,12 @@ XLSX.Table: "Sales"
   columns : region, revenue, margin
   style   : TableStyleMedium2 (row stripes)
   totals  : no
+
+julia> writexlsx("NowATable.xlsx", f, overwrite=true)
 ```
 
-```
-#![PLACEHOLDER: the resulting worksheet in Excel, showing the range now rendered as a
-#styled Table with banded rows and filter dropdowns](../images/tableAddtable.png)
-```
+![image|320x500](../images/tableAddtable.png)
+
 `addtable!` only wraps existing cells: it writes no header, data or totals values of its
 own. If `name` is omitted, a unique name is generated (`"Table1"`, `"Table2"`, …).
 
@@ -283,17 +268,14 @@ gallery in Excel's Table Design ribbon:
 | Dark | `"TableStyleDark1"` … `"TableStyleDark11"` |
 | None | `"None"` |
 
-The full set is available as `XLSX.BUILTIN_TABLE_STYLES`. `style` is not validated
-against this list, because a workbook may also define custom Table styles of its own;
-any string is passed through as the style name. An unrecognized name that isn't a
-custom style defined elsewhere in the workbook will simply make Excel fall back to its
-default Table appearance.
+![image|320x500](../images/tableStyle.png)
 
-```
-#![PLACEHOLDER: a few contrasting built-in styles side by side — e.g.
-#TableStyleLight1, TableStyleMedium2 and TableStyleDark3 applied to the same
-#data](../images/tableStyles.png)
-```
+The first light style shown above corresponds to `None` - there are only 21 light 
+styles. `style` is not validated against this list, because a workbook may also define 
+custom Table styles of its own; any string is passed through as the style name. 
+An unrecognized name that isn't a custom style defined elsewhere in the workbook 
+will simply make Excel fall back to its default Table appearance.
+
 ### While writing tabular data
 
 [`XLSX.writetable!`](@ref) and [`XLSX.writetable`](@ref) accept `as_table=true` to turn
@@ -308,8 +290,8 @@ julia> df = DataFrame(region=["North", "South", "East"], revenue=[1000, 1500, 90
 julia> XLSX.writetable("sales.xlsx", df; as_table=true, table_name="Sales", table_style="TableStyleMedium2")
 ```
 
-`as_table=true` requires `write_columnnames=true` — a Table needs a header row — and at
-least one data row.
+`as_table=true` cannot be combined with `write_columnnames=false`, since a Table needs a
+header row, and requires at least one data row.
 
 The `totals` keyword sets a totals row in the same call, taking the same
 `"ColumnName" => value` pairs as [`XLSX.settotals!`](@ref):
@@ -332,6 +314,8 @@ julia> XLSX.writetable("sales.xlsx", df;
 This writes the data, wraps it as a Table named `Sales`, and adds a totals row below it
 in one step — equivalent to calling `writetable` with `as_table=true` and then
 `settotals!` separately. `totals` requires `as_table=true`.
+
+![image|320x500](../images/tableTotals.png)
 
 Custom formulas work here too, subject to the same aggregation requirement described
 under [Totals rows](@ref):
@@ -391,13 +375,9 @@ XLSX.Table: "Sales"
 If the Table did not already have a totals row, one is added by extending the Table by
 one row — the row immediately below its current last row, which must be empty.
 
-```
-#![PLACEHOLDER: the worksheet with a totals row added, showing the "Total" label and the
-#computed sum and average, with the totals row visually distinct](../images/tableTotals.png)
-```
 There are three kinds of setting:
 
-**A `Symbol`** names a built-in totals function. XLSX.jl writes both the
+A **`Symbol`** names a built-in totals function. XLSX.jl writes both the
 `totalsRowFunction` metadata and the corresponding `SUBTOTAL` formula into the cell;
 Excel does the arithmetic.
 
@@ -405,18 +385,21 @@ Excel does the arithmetic.
 |---|---|---|
 | `:sum` | `SUM` | |
 | `:average` | `AVERAGE` | |
-| `:count` | `COUNT` | numeric cells only |
-| `:counta` | `COUNTA` | any non-blank cell, including text |
+| `:countnum` | `COUNT` | numeric cells only |
+| `:count` | `COUNTA` | any non-blank cell, including text |
 | `:max` | `MAX` | |
 | `:min` | `MIN` | |
 | `:stddev` | `STDEV` | sample standard deviation |
 | `:var` | `VAR` | sample variance |
+| `:none` | — | clears the column's totals setting, leaving its totals cell blank |
 
-**A `String`** is written as a plain text label — conventionally in the leftmost column,
+A **`String`** is written as a plain text label — conventionally in the leftmost column,
 as `"Total"` above.
 
-**A `(:custom, formula)` tuple** covers Excel's *More Functions…* option, for a totals
-row cell that isn't one of the built-ins:
+A **`(:custom, formula)`** tuple covers Excel's *More Functions…* option, for a totals
+row cell that isn't one of the built-ins.
+
+![image|320x500](../images/tableFunctions.png)
 
 ```julia
 julia> XLSX.settotals!(s, "Sales", "margin" => (:custom, "SUBTOTAL(109,Sales[revenue])-SUBTOTAL(109,Sales[margin])"))
@@ -441,7 +424,14 @@ julia> XLSX.settotals!(s, "Sales", "revenue" => :max)   # margin's average is un
 ```
 
 Setting a column that already has totals content cleanly replaces it, whether it was a
-function, a custom formula or a label.
+function, a custom formula or a label. To *remove* a column's totals, pass `:none` explicitly:
+
+```julia
+julia> XLSX.settotals!(s, "Sales", "margin" => :none)   # margin's totals cell cleared
+```
+
+The totals row itself remains, even if every column's totals is cleared — an empty
+totals row is valid, and Excel displays it.
 
 As with every formula written by XLSX.jl, no cached value is stored alongside a totals
 formula. `setFormula` replaces the cell with a value-less formula cell, so the cell
@@ -470,10 +460,6 @@ content is regenerated from the Table's own per-column settings — functions, c
 formulas and labels are all preserved, but values are removed to be recalculated 
 by Excel.
 
-```
-#![PLACEHOLDER: before-and-after pair showing two rows appended to a Table with a totals
-#row, with the totals row having moved down and its values updated](../images/tableAppend.png)
-```
 The rows immediately below the Table that will be filled by `appendtable!` must be empty; 
 otherwise an `XLSXError` is thrown. Pass `check_empty=false` to overwrite whatever is there.
 
@@ -489,6 +475,7 @@ julia> df = DataFrame(margin=[260], revenue=[1200], region=["West"])  # scramble
 
 julia> XLSX.appendtable!(s, "Sales", df)   # matched by name, not position
 ```
+![image|320x500](../images/tableAppend.png)
 
 ### Deleting a Table
 
@@ -513,13 +500,24 @@ julia> t = XLSX.table(s, "Sales")
 
 julia> XLSX.deletetable!(s, "Sales")
 
-julia> s[t.ref] = ""        # optional: clear the data too
+julia> writexlsx("Sales3.xlsx", f, overwrite=true)
 ```
 
+![image|320x500](../images/tableDelete.png)
+
 ```
-#![PLACEHOLDER: before-and-after pair showing a Table converted to a plain range — the
-#banding and filter dropdowns gone, the data still present](../images/tableDelete.png)
+julia> s[t.ref] = ""        # optional: clear the data too
+
+julia> s[:]
+6×3 Matrix{Any}:
+ missing  missing  missing
+ missing  missing  missing
+ missing  missing  missing
+ missing  missing  missing
+ missing  missing  missing
+ missing  missing  missing
 ```
+
 ## Preserving Tables in existing files
 
 Tables in a workbook opened for editing are preserved through a read-write cycle,

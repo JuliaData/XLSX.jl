@@ -873,7 +873,8 @@ end
 
         @test occursin("Plain", s)
         @test occursin(string(t.ref), s)
-        @test occursin("3 cols", s)
+        @test occursin("id=$(t.id)", s)
+        @test occursin("1x3", s)   # 1 data row x 3 columns
         @test !occursin("totals", s)  # no totals row -> no "+totals" marker
     end
 
@@ -888,7 +889,8 @@ end
         s = sprint(show, t)
 
         @test occursin("Sales", s)
-        @test occursin("2 cols", s)
+        @test occursin("id=$(t.id)", s)
+        @test occursin("1x2", s)   # data rows exclude header and totals row
         @test occursin("totals", s)
     end
 
@@ -2050,7 +2052,7 @@ end
             sh[r, i] = r * 10 + i
         end
         XLSX.addtable!(sh, "A1:F4"; name="Funcs")
-        XLSX.settotals!(sh, "Funcs"; s=:sum, av=:average, cnt=:count, cnta=:counta, mx=:max, mn=:min)
+        XLSX.settotals!(sh, "Funcs"; s=:sum, av=:average, cnt=:countnums, cnta=:count, mx=:max, mn=:min)
 
         XLSX.appendtable!(sh, "Funcs", [(99, 99, 99, 99, 99, 99)])
 
@@ -2064,8 +2066,8 @@ end
         @test XLSX.get_attr(nodes[1], "totalsRowFunction") == "sum"
         @test XLSX.get_attr(nodes[2], "totalsRowFunction") == "average"
         # NB: OOXML's attribute names for the two count variants are the
-        # reverse of Excel's function names — :count (Excel COUNT, numeric
-        # only) is OOXML "countNums", and :counta (Excel COUNTA, non-blank)
+        # reverse of Excel's function names — :countnums (Excel COUNT, numeric
+        # only) is OOXML "countNums", and :count (Excel COUNTA, non-blank)
         # is OOXML "count".
         @test XLSX.get_attr(nodes[3], "totalsRowFunction") == "countNums"
         @test XLSX.get_attr(nodes[4], "totalsRowFunction") == "count"
