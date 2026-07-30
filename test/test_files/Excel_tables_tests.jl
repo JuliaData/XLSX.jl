@@ -76,6 +76,29 @@ function fresh()
     return sh
 end
 
+function make_readto_file(outfile)
+    isfile(outfile) && rm(outfile)
+    f = XLSX.newxlsx("First")
+
+    sh1 = f["First"]
+    sh1["A1"] = "a"; sh1["B1"] = "b"
+    sh1["A2"] = 1;   sh1["B2"] = 10
+    sh1["A3"] = 2;   sh1["B3"] = 20
+    XLSX.addtable!(sh1, "A1:B3"; name="TableOne")
+
+    sh2 = XLSX.addsheet!(f, "Second")
+    sh2["A1"] = "id"; sh2["B1"] = "name"; sh2["C1"] = "score"
+    sh2["A2"] = 1;    sh2["B2"] = "alice"; sh2["C2"] = 10.5
+    sh2["A3"] = 2;    sh2["B3"] = "bob";   sh2["C3"] = 20.0
+    sh2["A4"] = 3;    sh2["B4"] = "carol"; sh2["C4"] = 15.25
+    XLSX.addtable!(sh2, "A1:C4"; name="TableTwo")
+    # data outside the table, to confirm it isn't picked up
+    sh2["E1"] = "outside"; sh2["E2"] = "not in table"
+
+    XLSX.writexlsx(outfile, f, overwrite=true)
+    return outfile
+end
+
 
 # Shared fixture: 3 sheets, one table each, plus extra non-table data
 # on the middle sheet to confirm reads are scoped to the table's ref.
@@ -2325,6 +2348,295 @@ end
         @test cols.item == ["Apples", "Pears", "Cherries"]
         @test cols.amount == [12, 8, 25]
         @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, "B5"))
+    end
+
+    @testset "readto(source, sheet, sink; table_name=...)" begin
+        outfile = make_readto_file("readto_tablename_scoped.xlsx")
+        SAVE_FILES && save_outfile(outfile)
+
+        df = XLSX.readto(outfile, "Second", DataFrames.DataFrame; table_name="TableTwo")
+
+        @test df isa DataFrames.DataFrame
+        @test size(df) == (3, 3)
+        @test DataFrames.names(df) == ["id", "name", "score"]
+        @test df.id == [1, 2, 3]
+        @test df.name == ["alice", "bob", "carol"]
+        @test df.score == [10.5, 20.0, 15.25]
+        @test eltype(df.score) != Any
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto(source, sink; table_name=...) - workbook-wide" begin
+        outfile = make_readto_file("readto_tablename_wide.xlsx")
+
+        # table on the second sheet, found without naming the sheet
+        df = XLSX.readto(outfile, DataFrames.DataFrame; table_name="TableTwo")
+        @test size(df) == (3, 3)
+        @test df.id == [1, 2, 3]
+
+        # table on the first sheet
+        df1 = XLSX.readto(outfile, DataFrames.DataFrame; table_name="TableOne")
+        @test size(df1) == (2, 2)
+        @test df1.a == [1, 2]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto by sheet index" begin
+        outfile = make_readto_file("readto_tablename_idx.xlsx")
+
+        df = XLSX.readto(outfile, 2, DataFrames.DataFrame; table_name="TableTwo")
+        @test DataFrames.names(df) == ["id", "name", "score"]
+        @test df.id == [1, 2, 3]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto excludes data outside the table's ref" begin
+        outfile = make_readto_file("readto_tablename_bounds.xlsx")
+
+        df = XLSX.readto(outfile, "Second", DataFrames.DataFrame; table_name="TableTwo")
+        @test DataFrames.ncol(df) == 3
+        @test "outside" ∉ DataFrames.names(df)
+        @test DataFrames.nrow(df) == 3
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto scoped and workbook-wide agree" begin
+        outfile = make_readto_file("readto_tablename_agree.xlsx")
+
+        df_scoped = XLSX.readto(outfile, "Second", DataFrames.DataFrame; table_name="TableTwo")
+        df_wide   = XLSX.readto(outfile, DataFrames.DataFrame; table_name="TableTwo")
+        @test isequal(df_scoped, df_wide)
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto with enable_cache=false" begin
+        outfile = make_readto_file("readto_tablename_nocache.xlsx")
+
+        df_scoped = XLSX.readto(outfile, "Second", DataFrames.DataFrame;
+                                table_name="TableTwo", enable_cache=false)
+        @test size(df_scoped) == (3, 3)
+        @test df_scoped.name == ["alice", "bob", "carol"]
+
+        df_wide = XLSX.readto(outfile, DataFrames.DataFrame;
+                              table_name="TableTwo", enable_cache=false)
+        @test isequal(df_scoped, df_wide)
+
+        # and agrees with the cached read
+        df_cached = XLSX.readto(outfile, DataFrames.DataFrame; table_name="TableTwo")
+        @test isequal(df_cached, df_wide)
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto passes normalizenames / missing_strings through" begin
+        outfile = "readto_tablename_kwargs.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "col one"; sh["B1"] = "value"
+        sh["A2"] = "x";       sh["B2"] = 1.5
+        sh["A3"] = "N/A";     sh["B3"] = 2.5
+        XLSX.addtable!(sh, "A1:B3"; name="T")
+        XLSX.writexlsx(outfile, f, overwrite=true)
+
+        df_norm = XLSX.readto(outfile, DataFrames.DataFrame; table_name="T", normalizenames=true)
+        @test DataFrames.names(df_norm)[1] == "col_one"
+
+        df_miss = XLSX.readto(outfile, DataFrames.DataFrame; table_name="T", missing_strings="N/A")
+        @test ismissing(df_miss[2, 1])
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto with a totals row: totals excluded" begin
+        outfile = "readto_tablename_totals.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+        XLSX.writexlsx(outfile, f, overwrite=true)
+
+        df = XLSX.readto(outfile, DataFrames.DataFrame; table_name="Bulk")
+        @test DataFrames.nrow(df) == 2
+        @test df.item == ["Apples", "Pears"]
+        @test df.amount == [12, 8]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto errors: table_name with a columns range" begin
+        outfile = make_readto_file("readto_tablename_conflict.xlsx")
+
+        @test_throws XLSX.XLSXError XLSX.readto(outfile, "Second", "A:C",
+                                                DataFrames.DataFrame; table_name="TableTwo")
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto errors: table not found" begin
+        outfile = make_readto_file("readto_tablename_notfound.xlsx")
+
+        @test_throws XLSX.XLSXError XLSX.readto(outfile, DataFrames.DataFrame; table_name="NoSuchTable")
+        @test_throws KeyError XLSX.readto(outfile, "First", DataFrames.DataFrame; table_name="TableTwo")
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto errors: missing sink" begin
+        outfile = make_readto_file("readto_tablename_nosink.xlsx")
+
+        @test_throws XLSX.XLSXError XLSX.readto(outfile; table_name="TableTwo")
+        @test_throws XLSX.XLSXError XLSX.readto(outfile, "Second"; table_name="TableTwo")
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "readto agrees with readtable for the same table" begin
+        outfile = make_readto_file("readto_tablename_vs_readtable.xlsx")
+
+        df_readto = XLSX.readto(outfile, "Second", DataFrames.DataFrame; table_name="TableTwo")
+        df_readtable = DataFrames.DataFrame(XLSX.readtable(outfile, "Second"; table_name="TableTwo"))
+        @test isequal(df_readto, df_readtable)
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "existing readto behaviour unaffected when table_name omitted" begin
+        outfile = make_readto_file("readto_tablename_regression.xlsx")
+
+        df = XLSX.readto(outfile, "First", DataFrames.DataFrame)
+        @test df isa DataFrames.DataFrame
+        @test DataFrames.names(df) == ["a", "b"]
+
+        df_cols = XLSX.readto(outfile, "Second", "A:B", DataFrames.DataFrame)
+        @test DataFrames.names(df_cols) == ["id", "name"]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "index by integer, symbol and string" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "name"; sh["C1"] = "score"
+        sh["A2"] = 1;    sh["B2"] = "alice"; sh["C2"] = 10.5
+        sh["A3"] = 2;    sh["B3"] = "bob";   sh["C3"] = 20.0
+
+        t = XLSX.addtable!(sh, "A1:C3"; name="People")
+        rows = collect(XLSX.eachtablerow(t))
+
+        # by integer position
+        @test rows[1][1] == 1
+        @test rows[1][2] == "alice"
+        @test rows[1][3] == 10.5
+        @test rows[2][1] == 2
+
+        # by symbol
+        @test rows[1][:id] == 1
+        @test rows[1][:name] == "alice"
+        @test rows[1][:score] == 10.5
+        @test rows[2][:name] == "bob"
+
+        # by string
+        @test rows[1]["id"] == 1
+        @test rows[1]["name"] == "alice"
+        @test rows[2]["score"] == 20.0
+    end
+
+    @testset "all three index forms agree" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 10;  sh["B2"] = 20
+
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+        r = first(XLSX.eachtablerow(t))
+
+        @test r[1] == r[:a] == r["a"]
+        @test r[2] == r[:b] == r["b"]
+    end
+
+    @testset "getindex agrees with Tables.getcolumn" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "x"; sh["B1"] = "y"
+        sh["A2"] = 1;   sh["B2"] = "one"
+        sh["A3"] = 2;   sh["B3"] = "two"
+
+        t = XLSX.addtable!(sh, "A1:B3"; name="T")
+
+        for r in XLSX.eachtablerow(t)
+            @test r[1] == Tables.getcolumn(r, 1)
+            @test r[:x] == Tables.getcolumn(r, :x)
+            @test r["y"] == Tables.getcolumn(r, :y)
+        end
+    end
+
+    @testset "column names with spaces are reachable by string" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "col one"; sh["B1"] = "col two"
+        sh["A2"] = 1;         sh["B2"] = 2
+
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+        r = first(XLSX.eachtablerow(t))
+
+        @test r["col one"] == 1
+        @test r["col two"] == 2
+        @test r[Symbol("col one")] == 1   # symbol form still works, just awkward
+    end
+
+    @testset "missing values via getindex" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = missing
+        sh["A3"] = missing; sh["B3"] = 4
+
+        t = XLSX.addtable!(sh, "A1:B3"; name="T")
+        rows = collect(XLSX.eachtablerow(t))
+
+        @test ismissing(rows[1][:b])
+        @test ismissing(rows[1][2])
+        @test ismissing(rows[2]["a"])
+    end
+
+    @testset "totals row excluded when indexing rows" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        t = XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        rows = collect(XLSX.eachtablerow(t))
+        @test length(rows) == 2
+        @test rows[end][:item] == "Pears"   # not "Total"
+        @test rows[end][:amount] == 8
+    end
+
+    @testset "real fixture (two_tables.xlsx)" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            sh = xf["Sheet1"]
+            t = XLSX.table(sh, "IO_Table")
+            r = first(XLSX.eachtablerow(t))
+
+            for (i, colname) in enumerate(t.columns)
+                @test isequal(r[i], r[Symbol(colname)])
+                @test isequal(r[i], r[colname])
+            end
+        end
     end
 
 

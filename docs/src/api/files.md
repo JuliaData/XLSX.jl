@@ -37,9 +37,4 @@ XLSX.renamesheet!
 XLSX.copysheet!
 XLSX.deletesheet!
 XLSX.addImage
-XLSX.tables
-XLSX.table
-XLSX.addtable!
-XLSX.deletetable!
-XLSX.settotals!
 ```

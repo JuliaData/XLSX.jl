@@ -995,7 +995,7 @@ end
 # Compact one-line form — used implicitly by default Vector{Table} printing,
 # error messages, and anywhere a Table appears embedded in other output.
 function Base.show(io::IO, t::Table)
-    print(io, "Table(\"", t.name, "\", ", t.ref, ", ", length(t.columns), " cols")
+    print(io, "Table(id = ", t.id, ", \"", t.name, "\", ", t.ref, ", ", length(t.columns), " cols")
     t.has_totals_row && print(io, ", +totals")
     print(io, ")")
 end
@@ -1190,8 +1190,8 @@ All Excel Tables defined on `ws`, in document order. Empty if none.
 ```julia
 julia> XLSX.tables(sheet)
 2-element Vector{XLSX.Table}:
- Table("IO_Table", A1:C8, 3 cols)
- Table("Age_height", E1:G6, 3 cols, +totals)
+ Table(id=1, "IO_Table", A1:C8, 3 cols)
+ Table(id=2, "Age_height", E1:G6, 3 cols, +totals)
 ```
 """
 function tables(ws::Worksheet)::Vector{Table}
@@ -1720,7 +1720,7 @@ accepts `Tables.jl` data (e.g. `DataFrame` from package `DataFrames.jl`).
 
 !!! note "Two `gettable` methods"
 
-    Different from [`XLSX.gettable(sheet, ...)`](@ref), which infers a
+    Different from `XLSX.gettable(sheet, ...)`, which infers a
     table's row/column bounds heuristically from cell content on a plain
     `Worksheet`. Here, `t.ref` is authoritative, so there is no
     `columns`/`first_row`/`header`/`stop_in_empty_row`/`stop_in_row_function`/

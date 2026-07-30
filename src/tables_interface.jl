@@ -141,27 +141,39 @@ Iterate over the data rows of an Excel Table `t` (as returned by
 
 !!! note "Two `eachtablerow` methods"
 
-    Different from [`XLSX.eachtablerow(sheet, ...)`](@ref), which infers a
+    Different from `XLSX.eachtablerow(sheet, ...)`, which infers a
     table's bounds from cell content. Here, `t.ref` is authoritative: the
     header and totals row (if any) are always excluded, and any blank row
     within `t.ref` is still returned as ordinary data — there's no
     `stop_in_empty_row`/`keep_empty_rows` equivalent.
 
+!!! note "`row_number` means different things on the two row types"
+
+    Each `XLSXTableRow` has a `row_number` **field** holding its row number *on the
+    worksheet*. This is not the same as the `XLSX.row_number` **function** applied to a
+    `TableRow` (from `XLSX.eachtablerow(sheet, ...)`), which is the row's index *within
+    the table*. There is deliberately no `row_number` method for `XLSXTableRow`: use
+    `enumerate` for the position within the table, and the `row_number` field for the
+    worksheet row.
+    
 Cell values are read on demand via [`XLSX.getdata`](@ref), through the
 worksheet's normal cell cache — no separate caching, so edits made before
 iterating are reflected normally.
 
-Rows conform to `Tables.jl` (`Tables.getcolumn` by name or position), and
-`t` itself is directly `Tables.jl`-compatible too (`DataFrame(t)` works
-without `eachtablerow`); use this for row-by-row iteration instead.
+Rows conform to `Tables.jl` and `t` itself is directly 
+`Tables.jl`-compatible too (`DataFrame(t)` works without `eachtablerow`).
+For or row-by-row iteration, use.
 
 # Example
 ```julia
 for r in XLSX.eachtablerow(t)
-    v1 = Tables.getcolumn(r, 1)
-    v2 = Tables.getcolumn(r, :revenue)
+    v1 = r[1]           # by column position
+    v2 = r[:revenue]    # by column label
+    v3 = r["unit cost"] # by column label as a string, for names that aren't
+                        # valid identifiers
 end
 ```
+(Rows also support indexing with `Tables.getcolumn(r, 1)` / `Tables.getcolumn(r, :revenue)`, too)
 
 ```julia
 julia> using DataFrames
@@ -174,3 +186,7 @@ julia> collect(XLSX.eachtablerow(t))    # Vector{XLSX.XLSXTableRow}
 See also [`XLSX.table`](@ref), [`XLSX.tables`](@ref), [`XLSX.gettable`](@ref).
 """
 eachtablerow(t::Table) = XLSXTableRowIterator(t)
+
+Base.getindex(r::XLSXTableRow, i::Integer) = Tables.getcolumn(r, Int64(i))
+Base.getindex(r::XLSXTableRow, nm::Symbol) = Tables.getcolumn(r, nm)
+Base.getindex(r::XLSXTableRow, nm::AbstractString) = Tables.getcolumn(r, Symbol(nm))

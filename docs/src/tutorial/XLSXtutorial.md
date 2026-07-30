@@ -139,6 +139,60 @@ julia> df = XLSX.readto("myfile.xlsx", "mysheet", DataFrame) # Returns a `DataFr
 
 ```
 
+## Read an Excel Table
+
+Excel Tables (created in Excel with *Insert → Table*, or via `Ctrl+T`) are named,
+structured ranges. XLSX.jl reads them as `XLSX.Table` objects, which know their own
+bounds — so unlike a plain cell range, there's no need to work out where the data
+starts and stops, and the header row and any totals row are excluded automatically.
+
+```julia
+julia> import XLSX
+
+julia> xf = XLSX.readxlsx("tables.xlsx")
+
+julia> sh = xf["Sheet1"]
+
+julia> XLSX.tables(sh)          # every Table on the sheet
+2-element Vector{XLSX.Table}:
+ Table("IO_Table", A1:C8, 3 cols)
+ Table("Age_height", E1:G6, 3 cols, +totals)
+
+julia> t = XLSX.table(sh, "Age_height")
+XLSX.Table: "Age_height"
+  id      : 2
+  range   : E1:G6
+  columns : name, age, height
+  style   : TableStyleMedium2 (row stripes)
+  totals  : yes
+```
+
+A `Table` conforms to the `Tables.jl` interface, so it can be passed straight to a
+sink, or read via [`XLSX.gettable`](@ref) / [`XLSX.getdata`](@ref):
+
+```julia
+julia> using DataFrames
+
+julia> DataFrame(t)             # Tables.jl source
+
+julia> XLSX.gettable(t)         # as an XLSX.DataTable
+
+julia> XLSX.getdata(t)          # as a Matrix
+```
+
+To read a Table straight from a file, pass `table_name` to
+[`XLSX.readtable`](@ref) or [`XLSX.readto`](@ref):
+
+```julia
+julia> df = XLSX.readto("tables.xlsx", "Sheet1", DataFrame; table_name="Age_height")
+
+julia> df = XLSX.readto("tables.xlsx", DataFrame; table_name="Age_height")  # searches all sheets
+```
+
+Tables can also be created and modified — see [`XLSX.addtable!`](@ref),
+[`XLSX.settotals!`](@ref), [`XLSX.appendtable!`](@ref) and
+[`XLSX.deletetable!`](@ref), and `writetable`'s `as_table` keyword.
+
 ## Reading Cells as a Julia Matrix
 
 Use [`XLSX.readdata`](@ref) or [`XLSX.getdata`](@ref) to read content as a Julia matrix.
@@ -353,6 +407,11 @@ julia> df = DataFrames.DataFrame(integers=[1, 2, 3, 4], strings=["Hey", "You", "
 
 julia> XLSX.writetable("df.xlsx", df)
 ```
+Pass `as_table=true` to write the data as an Excel Table rather than plain cells:
+
+```julia
+julia> XLSX.writetable("df.xlsx", df; as_table=true, table_name="Data")
+```
 
 You can also export multiple tables to Excel, each table in a separate worksheet, by either passing a tuple (columns, names)
 to a keyword argument for each sheet name, or a list `"sheet name" => table` pairs for any Tables.jl compatible source.
@@ -408,8 +467,10 @@ end
 
 ## Tables.jl interface
 
-Both types `XLSX.DataTable` and `XLSX.TableRowIterator` conforms to [Tables.jl](https://github.com/JuliaData/Tables.jl) interface.
-An instance of `XLSX.TableRowIterator` is created by the function `XLSX.eachtablerow`.
+The types XLSX.DataTable, XLSX.TableRowIterator and XLSX.Table (an Excel Table) all conform to the 
+[Tables.jl](https://github.com/JuliaData/Tables.jl) interface. An instance of `XLSX.TableRowIterator` 
+is created by `XLSX.eachtablerow(sheet)`; for an Excel Table, `XLSX.eachtablerow(t)` returns 
+an `XLSX.XLSXTableRowIterator`.
 
 Also, both `XLSX.writetable` and `XLSX.XLSXFile` accept an argument that conforms to the `Tables.jl` interface.
 

@@ -1594,6 +1594,7 @@ end
         [sheet,
         [columns]],
         sink;
+        [table_name],
         [first_row],
         [column_labels],
         [header],
@@ -1610,7 +1611,11 @@ Read and parse an Excel worksheet, materializing directly using the
 `sink` function, which can be any `Tables.jl`-compatible function 
 (e.g. `DataFrame`, `StructArray` or `TypedTable``).
 
-Takes the same keyword arguments as [`XLSX.readtable`](@ref) 
+Takes the same keyword arguments as [`XLSX.readtable`](@ref), including
+`table_name` to read a named Excel Table (see [`XLSX.table`](@ref)) rather
+than a range of cells. Specifying `sheet` alongside `table_name` is faster,
+since only that worksheet is decompressed; omitting it searches every
+worksheet for the named table.
 
 # Example
 
@@ -1626,9 +1631,13 @@ julia> tt = XLSX.readto("myfile.xlsx", Table) # from TypedTables.jl
 julia> df = XLSX.readto("myfile.xlsx", "mysheet", DataFrame)
 
 julia> df = XLSX.readto("myfile.xlsx", "mysheet", "A:C", DataFrame)
+
+julia> df = XLSX.readto("myfile.xlsx", "mysheet", DataFrame; table_name="Sales")
+
+julia> df = XLSX.readto("myfile.xlsx", DataFrame; table_name="Sales")
 ```
 
-See also: [`XLSX.gettable`](@ref).
+See also: [`XLSX.gettable`](@ref), [`XLSX.readtable`](@ref), [`XLSX.table`](@ref).
 """
 function readto(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString, sink=nothing; kw...)
     if sink === nothing
@@ -1636,12 +1645,14 @@ function readto(source::Union{AbstractString,IO}, sheet::Union{AbstractString,In
     end
     return Tables.CopiedColumns(readtable(source, sheet, range; kw...)) |> sink
 end
+
 function readto(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, sink=nothing; kw...)
     if sink === nothing
         throw(XLSXError("provide a valid sink argument, like `using DataFrames; XLSX.readto(source, sheet, DataFrame)`"))
     end
     return Tables.CopiedColumns(readtable(source, sheet; kw...)) |> sink
 end
+
 function readto(source::Union{AbstractString,IO}, sink=nothing; kw...)
     if sink === nothing
         throw(XLSXError("provide a valid sink argument, like `using DataFrames; XLSX.readto(source, DataFrame)`"))
