@@ -954,6 +954,44 @@ const TOTALS_ROW_FUNCTIONS = Dict{Symbol,Tuple{String,Int}}(
     :var       => ("var",       110),
 )
 
+const TOTALS_FUNCTION_BY_NAME = Dict(first(v) => k for (k, v) in TOTALS_ROW_FUNCTIONS)
+
+function parse_totals_settings(sheet::Worksheet, t::Table)
+    t.has_totals_row || return Pair[]
+
+    table_doc = get_xml_data(get_xlsxfile(sheet), _table_part_path(sheet, t.name))
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    column_nodes = collect(xml_elements(table_doc[i][j]))
+
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+    settings = Pair[]
+
+    for (idx, col_name) in enumerate(t.columns)
+        node  = column_nodes[idx]
+        func  = get_attr(node, "totalsRowFunction", "")
+        label = get_attr(node, "totalsRowLabel", "")
+
+        if func == "custom"
+            # A custom function's formula lives only in the cell, so read it
+            # before the totals row is overwritten. getFormula prepends "=",
+            # but setFormula (used by settotals!) wants a bare formula, so
+            # strip it back off.
+            fstr = getFormula(sheet, CellRef(totals_row, col0 + idx - 1))
+            isnothing(fstr) && throw(XLSXError(
+                "Column `$col_name` of table `$(t.name)` is marked as a custom totals function but its totals cell holds no formula."))
+            push!(settings, col_name => (:custom, lstrip(fstr, '=')))
+        elseif func != ""
+            sym = get(TOTALS_FUNCTION_BY_NAME, func, nothing)
+            isnothing(sym) && throw(XLSXError("Unrecognized totalsRowFunction `$func` on column `$col_name` of table `$(t.name)`."))
+            push!(settings, col_name => sym)
+        elseif label != ""
+            push!(settings, col_name => label)
+        end
+    end
+    return settings
+end
+
 # Compact one-line form — used implicitly by default Vector{Table} printing,
 # error messages, and anywhere a Table appears embedded in other output.
 function Base.show(io::IO, t::Table)
@@ -994,6 +1032,48 @@ function Base.show(io::IO, s::TableStyleInfo)
     isempty(flags) || print(io, ", ", join(flags, "+"))
     print(io, ")")
 end
+
+"""
+    _find_table_part(sheet::Worksheet, name::AbstractString) -> (rid, path)
+
+Locate the table part for the Excel Table `name` on `sheet`, by walking the
+worksheet's `<tableParts>` → `r:id` → worksheet `.rels` → target path. Returns
+the relationship id and the package path of `xl/tables/tableN.xml`.
+
+Throws an `XLSXError` if `sheet` has no `<tableParts>` element, no relationship
+file, or no table part whose `name` attribute matches.
+"""
+function _find_table_part(sheet::Worksheet, name::AbstractString)::Tuple{String,String}
+    xf = get_xlsxfile(sheet)
+    sheet_path = get_relationship_target_by_id("xl", get_workbook(sheet), sheet.relationship_id)
+    sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
+    rels_path = "$sheet_dir/_rels/$sheet_file.rels"
+
+    !haskey(xf.data, rels_path) &&
+        throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` but no relationship file."))
+
+    rels_root  = root_element(xf.data[rels_path])
+    sheet_root = root_element(get_xml_data(xf, sheet_path))
+
+    tp_container_els = elements_with_tag(sheet_root, "tableParts")
+    isempty(tp_container_els) &&
+        throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` in cache but no <tableParts> element."))
+    tp_container = tp_container_els[1]
+
+    rel_els = elements_with_tag(rels_root, "Relationship")
+    for tp in elements_with_tag(tp_container, "tablePart")
+        rid = get_attr(tp, "r:id")
+        k = findfirst(r -> get_attr(r, "Id") == rid, rel_els)
+        isnothing(k) && continue
+        path = resolve_relative_target(sheet_dir, get_attr(rel_els[k], "Target"))
+        get_attr(root_element(get_xml_data(xf, path)), "name") == name && return (rid, path)
+    end
+
+    throw(XLSXError("Internal error: could not locate table part for `$name`."))
+end
+
+# Convenience wrapper for callers that don't need the relationship id.
+_table_part_path(sheet::Worksheet, name::AbstractString)::String = last(_find_table_part(sheet, name))
 
 function parse_table_style_info(table_doc::XML.Node)
     i, j = get_idces(table_doc, "table", "tableStyleInfo")
@@ -1223,7 +1303,6 @@ function build_table_xml(id::Int, name::String, display_name::String, ref::CellR
     return parse(String(take!(buf)), XML.Node)
 end
 
-
 """
     addtable!(
         sheet::Worksheet,
@@ -1287,7 +1366,6 @@ julia> XLSX.addtable!(sheet, "A1:C3"; name="Results", style="TableStyleMedium2")
 
 See also [`XLSX.tables`](@ref), [`XLSX.table`](@ref), [`XLSX.deletetable!`](@ref), [`XLSX.settotals!`](@ref).
 """
-function addtable! end
 function addtable!(sheet::Worksheet, ref::CellRange;
                     name::AbstractString="",
                     style::Union{AbstractString,Nothing}=nothing,
@@ -1439,42 +1517,22 @@ Other tables on the same sheet, and tables on other sheets, are unaffected.
 
 See also [`XLSX.addtable!`](@ref), [`XLSX.tables`](@ref), [`XLSX.table`](@ref).
 """
-function deletetable! end
 function deletetable!(sheet::Worksheet, name::AbstractString)
     xf = get_xlsxfile(sheet)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
 
     table(sheet, name)  # throws KeyError if not found — fail fast
 
+    target_rid, target_path = _find_table_part(sheet, name)
+
     sheet_path = get_relationship_target_by_id("xl", get_workbook(sheet), sheet.relationship_id)
     sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
-    rels_path = "$sheet_dir/_rels/$sheet_file.rels"
-    !haskey(xf.data, rels_path) && throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` but no relationship file."))
-
+    rels_path  = "$sheet_dir/_rels/$sheet_file.rels"
     rels_root  = root_element(xf.data[rels_path])
     sheet_root = root_element(get_xml_data(xf, sheet_path))
 
-    tp_container_els = elements_with_tag(sheet_root, "tableParts")
-    isempty(tp_container_els) &&
-        throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` in cache but no <tableParts> element found."))
-    tp_container = tp_container_els[1]
-
-    target_rid  = nothing
-    target_path = nothing
-    rel_els = elements_with_tag(rels_root, "Relationship")
-    for tp in elements_with_tag(tp_container, "tablePart")   # <-- search inside the container, not sheet_root
-        rid = get_attr(tp, "r:id")
-        rel_idx = findfirst(r -> get_attr(r, "Id") == rid, rel_els)
-        rel_idx === nothing && continue
-        path = resolve_relative_target(sheet_dir, get_attr(rel_els[rel_idx], "Target"))
-        if get_attr(root_element(get_xml_data(xf, path)), "name") == name
-            target_rid, target_path = rid, path
-            break
-        end
-    end
-    isnothing(target_rid) && throw(XLSXError("Internal error: could not locate relationship for table `$name`."))
-
     # remove <tablePart>, shrink/drop <tableParts>
+    tp_container = elements_with_tag(sheet_root, "tableParts")[1]
     tp_children = XML.children(tp_container)
     deleteat!(tp_children, findfirst(tp -> get_attr(tp, "r:id") == target_rid, tp_children))
     if isempty(tp_children)
@@ -1486,7 +1544,7 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     # remove the relationship entry itself
     deleteat!(XML.children(rels_root), findfirst(r -> get_attr(r, "Id") == target_rid, XML.children(rels_root)))
 
-    delete_part_and_orphans!(xf, target_path)
+    delete_part_and_orphans!(xf, target_path)  # handles the table part + its Content_Types override
 
     sheet.tables_cache = nothing
     return nothing
@@ -1581,31 +1639,7 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
         col ∈ t.columns || throw(XLSXError("Column `$col` not found in table `$name`. Available columns: $(join(t.columns, ", "))."))
     end
 
-    wb = get_workbook(sheet)
-    sheet_path = get_relationship_target_by_id("xl", wb, sheet.relationship_id)
-    sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
-    rels_path = "$sheet_dir/_rels/$sheet_file.rels"
-
-    rels_root  = root_element(xf.data[rels_path])
-    sheet_root = root_element(get_xml_data(xf, sheet_path))
-    tp_container_els = elements_with_tag(sheet_root, "tableParts")
-    isempty(tp_container_els) && throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` in cache but no <tableParts> element."))
-    tp_container = tp_container_els[1]
-
-    table_path = nothing
-    rel_els = elements_with_tag(rels_root, "Relationship")
-    for tp in elements_with_tag(tp_container, "tablePart")
-        rid = get_attr(tp, "r:id")
-        rel_idx = findfirst(r -> get_attr(r, "Id") == rid, rel_els)
-        rel_idx === nothing && continue
-        path = resolve_relative_target(sheet_dir, get_attr(rel_els[rel_idx], "Target"))
-        if get_attr(root_element(get_xml_data(xf, path)), "name") == name
-            table_path = path
-            break
-        end
-    end
-    isnothing(table_path) && throw(XLSXError("Internal error: could not locate table part for `$name`."))
-
+    table_path = _table_part_path(sheet, name)
     table_doc  = get_xml_data(xf, table_path)
     table_root = root_element(table_doc)
 
@@ -1626,7 +1660,8 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
         new_ref = CellRange(old_ref.start, CellRef(new_last_row, old_ref.stop.column_number))
         table_root["ref"] = string(new_ref)
         table_root["totalsRowShown"] = "1"
-        table_root["totalsRowCount"] = "1" 
+        table_root["totalsRowCount"] = "1"
+
         totals_row_num = new_last_row
     else
         totals_row_num = old_ref.stop.row_number
@@ -1653,9 +1688,6 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
         elseif value isa Tuple{Symbol,S} where {S<:AbstractString}
             fn, formula_str = value
             fn == :custom || throw(XLSXError("Tuple totals setting for column `$col_name` must be `(:custom, formula)`; got `(:$fn, ...)`."))
-            # Excel's "More Functions..." escape hatch: any formula, not
-            # necessarily SUBTOTAL-based. Passed through verbatim, exactly as
-            # Excel itself does for a custom totals-row function.
             col_node["totalsRowFunction"] = "custom"
             setFormula(sheet, cell_ref; val=formula_str)
 
@@ -1677,3 +1709,224 @@ settotals!(sheet::Worksheet, id::Integer, settings::Pair...) =
 
 settotals!(sheet::Worksheet, name::AbstractString; kwargs...) =
     settotals!(sheet, name, (String(k) => v for (k, v) in kwargs)...)
+
+
+"""
+    gettable(t::Table; [infer_eltypes], [normalizenames], [missing_strings]) -> DataTable
+
+Returns data from an Excel Table `t` (as returned by [`XLSX.table`](@ref)) as
+a struct `XLSX.DataTable`, which can be passed directly to any function that
+accepts `Tables.jl` data (e.g. `DataFrame` from package `DataFrames.jl`).
+
+!!! note "Two `gettable` methods"
+
+    Different from [`XLSX.gettable(sheet, ...)`](@ref), which infers a
+    table's row/column bounds heuristically from cell content on a plain
+    `Worksheet`. Here, `t.ref` is authoritative, so there is no
+    `columns`/`first_row`/`header`/`stop_in_empty_row`/`stop_in_row_function`/
+    `keep_empty_rows` equivalent — the header row and totals row (if any)
+    are always excluded, and any blank row within `t.ref` is returned as
+    ordinary data.
+
+Use `normalizenames=true` to normalize column names to valid Julia
+identifiers.
+
+Use `missing_strings` to specify strings that should be interpreted as
+`missing` values in the resulting table. `missing_strings` can be a single
+string or a vector of strings. The default value is `missing_strings=nothing`.
+
+Use `infer_eltypes=true` (the default) to have each column narrowed to its
+own concrete type (e.g. `Vector{Float64}` rather than `Vector{Any}`), the
+same narrowing [`XLSX.eachtablerow`](@ref)/`Tables.columns` apply. Set
+`infer_eltypes=false` to skip narrowing and leave every column as `Any`.
+
+# Example
+```julia
+julia> using DataFrames
+
+julia> t = XLSX.table(sheet, "Sales")
+
+julia> df = DataFrame(XLSX.gettable(t))
+```
+
+See also: [`XLSX.table`](@ref), [`XLSX.tables`](@ref), [`XLSX.eachtablerow`](@ref), [`XLSX.readtable`](@ref).
+"""
+function gettable(t::Table;
+    infer_eltypes::Bool=true,
+    normalizenames::Bool=false,
+    missing_strings::Union{AbstractString,AbstractVector{<:AbstractString},Nothing}=nothing
+)::DataTable
+
+    missing_set = missing_strings === nothing ? nothing :
+                  missing_strings isa AbstractString ? Set([missing_strings]) : Set(missing_strings)
+
+    row_range = _first_data_row(t):_last_data_row(t)
+    col0 = _col_start(t)
+
+    data = Vector{Any}(undef, length(t.columns))
+    for i in eachindex(t.columns)
+        col = Any[getdata(t.sheet, CellRef(r, col0 + i - 1)) for r in row_range]
+        if !isnothing(missing_set)
+            col = Any[(x isa AbstractString && x in missing_set) ? missing : x for x in col]
+        end
+        data[i] = infer_eltypes ? typed_column(col) : col
+    end
+
+    column_labels = normalizenames ? normalizename.(t.columns) : Symbol.(t.columns)
+
+    return DataTable(data, column_labels)
+end
+
+"""
+    appendtable!(sheet::Worksheet, name::AbstractString, data; [check_empty]) -> Table
+
+Append rows to the existing Excel Table `name` on `sheet`, extending the
+table's range.
+
+`data` may be any `Tables.jl`-compatible source (e.g. an `XLSX.DataTable` or a
+`DataFrame`), an `AbstractMatrix`, or a vector of row vectors/tuples.
+
+If `data` exposes column names, columns are matched **by name** and reordered
+to the table's own column order; a source missing any of the table's columns,
+or carrying any column the table doesn't have, is an error. Sources without
+column names (matrices, vectors of tuples/vectors) are matched
+**positionally**, so their column order must match the table's.
+
+If the table has a totals row, it moves down to remain the last row of the
+table, and its content is regenerated from the table's own per-column
+totals settings. Functions, custom formulas and labels are all preserved 
+but values are reset to `missing`.
+
+The rows immediately below the table must be empty; an `XLSXError` is thrown
+otherwise. Pass `check_empty=false` to overwrite whatever is there.
+
+See also [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
+"""
+function appendtable!(sheet::Worksheet, name::AbstractString, data; check_empty::Bool=true)
+    xf = get_xlsxfile(sheet)
+    !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
+
+    t = table(sheet, name)
+    ncols = length(t.columns)
+    rows = _normalize_append_rows(data, t, name)
+#    rows = _normalize_append_rows(data, ncols, name)
+    n = length(rows)
+    n == 0 && return t
+
+    col0 = _col_start(t)
+    old_stop = t.ref.stop.row_number
+    new_stop = old_stop + n
+    new_stop > EXCEL_MAX_ROWS &&
+        throw(XLSXError("Appending $n rows to table `$name` would exceed Excel's row limit."))
+
+    # capture totals settings before we overwrite the old totals row
+    totals_settings = parse_totals_settings(sheet, t)
+
+    if check_empty
+        for r in (old_stop + 1):new_stop, c in col0:(col0 + ncols - 1)
+            v = getdata(sheet, CellRef(r, c))
+            (!ismissing(v) && v != "") && throw(XLSXError(
+                "Cannot append to table `$name`: cell $(CellRef(r, c)) is not empty. " *
+                "Clear the rows below the table, or pass `check_empty=false` to overwrite."))
+        end
+    end
+
+    # first appended row lands on the old totals row position when one exists,
+    # otherwise immediately below the current last data row
+    first_new = t.has_totals_row ? old_stop : old_stop + 1
+    for (ri, row) in enumerate(rows)
+        for ci in 1:ncols
+            sheet[CellRef(first_new + ri - 1, col0 + ci - 1)] = row[ci]
+        end
+    end
+
+    # clear the new totals row position before settotals! repopulates it
+    if t.has_totals_row
+        for c in col0:(col0 + ncols - 1)
+            sheet[CellRef(new_stop, c)] = missing
+        end
+    end
+
+    # extend ref and autoFilter in the table part
+    table_doc  = get_xml_data(xf, _table_part_path(sheet, name))
+    table_root = root_element(table_doc)
+    new_ref = CellRange(t.ref.start, CellRef(new_stop, t.ref.stop.column_number))
+    table_root["ref"] = string(new_ref)
+
+    af = elements_with_tag(table_root, "autoFilter")
+    if !isempty(af)
+        af_stop = t.has_totals_row ? new_stop - 1 : new_stop
+        af[1]["ref"] = string(CellRange(t.ref.start, CellRef(af_stop, t.ref.stop.column_number)))
+    end
+
+    sheet.tables_cache = nothing
+
+    # replay the totals row at its new position
+    isempty(totals_settings) || settotals!(sheet, name, totals_settings...)
+
+    sheet.tables_cache = nothing
+    return table(sheet, name)
+end
+
+"""
+Normalize whatever was passed as `data` into a vector of row-value vectors,
+each of length `length(t.columns)`, ordered to match the table's columns.
+
+For `Tables.jl` sources that expose column names (a `DataTable`, `DataFrame`,
+etc.), columns are matched **by name** and reordered into the table's own
+column order; both missing and extra columns are errors. Matrices, vectors of
+tuples and vectors of vectors carry no names, so those are matched
+**positionally**.
+"""
+function _normalize_append_rows(data, t::Table, name::AbstractString)
+    ncols = length(t.columns)
+
+    rows = if data isa AbstractMatrix
+        [collect(data[r, :]) for r in axes(data, 1)]
+
+    elseif data isa AbstractVector && (isempty(data) || first(data) isa Union{AbstractVector,Tuple})
+        [collect(r) for r in data]
+
+    else
+        sch = Tables.schema(data)
+        src_names = if !isnothing(sch) && !isnothing(sch.names)
+            sch.names
+        else
+            # Some Tables.jl sources expose names via columnnames without
+            # implementing schema (e.g. anything relying on the column-access
+            # interface alone). Try that before giving up and going positional.
+            try
+                Tables.columnnames(Tables.columns(data))
+            catch
+                nothing
+            end
+        end
+        if isnothing(src_names)
+            # Unnamed Tables.jl source — fall back to positional matching.
+            [collect(Tables.getcolumn(r, i) for i in 1:ncols) for r in Tables.rows(data)]
+        else
+            src = collect(Symbol.(src_names))
+            tbl = Symbol.(t.columns)
+
+            missing_cols = setdiff(tbl, src)
+            isempty(missing_cols) || throw(XLSXError(
+                "Source is missing column(s) $(join(missing_cols, ", ")) required by table `$name`. " *
+                "Table columns are: $(join(t.columns, ", "))."))
+
+            extra_cols = setdiff(src, tbl)
+            isempty(extra_cols) || throw(XLSXError(
+                "Source has column(s) $(join(extra_cols, ", ")) that table `$name` does not have. " *
+                "Table columns are: $(join(t.columns, ", "))."))
+
+            # Match by name, emitting values in the table's column order.
+            [collect(Tables.getcolumn(r, nm) for nm in tbl) for r in Tables.rows(data)]
+        end
+    end
+
+    for (ri, r) in enumerate(rows)
+        length(r) == ncols || throw(XLSXError(
+            "Row $ri has $(length(r)) values but table `$name` has $ncols columns."))
+    end
+
+    return rows
+end

@@ -1349,6 +1349,7 @@ end
         source,
         [sheet,
         [columns]];
+        [table_name],
         [first_row],
         [column_labels],
         [header],
@@ -1362,7 +1363,7 @@ end
     ) -> DataTable
 
 Returns tabular data from a spreadsheet as a struct `XLSX.DataTable`.
-Use this function to create a `DataFrame` from package `DataFrames.jl` 
+Use this function to create a `DataFrame` from package `DataFrames.jl`
 (or other `Tables.jl`` compatible object).
 
 If `sheet` is not given, the first sheet in the `XLSXFile` will be used.
@@ -1371,6 +1372,35 @@ If `sheet` is not given, the first sheet in the `XLSXFile` will be used.
 other sheets exist in the workbook — other sheets are never read or
 cached, so reading from a single sheet of a large multi-sheet workbook is
 efficient.
+
+# Reading an Excel Table
+
+Use `table_name` to read a named Excel Table (see [`XLSX.table`](@ref))
+rather than a range of cells:
+
+```julia
+julia> XLSX.readtable("myfile.xlsx", "mysheet"; table_name="Sales")  # fast — sheet known
+
+julia> XLSX.readtable("myfile.xlsx"; table_name="Sales")             # searches all sheets
+```
+
+When `sheet` is given, only that worksheet is decompressed, exactly as for a
+normal range read. When `sheet` is omitted, every worksheet's `<tableParts>`
+element is scanned to locate the table (cell data is still never
+materialized for the non-matching sheets, so the cost is modest), and the
+first sheet carrying a table of that name is used — table names are unique
+across a workbook.
+
+An Excel Table's `ref` is authoritative, so when `table_name` is given, the
+`columns`, `first_row`, `header`, `stop_in_empty_row`,
+`stop_in_row_function` and `keep_empty_rows` arguments do not apply and are
+ignored: the table's header row and, if present, its totals row are always
+excluded, and any blank row within the table's range is returned as ordinary
+data. `infer_eltypes`, `normalizenames`, `missing_strings` and
+`enable_cache` apply as usual. Passing both `table_name` and `columns`
+throws an `XLSXError`.
+
+# Reading a cell range
 
 Use `columns` argument to specify which columns to get.
 For example, `"B:D"` will select columns `B`, `C` and `D`.
@@ -1439,11 +1469,14 @@ The default behavior is `keep_empty_rows=false`.
 julia> using DataFrames, XLSX
 
 julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"))
+
+julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"; table_name="Sales"))
 ```
 
-See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref).
+See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref), [`XLSX.table`](@ref).
 """
 function readtable(source::Union{AbstractString,IO}; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1458,11 +1491,29 @@ function readtable(source::Union{AbstractString,IO};
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
+
+    if !isnothing(table_name)
+        # Workbook-wide search: no target_sheet, since we don't know which
+        # sheet holds the table. Non-matching sheets still never have their
+        # cell data materialized — get_worksheet_table_rids cursor-scans
+        # each sheet's XML only as far as <tableParts>.
+        xf = open_or_read_xlsx(source, true, enable_cache, false; load_formulas=false)
+        wb = get_workbook(xf)
+        for ws in wb.sheets
+            is_chartsheet(wb, ws.name) && continue
+            idx = findfirst(t -> t.name == table_name, tables(ws))
+            isnothing(idx) && continue
+            return gettable(tables(ws)[idx]; infer_eltypes, normalizenames, missing_strings)
+        end
+        throw(XLSXError("No Excel Table named `$table_name` found in any worksheet of $(xf.source)."))
+    end
+
     xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=1, load_formulas=false)
     return gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
 function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1477,11 +1528,21 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
+
     xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet, load_formulas=false)
+
+    if !isnothing(table_name)
+        # target_sheet applies as normal: only this worksheet is decompressed.
+        # Table parts (xl/tables/tableN.xml) are loaded in pass 1 regardless
+        # of target_sheet, so this is as cheap as a normal single-sheet read.
+        return gettable(table(getsheet(xf, sheet), table_name); infer_eltypes, normalizenames, missing_strings)
+    end
+
     return gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
 function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1493,6 +1554,9 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )
+    !isnothing(table_name) &&
+        throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
+
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
@@ -1501,6 +1565,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
 end
 
 function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1512,6 +1577,9 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )
+    !isnothing(table_name) &&
+        throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
+
     if is_valid_column_range(range)
         range = ColumnRange(range)
     else

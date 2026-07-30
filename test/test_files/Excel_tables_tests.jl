@@ -59,6 +59,55 @@ function _totals_col_attrs(sheet::XLSX.Worksheet, table_name::AbstractString, co
 
 end
 
+function fresh_abc()
+    f = XLSX.newxlsx()
+    sh = f[1]
+    sh["A1"] = "a"; sh["B1"] = "b"; sh["C1"] = "c"
+    sh["A2"] = 1;   sh["B2"] = 2;   sh["C2"] = 3
+    XLSX.addtable!(sh, "A1:C2"; name="T")
+    return sh
+end
+function fresh()
+    f = XLSX.newxlsx()
+    sh = f[1]
+    sh["A1"] = "x"; sh["B1"] = "y"
+    sh["A2"] = 1;   sh["B2"] = 10
+    XLSX.addtable!(sh, "A1:B2"; name="T")
+    return sh
+end
+
+
+# Shared fixture: 3 sheets, one table each, plus extra non-table data
+# on the middle sheet to confirm reads are scoped to the table's ref.
+function make_multitable_file(outfile)
+    isfile(outfile) && rm(outfile)
+    f = XLSX.newxlsx("First")
+
+    sh1 = f["First"]
+    sh1["A1"] = "a"; sh1["B1"] = "b"
+    sh1["A2"] = 1;   sh1["B2"] = 10
+    sh1["A3"] = 2;   sh1["B3"] = 20
+    XLSX.addtable!(sh1, "A1:B3"; name="TableOne")
+
+    sh2 = XLSX.addsheet!(f, "Second")
+    sh2["A1"] = "id"; sh2["B1"] = "name"; sh2["C1"] = "score"
+    sh2["A2"] = 1;    sh2["B2"] = "alice"; sh2["C2"] = 10.5
+    sh2["A3"] = 2;    sh2["B3"] = "bob";   sh2["C3"] = 20.0
+    sh2["A4"] = 3;    sh2["B4"] = "carol"; sh2["C4"] = 15.25
+    XLSX.addtable!(sh2, "A1:C4"; name="TableTwo")
+    # data outside the table, to confirm it's never picked up
+    sh2["E1"] = "outside"; sh2["E2"] = "not in table"
+    sh2["A6"] = "below";   sh2["B6"] = "also not in table"
+
+    sh3 = XLSX.addsheet!(f, "Third")
+    sh3["A1"] = "e"; sh3["B1"] = "f"
+    sh3["A2"] = 5;   sh3["B2"] = 6
+    XLSX.addtable!(sh3, "A1:B2"; name="TableThree")
+
+    XLSX.writexlsx(outfile, f, overwrite=true)
+    return outfile
+end
+
 @testset "Excel Tables" begin
 
     @testset "tables(sheet)" begin
@@ -1521,5 +1570,762 @@ end
             @test size(m) == (t.ref.stop.row_number - t.ref.start.row_number, length(t.columns))
         end
     end
+
+    @testset "sheet-scoped: readtable(source, sheet; table_name=...)" begin
+        outfile = make_multitable_file("readtable_tablename_scoped.xlsx")
+        SAVE_FILES && save_outfile(outfile)
+
+        dt = XLSX.readtable(outfile, "Second"; table_name="TableTwo")
+
+        @test dt isa XLSX.DataTable
+        @test dt.column_labels == [:id, :name, :score]
+        @test length(dt.data) == 3
+        @test dt.data[1] == [1, 2, 3]
+        @test dt.data[2] == ["alice", "bob", "carol"]
+        @test dt.data[3] == [10.5, 20.0, 15.25]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "sheet-scoped: by sheet index rather than name" begin
+        outfile = make_multitable_file("readtable_tablename_scoped_idx.xlsx")
+
+        dt = XLSX.readtable(outfile, 2; table_name="TableTwo")
+        @test dt.column_labels == [:id, :name, :score]
+        @test dt.data[1] == [1, 2, 3]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "sheet-scoped: excludes data outside the table's ref" begin
+        outfile = make_multitable_file("readtable_tablename_bounds.xlsx")
+
+        dt = XLSX.readtable(outfile, "Second"; table_name="TableTwo")
+
+        # only the table's 3 columns / 3 data rows — nothing from E1:E2 or row 6
+        @test length(dt.column_labels) == 3
+        @test :outside ∉ dt.column_labels
+        @test all(length(col) == 3 for col in dt.data)
+        @test "not in table" ∉ dt.data[1]
+        @test "also not in table" ∉ dt.data[2]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "workbook-wide: readtable(source; table_name=...)" begin
+        outfile = make_multitable_file("readtable_tablename_wide.xlsx")
+
+        # table on the *second* sheet, found without naming the sheet
+        dt = XLSX.readtable(outfile; table_name="TableTwo")
+        @test dt.column_labels == [:id, :name, :score]
+        @test dt.data[1] == [1, 2, 3]
+
+        # table on the first sheet
+        dt1 = XLSX.readtable(outfile; table_name="TableOne")
+        @test dt1.column_labels == [:a, :b]
+        @test dt1.data[1] == [1, 2]
+
+        # table on the last sheet
+        dt3 = XLSX.readtable(outfile; table_name="TableThree")
+        @test dt3.column_labels == [:e, :f]
+        @test dt3.data[1] == [5]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "sheet-scoped and workbook-wide agree" begin
+        outfile = make_multitable_file("readtable_tablename_agree.xlsx")
+
+        dt_scoped = XLSX.readtable(outfile, "Second"; table_name="TableTwo")
+        dt_wide   = XLSX.readtable(outfile; table_name="TableTwo")
+
+        @test dt_scoped.column_labels == dt_wide.column_labels
+        @test dt_scoped.data == dt_wide.data
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "enable_cache=false: sheet-scoped" begin
+        outfile = make_multitable_file("readtable_tablename_nocache_scoped.xlsx")
+
+        dt = XLSX.readtable(outfile, "Second"; table_name="TableTwo", enable_cache=false)
+        @test dt.column_labels == [:id, :name, :score]
+        @test dt.data[1] == [1, 2, 3]
+        @test dt.data[2] == ["alice", "bob", "carol"]
+        @test dt.data[3] == [10.5, 20.0, 15.25]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "enable_cache=false: workbook-wide (scans every sheet's tableParts)" begin
+        outfile = make_multitable_file("readtable_tablename_nocache_wide.xlsx")
+
+        # This is the least-exercised corner: no target_sheet, no cache, so
+        # every sheet's <tableParts> is cursor-scanned via
+        # open_internal_file_stream rather than read from xf.data.
+        dt = XLSX.readtable(outfile; table_name="TableTwo", enable_cache=false)
+        @test dt.column_labels == [:id, :name, :score]
+        @test dt.data[1] == [1, 2, 3]
+
+        # also reach the first and last sheets under the same conditions
+        dt1 = XLSX.readtable(outfile; table_name="TableOne", enable_cache=false)
+        @test dt1.data[1] == [1, 2]
+
+        dt3 = XLSX.readtable(outfile; table_name="TableThree", enable_cache=false)
+        @test dt3.data[1] == [5]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "enable_cache=false agrees with enable_cache=true" begin
+        outfile = make_multitable_file("readtable_tablename_cachemodes.xlsx")
+
+        dt_cached   = XLSX.readtable(outfile; table_name="TableTwo", enable_cache=true)
+        dt_nocache  = XLSX.readtable(outfile; table_name="TableTwo", enable_cache=false)
+
+        @test dt_cached.column_labels == dt_nocache.column_labels
+        @test dt_cached.data == dt_nocache.data
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "infer_eltypes / normalizenames / missing_strings still apply" begin
+        outfile = "readtable_tablename_kwargs.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "col one"; sh["B1"] = "value"
+        sh["A2"] = "x";       sh["B2"] = 1.5
+        sh["A3"] = "N/A";     sh["B3"] = 2.5
+        XLSX.addtable!(sh, "A1:B3"; name="T")
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
+
+        # infer_eltypes=true (default) narrows columns
+        dt = XLSX.readtable(outfile; table_name="T")
+        @test eltype(dt.data[2]) != Any
+        @test eltype(dt.data[2]) <: Union{Missing,Float64}
+
+        # infer_eltypes=false leaves them as Any
+        dt_any = XLSX.readtable(outfile; table_name="T", infer_eltypes=false)
+        @test eltype(dt_any.data[2]) == Any
+
+        # normalizenames turns "col one" into a valid identifier
+        dt_norm = XLSX.readtable(outfile; table_name="T", normalizenames=true)
+        @test dt_norm.column_labels[1] == :col_one
+
+        # without normalizenames, the label keeps its space
+        @test dt.column_labels[1] == Symbol("col one")
+
+        # missing_strings converts "N/A" to missing
+        dt_miss = XLSX.readtable(outfile; table_name="T", missing_strings="N/A")
+        @test ismissing(dt_miss.data[1][2])
+        @test dt_miss.data[1][1] == "x"
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "DataFrame round trip via readtable(; table_name)" begin
+        outfile = make_multitable_file("readtable_tablename_df.xlsx")
+
+        df = DataFrames.DataFrame(XLSX.readtable(outfile, "Second"; table_name="TableTwo"))
+        @test size(df) == (3, 3)
+        @test names(df) == ["id", "name", "score"]
+        @test df.score == [10.5, 20.0, 15.25]
+        @test eltype(df.score) != Any
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "errors: table not found" begin
+        outfile = make_multitable_file("readtable_tablename_notfound.xlsx")
+
+        # workbook-wide: no such table anywhere
+        @test_throws XLSX.XLSXError XLSX.readtable(outfile; table_name="NoSuchTable")
+
+        # sheet-scoped: table exists, but not on the named sheet
+        @test_throws KeyError XLSX.readtable(outfile, "First"; table_name="TableTwo")
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "errors: table_name cannot combine with a columns range" begin
+        outfile = make_multitable_file("readtable_tablename_conflict.xlsx")
+
+        @test_throws XLSX.XLSXError XLSX.readtable(outfile, "Second", "A:C"; table_name="TableTwo")
+        @test_throws XLSX.XLSXError XLSX.readtable(outfile, "Second", XLSX.ColumnRange("A:C"); table_name="TableTwo")
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "table with a totals row: totals excluded" begin
+        outfile = "readtable_tablename_totals.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
+
+        for cache in (true, false)
+            dt = XLSX.readtable(outfile; table_name="Bulk", enable_cache=cache)
+            @test length(dt.data[1]) == 2  # totals row excluded
+            @test dt.data[1] == ["Apples", "Pears"]
+            @test dt.data[2] == [12, 8]
+        end
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "table with a blank row: row preserved" begin
+        outfile = "readtable_tablename_blank.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 10
+        # row 3 blank
+        sh["A4"] = 3;   sh["B4"] = 30
+        XLSX.addtable!(sh, "A1:B4"; name="T")
+        XLSX.writexlsx(outfile, f, overwrite=true)
+
+        for cache in (true, false)
+            dt = XLSX.readtable(outfile; table_name="T", enable_cache=cache)
+            @test length(dt.data[1]) == 3  # blank row still present
+            @test ismissing(dt.data[1][2])
+            @test ismissing(dt.data[2][2])
+        end
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "existing readtable behaviour unaffected when table_name omitted" begin
+        outfile = make_multitable_file("readtable_tablename_regression.xlsx")
+
+        # plain range-inference read of the same sheet still works and, on
+        # this fixture, picks up more than just the table (row 6 data too)
+        dt_plain = XLSX.readtable(outfile, "Second")
+        @test dt_plain isa XLSX.DataTable
+        @test dt_plain.column_labels == [:id, :name, :score]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "multiple spaces collapse to a single underscore" begin
+        outfile = "readtable_normalize_multispace.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "col  one"; sh["B1"] = "col   two"   # 2 and 3 spaces
+        sh["A2"] = 1;          sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
+
+        dt = XLSX.readtable(outfile; table_name="T", normalizenames=true)
+        @test dt.column_labels == [:col_one, :col_two]
+
+        # without normalizenames, the original spacing is preserved
+        dt_raw = XLSX.readtable(outfile; table_name="T")
+        @test dt_raw.column_labels == [Symbol("col  one"), Symbol("col   two")]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "header starting with a digit gets a leading underscore" begin
+        outfile = "readtable_normalize_digit.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "2024"; sh["B1"] = "2025 total"
+        sh["A2"] = 10;     sh["B2"] = 20
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.writexlsx(outfile, f, overwrite=true)
+
+        dt = XLSX.readtable(outfile; table_name="T", normalizenames=true)
+        @test dt.column_labels == [:_2024, :_2025_total]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "reserved Julia keyword header gets a leading underscore" begin
+        outfile = "readtable_normalize_reserved.xlsx"
+        isfile(outfile) && rm(outfile)
+
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "end"; sh["B1"] = "function"
+        sh["A2"] = 1;     sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.writexlsx(outfile, f, overwrite=true)
+
+        dt = XLSX.readtable(outfile; table_name="T", normalizenames=true)
+        @test dt.column_labels == [:_end, :_function]
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "gettable(t) directly honours normalizenames" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "col one"; sh["B1"] = "already_ok"
+        sh["A2"] = 1;         sh["B2"] = 2
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        dt = XLSX.gettable(t; normalizenames=true)
+        @test dt.column_labels == [:col_one, :already_ok]
+
+        dt_raw = XLSX.gettable(t)
+        @test dt_raw.column_labels == [Symbol("col one"), :already_ok]
+    end
+
+    @testset "appends rows to a table with no totals row" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "id"; sh["B1"] = "name"
+        sh["A2"] = 1;    sh["B2"] = "alice"
+        sh["A3"] = 2;    sh["B3"] = "bob"
+        XLSX.addtable!(sh, "A1:B3"; name="People")
+
+        t = XLSX.appendtable!(sh, "People", [(3, "carol"), (4, "dave")])
+
+        @test t.ref == XLSX.CellRange("A1:B5")
+        @test t.has_totals_row == false
+        @test sh["A4"] == 3; @test sh["B4"] == "carol"
+        @test sh["A5"] == 4; @test sh["B5"] == "dave"
+
+        cols = Tables.columns(t)
+        @test cols.id == [1, 2, 3, 4]
+        @test cols.name == ["alice", "bob", "carol", "dave"]
+    end
+
+    @testset "appending zero rows is a no-op" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        t = XLSX.appendtable!(sh, "T", Tuple{Int,Int}[])
+        @test t.ref == XLSX.CellRange("A1:B2")
+    end
+
+    @testset "autoFilter extends with ref (no totals row)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.appendtable!(sh, "T", [(3, 4)])
+
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
+        root = XLSX.root_element(table_doc)
+        af = XLSX.elements_with_tag(root, "autoFilter")
+        @test !isempty(af)
+        @test XLSX.get_attr(af[1], "ref") == "A1:B3"  # no totals row: same as ref
+    end
+
+    @testset "totals row moves down and is regenerated (sum + label)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        t_before = XLSX.table(sh, "Bulk")
+        @test t_before.ref == XLSX.CellRange("A1:B4")
+        @test sh["A4"] == "Total"
+
+        t = XLSX.appendtable!(sh, "Bulk", [("Cherries", 25), ("Damsons", 5)])
+
+        # ref grew by 2; totals row is still last
+        @test t.ref == XLSX.CellRange("A1:B6")
+        @test t.has_totals_row == true
+
+        # old totals position (row 4) now holds appended data
+        @test sh["A4"] == "Cherries"; @test sh["B4"] == 25
+        @test sh["A5"] == "Damsons";  @test sh["B5"] == 5
+
+        # new totals row regenerated at row 6
+        @test sh["A6"] == "Total"
+        @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, "B6"))
+        @test occursin("Bulk[amount]", XLSX.getFormula(sh, "B6"))
+
+        # data body excludes the totals row
+        cols = Tables.columns(t)
+        @test cols.item == ["Apples", "Pears", "Cherries", "Damsons"]
+        @test cols.amount == [12, 8, 25, 5]
+    end
+
+    @testset "totals row: autoFilter excludes the totals row after append" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 10
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "b" => :sum)   # ref becomes A1:B3
+
+        XLSX.appendtable!(sh, "T", [(2, 20), (3, 30)])  # ref becomes A1:B5
+
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
+        root = XLSX.root_element(table_doc)
+        @test XLSX.get_attr(root, "ref") == "A1:B5"
+        af = XLSX.elements_with_tag(root, "autoFilter")
+        @test XLSX.get_attr(af[1], "ref") == "A1:B4"  # one row short of ref
+    end
+
+    @testset "totals row: preserves a custom formula" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "revenue"; sh["B1"] = "cost"; sh["C1"] = "margin"
+        sh["A2"] = 100;       sh["B2"] = 60;    sh["C2"] = 40
+        XLSX.addtable!(sh, "A1:C2"; name="PnL")
+        XLSX.settotals!(sh, "PnL",
+            "revenue" => :sum,
+            "margin"  => (:custom, "SUBTOTAL(109,PnL[revenue])-SUBTOTAL(109,PnL[cost])"),
+        )
+
+        f_before = XLSX.getFormula(sh, "C3")
+
+        XLSX.appendtable!(sh, "PnL", [(200, 90, 110)])
+
+        t = XLSX.table(sh, "PnL")
+        @test t.ref == XLSX.CellRange("A1:C4")
+
+        # custom formula survived the move, unchanged
+        f_after = XLSX.getFormula(sh, "C4")
+        @test f_after == f_before
+        @test occursin("PnL[revenue]", f_after)
+        @test occursin("PnL[cost]", f_after)
+
+        # and the table part still records it as custom
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "PnL"))
+        i, j = XLSX.get_idces(table_doc, "table", "tableColumns")
+        margin_node = collect(XLSX.xml_elements(table_doc[i][j]))[3]
+        @test XLSX.get_attr(margin_node, "totalsRowFunction") == "custom"
+    end
+
+    @testset "totals row: preserves every built-in function kind" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        cols = ["s", "av", "cnt", "cnta", "mx", "mn"]
+        for (i, c) in enumerate(cols)
+            sh[1, i] = c
+        end
+        for r in 2:4, i in 1:length(cols)
+            sh[r, i] = r * 10 + i
+        end
+        XLSX.addtable!(sh, "A1:F4"; name="Funcs")
+        XLSX.settotals!(sh, "Funcs"; s=:sum, av=:average, cnt=:count, cnta=:counta, mx=:max, mn=:min)
+
+        XLSX.appendtable!(sh, "Funcs", [(99, 99, 99, 99, 99, 99)])
+
+        t = XLSX.table(sh, "Funcs")
+        @test t.ref == XLSX.CellRange("A1:F6")
+
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "Funcs"))
+        i, j = XLSX.get_idces(table_doc, "table", "tableColumns")
+        nodes = collect(XLSX.xml_elements(table_doc[i][j]))
+
+        @test XLSX.get_attr(nodes[1], "totalsRowFunction") == "sum"
+        @test XLSX.get_attr(nodes[2], "totalsRowFunction") == "average"
+        # NB: OOXML's attribute names for the two count variants are the
+        # reverse of Excel's function names — :count (Excel COUNT, numeric
+        # only) is OOXML "countNums", and :counta (Excel COUNTA, non-blank)
+        # is OOXML "count".
+        @test XLSX.get_attr(nodes[3], "totalsRowFunction") == "countNums"
+        @test XLSX.get_attr(nodes[4], "totalsRowFunction") == "count"
+        @test XLSX.get_attr(nodes[5], "totalsRowFunction") == "max"
+        @test XLSX.get_attr(nodes[6], "totalsRowFunction") == "min"
+    end
+
+    @testset "totals row: columns with no totals setting stay empty" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"; sh["C1"] = "c"
+        sh["A2"] = 1;   sh["B2"] = 2;   sh["C2"] = 3
+        XLSX.addtable!(sh, "A1:C2"; name="T")
+        XLSX.settotals!(sh, "T", "b" => :sum)   # only column b has totals
+
+        XLSX.appendtable!(sh, "T", [(4, 5, 6)])
+
+        t = XLSX.table(sh, "T")
+        totals_row = t.ref.stop.row_number
+        @test ismissing(sh[XLSX.CellRef(totals_row, 1)])   # a: no totals
+        @test !ismissing(XLSX.getFormula(sh, XLSX.CellRef(totals_row, 2)))  # b: sum
+        @test ismissing(sh[XLSX.CellRef(totals_row, 3)])   # c: no totals
+    end
+
+    @testset "input shapes: vector of tuples, vector of vectors, matrix, Tables.jl source" begin
+
+        sh = fresh()
+        t = XLSX.appendtable!(sh, "T", [(2, 20), (3, 30)])
+        @test Tables.columns(t).x == [1, 2, 3]
+
+        sh = fresh()
+        t = XLSX.appendtable!(sh, "T", [[2, 20], [3, 30]])
+        @test Tables.columns(t).x == [1, 2, 3]
+
+        sh = fresh()
+        t = XLSX.appendtable!(sh, "T", [2 20; 3 30])
+        @test Tables.columns(t).x == [1, 2, 3]
+
+        sh = fresh()
+        t = XLSX.appendtable!(sh, "T", DataFrames.DataFrame(x=[2, 3], y=[20, 30]))
+        @test Tables.columns(t).x == [1, 2, 3]
+    end
+
+    @testset "column count mismatch errors" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", [(1, 2, 3)])
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", [(1,)])
+    end
+
+    @testset "refuses non-empty rows below the table; check_empty=false overrides" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        sh["A3"] = "in the way"
+
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", [(9, 9)])
+
+        # table unchanged after the failed attempt
+        @test XLSX.table(sh, "T").ref == XLSX.CellRange("A1:B2")
+
+        t = XLSX.appendtable!(sh, "T", [(9, 9)]; check_empty=false)
+        @test t.ref == XLSX.CellRange("A1:B3")
+        @test sh["A3"] == 9
+    end
+
+    @testset "table not found errors" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        @test_throws KeyError XLSX.appendtable!(sh, "NoSuchTable", [(1, 2)])
+    end
+
+    @testset "appending missing values" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        t = XLSX.appendtable!(sh, "T", [(3, missing), (missing, 6)])
+        @test t.ref == XLSX.CellRange("A1:B4")
+        @test ismissing(sh["B3"])
+        @test ismissing(sh["A4"])
+    end
+
+    @testset "two tables on one sheet: appending to one leaves the other alone" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="Left")
+
+        sh["D1"] = "c"; sh["E1"] = "d"
+        sh["D2"] = 3;   sh["E2"] = 4
+        XLSX.addtable!(sh, "D1:E2"; name="Right")
+
+        XLSX.appendtable!(sh, "Left", [(5, 6)])
+
+        @test XLSX.table(sh, "Left").ref == XLSX.CellRange("A1:B3")
+        @test XLSX.table(sh, "Right").ref == XLSX.CellRange("D1:E2")  # untouched
+        @test length(XLSX.tables(sh)) == 2
+    end
+
+    @testset "round trip: append then save and reopen" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        XLSX.addtable!(sh, "A1:B2"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+        XLSX.appendtable!(sh, "Bulk", [("Pears", 8), ("Cherries", 25)])
+        SAVE_FILES && save_outfile(f)
+
+        outfile = "appendtable_roundtrip.xlsx"
+        isfile(outfile) && rm(outfile)
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
+
+        XLSX.openxlsx(outfile) do xf2
+            t = XLSX.table(xf2[1], "Bulk")
+            @test t.ref == XLSX.CellRange("A1:B5")
+            @test t.has_totals_row == true
+            cols = Tables.columns(t)
+            @test cols.item == ["Apples", "Pears", "Cherries"]
+            @test cols.amount == [12, 8, 25]
+        end
+
+        XLSX.openxlsx(outfile, enable_cache=false) do xf2
+            t = XLSX.table(xf2[1], "Bulk")
+            @test t.ref == XLSX.CellRange("A1:B5")
+            @test t.has_totals_row == true
+        end
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "repeated appends accumulate correctly" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "n"
+        sh["A2"] = 1
+        XLSX.addtable!(sh, "A1:A2"; name="T")
+        XLSX.settotals!(sh, "T", "n" => :sum)
+
+        for i in 2:5
+            XLSX.appendtable!(sh, "T", [(i,)])
+        end
+
+        t = XLSX.table(sh, "T")
+        @test t.ref == XLSX.CellRange("A1:A7")   # header + 5 data + totals
+        @test Tables.columns(t).n == [1, 2, 3, 4, 5]
+        @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, "A7"))
+    end
+
+    @testset "not writable errors" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf   # read-only
+            sh = xf["Sheet1"]
+            @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "IO_Table", [(1, 2, 3)])
+        end
+    end
+
+    @testset "DataFrame columns matched by name, not position" begin
+        sh = fresh_abc()
+
+        # deliberately scrambled column order
+        df = DataFrames.DataFrame(c=[30, 60], a=[10, 40], b=[20, 50])
+        t = XLSX.appendtable!(sh, "T", df)
+
+        @test t.ref == XLSX.CellRange("A1:C4")
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10, 40]
+        @test cols.b == [2, 20, 50]
+        @test cols.c == [3, 30, 60]
+    end
+
+    @testset "DataTable source works and is name-matched" begin
+        sh = fresh_abc()
+
+        # build a DataTable with scrambled column order
+        dt = XLSX.DataTable(Any[[30, 60], [10, 40], [20, 50]], [:c, :a, :b])
+        t = XLSX.appendtable!(sh, "T", dt)
+
+        @test t.ref == XLSX.CellRange("A1:C4")
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10, 40]
+        @test cols.b == [2, 20, 50]
+        @test cols.c == [3, 30, 60]
+    end
+
+    @testset "DataTable read from one table appended to another" begin
+        # read a table out, then append it to a second table with the same
+        # columns in a different order
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "x"; sh["B1"] = "y"
+        sh["A2"] = 1;   sh["B2"] = 10
+        sh["A3"] = 2;   sh["B3"] = 20
+        src = XLSX.addtable!(sh, "A1:B3"; name="Source")
+
+        sh["E1"] = "y"; sh["F1"] = "x"      # reversed relative to Source
+        sh["E2"] = 99;  sh["F2"] = 9
+        XLSX.addtable!(sh, "E1:F2"; name="Dest")
+
+        dt = XLSX.gettable(src)
+        t = XLSX.appendtable!(sh, "Dest", dt)
+
+        @test t.ref == XLSX.CellRange("E1:F4")
+        cols = Tables.columns(t)
+        @test cols.y == [99, 10, 20]   # matched by name despite reversal
+        @test cols.x == [9, 1, 2]
+    end
+
+    @testset "missing column errors" begin
+        sh = fresh_abc()
+        df = DataFrames.DataFrame(a=[10], b=[20])   # no "c"
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", df)
+    end
+
+    @testset "extra column errors" begin
+        sh = fresh_abc()
+        df = DataFrames.DataFrame(a=[10], b=[20], c=[30], d=[40])   # extra "d"
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", df)
+    end
+
+    @testset "both missing and extra columns errors" begin
+        sh = fresh_abc()
+        df = DataFrames.DataFrame(a=[10], b=[20], z=[99])   # missing c, extra z
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", df)
+    end
+
+    @testset "unnamed sources remain positional" begin
+        # matrix
+        sh = fresh_abc()
+        t = XLSX.appendtable!(sh, "T", [10 20 30])
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10]
+        @test cols.b == [2, 20]
+        @test cols.c == [3, 30]
+
+        # vector of tuples
+        sh = fresh_abc()
+        t = XLSX.appendtable!(sh, "T", [(10, 20, 30)])
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10]
+        @test cols.c == [3, 30]
+
+        # vector of vectors
+        sh = fresh_abc()
+        t = XLSX.appendtable!(sh, "T", [[10, 20, 30]])
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10]
+        @test cols.c == [3, 30]
+    end
+
+    @testset "name matching still works when a totals row is present" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        XLSX.addtable!(sh, "A1:B2"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        # reversed column order in the source
+        df = DataFrames.DataFrame(amount=[8, 25], item=["Pears", "Cherries"])
+        t = XLSX.appendtable!(sh, "Bulk", df)
+
+        @test t.ref == XLSX.CellRange("A1:B5")
+        @test t.has_totals_row == true
+        cols = Tables.columns(t)
+        @test cols.item == ["Apples", "Pears", "Cherries"]
+        @test cols.amount == [12, 8, 25]
+        @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, "B5"))
+    end
+
 
 end
