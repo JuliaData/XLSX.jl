@@ -305,7 +305,7 @@ function get_namespaces(r::XML.Node)::Dict{String,String}
     return nss
 end
 function get_sst_prefix(ws::Worksheet)::String
-    sst_pfx = get_prefix("xl/SharedStrings.xml", get_xlsxfile(ws))
+    sst_pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(ws))
     if isnothing(sst_pfx) || sst_pfx == ""
         sst_pfx = ""
     else
@@ -645,12 +645,12 @@ function _strict_to_transitional_node!(node::XML.Node, filename::AbstractString)
             else
                 throw(XLSXError("Unsupported strict OOXML namespace or relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
             end
-        elseif k == "Type" && startswith(v, "http://purl.oclc.org/ooxml")
-            if haskey(STRICT_TO_TRANSITIONAL, v)
-                node[k] = STRICT_TO_TRANSITIONAL[v]
-            else
-                throw(XLSXError("Unsupported strict OOXML relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
-            end
+#        elseif k == "Type" && startswith(v, "http://purl.oclc.org/ooxml")
+#            if haskey(STRICT_TO_TRANSITIONAL, v)
+#                node[k] = STRICT_TO_TRANSITIONAL[v]
+#            else
+#                throw(XLSXError("Unsupported strict OOXML relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
+#            end
         end
     end
     return nothing
@@ -1241,6 +1241,7 @@ function internal_xml_file_read(xf::XLSXFile, filename::String)
     val = get_xml_data(xf,filename)
     return val::XML.Node
 end
+#=
 function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.ZipReader}, filename::String)
 
     !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
@@ -1267,6 +1268,7 @@ function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.
 
     return xf.data[filename]
 end
+=#
 
 # Utility method to find the XMLDocument associated with a given package filename.
 # Returns xl.data[filename] if it exists. Throws an error if it doesn't.
