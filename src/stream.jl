@@ -428,13 +428,12 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
             row_ht  = isnothing(ht_val) ? nothing : parse(Float64, ht_val)
 
             let ln = XML.LazyNode(c2)
-                XML.foreach_attr(ln) do name_tok, val_tok
-                    k = XML.XMLTokenizer.raw(name_tok, ln.data)
-                    k in handled_attributes && return
+                for (k, v) in XML.eachattribute(ln)
+                    k in handled_attributes && continue
                     if unhandled === _EMPTY_ROW_ATTRS
                         unhandled = Dict{String,String}()
                     end
-                    unhandled[String(k)] = String(XML.XMLTokenizer.attr_value(val_tok, ln.data))
+                    unhandled[String(k)] = String(v)
                 end
             end
 

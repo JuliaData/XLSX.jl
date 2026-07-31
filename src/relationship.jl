@@ -148,3 +148,85 @@ function is_chartsheet(wb::Workbook, sheetname::AbstractString)::Bool
     return false
 end
 
+# Splits "xl/worksheets/sheet1.xml" into ("xl/worksheets", "sheet1.xml").
+# Manual split rather than Base.dirname/basename, matching resolve_relative_target's
+# deliberate non-OS-path-aware treatment of these as forward-slash zip-entry keys.
+function _split_zip_path(path::AbstractString)::Tuple{String,String}
+    idx = findlast('/', path)
+    isnothing(idx) && return ("", String(path))
+    return (String(path[1:prevind(path, idx)]), String(path[nextind(path, idx):end]))
+end
+
+"""
+    get_worksheet_relationship_target(xf::XLSXFile, ws::Worksheet, r_id::String) -> String
+
+Resolve an `r:id` found inside `ws`'s own XML (e.g. a `<tablePart r:id="rId1"/>`)
+to its target part path, via `ws`'s own relationship file
+(`xl/worksheets/_rels/sheetN.xml.rels`), not the workbook-level relationships.
+"""
+function get_worksheet_relationship_target(xf::XLSXFile, ws::Worksheet, r_id::String)::String
+    wb = get_workbook(xf)
+    sheet_file = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+    dir, fname = _split_zip_path(sheet_file)
+    rels_file = isempty(dir) ? "_rels/$fname.rels" : "$dir/_rels/$fname.rels"
+
+    !internal_xml_file_exists(xf, rels_file) &&
+        throw(XLSXError("Worksheet $sheet_file references relationship `$r_id` but no relationship file `$rels_file` exists in the package."))
+
+    rels_root = xml_root_element(xmlroot(xf, rels_file))
+    XML.tag(rels_root) != "Relationships" &&
+        throw(XLSXError("Malformed $rels_file: root node name should be `Relationships`. Found $(XML.tag(rels_root))."))
+
+    for el in xml_elements(rels_root)
+        localname(el) != "Relationship" && continue
+        attrs = XML.attributes(el)
+        (isnothing(attrs) || get(attrs, "Id", nothing) != r_id) && continue
+        return resolve_relative_target(dir, attrs["Target"])
+    end
+
+    throw(XLSXError("Relationship Id=$r_id not found in $rels_file"))
+end
+
+function next_table_id!(wb::Workbook)::Int
+    if isnothing(wb.next_table_id)
+        max_id = 0
+        for ws in wb.sheets
+            is_chartsheet(wb, ws.name) && continue
+            for t in tables(ws)
+                max_id = max(max_id, t.id)
+            end
+        end
+        wb.next_table_id = max_id
+    end
+    wb.next_table_id += 1
+    return wb.next_table_id
+end
+
+function new_table_filename(xf::XLSXFile)::String
+    i = 1
+    while haskey(xf.files, "xl/tables/table$(i).xml")
+        i += 1
+    end
+    return "xl/tables/table$(i).xml"
+end
+
+function get_or_create_worksheet_rels!(xf::XLSXFile, sheet_path::String)
+    sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
+    rels_path = "$sheet_dir/_rels/$sheet_file.rels"
+    if !haskey(xf.data, rels_path)
+        xf.data[rels_path]  = empty_rels_doc()
+        xf.files[rels_path] = true
+    end
+    return rels_path, root_element(xf.data[rels_path])
+end
+
+function make_relative_target(base_dir::AbstractString, target_path::AbstractString)::String
+    base_parts   = split(base_dir, "/")
+    target_parts = split(target_path, "/")
+    n = 0
+    while n < length(base_parts) && n < length(target_parts) - 1 && base_parts[n+1] == target_parts[n+1]
+        n += 1
+    end
+    ups = length(base_parts) - n
+    return join(vcat(fill("..", ups), target_parts[n+1:end]), "/")
+end

@@ -40,8 +40,11 @@ element_children(node::XML.Node) =
 elements_with_tag(node::XML.Node, tag::String) =
     filter(n -> localname(XML.tag(n)) == tag, element_children(node))
 
-get_attr(node::XML.Node, key::AbstractString, default::AbstractString = "") =
-    something(get(XML.attributes(node), key, nothing), default)
+function get_attr(node::XML.Node, key::AbstractString, default::AbstractString="")
+    attrs = XML.attributes(node)
+    isnothing(attrs) && return default
+    return something(get(attrs, key, nothing), default)
+end
 
 function root_element(doc::XML.Node)::XML.Node
     children = something(XML.children(doc), [])
