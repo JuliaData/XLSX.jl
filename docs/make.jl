@@ -16,6 +16,7 @@ makedocs(
             "Freeze/split panes" => "formatting/freezeAndSplitPanes.md",
         ],
         "Using Formulas" => "formulae/formulas.md",
+        "Using Excel Tables" => "tables/excelTables.md",
         "Examples" => "examples.md",
         "Migration Guide" => "migration.md",
         "API Reference" => Any[

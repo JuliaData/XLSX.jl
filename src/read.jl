@@ -305,7 +305,7 @@ function get_namespaces(r::XML.Node)::Dict{String,String}
     return nss
 end
 function get_sst_prefix(ws::Worksheet)::String
-    sst_pfx = get_prefix("xl/SharedStrings.xml", get_xlsxfile(ws))
+    sst_pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(ws))
     if isnothing(sst_pfx) || sst_pfx == ""
         sst_pfx = ""
     else
@@ -645,12 +645,12 @@ function _strict_to_transitional_node!(node::XML.Node, filename::AbstractString)
             else
                 throw(XLSXError("Unsupported strict OOXML namespace or relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
             end
-        elseif k == "Type" && startswith(v, "http://purl.oclc.org/ooxml")
-            if haskey(STRICT_TO_TRANSITIONAL, v)
-                node[k] = STRICT_TO_TRANSITIONAL[v]
-            else
-                throw(XLSXError("Unsupported strict OOXML relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
-            end
+#        elseif k == "Type" && startswith(v, "http://purl.oclc.org/ooxml")
+#            if haskey(STRICT_TO_TRANSITIONAL, v)
+#                node[k] = STRICT_TO_TRANSITIONAL[v]
+#            else
+#                throw(XLSXError("Unsupported strict OOXML relationship type: \"$v\" in $filename. Please open an issue at https://github.com/JuliaData/XLSX.jl/issues"))
+#            end
         end
     end
     return nothing
@@ -1224,6 +1224,9 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String)
 end
 
 function get_xml_data(xf::XLSXFile, filename::String)::XML.Node
+    # safe to call unconditionally in write-mode;
+    # in read-only mode, only call after the sheet's cache is confirmed filled, 
+    # or you'll break lazy per-sheet fill for the rest of the session.
     val = xf.data[filename]
     if val isa String
         parsed = parse(val, XML.Node)
@@ -1238,6 +1241,7 @@ function internal_xml_file_read(xf::XLSXFile, filename::String)
     val = get_xml_data(xf,filename)
     return val::XML.Node
 end
+#=
 function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.ZipReader}, filename::String)
 
     !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
@@ -1264,6 +1268,7 @@ function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.
 
     return xf.data[filename]
 end
+=#
 
 # Utility method to find the XMLDocument associated with a given package filename.
 # Returns xl.data[filename] if it exists. Throws an error if it doesn't.
@@ -1346,6 +1351,7 @@ end
         source,
         [sheet,
         [columns]];
+        [table_name],
         [first_row],
         [column_labels],
         [header],
@@ -1359,7 +1365,7 @@ end
     ) -> DataTable
 
 Returns tabular data from a spreadsheet as a struct `XLSX.DataTable`.
-Use this function to create a `DataFrame` from package `DataFrames.jl` 
+Use this function to create a `DataFrame` from package `DataFrames.jl`
 (or other `Tables.jl`` compatible object).
 
 If `sheet` is not given, the first sheet in the `XLSXFile` will be used.
@@ -1368,6 +1374,35 @@ If `sheet` is not given, the first sheet in the `XLSXFile` will be used.
 other sheets exist in the workbook — other sheets are never read or
 cached, so reading from a single sheet of a large multi-sheet workbook is
 efficient.
+
+# Reading an Excel Table
+
+Use `table_name` to read a named Excel Table (see [`XLSX.table`](@ref))
+rather than a range of cells:
+
+```julia
+julia> XLSX.readtable("myfile.xlsx", "mysheet"; table_name="Sales")  # fast — sheet known
+
+julia> XLSX.readtable("myfile.xlsx"; table_name="Sales")             # searches all sheets
+```
+
+When `sheet` is given, only that worksheet is decompressed, exactly as for a
+normal range read. When `sheet` is omitted, every worksheet's `<tableParts>`
+element is scanned to locate the table (cell data is still never
+materialized for the non-matching sheets, so the cost is modest), and the
+first sheet carrying a table of that name is used — table names are unique
+across a workbook.
+
+An Excel Table's `ref` is authoritative, so when `table_name` is given, the
+`columns`, `first_row`, `header`, `stop_in_empty_row`,
+`stop_in_row_function` and `keep_empty_rows` arguments do not apply and are
+ignored: the table's header row and, if present, its totals row are always
+excluded, and any blank row within the table's range is returned as ordinary
+data. `infer_eltypes`, `normalizenames`, `missing_strings` and
+`enable_cache` apply as usual. Passing both `table_name` and `columns`
+throws an `XLSXError`.
+
+# Reading a cell range
 
 Use `columns` argument to specify which columns to get.
 For example, `"B:D"` will select columns `B`, `C` and `D`.
@@ -1436,11 +1471,14 @@ The default behavior is `keep_empty_rows=false`.
 julia> using DataFrames, XLSX
 
 julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"))
+
+julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"; table_name="Sales"))
 ```
 
-See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref).
+See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref), [`XLSX.table`](@ref).
 """
 function readtable(source::Union{AbstractString,IO}; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1455,11 +1493,29 @@ function readtable(source::Union{AbstractString,IO};
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
+
+    if !isnothing(table_name)
+        # Workbook-wide search: no target_sheet, since we don't know which
+        # sheet holds the table. Non-matching sheets still never have their
+        # cell data materialized — get_worksheet_table_rids cursor-scans
+        # each sheet's XML only as far as <tableParts>.
+        xf = open_or_read_xlsx(source, true, enable_cache, false; load_formulas=false)
+        wb = get_workbook(xf)
+        for ws in wb.sheets
+            is_chartsheet(wb, ws.name) && continue
+            idx = findfirst(t -> t.name == table_name, tables(ws))
+            isnothing(idx) && continue
+            return gettable(tables(ws)[idx]; infer_eltypes, normalizenames, missing_strings)
+        end
+        throw(XLSXError("No Excel Table named `$table_name` found in any worksheet of $(xf.source)."))
+    end
+
     xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=1, load_formulas=false)
     return gettable(getsheet(xf, 1); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
 function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1474,11 +1530,21 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
+
     xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet, load_formulas=false)
+
+    if !isnothing(table_name)
+        # target_sheet applies as normal: only this worksheet is decompressed.
+        # Table parts (xl/tables/tableN.xml) are loaded in pass 1 regardless
+        # of target_sheet, so this is as cheap as a normal single-sheet read.
+        return gettable(table(getsheet(xf, sheet), table_name); infer_eltypes, normalizenames, missing_strings)
+    end
+
     return gettable(getsheet(xf, sheet); first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
 end
 
 function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1490,6 +1556,9 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )
+    !isnothing(table_name) &&
+        throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
+
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
@@ -1498,6 +1567,7 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
 end
 
 function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; 
+    table_name::Union{Nothing,AbstractString}=nothing,
     first_row::Union{Nothing,Int}=nothing, 
     column_labels=nothing, 
     header::Bool=true, 
@@ -1509,6 +1579,9 @@ function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )
+    !isnothing(table_name) &&
+        throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
+
     if is_valid_column_range(range)
         range = ColumnRange(range)
     else
@@ -1523,6 +1596,7 @@ end
         [sheet,
         [columns]],
         sink;
+        [table_name],
         [first_row],
         [column_labels],
         [header],
@@ -1539,7 +1613,11 @@ Read and parse an Excel worksheet, materializing directly using the
 `sink` function, which can be any `Tables.jl`-compatible function 
 (e.g. `DataFrame`, `StructArray` or `TypedTable``).
 
-Takes the same keyword arguments as [`XLSX.readtable`](@ref) 
+Takes the same keyword arguments as [`XLSX.readtable`](@ref), including
+`table_name` to read a named Excel Table (see [`XLSX.table`](@ref)) rather
+than a range of cells. Specifying `sheet` alongside `table_name` is faster,
+since only that worksheet is decompressed; omitting it searches every
+worksheet for the named table.
 
 # Example
 
@@ -1555,9 +1633,13 @@ julia> tt = XLSX.readto("myfile.xlsx", Table) # from TypedTables.jl
 julia> df = XLSX.readto("myfile.xlsx", "mysheet", DataFrame)
 
 julia> df = XLSX.readto("myfile.xlsx", "mysheet", "A:C", DataFrame)
+
+julia> df = XLSX.readto("myfile.xlsx", "mysheet", DataFrame; table_name="Sales")
+
+julia> df = XLSX.readto("myfile.xlsx", DataFrame; table_name="Sales")
 ```
 
-See also: [`XLSX.gettable`](@ref).
+See also: [`XLSX.gettable`](@ref), [`XLSX.readtable`](@ref), [`XLSX.table`](@ref).
 """
 function readto(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString, sink=nothing; kw...)
     if sink === nothing
@@ -1565,12 +1647,14 @@ function readto(source::Union{AbstractString,IO}, sheet::Union{AbstractString,In
     end
     return Tables.CopiedColumns(readtable(source, sheet, range; kw...)) |> sink
 end
+
 function readto(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, sink=nothing; kw...)
     if sink === nothing
         throw(XLSXError("provide a valid sink argument, like `using DataFrames; XLSX.readto(source, sheet, DataFrame)`"))
     end
     return Tables.CopiedColumns(readtable(source, sheet; kw...)) |> sink
 end
+
 function readto(source::Union{AbstractString,IO}, sink=nothing; kw...)
     if sink === nothing
         throw(XLSXError("provide a valid sink argument, like `using DataFrames; XLSX.readto(source, DataFrame)`"))

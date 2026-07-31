@@ -240,7 +240,7 @@ function rereference_formulae(ws::Worksheet, oldcell::Cell, f::AbstractFormula, 
 end
 
 # shift the relative cell references in a formula when shifting a ReferencedFormula
-function shift_excel_references(formula::String, offset::Tuple{Int32,Int32})
+function shift_excel_references(formula::AbstractString, offset::Tuple{Int32,Int32})
     # Regex to match Excel-style cell references (e.g., A1, $A$1, A$1, $A1)
     pattern = r"\$?[A-Z]{1,3}\$?[1-9][0-9]*"
     row_shift, col_shift = offset
@@ -386,7 +386,7 @@ function update_formulas_renamed_sheet!(wb::Workbook, old_name::String, new_name
 end
 
 """
-    split_function_args(formula::String; fname::Union{Nothing,String}=nothing) -> Vector{String}
+    split_function_args(formula::AbstractString; fname::Union{Nothing,String}=nothing) -> Vector{String}
 
 Given a formula string like `=GROUPBY(E1:E151,A1:D151,LAMBDA(x,AVERAGE(x)),3,1)`,
 return the arguments as a vector of strings:
@@ -395,7 +395,7 @@ return the arguments as a vector of strings:
 If `fname` is provided, it will look specifically for that function name.
 If not, it will match the first identifier followed by '('.
 """
-function split_function_args(formula::String; fname::Union{Nothing,String}=nothing)
+function split_function_args(formula::AbstractString; fname::Union{Nothing,String}=nothing)
     pat = isnothing(fname) ? _GENERIC_FNAME_RE : _fname_pattern(fname)
     m = match(pat, formula)
     isnothing(m) && return String[]
@@ -498,14 +498,14 @@ function _fname_pattern(fname::AbstractString)::Regex
 end
 
 """
-    is_array_formula(formula::String) -> Bool
+    is_array_formula(formula::AbstractString) -> Bool
 
 Detects whether a formula implies an array spill (thus needing t="array").
 Currently flags:
   - Binary operators (+, -, *, /, ^) applied to ranges
   - Functions with range arguments that return arrays (e.g. MMULT, TRANSPOSE)
 """
-function is_array_formula(formula::String)
+function is_array_formula(formula::AbstractString)
     occursin(':', formula) || occursin('(', formula) || return false
 
     occursin(_RANGE_RE, formula)       && return true
@@ -546,7 +546,7 @@ const SPILL_REF_RE = r"""
     \#                                      # literal spill operator
 """x
 
-function anchor_spill_refs(formula::String)
+function anchor_spill_refs(formula::AbstractString)
     return replace(formula, SPILL_REF_RE => s -> "ANCHORARRAY($(s[1:end-1]))")
 end
 
@@ -584,7 +584,7 @@ const EXCEL_FUNCTION_REGEXES = Dict(
     for (k, v) in EXCEL_FUNCTION_PREFIX
 )
 
-function prefix_excel_functions(formula::String, prefixes::Dict{String,String})
+function prefix_excel_functions(formula::AbstractString, prefixes::Dict{String,String})
     # Fast path: no Excel functions present
     any(k -> occursin(k, uppercase(formula)) , keys(prefixes)) || return formula
     
@@ -599,7 +599,7 @@ function prefix_excel_functions(formula::String, prefixes::Dict{String,String})
     return join(parts)
 end
 
-function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::String; raw::Bool, spill::Union{Nothing,Bool})
+function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::AbstractString; raw::Bool, spill::Union{Nothing,Bool})
 
     t = ""
     ref = ""
@@ -655,7 +655,7 @@ end
 const EXTERNAL_REF_RE = r"\[(\d+)\]([\p{L}\p{N}_]+)!\$?[A-Za-z]+\$?\d+"
 
 # Extract all external references from a formula string (eg like "[1]Sheet1!$A$1")
-function get_ext_refs(formula::String)
+function get_ext_refs(formula::AbstractString)
     [ExternalRef(parse(Int, m.captures[1]),
         m.captures[2],
         m.match) for m in eachmatch(EXTERNAL_REF_RE, formula)] # workbook_path to be filled in later
@@ -712,10 +712,10 @@ function add_formula_to_cache(ws::Worksheet, ref::CellRef, f::AbstractFormula)
 end
 
 """
-    setFormula(ws::Worksheet, RefOrRange::AbstractString, formula::String; raw=false, spill=false)
-    setFormula(xf::XLSXFile,  RefOrRange::AbstractString, formula::String; raw=false, spill=false)
+    setFormula(ws::Worksheet, RefOrRange::AbstractString, formula::AbstractString; raw=false, spill=false)
+    setFormula(xf::XLSXFile,  RefOrRange::AbstractString, formula::AbstractString; raw=false, spill=false)
 
-    setFormula(sh::Worksheet, row, col, formula::String; raw=false, spill=false)
+    setFormula(sh::Worksheet, row, col, formula::AbstractString; raw=false, spill=false)
 
 Set the Excel formula to be used in the given cell or cell range.
 

@@ -23,7 +23,7 @@ const WORKBOOK_ORDER = String[
 EmptyWorkbook() = Workbook(EmptyMSOfficePackage(), Vector{Worksheet}(), false,
     Vector{Relationship}(), Dict{SheetCellRef, AbstractFormula}(), SharedStringTable(), Dict{Int,Bool}(), Dict{Int,Bool}(),
     ReentrantLock(), ReentrantLock(), ReentrantLock(), Dict{String,DefinedNameValueTypes}(), Dict{Tuple{Int,String},DefinedNameValueTypes}(),
-    nothing, Dict{Int, CellDataFormat}(), nothing, nothing, nothing, nothing, Dict{String, Vector{XML.Node}}())
+    nothing, Dict{Int, CellDataFormat}(), nothing, nothing, nothing, nothing, Dict{String, Vector{XML.Node}}(), nothing)
     
 #=
 Indicates whether this XLSX file can be edited.

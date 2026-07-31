@@ -207,24 +207,16 @@ function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
               load_formulas::Bool=true)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
     @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
-    ref_str::Union{SubString{String},String} = ""
-    t::Union{SubString{String},String}       = ""
-    s_str::Union{SubString{String},String}   = ""
-    m_str::Union{SubString{String},String}   = ""
-    XML.foreach_attr(c) do name_tok, val_tok
-        k = XML.XMLTokenizer.raw(name_tok, c.data)
-        if k == "r";      ref_str = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        elseif k == "t";  t       = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        elseif k == "s";  s_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        elseif k == "cm"; m_str   = XML.XMLTokenizer.attr_value(val_tok, c.data)
-        end
-    end
+    ref_str = get(c, "r", SubString(""))
+    t       = get(c, "t", SubString(""))
+    s_str   = get(c, "s", SubString(""))
+    m_str   = get(c, "cm", SubString(""))
     ref   = CellRef(ref_str)
     style, num_style = _parse_style(s_str)
-    meta::UInt32 = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
-    datatype::CellValueType = CT_EMPTY
-    value::UInt64           = UInt64(0)
-    formula::Bool           = false
+    meta = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
+    datatype = CT_EMPTY
+    value    = UInt64(0)
+    formula  = false
     for child in XML.eachchildnode(c)
         XML.nodetype(child) == XML.Element || continue
         tag = localname(child)

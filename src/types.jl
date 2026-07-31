@@ -373,6 +373,60 @@ end
 
 Base.isempty(wc::WorksheetCache) = isempty(wc.rows_in_cache)
 
+
+# Excel Tables
+struct TableStyleInfo
+    name::Union{String,Nothing}
+    show_first_column::Bool
+    show_last_column::Bool
+    show_row_stripes::Bool
+    show_column_stripes::Bool
+end
+
+"""
+    Table
+
+A native Excel Table: a named, structured range within a worksheet, created in Excel
+with *Insert → Table* (or `Ctrl+T`), or in XLSX.jl with [`XLSX.addtable!`](@ref).
+
+Obtain one with [`XLSX.table`](@ref) or [`XLSX.tables`](@ref). A `Table` conforms to the
+`Tables.jl` interface, so it can be passed directly to any compatible sink (e.g.
+`DataFrame`), or read with [`XLSX.gettable`](@ref), [`XLSX.getdata`](@ref) or
+[`XLSX.eachtablerow`](@ref). In every case only the Table's data rows are returned: the
+header row and, if present, the totals row are excluded.
+
+# Fields
+- `id::Int`: the Table's id, unique within the workbook.
+- `name::String`: the Table's name, unique within the workbook and sharing a namespace
+  with defined names.
+- `display_name::String`: the name Excel displays. Usually identical to `name`.
+- `ref::CellRange`: the Table's full extent, including its header row and, if present,
+  its totals row.
+- `columns::Vector{String}`: the column names, in order, taken from the header row.
+- `has_totals_row::Bool`: whether the last row of `ref` is a totals row.
+- `style::Union{TableStyleInfo,Nothing}`: the Table's style, or `nothing` if it has none.
+- `sheet`: the `Worksheet` the Table belongs to. Cell values are read from it on demand.
+
+A `Table` is an immutable snapshot of the Table's structure at the time it was read.
+Functions that modify a Table ([`XLSX.settotals!`](@ref), [`XLSX.appendtable!`](@ref))
+return an updated `Table`; any earlier one goes stale and should be discarded.
+
+See also [`XLSX.table`](@ref), [`XLSX.tables`](@ref), [`XLSX.addtable!`](@ref),
+[`XLSX.deletetable!`](@ref), [`XLSX.settotals!`](@ref), [`XLSX.appendtable!`](@ref).
+"""
+struct Table
+    id::Int
+    name::String
+    display_name::String
+    ref::CellRange
+    columns::Vector{String}
+    has_totals_row::Bool
+    style::Union{TableStyleInfo,Nothing}
+    sheet # untyped to resolve circular dependency with Worksheet
+
+end
+
+
 """
 A `Worksheet` represents a reference to an Excel Worksheet.
 
@@ -400,10 +454,11 @@ mutable struct Worksheet
     next_formula_id::Int
     unhandled_attributes::Union{Nothing,Dict{Int,Dict{String,String}}}
     sst_count::Int
-    next_cf_priority::Union{Int, Nothing}   # next priority to assign; nothing until first computed
+    next_cf_priority::Union{Int, Nothing}
+    tables_cache::Union{Vector{Table}, Nothing}   # nothing until first access to `tables(ws)`
 
     function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, is_hidden::Bool)
-        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0, nothing)
+        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0, nothing, nothing)
     end
 end
 
@@ -561,6 +616,7 @@ mutable struct Workbook
     cellXfs_cache::Union{Vector{XML.Node}, Nothing}   # cache for get_cellXfs_nodes
     numFmt_cache::Union{Dict{Int, String}, Nothing}   # cache for get_numFmt_cache
     style_table_cache::Dict{String, Vector{XML.Node}} # cache for fonts/borders/fills, keyed by tag ("fonts","borders","fills")
+    next_table_id::Union{Int,Nothing}   # nothing until first computed
 end
 
 @enum TemplateType begin
@@ -686,6 +742,15 @@ struct TableRowIteratorState{S}
     sheet_row_iterator_state::S
     missing_rows::Int # number of completely empty rows between the last row and the current row
     row_pending::Union{Nothing, SheetRow} # if the last row was empty, this is the row that was pending to be returned
+end
+
+struct XLSXTableRow
+    table::Table
+    row_number::Int
+end
+
+struct XLSXTableRowIterator
+    table::Table
 end
 
 struct DataTable

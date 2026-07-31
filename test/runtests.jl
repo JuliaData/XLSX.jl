@@ -7,6 +7,7 @@ import Distributions as Dist
 import CSV
 using StyledStrings
 using ZipArchives: ZipReader, zip_names, zip_readentry
+using Logging
 
 # If SAVE_FILES is true then every testset that creates an XLSXFile in memory
 # or that writes an xlsx file will have a file created in `outdir`.
@@ -135,6 +136,7 @@ include(joinpath(files_directory, "Copy-Add_tests.jl"))
 include(joinpath(files_directory, "Defined-names_tests.jl"))
 include(joinpath(files_directory, "Edit_tests.jl"))
 include(joinpath(files_directory, "Errors_tests.jl"))
+include(joinpath(files_directory, "Excel_tables_tests.jl"))
 include(joinpath(files_directory, "FileIO_tests.jl"))
 include(joinpath(files_directory, "Filemodes_tests.jl"))
 include(joinpath(files_directory, "Formulas_tests.jl"))
@@ -145,6 +147,7 @@ include(joinpath(files_directory, "Merge_tests.jl"))
 include(joinpath(files_directory, "Namespace_tests.jl"))
 include(joinpath(files_directory, "Panes_tests.jl"))
 include(joinpath(files_directory, "Ranges_tests.jl"))
+include(joinpath(files_directory, "Read-coverage_tests.jl"))
 include(joinpath(files_directory, "Strict-format_tests.jl"))
 include(joinpath(files_directory, "Strings_tests.jl"))
 include(joinpath(files_directory, "Styles_tests.jl"))

@@ -22,6 +22,13 @@ XLSX.iserror
 XLSX.geterror
 XLSX.gettable
 XLSX.readtable
+XLSX.Table
+XLSX.tables
+XLSX.table
+XLSX.addtable!
+XLSX.deletetable!
+XLSX.settotals!
+XLSX.appendtable!
 XLSX.readto
 XLSX.gettransposedtable
 XLSX.readtransposedtable
