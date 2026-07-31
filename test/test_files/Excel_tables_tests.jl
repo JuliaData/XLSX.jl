@@ -3378,4 +3378,272 @@ end
         @test length(XLSX.tables(f["Sheet1"])) == 2
     end
 
+   @testset "empty NamedTuple when there is no totals row" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        t = XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        tot = XLSX.gettotals(t)
+        @test tot isa NamedTuple
+        @test isempty(tot)
+        @test length(tot) == 0
+    end
+
+    @testset "keys match the table's columns, in order" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "region"; sh["B1"] = "revenue"; sh["C1"] = "margin"
+        sh["A2"] = "North";  sh["B2"] = 1000;      sh["C2"] = 200
+        XLSX.addtable!(sh, "A1:C2"; name="Sales")
+        t = XLSX.settotals!(sh, "Sales", "region" => "Total", "revenue" => :sum)
+
+        tot = XLSX.gettotals(t)
+        @test collect(keys(tot)) == [:region, :revenue, :margin]
+        @test length(tot) == 3
+    end
+
+    @testset "built-in function columns" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "s"; sh["B1"] = "av"
+        sh["A2"] = 10;  sh["B2"] = 20
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        t = XLSX.settotals!(sh, "T", "s" => :sum, "av" => :average)
+
+        tot = XLSX.gettotals(t)
+
+        @test tot.s.setting == :sum
+        @test !isnothing(tot.s.formula)
+        @test occursin("SUBTOTAL(109", tot.s.formula)
+        @test occursin("T[s]", tot.s.formula)
+        # XLSX.jl writes no cached value alongside a formula
+        @test ismissing(tot.s.value)
+
+        @test tot.av.setting == :average
+        @test occursin("SUBTOTAL(101", tot.av.formula)
+        @test ismissing(tot.av.value)
+    end
+
+    @testset "label column" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "name"; sh["B1"] = "score"
+        sh["A2"] = "x";    sh["B2"] = 10
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        t = XLSX.settotals!(sh, "T", "name" => "Grand Total", "score" => :sum)
+
+        tot = XLSX.gettotals(t)
+
+        @test tot.name.setting == :label
+        @test isnothing(tot.name.formula)       # a label is a plain value
+        @test tot.name.value == "Grand Total"   # and the value is the label text
+    end
+
+    @testset "custom formula column" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "revenue"; sh["B1"] = "cost"; sh["C1"] = "margin"
+        sh["A2"] = 100;       sh["B2"] = 60;    sh["C2"] = 40
+        XLSX.addtable!(sh, "A1:C2"; name="PnL")
+        t = XLSX.settotals!(sh, "PnL",
+            "revenue" => :sum,
+            "margin"  => (:custom, "SUBTOTAL(109,PnL[revenue])-SUBTOTAL(109,PnL[cost])"),
+        )
+
+        tot = XLSX.gettotals(t)
+
+        @test tot.margin.setting == :custom
+        @test !isnothing(tot.margin.formula)
+        @test occursin("PnL[revenue]", tot.margin.formula)
+        @test occursin("PnL[cost]", tot.margin.formula)
+        @test ismissing(tot.margin.value)
+    end
+
+    @testset "columns with no totals setting" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"; sh["C1"] = "c"
+        sh["A2"] = 1;   sh["B2"] = 2;   sh["C2"] = 3
+        XLSX.addtable!(sh, "A1:C2"; name="T")
+        t = XLSX.settotals!(sh, "T", "b" => :sum)   # only b
+
+        tot = XLSX.gettotals(t)
+
+        @test tot.a.setting == :none
+        @test isnothing(tot.a.formula)
+        @test ismissing(tot.a.value)
+
+        @test tot.b.setting == :sum
+
+        @test tot.c.setting == :none
+        @test isnothing(tot.c.formula)
+        @test ismissing(tot.c.value)
+    end
+
+    @testset "all built-in functions round trip through gettotals" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        cols = ["s", "av", "cnt", "cntnum", "mx", "mn", "sd", "vr"]
+        for (i, c) in enumerate(cols)
+            sh[1, i] = c
+        end
+        for i in 1:length(cols)
+            sh[2, i] = 10 * i
+        end
+        XLSX.addtable!(sh, "A1:H2"; name="Funcs")
+        t = XLSX.settotals!(sh, "Funcs";
+            s=:sum, av=:average, cnt=:count, cntnum=:countnums,
+            mx=:max, mn=:min, sd=:stddev, vr=:var)
+
+        tot = XLSX.gettotals(t)
+
+        @test tot.s.setting      == :sum
+        @test tot.av.setting     == :average
+        @test tot.cnt.setting    == :count
+        @test tot.cntnum.setting == :countnums
+        @test tot.mx.setting     == :max
+        @test tot.mn.setting     == :min
+        @test tot.sd.setting     == :stddev
+        @test tot.vr.setting     == :var
+    end
+
+    @testset "reflects a changed setting" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        t = XLSX.settotals!(sh, "T", "b" => :sum)
+        @test XLSX.gettotals(t).b.setting == :sum
+
+        t = XLSX.settotals!(sh, "T", "b" => :max)
+        @test XLSX.gettotals(t).b.setting == :max
+
+        t = XLSX.settotals!(sh, "T", "b" => "Total")
+        tot = XLSX.gettotals(t)
+        @test tot.b.setting == :label
+        @test tot.b.value == "Total"
+    end
+
+    @testset ":none clears a column back to no setting" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        t = XLSX.settotals!(sh, "T", "a" => "Total", "b" => :sum)
+        @test XLSX.gettotals(t).b.setting == :sum
+
+        t = XLSX.settotals!(sh, "T", "b" => :none)
+        tot = XLSX.gettotals(t)
+        @test tot.b.setting == :none
+        @test isnothing(tot.b.formula)
+        @test ismissing(tot.b.value)
+        @test tot.a.setting == :label   # other column untouched
+    end
+
+    @testset "empty again after removetotals!" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        t = XLSX.settotals!(sh, "T", "b" => :sum)
+        @test !isempty(XLSX.gettotals(t))
+
+        t = XLSX.removetotals!(sh, "T")
+        @test isempty(XLSX.gettotals(t))
+    end
+
+    @testset "survives appendtable! (totals row moved)" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        XLSX.addtable!(sh, "A1:B2"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        t = XLSX.appendtable!(sh, "Bulk", [("Pears", 8), ("Cherries", 25)])
+        tot = XLSX.gettotals(t)
+
+        @test tot.item.setting == :label
+        @test tot.item.value == "Total"
+        @test tot.amount.setting == :sum
+        @test occursin("SUBTOTAL(109", tot.amount.formula)
+    end
+
+    @testset "round trip: save and reopen" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+        SAVE_FILES && save_outfile(f)
+
+        outfile = "gettotals_roundtrip.xlsx"
+        isfile(outfile) && rm(outfile)
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
+
+        XLSX.openxlsx(outfile) do xf2
+            t = XLSX.table(xf2[1], "Bulk")
+            tot = XLSX.gettotals(t)
+
+            @test tot.item.setting == :label
+            @test tot.item.value == "Total"
+            @test tot.amount.setting == :sum
+            @test occursin("SUBTOTAL(109", tot.amount.formula)
+        end
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "real fixture (two_tables.xlsx) - with_total" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            t = XLSX.table(xf["Sheet2"], "with_total")
+            @test t.has_totals_row == true
+
+            tot = XLSX.gettotals(t)
+            @test collect(keys(tot)) == [:start, :stop, :sin]
+            @test tot.sin.setting == :sum
+
+            # Excel-authored file: the totals cell carries a cached value
+            # alongside its formula, unlike one XLSX.jl wrote.
+            @test !isnothing(tot.sin.formula)
+            @test !ismissing(tot.sin.value)
+        end
+    end
+
+    @testset "table with no totals on a sheet that has one elsewhere" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            t = XLSX.table(xf["Sheet1"], "IO_Table")
+            @test t.has_totals_row == false
+            @test isempty(XLSX.gettotals(t))
+        end
+    end
+
+    @testset "enable_cache=false throws" begin
+        # gettotals reads each totals cell's formula, and getFormula requires
+        # the cache, so the whole function is unavailable without it.
+        XLSX.openxlsx("data/two_tables.xlsx", enable_cache=false) do xf
+            t = XLSX.table(xf["Sheet2"], "with_total")
+            @test_throws XLSX.XLSXError XLSX.gettotals(t)
+        end
+    end
+
+    @testset "enable_cache=false, no totals row: returns empty without throwing" begin
+        # The early return happens before any cell is touched, so a table
+        # with no totals row is safe even without the cache.
+        XLSX.openxlsx("data/two_tables.xlsx", enable_cache=false) do xf
+            t = XLSX.table(xf["Sheet1"], "IO_Table")
+            @test isempty(XLSX.gettotals(t))
+        end
+    end
+    
 end

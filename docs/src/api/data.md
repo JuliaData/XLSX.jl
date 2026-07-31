@@ -28,6 +28,7 @@ XLSX.table
 XLSX.addtable!
 XLSX.deletetable!
 XLSX.settotals!
+XLSX.gettotals
 XLSX.removetotals!
 XLSX.appendtable!
 XLSX.readto

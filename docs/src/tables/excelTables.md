@@ -329,7 +329,13 @@ julia> XLSX.writetable("sales.xlsx", df;
        )
 ```
 
-Note that `totals` is only supported on the single-sheet forms. For multiple sheets,
+For the multi-sheet forms of `writetable`, `as_table` and `table_style` apply uniformly
+to every sheet. Each Table's name is taken from its sheet's name, normalized into a
+valid Table name if necessary (so a sheet named `"Q1 Report"` gives a Table named
+`Q1_Report`); if the normalized name would collide with an existing Table or defined
+name, an auto-generated name is used instead and a warning is issued.
+
+In contrast, `totals` is only supported on the single-sheet forms. For multiple sheets,
 build the workbook first with [`XLSX.openxlsx`](@ref) and apply
 [`XLSX.writetable!`](@ref) per sheet, each with its own `totals`:
 
@@ -345,12 +351,6 @@ julia> XLSX.openxlsx("report.xlsx", mode="w") do xf
                             totals=["amount" => :sum])
        end
 ```
-
-For the multi-sheet forms of `writetable`, `as_table` and `table_style` apply uniformly
-to every sheet. Each Table's name is taken from its sheet's name, normalized into a
-valid Table name if necessary (so a sheet named `"Q1 Report"` gives a Table named
-`Q1_Report`); if the normalized name would collide with an existing Table or defined
-name, an auto-generated name is used instead and a warning is issued.
 
 The same keywords are available on [`XLSX.writetable!`](@ref) when writing into an
 existing worksheet.

@@ -1794,6 +1794,91 @@ settotals!(sheet::Worksheet, name::AbstractString; kwargs...) =
     settotals!(sheet, name, (String(k) => v for (k, v) in kwargs)...)
 
 """
+    gettotals(t::Table) -> NamedTuple
+
+Return the Excel Table's totals row as a `NamedTuple` keyed by column name. Each entry
+is itself a `NamedTuple` with fields:
+
+- `setting`: the column's totals setting — a `Symbol` naming a built-in function
+  (`:sum`, `:average`, …), `:custom` for a custom formula, `:label` for a text label, or
+  `:none` if the column has no totals setting.
+- `formula`: the totals cell's formula as a `String`, or `nothing` if the cell holds no
+  formula.
+- `value`: the totals cell's current value. For a label column this is the label text.
+  For a function or custom column this is `missing` unless the file was written by Excel
+  (XLSX.jl does not evaluate formulas, so a totals cell it wrote holds no cached value
+  until Excel recalculates and saves the file).
+
+Returns an empty `NamedTuple` if the Table has no totals row.
+
+# Example
+```julia
+julia> tot = XLSX.gettotals(t)
+(region = (setting = :label, formula = nothing, value = "Total"), revenue = (setting = :sum, formula = "=SUBTOTAL(109,Sales[revenue])", value = 3400), margin = (setting = :average, formula = "=SUBTOTAL(101,Sales[margin])", value = 243.33))
+
+julia> tot.revenue.setting
+:sum
+
+julia> tot.revenue.value
+3400
+```
+
+`gettotals` requires the `XLSXFile` to have `enable_cache=true` (the default). It throws otherwise.
+
+See also [`XLSX.settotals!`](@ref), [`XLSX.removetotals!`](@ref), [`XLSX.table`](@ref).
+"""
+function gettotals(t::Table)
+    t.has_totals_row || return NamedTuple()
+
+    sheet = t.sheet
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+    ncols = length(t.columns)
+
+    # Read the totals cells FIRST, while the worksheet XML is still in
+    # whatever state the cache machinery expects. `_table_part_path` below
+    # calls `get_xml_data` on the sheet, which permanently promotes a
+    # read-only file's raw XML string to a parsed node and breaks the lazy
+    # per-sheet cache fill that `getcell`/`getFormula` rely on.
+    formulas = Vector{Union{Nothing,String}}(undef, ncols)
+    values   = Vector{Any}(undef, ncols)
+    for idx in 1:ncols
+        cell_ref = CellRef(totals_row, col0 + idx - 1)
+        raw_f = getFormula(sheet, cell_ref)
+        formulas[idx] = (isnothing(raw_f) || isempty(raw_f)) ? nothing : raw_f
+        values[idx] = getdata(sheet, cell_ref)
+    end
+
+    # Now the table part, whose metadata gives each column's setting.
+    table_doc = get_xml_data(get_xlsxfile(sheet), _table_part_path(sheet, t.name))
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    column_nodes = collect(xml_elements(table_doc[i][j]))
+
+    names = Symbol[]
+    entries = Any[]
+    for (idx, col_name) in enumerate(t.columns)
+        node  = column_nodes[idx]
+        func  = get_attr(node, "totalsRowFunction", "")
+        label = get_attr(node, "totalsRowLabel", "")
+
+        setting = if func == "custom"
+            :custom
+        elseif func != ""
+            get(TOTALS_FUNCTION_BY_NAME, func, Symbol(func))
+        elseif label != ""
+            :label
+        else
+            :none
+        end
+
+        push!(names, Symbol(col_name))
+        push!(entries, (setting=setting, formula=formulas[idx], value=values[idx]))
+    end
+
+    return NamedTuple{Tuple(names)}(Tuple(entries))
+end
+
+"""
     removetotals!(sheet::Worksheet, name::AbstractString) -> Table
     removetotals!(sheet::Worksheet, id::Integer) -> Table
 
