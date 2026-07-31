@@ -37,13 +37,16 @@ export
     RichTextString, RichTextRun,
     setColumnWidth, setRowHeight,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells,
-    freezePanes, splitFreeze, splitPanes, removePanes
+    freezePanes, splitFreeze, splitPanes, removePanes,
+    # Excel Tables
+    addtable!, deletetable!, settotals!, appendtable!
 
 @static if VERSION >= v"1.11"
     eval(Meta.parse("""
     public getcell, getcellrange, getFormula, getRichTextString,
            getConditionalFormats, getColumnWidth, getRowHeight,
-           getFormat, getFont, getBorder, getFill, getAlignment
+           getFormat, getFont, getBorder, getFill, getAlignment,
+           Table, TableStyleInfo, table, tables
     """))
 end
 
