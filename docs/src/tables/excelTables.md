@@ -431,7 +431,7 @@ julia> XLSX.settotals!(s, "Sales", "margin" => :none)   # margin's totals cell c
 ```
 
 The totals row itself remains, even if every column's totals is cleared — an empty
-totals row is valid, and Excel displays it.
+totals row is valid, and Excel displays it. Use `removetotals!` to remove the row entirely.
 
 As with every formula written by XLSX.jl, no cached value is stored alongside a totals
 formula. `setFormula` replaces the cell with a value-less formula cell, so the cell

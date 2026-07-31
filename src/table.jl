@@ -1793,6 +1793,56 @@ settotals!(sheet::Worksheet, id::Integer, settings::Pair...) =
 settotals!(sheet::Worksheet, name::AbstractString; kwargs...) =
     settotals!(sheet, name, (String(k) => v for (k, v) in kwargs)...)
 
+"""
+    removetotals!(sheet::Worksheet, name::AbstractString) -> Table
+    removetotals!(sheet::Worksheet, id::Integer) -> Table
+
+Remove the totals row from the Excel Table `name` on `sheet`, shrinking the Table by one
+row. Every column's totals function or label is cleared, and the cells that held the
+totals row are emptied.
+
+Does nothing if the Table has no totals row.
+
+See also [`XLSX.settotals!`](@ref), [`XLSX.addtable!`](@ref).
+"""
+function removetotals!(sheet::Worksheet, name::AbstractString)
+    xf = get_xlsxfile(sheet)
+    !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
+
+    t = table(sheet, name)
+    t.has_totals_row || return t
+
+    table_path = _table_part_path(sheet, name)
+    table_doc  = get_xml_data(xf, table_path)
+    table_root = root_element(table_doc)
+
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+
+    # clear the cells that held the totals row
+    for c in col0:(col0 + length(t.columns) - 1)
+        sheet[CellRef(totals_row, c)] = missing
+    end
+
+    # drop per-column totals metadata
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    for col_node in xml_elements(table_doc[i][j])
+        localname(col_node) == "tableColumn" || continue
+        remove_attr!(col_node, "totalsRowFunction")
+        remove_attr!(col_node, "totalsRowLabel")
+    end
+
+    # shrink ref and drop the totals-row flags
+    new_ref = CellRange(t.ref.start, CellRef(totals_row - 1, t.ref.stop.column_number))
+    table_root["ref"] = string(new_ref)
+    remove_attr!(table_root, "totalsRowShown")
+    remove_attr!(table_root, "totalsRowCount")
+
+    sheet.tables_cache = nothing
+    return table(sheet, name)
+end
+
+removetotals!(sheet::Worksheet, id::Integer) = removetotals!(sheet, table(sheet, id).name)
 
 """
     gettable(t::Table; [infer_eltypes], [normalizenames], [missing_strings]) -> DataTable

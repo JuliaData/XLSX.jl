@@ -2689,472 +2689,693 @@ end
 # deletetable! — totals-row formula rewriting (largest uncovered block)
 # ===========================================================================
 
-@testset "deletetable! - totals formulas rewritten to static ranges" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "revenue"; sh["B1"] = "cost"; sh["C1"] = "margin"
-    sh["A2"] = 100;       sh["B2"] = 60;     sh["C2"] = 40
-    sh["A3"] = 200;       sh["B3"] = 90;     sh["C3"] = 110
+    @testset "deletetable! - totals formulas rewritten to static ranges" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "revenue"; sh["B1"] = "cost"; sh["C1"] = "margin"
+        sh["A2"] = 100;       sh["B2"] = 60;     sh["C2"] = 40
+        sh["A3"] = 200;       sh["B3"] = 90;     sh["C3"] = 110
 
-    XLSX.addtable!(sh, "A1:C3"; name="PnL")
-    XLSX.settotals!(sh, "PnL",
-        "revenue" => :sum,
-        "cost"    => "Total",   # label only: no formula -> exercises the skip path
-        "margin"  => (:custom, "SUBTOTAL(109,PnL[revenue])-SUBTOTAL(109,PnL[cost])"),
-    )
+        XLSX.addtable!(sh, "A1:C3"; name="PnL")
+        XLSX.settotals!(sh, "PnL",
+            "revenue" => :sum,
+            "cost"    => "Total",   # label only: no formula -> exercises the skip path
+            "margin"  => (:custom, "SUBTOTAL(109,PnL[revenue])-SUBTOTAL(109,PnL[cost])"),
+        )
 
-    @test XLSX.table(sh, "PnL").ref == XLSX.CellRange("A1:C4")
+        @test XLSX.table(sh, "PnL").ref == XLSX.CellRange("A1:C4")
 
-    XLSX.deletetable!(sh, "PnL")
-    @test isempty(XLSX.tables(sh))
+        XLSX.deletetable!(sh, "PnL")
+        @test isempty(XLSX.tables(sh))
 
-    # Single-column reference: PnL[revenue] -> Sheet1!$A$2:$A$3
-    fa = XLSX.getFormula(sh, "A4")
-    @test !occursin("PnL[", fa)
-    @test occursin("\$A\$2:\$A\$3", fa)
-    @test occursin(sh.name, fa)
+        # Single-column reference: PnL[revenue] -> Sheet1!$A$2:$A$3
+        fa = XLSX.getFormula(sh, "A4")
+        @test !occursin("PnL[", fa)
+        @test occursin("\$A\$2:\$A\$3", fa)
+        @test occursin(sh.name, fa)
 
-    # Custom formula referencing *two* columns: both must be substituted,
-    # and the surrounding formula left intact.
-    fc = XLSX.getFormula(sh, "C4")
-    @test !occursin("PnL[", fc)
-    @test occursin("\$A\$2:\$A\$3", fc)
-    @test occursin("\$B\$2:\$B\$3", fc)
-    @test occursin("SUBTOTAL(109,", fc)
-    @test count("SUBTOTAL(109,", fc) == 2
+        # Custom formula referencing *two* columns: both must be substituted,
+        # and the surrounding formula left intact.
+        fc = XLSX.getFormula(sh, "C4")
+        @test !occursin("PnL[", fc)
+        @test occursin("\$A\$2:\$A\$3", fc)
+        @test occursin("\$B\$2:\$B\$3", fc)
+        @test occursin("SUBTOTAL(109,", fc)
+        @test count("SUBTOTAL(109,", fc) == 2
 
-    # Label column had no formula: value untouched, nothing rewritten.
-    @test sh["B4"] == "Total"
+        # Label column had no formula: value untouched, nothing rewritten.
+        @test sh["B4"] == "Total"
 
-    # Cell data survives the delete, as documented.
-    @test sh["A2"] == 100
-    @test sh["C3"] == 110
-end
-
-@testset "deletetable! - totals row with a column that has no totals at all" begin
-    # Covers the `c isa EmptyCell` half of the skip condition: column "b"
-    # has a genuinely empty totals cell.
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-    XLSX.settotals!(sh, "T", "a" => :sum)   # b left with no totals content
-
-    XLSX.deletetable!(sh, "T")
-
-    @test !occursin("T[", XLSX.getFormula(sh, "A3"))
-    @test ismissing(sh["B3"])
-    @test isempty(XLSX.tables(sh))
-end
-
-@testset "deletetable! - sheet name needing quoting" begin
-    # Exercises quoteit's quoting branch in the static-range substitution.
-    f = XLSX.newxlsx()
-    sh = XLSX.addsheet!(f, "My Data")
-    sh["A1"] = "amount"
-    sh["A2"] = 10
-    sh["A3"] = 20
-
-    XLSX.addtable!(sh, "A1:A3"; name="Amounts")
-    XLSX.settotals!(sh, "Amounts", "amount" => :sum)
-    XLSX.deletetable!(sh, "Amounts")
-
-    fa = XLSX.getFormula(sh, "A4")
-    @test !occursin("Amounts[", fa)
-    @test occursin("My Data", fa)
-    @test occursin("\$A\$2:\$A\$3", fa)
-end
-
-@testset "deletetable! - round trip after totals rewrite" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "n"
-    sh["A2"] = 1
-    sh["A3"] = 2
-    XLSX.addtable!(sh, "A1:A3"; name="T")
-    XLSX.settotals!(sh, "T", "n" => :sum)
-    XLSX.deletetable!(sh, "T")
-    SAVE_FILES && save_outfile(f)
-
-    outfile = "deletetable_totals_roundtrip.xlsx"
-    isfile(outfile) && rm(outfile)
-    XLSX.writexlsx(outfile, f, overwrite=true)
-    SAVE_FILES && save_outfile(outfile)
-
-    XLSX.openxlsx(outfile) do xf2
-        sh2 = xf2[1]
-        @test isempty(XLSX.tables(sh2))
-        @test !occursin("T[", XLSX.getFormula(sh2, "A4"))
-        @test sh2["A2"] == 1
+        # Cell data survives the delete, as documented.
+        @test sh["A2"] == 100
+        @test sh["C3"] == 110
     end
 
-    isfile(outfile) && rm(outfile)
-end
+    @testset "deletetable! - totals row with a column that has no totals at all" begin
+        # Covers the `c isa EmptyCell` half of the skip condition: column "b"
+        # has a genuinely empty totals cell.
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
 
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "a" => :sum)   # b left with no totals content
 
-# ===========================================================================
-# settotals! — :none
-# ===========================================================================
+        XLSX.deletetable!(sh, "T")
 
-@testset "settotals! - :none clears a column's totals, row survives" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-    XLSX.settotals!(sh, "T", "a" => :sum, "b" => "Label")
-    @test sh["B3"] == "Label"
-
-    t = XLSX.settotals!(sh, "T", "a" => :none, "b" => :none)
-
-    func_a, label_a = _totals_col_attrs(sh, "T", "a")
-    func_b, label_b = _totals_col_attrs(sh, "T", "b")
-    @test isnothing(func_a); @test isnothing(label_a)
-    @test isnothing(func_b); @test isnothing(label_b)
-    @test ismissing(sh["A3"])
-    @test ismissing(sh["B3"])
-
-    # an entirely empty totals row is still a totals row
-    @test t.has_totals_row == true
-    @test t.ref == XLSX.CellRange("A1:B3")
-end
-
-@testset "settotals! - :none on a table with no totals row still adds one" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-
-    t = XLSX.settotals!(sh, "T", "a" => :none)
-    @test t.has_totals_row == true
-    @test t.ref == XLSX.CellRange("A1:B3")
-    @test ismissing(sh["A3"])
-end
-
-@testset "appendtable! - :none columns stay clear after the totals row moves" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-    XLSX.settotals!(sh, "T", "a" => :sum, "b" => :none)
-
-    XLSX.appendtable!(sh, "T", [(3, 4)])
-
-    t = XLSX.table(sh, "T")
-    totals_row = t.ref.stop.row_number
-    @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, XLSX.CellRef(totals_row, 1)))
-    @test ismissing(sh[XLSX.CellRef(totals_row, 2)])
-end
-
-
-# ===========================================================================
-# Workbook-scoped lookups (never compiled -> absent from lcov entirely)
-# ===========================================================================
-
-@testset "tables(xf) - every sheet, in order" begin
-    XLSX.openxlsx("data/two_tables.xlsx") do xf
-        all_t = XLSX.tables(xf)
-
-        @test length(all_t) == 3
-        @test [t.name for t in all_t] == ["IO_Table", "Age_height", "with_total"]
-        @test [t.sheet.name for t in all_t] == ["Sheet1", "Sheet1", "Sheet2"]
-        @test all(t -> t isa XLSX.Table, all_t)
+        @test !occursin("T[", XLSX.getFormula(sh, "A3"))
+        @test ismissing(sh["B3"])
+        @test isempty(XLSX.tables(sh))
     end
-end
 
-@testset "tables(xf) - workbook with no tables" begin
-    xf = XLSX.newxlsx()
-    @test XLSX.tables(xf) == XLSX.Table[]
-end
+    @testset "deletetable! - sheet name needing quoting" begin
+        # Exercises quoteit's quoting branch in the static-range substitution.
+        f = XLSX.newxlsx()
+        sh = XLSX.addsheet!(f, "My Data")
+        sh["A1"] = "amount"
+        sh["A2"] = 10
+        sh["A3"] = 20
 
-@testset "table(xf, name) / table(xf, id)" begin
-    XLSX.openxlsx("data/two_tables.xlsx") do xf
-        t = XLSX.table(xf, "with_total")
-        @test t.sheet.name == "Sheet2"
-        @test t.ref == XLSX.CellRange("A3:C11")
+        XLSX.addtable!(sh, "A1:A3"; name="Amounts")
+        XLSX.settotals!(sh, "Amounts", "amount" => :sum)
+        XLSX.deletetable!(sh, "Amounts")
 
-        @test XLSX.table(xf, "IO_Table").id == 1
-        @test XLSX.table(xf, 2).name == "Age_height"
-        @test XLSX.table(xf, 3).name == "with_total"
-
-        @test_throws KeyError XLSX.table(xf, "NoSuchTable")
-        @test_throws KeyError XLSX.table(xf, 999)
+        fa = XLSX.getFormula(sh, "A4")
+        @test !occursin("Amounts[", fa)
+        @test occursin("My Data", fa)
+        @test occursin("\$A\$2:\$A\$3", fa)
     end
-end
 
-@testset "table(wb, name) / table(wb, id)" begin
-    XLSX.openxlsx("data/two_tables.xlsx") do xf
-        wb = XLSX.get_workbook(xf)
+    @testset "deletetable! - round trip after totals rewrite" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "n"
+        sh["A2"] = 1
+        sh["A3"] = 2
+        XLSX.addtable!(sh, "A1:A3"; name="T")
+        XLSX.settotals!(sh, "T", "n" => :sum)
+        XLSX.deletetable!(sh, "T")
+        SAVE_FILES && save_outfile(f)
 
-        @test XLSX.table(wb, "Age_height").ref == XLSX.CellRange("E1:G5")
-        @test XLSX.table(wb, 1).name == "IO_Table"
+        outfile = "deletetable_totals_roundtrip.xlsx"
+        isfile(outfile) && rm(outfile)
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
 
-        @test_throws KeyError XLSX.table(wb, "NoSuchTable")
-        @test_throws KeyError XLSX.table(wb, 999)
+        XLSX.openxlsx(outfile) do xf2
+            sh2 = xf2[1]
+            @test isempty(XLSX.tables(sh2))
+            @test !occursin("T[", XLSX.getFormula(sh2, "A4"))
+            @test sh2["A2"] == 1
+        end
+
+        isfile(outfile) && rm(outfile)
     end
-end
 
-@testset "workbook-wide lookup agrees with sheet-scoped" begin
-    XLSX.openxlsx("data/two_tables.xlsx") do xf
-        @test tables_equal(XLSX.table(xf, "with_total"),
-                           XLSX.table(xf["Sheet2"], "with_total"))
+
+    # ===========================================================================
+    # settotals! — :none
+    # ===========================================================================
+
+    @testset "settotals! - :none clears a column's totals, row survives" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "a" => :sum, "b" => "Label")
+        @test sh["B3"] == "Label"
+
+        t = XLSX.settotals!(sh, "T", "a" => :none, "b" => :none)
+
+        func_a, label_a = _totals_col_attrs(sh, "T", "a")
+        func_b, label_b = _totals_col_attrs(sh, "T", "b")
+        @test isnothing(func_a); @test isnothing(label_a)
+        @test isnothing(func_b); @test isnothing(label_b)
+        @test ismissing(sh["A3"])
+        @test ismissing(sh["B3"])
+
+        # an entirely empty totals row is still a totals row
+        @test t.has_totals_row == true
+        @test t.ref == XLSX.CellRange("A1:B3")
     end
-end
 
+    @testset "settotals! - :none on a table with no totals row still adds one" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
 
-# ===========================================================================
-# _normalize_append_rows — non-schema Tables.jl sources
-# ===========================================================================
-
-@testset "appendtable! - source without a schema, matched by columnnames" begin
-    sh = fresh_abc()   # table "T" over A1:C2, columns a, b, c
-
-    # scrambled order, and no Tables.schema — forces the columnnames fallback
-    src = NoSchemaCols((c=[30, 60], a=[10, 40], b=[20, 50]))
-    t = XLSX.appendtable!(sh, "T", src)
-
-    @test t.ref == XLSX.CellRange("A1:C4")
-    cols = Tables.columns(t)
-    @test cols.a == [1, 10, 40]
-    @test cols.b == [2, 20, 50]
-    @test cols.c == [3, 30, 60]
-end
-
-@testset "appendtable! - schemaless source with wrong columns still errors" begin
-    sh = fresh_abc()
-    @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", NoSchemaCols((a=[1], b=[2])))
-    @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T",
-        NoSchemaCols((a=[1], b=[2], c=[3], d=[4])))
-end
-
-@testset "appendtable! - nameless Tables.jl source falls back to positional" begin
-    sh = fresh_abc()
-
-    src = NoNamesSource([Any[10, 20, 30], Any[40, 50, 60]])
-    t = XLSX.appendtable!(sh, "T", src)
-
-    @test t.ref == XLSX.CellRange("A1:C4")
-    cols = Tables.columns(t)
-    @test cols.a == [1, 10, 40]
-    @test cols.b == [2, 20, 50]
-    @test cols.c == [3, 30, 60]
-end
-
-
-# ===========================================================================
-# Writability guards
-# ===========================================================================
-
-@testset "read-only file rejects every mutating table call" begin
-    XLSX.openxlsx("data/two_tables.xlsx") do xf
-        sh = xf["Sheet1"]
-
-        @test_throws XLSX.XLSXError XLSX.addtable!(sh, "J1:K2"; name="Nope")
-        @test_throws XLSX.XLSXError XLSX.deletetable!(sh, "IO_Table")
-        @test_throws XLSX.XLSXError XLSX.deletetable!(sh, 1)
-        @test_throws XLSX.XLSXError XLSX.settotals!(sh, "IO_Table", "id" => :sum)
-        @test_throws XLSX.XLSXError XLSX.settotals!(sh, 1, "id" => :sum)
-
-        # nothing was mutated by the failed attempts
-        @test length(XLSX.tables(sh)) == 2
+        t = XLSX.settotals!(sh, "T", "a" => :none)
+        @test t.has_totals_row == true
+        @test t.ref == XLSX.CellRange("A1:B3")
+        @test ismissing(sh["A3"])
     end
-end
+
+    @testset "appendtable! - :none columns stay clear after the totals row moves" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "a" => :sum, "b" => :none)
+
+        XLSX.appendtable!(sh, "T", [(3, 4)])
+
+        t = XLSX.table(sh, "T")
+        totals_row = t.ref.stop.row_number
+        @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, XLSX.CellRef(totals_row, 1)))
+        @test ismissing(sh[XLSX.CellRef(totals_row, 2)])
+    end
 
 
-# ===========================================================================
-# Parser error paths (branch coverage on `cond && throw(...)` one-liners)
-# ===========================================================================
+    # ===========================================================================
+    # Workbook-scoped lookups (never compiled -> absent from lcov entirely)
+    # ===========================================================================
 
-@testset "parse_table_xml - malformed parts" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
+    @testset "tables(xf) - every sheet, in order" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            all_t = XLSX.tables(xf)
 
-    # root element is not <table>
-    @test_throws XLSX.XLSXError XLSX.parse_table_xml(
-        _tbl_doc("<notATable/>"), "bad.xml", sh)
+            @test length(all_t) == 3
+            @test [t.name for t in all_t] == ["IO_Table", "Age_height", "with_total"]
+            @test [t.sheet.name for t in all_t] == ["Sheet1", "Sheet1", "Sheet2"]
+            @test all(t -> t isa XLSX.Table, all_t)
+        end
+    end
 
-    # <table> with no attributes at all
-    @test_throws XLSX.XLSXError XLSX.parse_table_xml(
-        _tbl_doc("""<table xmlns="$_TBL_NS"/>"""), "bad.xml", sh)
+    @testset "tables(xf) - workbook with no tables" begin
+        xf = XLSX.newxlsx()
+        @test XLSX.tables(xf) == XLSX.Table[]
+    end
 
-    # missing each required attribute in turn
-    @test_throws XLSX.XLSXError XLSX.parse_table_xml(
-        _tbl_doc("""<table xmlns="$_TBL_NS" name="T" ref="A1:B2"/>"""), "bad.xml", sh)
-    @test_throws XLSX.XLSXError XLSX.parse_table_xml(
-        _tbl_doc("""<table xmlns="$_TBL_NS" id="1" ref="A1:B2"/>"""), "bad.xml", sh)
-    @test_throws XLSX.XLSXError XLSX.parse_table_xml(
-        _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T"/>"""), "bad.xml", sh)
+    @testset "table(xf, name) / table(xf, id)" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            t = XLSX.table(xf, "with_total")
+            @test t.sheet.name == "Sheet2"
+            @test t.ref == XLSX.CellRange("A3:C11")
 
-    # no <tableColumns> element
-    @test_throws XLSX.XLSXError XLSX.parse_table_xml(
-        _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2"/>"""),
-        "bad.xml", sh)
-end
+            @test XLSX.table(xf, "IO_Table").id == 1
+            @test XLSX.table(xf, 2).name == "Age_height"
+            @test XLSX.table(xf, 3).name == "with_total"
 
-@testset "parse_table_columns - <tableColumn> without a name" begin
-    doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
-        <tableColumns count="1"><tableColumn id="1"/></tableColumns></table>""")
-    @test_throws XLSX.XLSXError XLSX.parse_table_columns(doc)
-end
+            @test_throws KeyError XLSX.table(xf, "NoSuchTable")
+            @test_throws KeyError XLSX.table(xf, 999)
+        end
+    end
 
-@testset "parse_table_columns - non-tableColumn children are skipped" begin
-    doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
-        <tableColumns count="2"><tableColumn id="1" name="a"/>
-        <somethingElse/><tableColumn id="2" name="b"/></tableColumns></table>""")
-    @test XLSX.parse_table_columns(doc) == ["a", "b"]
-end
+    @testset "table(wb, name) / table(wb, id)" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            wb = XLSX.get_workbook(xf)
 
-@testset "parse_table_xml - totalsRowShown without totalsRowCount" begin
-    # Excel's own writer prefers totalsRowCount; hand-authored files often
-    # carry only totalsRowShown. Both must be recognised.
-    f = XLSX.newxlsx()
-    sh = f[1]
-    base = """<tableColumns count="1"><tableColumn id="1" name="a"/></tableColumns>"""
+            @test XLSX.table(wb, "Age_height").ref == XLSX.CellRange("E1:G5")
+            @test XLSX.table(wb, 1).name == "IO_Table"
 
-    shown = XLSX.parse_table_xml(_tbl_doc(
-        """<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:A3" totalsRowShown="1">$base</table>"""),
-        "t.xml", sh)
-    @test shown.has_totals_row == true
+            @test_throws KeyError XLSX.table(wb, "NoSuchTable")
+            @test_throws KeyError XLSX.table(wb, 999)
+        end
+    end
 
-    count_only = XLSX.parse_table_xml(_tbl_doc(
-        """<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:A3" totalsRowCount="1">$base</table>"""),
-        "t.xml", sh)
-    @test count_only.has_totals_row == true
-
-    neither = XLSX.parse_table_xml(_tbl_doc(
-        """<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:A3">$base</table>"""),
-        "t.xml", sh)
-    @test neither.has_totals_row == false
-
-    # displayName defaults to name when absent
-    @test neither.display_name == "T"
-end
-
-@testset "parse_table_style_info - element present but bare" begin
-    doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
-        <tableColumns count="1"><tableColumn id="1" name="a"/></tableColumns>
-        <tableStyleInfo/></table>""")
-    s = XLSX.parse_table_style_info(doc)
-
-    @test !isnothing(s)
-    @test isnothing(s.name)
-    @test s.show_first_column == false
-    @test s.show_last_column == false
-    @test s.show_row_stripes == false
-    @test s.show_column_stripes == false
-end
-
-@testset "parse_table_style_info - absent returns nothing" begin
-    doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
-        <tableColumns count="1"><tableColumn id="1" name="a"/></tableColumns></table>""")
-    @test isnothing(XLSX.parse_table_style_info(doc))
-end
-
-@testset "parse_totals_settings - unrecognized totalsRowFunction errors" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-    XLSX.settotals!(sh, "T", "b" => :sum)
-
-    table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
-    i, j = XLSX.get_idces(table_doc, "table", "tableColumns")
-    node = collect(XLSX.xml_elements(table_doc[i][j]))[2]
-    node["totalsRowFunction"] = "notAFunction"
-    sh.tables_cache = nothing
-
-    @test_throws XLSX.XLSXError XLSX.parse_totals_settings(sh, XLSX.table(sh, "T"))
-end
-
-@testset "parse_totals_settings - custom function with no formula errors" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-    XLSX.settotals!(sh, "T", "b" => (:custom, "SUBTOTAL(109,T[a])"))
-
-    # blank the formula cell while leaving totalsRowFunction="custom" in place
-    sh["B3"] = missing
-    sh.tables_cache = nothing
-
-    @test_throws XLSX.XLSXError XLSX.parse_totals_settings(sh, XLSX.table(sh, "T"))
-end
-
-@testset "parse_totals_settings - label-only column is returned as a String" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"
-    sh["A2"] = 1;   sh["B2"] = 2
-    XLSX.addtable!(sh, "A1:B2"; name="T")
-    XLSX.settotals!(sh, "T", "a" => "Total", "b" => :sum)
-
-    settings = Dict(XLSX.parse_totals_settings(sh, XLSX.table(sh, "T")))
-    @test settings["a"] == "Total"
-    @test settings["b"] === :sum
-end
+    @testset "workbook-wide lookup agrees with sheet-scoped" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            @test tables_equal(XLSX.table(xf, "with_total"),
+                            XLSX.table(xf["Sheet2"], "with_total"))
+        end
+    end
 
 
-# ===========================================================================
-# Small helpers
-# ===========================================================================
+    # ===========================================================================
+    # _normalize_append_rows — non-schema Tables.jl sources
+    # ===========================================================================
 
-@testset "_is_valid_table_display_name" begin
-    @test XLSX._is_valid_table_display_name("Table1")
-    @test XLSX._is_valid_table_display_name("_leading")
-    @test XLSX._is_valid_table_display_name("with.periods")
-    @test XLSX._is_valid_table_display_name("Ünicode")
+    @testset "appendtable! - source without a schema, matched by columnnames" begin
+        sh = fresh_abc()   # table "T" over A1:C2, columns a, b, c
 
-    @test !XLSX._is_valid_table_display_name("")
-    @test !XLSX._is_valid_table_display_name("1leading")
-    @test !XLSX._is_valid_table_display_name("has space")
-    @test !XLSX._is_valid_table_display_name("has-hyphen")
-end
+        # scrambled order, and no Tables.schema — forces the columnnames fallback
+        src = NoSchemaCols((c=[30, 60], a=[10, 40], b=[20, 50]))
+        t = XLSX.appendtable!(sh, "T", src)
 
-@testset "remove_attr! - node with no attributes, and absent key" begin
-    bare = XLSX.XML.Element("x")
-    @test isnothing(XLSX.remove_attr!(bare, "anything"))
+        @test t.ref == XLSX.CellRange("A1:C4")
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10, 40]
+        @test cols.b == [2, 20, 50]
+        @test cols.c == [3, 30, 60]
+    end
 
-    node = XLSX.XML.Element("x"; a="1", b="2")
-    @test isnothing(XLSX.remove_attr!(node, "notThere"))
-    @test XLSX.get_attr(node, "a") == "1"
-    @test XLSX.get_attr(node, "b") == "2"
+    @testset "appendtable! - schemaless source with wrong columns still errors" begin
+        sh = fresh_abc()
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", NoSchemaCols((a=[1], b=[2])))
+        @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T",
+            NoSchemaCols((a=[1], b=[2], c=[3], d=[4])))
+    end
 
-    XLSX.remove_attr!(node, "a")
-    @test XLSX.get_attr(node, "a", "") == ""
-    @test !haskey(XML.attributes(node), "a")
-    @test XLSX.get_attr(node, "b") == "2"end
+    @testset "appendtable! - nameless Tables.jl source falls back to positional" begin
+        sh = fresh_abc()
 
-@testset "TableRow getindex with a vector or range of columns" begin
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = "a"; sh["B1"] = "b"; sh["C1"] = "c"
-    sh["A2"] = 1;   sh["B2"] = 2;   sh["C2"] = 3
+        src = NoNamesSource([Any[10, 20, 30], Any[40, 50, 60]])
+        t = XLSX.appendtable!(sh, "T", src)
 
-    r = first(XLSX.eachtablerow(sh))
-    @test r[1:2] == [1, 2]
-    @test r[[1, 3]] == [1, 3]
-    @test r[1:3] == [1, 2, 3]
-end
+        @test t.ref == XLSX.CellRange("A1:C4")
+        cols = Tables.columns(t)
+        @test cols.a == [1, 10, 40]
+        @test cols.b == [2, 20, 50]
+        @test cols.c == [3, 30, 60]
+    end
 
-@testset "eachtablerow(sheet) - leading row whose cells all read missing" begin
-    # Covers the `isnothing(ci)` skip: row 1 has cells present in the XML but
-    # every value reads back as `missing`, so it can't anchor the table.
-    f = XLSX.newxlsx()
-    sh = f[1]
-    sh["A1"] = 1; sh["B1"] = 2
-    sh["A1"] = missing; sh["B1"] = missing
-    sh["A2"] = "a"; sh["B2"] = "b"
-    sh["A3"] = 1;   sh["B3"] = 2
 
-    dt = XLSX.gettable(sh)
-    @test dt.column_labels == [:a, :b]
-    @test dt.data[1] == [1]
-end
+    # ===========================================================================
+    # Writability guards
+    # ===========================================================================
+
+    @testset "read-only file rejects every mutating table call" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf
+            sh = xf["Sheet1"]
+
+            @test_throws XLSX.XLSXError XLSX.addtable!(sh, "J1:K2"; name="Nope")
+            @test_throws XLSX.XLSXError XLSX.deletetable!(sh, "IO_Table")
+            @test_throws XLSX.XLSXError XLSX.deletetable!(sh, 1)
+            @test_throws XLSX.XLSXError XLSX.settotals!(sh, "IO_Table", "id" => :sum)
+            @test_throws XLSX.XLSXError XLSX.settotals!(sh, 1, "id" => :sum)
+
+            # nothing was mutated by the failed attempts
+            @test length(XLSX.tables(sh)) == 2
+        end
+    end
+
+
+    # ===========================================================================
+    # Parser error paths (branch coverage on `cond && throw(...)` one-liners)
+    # ===========================================================================
+
+    @testset "parse_table_xml - malformed parts" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+
+        # root element is not <table>
+        @test_throws XLSX.XLSXError XLSX.parse_table_xml(
+            _tbl_doc("<notATable/>"), "bad.xml", sh)
+
+        # <table> with no attributes at all
+        @test_throws XLSX.XLSXError XLSX.parse_table_xml(
+            _tbl_doc("""<table xmlns="$_TBL_NS"/>"""), "bad.xml", sh)
+
+        # missing each required attribute in turn
+        @test_throws XLSX.XLSXError XLSX.parse_table_xml(
+            _tbl_doc("""<table xmlns="$_TBL_NS" name="T" ref="A1:B2"/>"""), "bad.xml", sh)
+        @test_throws XLSX.XLSXError XLSX.parse_table_xml(
+            _tbl_doc("""<table xmlns="$_TBL_NS" id="1" ref="A1:B2"/>"""), "bad.xml", sh)
+        @test_throws XLSX.XLSXError XLSX.parse_table_xml(
+            _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T"/>"""), "bad.xml", sh)
+
+        # no <tableColumns> element
+        @test_throws XLSX.XLSXError XLSX.parse_table_xml(
+            _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2"/>"""),
+            "bad.xml", sh)
+    end
+
+    @testset "parse_table_columns - <tableColumn> without a name" begin
+        doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
+            <tableColumns count="1"><tableColumn id="1"/></tableColumns></table>""")
+        @test_throws XLSX.XLSXError XLSX.parse_table_columns(doc)
+    end
+
+    @testset "parse_table_columns - non-tableColumn children are skipped" begin
+        doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
+            <tableColumns count="2"><tableColumn id="1" name="a"/>
+            <somethingElse/><tableColumn id="2" name="b"/></tableColumns></table>""")
+        @test XLSX.parse_table_columns(doc) == ["a", "b"]
+    end
+
+    @testset "parse_table_xml - totalsRowShown without totalsRowCount" begin
+        # Excel's own writer prefers totalsRowCount; hand-authored files often
+        # carry only totalsRowShown. Both must be recognised.
+        f = XLSX.newxlsx()
+        sh = f[1]
+        base = """<tableColumns count="1"><tableColumn id="1" name="a"/></tableColumns>"""
+
+        shown = XLSX.parse_table_xml(_tbl_doc(
+            """<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:A3" totalsRowShown="1">$base</table>"""),
+            "t.xml", sh)
+        @test shown.has_totals_row == true
+
+        count_only = XLSX.parse_table_xml(_tbl_doc(
+            """<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:A3" totalsRowCount="1">$base</table>"""),
+            "t.xml", sh)
+        @test count_only.has_totals_row == true
+
+        neither = XLSX.parse_table_xml(_tbl_doc(
+            """<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:A3">$base</table>"""),
+            "t.xml", sh)
+        @test neither.has_totals_row == false
+
+        # displayName defaults to name when absent
+        @test neither.display_name == "T"
+    end
+
+    @testset "parse_table_style_info - element present but bare" begin
+        doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
+            <tableColumns count="1"><tableColumn id="1" name="a"/></tableColumns>
+            <tableStyleInfo/></table>""")
+        s = XLSX.parse_table_style_info(doc)
+
+        @test !isnothing(s)
+        @test isnothing(s.name)
+        @test s.show_first_column == false
+        @test s.show_last_column == false
+        @test s.show_row_stripes == false
+        @test s.show_column_stripes == false
+    end
+
+    @testset "parse_table_style_info - absent returns nothing" begin
+        doc = _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2">
+            <tableColumns count="1"><tableColumn id="1" name="a"/></tableColumns></table>""")
+        @test isnothing(XLSX.parse_table_style_info(doc))
+    end
+
+    @testset "parse_totals_settings - unrecognized totalsRowFunction errors" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "b" => :sum)
+
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
+        i, j = XLSX.get_idces(table_doc, "table", "tableColumns")
+        node = collect(XLSX.xml_elements(table_doc[i][j]))[2]
+        node["totalsRowFunction"] = "notAFunction"
+        sh.tables_cache = nothing
+
+        @test_throws XLSX.XLSXError XLSX.parse_totals_settings(sh, XLSX.table(sh, "T"))
+    end
+
+    @testset "parse_totals_settings - custom function with no formula errors" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "b" => (:custom, "SUBTOTAL(109,T[a])"))
+
+        # blank the formula cell while leaving totalsRowFunction="custom" in place
+        sh["B3"] = missing
+        sh.tables_cache = nothing
+
+        @test_throws XLSX.XLSXError XLSX.parse_totals_settings(sh, XLSX.table(sh, "T"))
+    end
+
+    @testset "parse_totals_settings - label-only column is returned as a String" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "a" => "Total", "b" => :sum)
+
+        settings = Dict(XLSX.parse_totals_settings(sh, XLSX.table(sh, "T")))
+        @test settings["a"] == "Total"
+        @test settings["b"] === :sum
+    end
+
+
+    # ===========================================================================
+    # Small helpers
+    # ===========================================================================
+
+    @testset "_is_valid_table_display_name" begin
+        @test XLSX._is_valid_table_display_name("Table1")
+        @test XLSX._is_valid_table_display_name("_leading")
+        @test XLSX._is_valid_table_display_name("with.periods")
+        @test XLSX._is_valid_table_display_name("Ünicode")
+
+        @test !XLSX._is_valid_table_display_name("")
+        @test !XLSX._is_valid_table_display_name("1leading")
+        @test !XLSX._is_valid_table_display_name("has space")
+        @test !XLSX._is_valid_table_display_name("has-hyphen")
+    end
+
+    @testset "remove_attr! - node with no attributes, and absent key" begin
+        bare = XLSX.XML.Element("x")
+        @test isnothing(XLSX.remove_attr!(bare, "anything"))
+
+        node = XLSX.XML.Element("x"; a="1", b="2")
+        @test isnothing(XLSX.remove_attr!(node, "notThere"))
+        @test XLSX.get_attr(node, "a") == "1"
+        @test XLSX.get_attr(node, "b") == "2"
+
+        XLSX.remove_attr!(node, "a")
+        @test XLSX.get_attr(node, "a", "") == ""
+        @test !haskey(XML.attributes(node), "a")
+        @test XLSX.get_attr(node, "b") == "2"end
+
+    @testset "TableRow getindex with a vector or range of columns" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"; sh["C1"] = "c"
+        sh["A2"] = 1;   sh["B2"] = 2;   sh["C2"] = 3
+
+        r = first(XLSX.eachtablerow(sh))
+        @test r[1:2] == [1, 2]
+        @test r[[1, 3]] == [1, 3]
+        @test r[1:3] == [1, 2, 3]
+    end
+
+    @testset "eachtablerow(sheet) - leading row whose cells all read missing" begin
+        # Covers the `isnothing(ci)` skip: row 1 has cells present in the XML but
+        # every value reads back as `missing`, so it can't anchor the table.
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = 1; sh["B1"] = 2
+        sh["A1"] = missing; sh["B1"] = missing
+        sh["A2"] = "a"; sh["B2"] = "b"
+        sh["A3"] = 1;   sh["B3"] = 2
+
+        dt = XLSX.gettable(sh)
+        @test dt.column_labels == [:a, :b]
+        @test dt.data[1] == [1]
+    end
+
+    @testset "removes the totals row and shrinks ref" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+
+        @test XLSX.table(sh, "Bulk").ref == XLSX.CellRange("A1:B4")
+        @test XLSX.table(sh, "Bulk").has_totals_row == true
+
+        t = XLSX.removetotals!(sh, "Bulk")
+
+        @test t.ref == XLSX.CellRange("A1:B3")
+        @test t.has_totals_row == false
+
+        # the old totals row cells are cleared
+        @test ismissing(sh["A4"])
+        @test ismissing(sh["B4"])
+
+        # data rows untouched
+        cols = Tables.columns(t)
+        @test cols.item == ["Apples", "Pears"]
+        @test cols.amount == [12, 8]
+    end
+
+    @testset "drops totalsRowShown / totalsRowCount from the table part" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "b" => :sum)
+
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
+        root = XLSX.root_element(table_doc)
+        @test XLSX.get_attr(root, "totalsRowShown", "") != ""
+        @test XLSX.get_attr(root, "totalsRowCount", "") != ""
+
+        XLSX.removetotals!(sh, "T")
+
+        @test XLSX.get_attr(root, "totalsRowShown", "") == ""
+        @test XLSX.get_attr(root, "totalsRowCount", "") == ""
+        @test XLSX.get_attr(root, "ref") == "A1:B2"
+    end
+
+    @testset "drops per-column totalsRowFunction / totalsRowLabel" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "label"; sh["B1"] = "num"; sh["C1"] = "other"
+        sh["A2"] = "x";     sh["B2"] = 10;    sh["C2"] = 20
+        XLSX.addtable!(sh, "A1:C2"; name="T")
+        XLSX.settotals!(sh, "T", "label" => "Total", "num" => :sum)
+
+        XLSX.removetotals!(sh, "T")
+
+        table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
+        i, j = XLSX.get_idces(table_doc, "table", "tableColumns")
+        for node in XLSX.xml_elements(table_doc[i][j])
+            XLSX.localname(node) == "tableColumn" || continue
+            @test XLSX.get_attr(node, "totalsRowFunction", "") == ""
+            @test XLSX.get_attr(node, "totalsRowLabel", "") == ""
+        end
+    end
+
+    @testset "clears a custom totals formula" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "revenue"; sh["B1"] = "cost"; sh["C1"] = "margin"
+        sh["A2"] = 100;       sh["B2"] = 60;    sh["C2"] = 40
+        XLSX.addtable!(sh, "A1:C2"; name="PnL")
+        XLSX.settotals!(sh, "PnL",
+            "revenue" => :sum,
+            "margin"  => (:custom, "SUBTOTAL(109,PnL[revenue])-SUBTOTAL(109,PnL[cost])"),
+        )
+
+        @test !isnothing(XLSX.getFormula(sh, "C3"))
+
+        XLSX.removetotals!(sh, "PnL")
+
+        @test XLSX.table(sh, "PnL").ref == XLSX.CellRange("A1:C2")
+        @test ismissing(sh["A3"])
+        @test ismissing(sh["C3"])
+    end
+
+    @testset "no-op when the table has no totals row" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        t_before = XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        t_after = XLSX.removetotals!(sh, "T")
+
+        @test t_after.ref == t_before.ref
+        @test t_after.has_totals_row == false
+        @test sh["A2"] == 1   # nothing cleared
+        @test sh["B2"] == 2
+    end
+
+    @testset "by id" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        tbl = XLSX.addtable!(sh, "A1:B2"; name="ById")
+        XLSX.settotals!(sh, "ById", "b" => :sum)
+
+        t = XLSX.removetotals!(sh, tbl.id)
+        @test t.has_totals_row == false
+        @test t.ref == XLSX.CellRange("A1:B2")
+    end
+
+    @testset "table not found errors" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 2
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+
+        @test_throws KeyError XLSX.removetotals!(sh, "NoSuchTable")
+    end
+
+    @testset "not writable errors" begin
+        XLSX.openxlsx("data/two_tables.xlsx") do xf   # read-only
+            sh2 = xf["Sheet2"]
+            @test_throws XLSX.XLSXError XLSX.removetotals!(sh2, "with_total")
+        end
+    end
+
+    @testset "settotals! can add a totals row back afterwards" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk")
+
+        XLSX.settotals!(sh, "Bulk", "amount" => :sum)
+        @test XLSX.table(sh, "Bulk").ref == XLSX.CellRange("A1:B4")
+
+        XLSX.removetotals!(sh, "Bulk")
+        @test XLSX.table(sh, "Bulk").ref == XLSX.CellRange("A1:B3")
+
+        # row 4 must be empty again, so settotals! can re-extend into it
+        t = XLSX.settotals!(sh, "Bulk", "amount" => :average)
+        @test t.ref == XLSX.CellRange("A1:B4")
+        @test t.has_totals_row == true
+        @test occursin("SUBTOTAL(101", XLSX.getFormula(sh, "B4"))
+    end
+
+    @testset "appendtable! works after removing totals" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "a"; sh["B1"] = "b"
+        sh["A2"] = 1;   sh["B2"] = 10
+        XLSX.addtable!(sh, "A1:B2"; name="T")
+        XLSX.settotals!(sh, "T", "b" => :sum)
+        XLSX.removetotals!(sh, "T")
+
+        t = XLSX.appendtable!(sh, "T", [(2, 20), (3, 30)])
+        @test t.ref == XLSX.CellRange("A1:B4")
+        @test t.has_totals_row == false
+        @test Tables.columns(t).a == [1, 2, 3]
+    end
+
+    @testset "round trip: remove totals, save and reopen" begin
+        f = XLSX.newxlsx()
+        sh = f[1]
+        sh["A1"] = "item";   sh["B1"] = "amount"
+        sh["A2"] = "Apples"; sh["B2"] = 12
+        sh["A3"] = "Pears";  sh["B3"] = 8
+        XLSX.addtable!(sh, "A1:B3"; name="Bulk", style="TableStyleMedium2")
+        XLSX.settotals!(sh, "Bulk", "item" => "Total", "amount" => :sum)
+        XLSX.removetotals!(sh, "Bulk")
+        SAVE_FILES && save_outfile(f)
+
+        outfile = "removetotals_roundtrip.xlsx"
+        isfile(outfile) && rm(outfile)
+        XLSX.writexlsx(outfile, f, overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
+
+        XLSX.openxlsx(outfile) do xf2
+            t = XLSX.table(xf2[1], "Bulk")
+            @test t.ref == XLSX.CellRange("A1:B3")
+            @test t.has_totals_row == false
+            @test t.style.name == "TableStyleMedium2"   # style survives
+            cols = Tables.columns(t)
+            @test cols.item == ["Apples", "Pears"]
+            @test cols.amount == [12, 8]
+        end
+
+        XLSX.openxlsx(outfile, enable_cache=false) do xf2
+            t = XLSX.table(xf2[1], "Bulk")
+            @test t.ref == XLSX.CellRange("A1:B3")
+            @test t.has_totals_row == false
+        end
+
+        isfile(outfile) && rm(outfile)
+    end
+
+    @testset "real fixture (two_tables.xlsx) - with_total" begin
+        f = XLSX.opentemplate("data/two_tables.xlsx")
+        sh2 = f["Sheet2"]
+
+        t_before = XLSX.table(sh2, "with_total")
+        @test t_before.has_totals_row == true
+        old_stop = t_before.ref.stop.row_number
+
+        t = XLSX.removetotals!(sh2, "with_total")
+
+        @test t.has_totals_row == false
+        @test t.ref.stop.row_number == old_stop - 1
+        @test t.columns == ["start", "stop", "sin"]
+
+        # other sheet's tables unaffected
+        @test length(XLSX.tables(f["Sheet1"])) == 2
+    end
+
 end

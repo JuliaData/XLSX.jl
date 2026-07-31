@@ -39,7 +39,7 @@ export
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
-    addtable!, deletetable!, settotals!, appendtable!
+    addtable!, deletetable!, settotals!, removetotals!, appendtable!
 
 @static if VERSION >= v"1.11"
     eval(Meta.parse("""
