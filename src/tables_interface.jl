@@ -60,7 +60,7 @@ Tables.columnaccess(::Type{DataTable}) = true
 Tables.columns(dt::DataTable) = dt # DataTable implements Tables.AbstractColumns interface
 Tables.schema(dt::DataTable) = Tables.Schema(dt.column_labels, nothing)
 Tables.columnnames(dt::DataTable) = dt.column_labels
-Tables.getcolumn(dt::DataTable, i::Int64) = dt.data[i]
+Tables.getcolumn(dt::DataTable, i::Int) = dt.data[i]
 
 function Tables.getcolumn(dt::DataTable, column_label::Symbol)
     if !haskey(dt.column_label_index, column_label)
@@ -107,7 +107,7 @@ Tables.columnnames(tr::XLSXTableRow) = Symbol.(tr.table.columns)
 
 Tables.getcolumn(tr::XLSXTableRow, nm::Symbol) =
     getdata(tr.table.sheet, CellRef(tr.row_number, _col_start(tr.table) + findfirst(==(nm), Symbol.(tr.table.columns)) - 1))
-Tables.getcolumn(tr::XLSXTableRow, i::Int64) =
+Tables.getcolumn(tr::XLSXTableRow, i::Int) =
     getdata(tr.table.sheet, CellRef(tr.row_number, _col_start(tr.table) + i - 1))
 
 Base.eltype(::Type{XLSXTableRowIterator}) = XLSXTableRow
@@ -187,6 +187,6 @@ See also [`XLSX.table`](@ref), [`XLSX.tables`](@ref), [`XLSX.gettable`](@ref).
 """
 eachtablerow(t::Table) = XLSXTableRowIterator(t)
 
-Base.getindex(r::XLSXTableRow, i::Integer) = Tables.getcolumn(r, Int64(i))
+Base.getindex(r::XLSXTableRow, i::Integer) = Tables.getcolumn(r, Int(i))
 Base.getindex(r::XLSXTableRow, nm::Symbol) = Tables.getcolumn(r, nm)
 Base.getindex(r::XLSXTableRow, nm::AbstractString) = Tables.getcolumn(r, Symbol(nm))
