@@ -1161,7 +1161,9 @@ end
 
         # valid form unaffected
         XLSX.writetable("hint.xlsx"; overwrite=true, REPORT_A=(cols, colnames), REPORT_B=(cols, colnames))
-        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]        isfile("hint.xlsx") && rm("hint.xlsx")
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
+        
+        isfile("hint.xlsx") && rm("hint.xlsx")
     end
 
 end
