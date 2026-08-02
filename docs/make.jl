@@ -23,6 +23,7 @@ makedocs(
             "Files and worksheets" => "api/files.md",
             "Cells and data" => "api/data.md",
             "Formats" => "api/formats.md",
+            "Charts" => "api/charts.md",
         ]
      ],
     checkdocs=:none,

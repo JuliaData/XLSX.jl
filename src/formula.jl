@@ -661,6 +661,19 @@ function get_ext_refs(formula::AbstractString)
         m.match) for m in eachmatch(EXTERNAL_REF_RE, formula)] # workbook_path to be filled in later
 end
 
+function external_link_target(xf::XLSXFile, link_part::String, rId::String)::Union{Nothing,String}
+    dir, fname = _split_zip_path(link_part)
+    rels_path = "$dir/_rels/$fname.rels"
+    internal_xml_file_exists(xf, rels_path) || return nothing
+    for c in xml_elements(xml_root_element(xmlroot(xf, rels_path)))
+        atts = XML.attributes(c)
+        isnothing(atts) && continue
+        get(atts, "Id", nothing) == rId || continue
+        return get(atts, "Target", nothing)
+    end
+    return nothing
+end
+
 # Lookup an external file reference from its index in the workbook's externalReferences
 function get_external_workbook_path(xf::XLSXFile, id::Int)
     wb = get_workbook(xf)
@@ -673,32 +686,33 @@ function get_external_workbook_path(xf::XLSXFile, id::Int)
     k, l = get_idces(extXml[i], "externalBook", "externalBookPr")
     k == j || throw(XLSXError("Something wrong here!"))
 
-    # find the file name directly, if present, searching in order:
+    # find the file name, searching in order:
     # 1. externalBook filename attribute
     # 2. externalBookPr filename attribute
-    # 3. first alternateUrls r:id attribute (to be further resolved via relationships)
-    atts = XML.attributes(extXml[i][k])
-    haskey(atts, "filename") && return atts["filename"] # externalBook filename attribute
+    # 3. externalBook r:id, resolved via the externalLink's own relationships
+    # 4. first alternateUrls r:id, likewise resolved via relationships
+    book_atts = something(XML.attributes(extXml[i][k]), Dict{String,String}())
+    haskey(book_atts, "filename") && return book_atts["filename"] # externalBook filename attribute
+
     if !isnothing(l)
-        atts = XML.attributes(extXml[i][k][l])
-        haskey(atts, "filename") && return atts["filename"] # externalBookPr filename attribute
+        pr_atts = something(XML.attributes(extXml[i][k][l]), Dict{String,String}())
+        haskey(pr_atts, "filename") && return pr_atts["filename"] # externalBookPr filename attribute
     end
+
+    if haskey(book_atts, "r:id")
+        target = external_link_target(xf, rel, book_atts["r:id"])
+        isnothing(target) || return target
+    end
+
     k, l = get_idces(extXml[i], "externalBook", "xxl21:alternateUrls")
     if !isnothing(l)
         atts = XML.attributes(extXml[i][k][l][1]) # prefer the first alternateUrls r:id if multiple
         haskey(atts, "r:id") || throw(XLSXError("Something wrong here!"))
-        rId = atts["r:id"]
-        # now need a second lookup of this further r:id
-        altUrls = xml_elements(xml_root_element(xmlroot(xf, "xl/externalLinks/_rels/$(basename(rel)).rels")))
-        for c in altUrls
-            atts = XML.attributes(c)
-            if haskey(atts, "Id") && atts["Id"] == rId
-                haskey(atts, "Target") || throw(XLSXError("Something wrong here!"))
-                return atts["Target"]
-            end
-        end
+        target = external_link_target(xf, rel, atts["r:id"])
+        isnothing(target) || return target
     end
-    throw(XLSXError("Unreachable reached!"))
+
+    throw(XLSXError("Cannot determine the path of external workbook $id in $(xf.source)."))
 end
 
 function get_formula_from_cache(ws::Worksheet, ref::CellRef)

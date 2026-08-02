@@ -131,7 +131,7 @@ writetable!(sheet::Worksheet, x; kw...) = writetable!(sheet, _table_to_arrays(x)
 Tables.istable(::Type{DataTable}) = true
 Tables.columnaccess(::Type{DataTable}) = true
 Tables.columns(dt::DataTable) = dt # DataTable implements Tables.AbstractColumns interface
-Tables.schema(dt::DataTable) = Tables.Schema(dt.column_labels, nothing)
+Tables.schema(dt::DataTable) = Tables.Schema(dt.column_labels, Type[eltype(c) for c in dt.data])
 Tables.columnnames(dt::DataTable) = dt.column_labels
 Tables.getcolumn(dt::DataTable, i::Int) = dt.data[i]
 

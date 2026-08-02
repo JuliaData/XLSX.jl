@@ -101,6 +101,7 @@ const STRICT_TO_TRANSITIONAL = Dict(
         "http://schemas.openxmlformats.org/markup-compatibility/2006",
 )
 
+@inline get_xlsxfile(xf::XLSXFile)::XLSXFile = xf
 @inline get_xlsxfile(wb::Workbook)::XLSXFile = wb.package
 @inline get_xlsxfile(ws::Worksheet)::XLSXFile = ws.package
 @inline get_workbook(ws::Worksheet)::Workbook = get_xlsxfile(ws).workbook
