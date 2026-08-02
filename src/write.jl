@@ -2029,13 +2029,13 @@ where `data` is a vector of columns and `column_names` is a vector of column lab
 Set `as_table=true` to also turn each sheet's written range into an Excel
 Table. `table_style` (if given) is applied to every table the same way.
 
-When `as_table=true`, each table's name defaults to its sheet's name, if
-that's a valid Excel Table name (no spaces, starts with a letter or
-underscore) and doesn't collide with an existing defined name. Otherwise,
-a warning is issued and an auto-generated name (`"Table1"`, `"Table2"`,
-...) is used instead — sheet names and table names don't share the same
-character rules or, in the case of defined names, the same namespace
-guarantees.
+When `as_table=true`, each table's name defaults to its sheet's name. If that
+isn't a valid Excel Table name it is normalized (spaces and invalid characters
+become underscores) and a warning is issued. If the normalized name collides with
+an existing table or defined name, a second warning is issued and an
+auto-generated name (`"Table1"`, `"Table2"`, ...) is used instead — sheet names
+and table names don't share the same character rules or, in the case of defined
+names, the same namespace guarantees.
 
 Example:
 
@@ -2058,8 +2058,10 @@ julia> XLSX.writetable("report.xlsx"; overwrite=true, as_table=true, table_style
     Because sheet names are given as keywords, they must be valid Julia
     identifiers — `REPORT_A` works, `"Report A"` does not. They also share
     the keyword namespace with this method's own options so, using this method, 
-    a sheet cannot be named `overwrite`, `as_table` or `table_style`. Use the
-    `Vector{Tuple{String, …}}` form for names that don't satisfy this.
+    a sheet cannot be named `overwrite`, `as_table` or `table_style` — such a
+    keyword is taken as the option, and the resulting error will not mention sheet
+    names. Use the `Vector{Tuple{String, …}}` form, or `"Report A" => table` pairs,
+    for names that don't satisfy this.
 
 See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
@@ -2111,13 +2113,13 @@ is a vector of columns and `column_names` is a vector of column labels.
 Set `as_table=true` to also turn each sheet's written range into an Excel
 Table. `table_style` (if given) is applied to every table the same way.
 
-When `as_table=true`, each table's name defaults to its sheet's name, if
-that's a valid Excel Table name (no spaces, starts with a letter or
-underscore) and doesn't collide with an existing defined name. Otherwise,
-a warning is issued and an auto-generated name (`"Table1"`, `"Table2"`,
-...) is used instead — sheet names and table names don't share the same
-character rules or, in the case of defined names, the same namespace
-guarantees.
+When `as_table=true`, each table's name defaults to its sheet's name. If that
+isn't a valid Excel Table name it is normalized (spaces and invalid characters
+become underscores) and a warning is issued. If the normalized name collides with
+an existing table or defined name, a second warning is issued and an
+auto-generated name (`"Table1"`, `"Table2"`, ...) is used instead — sheet names
+and table names don't share the same character rules or, in the case of defined
+names, the same namespace guarantees.
 
 # Example
 ```julia
