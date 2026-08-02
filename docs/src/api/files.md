@@ -6,11 +6,13 @@
 XLSX.XLSXFile
 XLSX.XLSXFile(::Any)
 XLSX.readxlsx
+XLSX.readto
 XLSX.openxlsx
+XLSX.savexlsx
 XLSX.opentemplate
 XLSX.newxlsx
 XLSX.writexlsx
-XLSX.savexlsx
+XLSX.writetable
 ```
 
 ## Files (using FileIO)

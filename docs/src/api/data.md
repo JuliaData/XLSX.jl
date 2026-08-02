@@ -20,8 +20,16 @@ XLSX.getcell
 XLSX.getcellrange
 XLSX.iserror
 XLSX.geterror
+```
+
+## Tables
+```@docs
 XLSX.gettable
 XLSX.readtable
+XLSX.appendtable!
+XLSX.gettransposedtable
+XLSX.readtransposedtable
+XLSX.writetable!
 XLSX.Table
 XLSX.tables
 XLSX.table
@@ -30,12 +38,6 @@ XLSX.deletetable!
 XLSX.settotals!
 XLSX.gettotals
 XLSX.removetotals!
-XLSX.appendtable!
-XLSX.readto
-XLSX.gettransposedtable
-XLSX.readtransposedtable
-XLSX.writetable
-XLSX.writetable!
 ```
 
 ## Cell formulas

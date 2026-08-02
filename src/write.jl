@@ -1973,7 +1973,7 @@ end
 - `as_table` is a `Bool` to turn the written range into an Excel Table if true.
 - `table_name` is the name of the Excel Table (if `as_table=true`) 
 - `table_style` is the Ezxcel style to use for the Table (if `as_table=true`)
-- `totals` defines whether and how Table totals are defined.
+- `totals` defines whether and how Table totals are defined (if `as_table=true`)
 
 For more details on `table_name`, `table_style`, `totals`, refer to 
 [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref) and [`XLSX.settotals!`](@ref)
@@ -2040,17 +2040,26 @@ guarantees.
 Example:
 
 ```julia
-julia> import DataFrames, XLSX
+julia> cols_a = [[10, 20, 30], ["Fist", "Sec", "Third"]];
 
-julia> df1 = DataFrames.DataFrame(COL1=[10,20,30], COL2=["Fist", "Sec", "Third"])
+julia> names_a = ["COL1", "COL2"];
 
-julia> df2 = DataFrames.DataFrame(AA=["aa", "bb"], AB=[10.1, 10.2])
+julia> cols_b = [["aa", "bb"], [10.1, 10.2]];
 
-julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2)
+julia> names_b = ["AA", "AB"];
 
-julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2;
-           as_table=true, table_style="TableStyleMedium2")
+julia> XLSX.writetable("report.xlsx"; REPORT_A=(cols_a, names_a), REPORT_B=(cols_b, names_b))
+
+julia> XLSX.writetable("report.xlsx"; overwrite=true, as_table=true, table_style="TableStyleMedium2",
+           REPORT_A=(cols_a, names_a), REPORT_B=(cols_b, names_b))
 ```
+
+!!! note
+    Because sheet names are given as keywords, they must be valid Julia
+    identifiers — `REPORT_A` works, `"Report A"` does not. They also share
+    the keyword namespace with this method's own options so, using this method, 
+    a sheet cannot be named `overwrite`, `as_table` or `table_style`. Use the
+    `Vector{Tuple{String, …}}` form for names that don't satisfy this.
 
 See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
@@ -2065,8 +2074,14 @@ function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     wb = get_workbook(xf)
     is_first = true
 
-    for (sheetname, (data, column_names)) in kw
+    for (sheetname, spec) in kw
+        (spec isa Tuple{Any,Any} && length(spec) == 2) || throw(XLSXError(
+            "Keyword `$sheetname` must be a `(data, columnnames)` tuple, got `$(typeof(spec))`. " *
+            "This form takes columns and labels, not a table — to write a Tables.jl source " *
+            "directly, use `writetable(filename, :$sheetname => table)`."))
         sheetname_str = string(sheetname)
+        data, column_names = spec
+ 
         if is_first
             sheet = xf[1]
             renamesheet!(sheet, sheetname_str)

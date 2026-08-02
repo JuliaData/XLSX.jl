@@ -1242,34 +1242,6 @@ function internal_xml_file_read(xf::XLSXFile, filename::String)
     val = get_xml_data(xf,filename)
     return val::XML.Node
 end
-#=
-function internal_xml_file_read(xf::XLSXFile, zip_io::Union{Nothing,ZipArchives.ZipReader}, filename::String)
-
-    !internal_xml_file_exists(xf, filename) && throw(XLSXError("Couldn't find $filename in $(xf.source)."))
-
-    if !internal_xml_file_isread(xf, filename)
-
-        try
-            bytes = ZipArchives.zip_readentry(zip_io, filename)
-            strip_bom_and_lf!(bytes)
-            xml_str = String(bytes)
-            if filename == "xl/sharedStrings.xml"
-                xf.data[filename] = XML.Element("sst")  # placeholder; SST is loaded via sst_load!
-            elseif occursin(r"xl/worksheets/sheet\d*\.xml", filename)
-                xf.data[filename], _ = splitNode(xml_str, "sheetData")
-            else
-                xf.data[filename] = parse(xml_str, XML.Node)
-            end
-            xf.files[filename] = true # set file as read
-        catch err
-            throw(XLSXError("Failed to parse internal XML file `$filename`"))
-        end
-
-    end
-
-    return xf.data[filename]
-end
-=#
 
 # Utility method to find the XMLDocument associated with a given package filename.
 # Returns xl.data[filename] if it exists. Throws an error if it doesn't.
@@ -1291,7 +1263,7 @@ end
     readdata(source, sheetref)
 
 Return a scalar, vector or matrix with values from a spreadsheet file.
-'ref' can be a defined name, a cell reference or a cell, column, row 
+`ref`` can be a defined name, a cell reference or a cell, column, row 
 or non-contiguous range.
 
 
