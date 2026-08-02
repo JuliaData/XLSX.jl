@@ -12,47 +12,57 @@ Tables.getcolumn(tr::TableRow, i::Integer) = getdata(tr, i)
 _as_vector(y::AbstractVector) = y
 _as_vector(y) = collect(y)
 
+_sheetname_string(name::AbstractString) = String(name)
+_sheetname_string(name::Symbol) = String(name)
+_sheetname_string(name) = throw(XLSXError(
+    "Sheet name must be an `AbstractString` or `Symbol`, got `$(typeof(name))`. " *
+    "Write sheets as `\"Sheet1\" => table` or `:Sheet1 => table`."))
+
+# Returns `nothing` if `t` is a usable `(sheetname, data, columnnames)` spec,
+# otherwise a phrase describing why it isn't. Shared by `_is_sheet_spec_vector`
+# and `_shape_hint` so the guard and the diagnostic can never disagree.
+function _sheet_spec_problem(t)
+    t isa Tuple || return "is a `$(typeof(t))`, not a tuple"
+    length(t) == 3 || return "is a $(length(t))-tuple, not a 3-tuple"
+    (t[1] isa AbstractString || t[1] isa Symbol) ||
+        return "has a sheet name of type `$(typeof(t[1]))`, which is neither `AbstractString` nor `Symbol`"
+    return nothing
+end
+
+_is_sheet_spec_vector(x) =
+    x isa AbstractVector && !isempty(x) && all(t -> isnothing(_sheet_spec_problem(t)), x)
+
+# The element type must be pinned: the result is re-dispatched through
+# `writetable`, and an inferred `Vector{Any}` would land back in the fallback
+# method and loop.
+_normalize_sheet_specs(x) = Tuple{String,Vector{Any},Vector{String}}[
+    (_sheetname_string(name), Any[c for c in data], [string(l) for l in labels])
+    for (name, data, labels) in x
+]
+
 function _shape_hint(x)
-    if x isa AbstractVector && !isempty(x) && all(y -> y isa Tuple, x)
-        return "\nThis looks like a vector of `(sheetname, data, columnnames)` tuples, but its " *
-               "element type is `$(eltype(x))`. That form requires " *
-               "`Vector{Tuple{String, S, Vector{T}}}` where `S<:Vector` and `T` is `String` or `Symbol`: " *
-               "the sheet name must be a `String` (not a `Symbol`), the data must be a `Vector` of columns " *
-               "(e.g. `collect(eachcol(df))`, not `eachcol(df)`), and the column names a `Vector{String}` or `Vector{Symbol}`."
+    if x isa AbstractVector && !isempty(x) && any(t -> t isa Tuple, x)
+        i = findfirst(t -> !isnothing(_sheet_spec_problem(t)), x)
+        isnothing(i) && return ""
+        return "\nThis looks like a vector of `(sheetname, data, columnnames)` tuples, " *
+               "but element $i " * _sheet_spec_problem(x[i]) * "."
     elseif x isa Pair
-        return "\n`writetable` accepts `name => table` pairs where `name` is an `AbstractString` " *
-               "or `Symbol` (got `$(typeof(x.first))`). `writetable!` writes into a sheet that " *
-               "already exists, so it takes the table alone."
+        return "\n`writetable` accepts `name => table` pairs where `name` is an " *
+               "`AbstractString` or `Symbol` (got `$(typeof(x.first))`). `writetable!` " *
+               "writes into a sheet that already exists, so it takes the table alone."
     end
     return ""
 end
 
 function _table_to_arrays(x)
     if Tables.istable(x)
-            columns = Any[_as_vector(c) for c in Tables.Columns(x)]
-            colnames = collect(Symbol, Tables.columnnames(x))
-            return columns, colnames
+        columns = Any[_as_vector(c) for c in Tables.Columns(x)]
+        colnames = collect(Symbol, Tables.columnnames(x))
+        return columns, colnames
     else
-        # throw(XLSXError("$(typeof(x)) does not implement Tables.jl interface."))
         throw(XLSXError("$(typeof(x)) does not implement Tables.jl interface." * _shape_hint(x)))
     end
 end
-
-function _is_sheet_spec_vector(x)
-    x isa AbstractVector && !isempty(x) || return false
-    return all(x) do t
-        t isa Tuple && length(t) == 3 && (t[1] isa AbstractString || t[1] isa Symbol)
-    end
-end
-
-_normalize_sheet_specs(x) =
-    [(_sheetname_string(name), _as_vector(data), [string(n) for n in names]) for (name, data, names) in x]
-
-_sheetname_string(name::AbstractString) = String(name)
-_sheetname_string(name::Symbol) = String(name)
-_sheetname_string(name) = throw(XLSXError(
-    "Sheet name must be an `AbstractString` or `Symbol`, got `$(typeof(name))`. " *
-    "Write sheets as `\"Sheet1\" => table` or `:Sheet1 => table`."))
 
 """
     writetable(filename, table; [overwrite], [sheetname])
@@ -61,11 +71,16 @@ Write a Tables.jl compatible `table` as an Excel file with the specified file na
 
 If a file with the given name already exists, writing will fail unless `overwrite=true` is specified, in which 
 case the existing file will be overwritten.
+
+This method also accepts a vector of `(sheetname, data, columnnames)` tuples, writing
+one worksheet per element. Sheet names may be `AbstractString` or `Symbol`, `data` may
+be any iterable of columns, and `columnnames` are converted to strings.
 """
 function writetable(filename::Union{AbstractString,IO}, x; kw...)
-    Tables.istable(x) && return writetable(filename, _table_to_arrays(x)...; kw...)
-    _is_sheet_spec_vector(x) && return writetable(filename, _normalize_sheet_specs(x); kw...)
-    throw(XLSXError("$(typeof(x)) does not implement Tables.jl interface." * _shape_hint(x)))
+    if !Tables.istable(x) && _is_sheet_spec_vector(x)
+        return writetable(filename, _normalize_sheet_specs(x); kw...)
+    end
+    return writetable(filename, _table_to_arrays(x)...; kw...)
 end
 
 """
@@ -90,14 +105,16 @@ julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, :REPORT_B => df2)
 julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, :REPORT_B => df2;
            overwrite=true, as_table=true, table_style="TableStyleMedium2")
 ```
-
 """
-function writetable(filename::Union{AbstractString, IO}, tables::Vector{<:Pair}; kw...)
-    data = [(_sheetname_string(name), _table_to_arrays(x)...) for (name, x) in tables]
+function writetable(filename::Union{AbstractString,IO}, tables::Vector{<:Pair}; kw...)
+    data = Tuple{String,Vector{Any},Vector{Symbol}}[
+        (_sheetname_string(name), _table_to_arrays(x)...) for (name, x) in tables
+    ]
     return writetable(filename, data; kw...)
 end
 
-writetable(filename::Union{AbstractString, IO}, tables::Pair{<:Union{AbstractString,Symbol},<:Any}...; kw...) = writetable(filename, collect(tables); kw...)
+writetable(filename::Union{AbstractString,IO}, tables::Pair{<:Union{AbstractString,Symbol},<:Any}...; kw...) =
+    writetable(filename, collect(tables); kw...)
 
 """
     writetable!(sheet::Worksheet, table; anchor_cell::CellRef=CellRef("A1")))

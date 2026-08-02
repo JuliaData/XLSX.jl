@@ -5,9 +5,7 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
-- `writetable` now accepts `Symbol` sheet names in its `name => table` forms,
-  e.g. `writetable("report.xlsx", :REPORT_A => df1, :REPORT_B => df2)`, and
-  accepts any `AbstractString` (previously `String` only).
+- Tidy `writetable` API and docs (non-breaking)
   
 ## [v0.12.2](https://github.com/JuliaData/XLSX.jl/tree/v0.12.2) - 2026-07-31
 - Add read and write support for native Excel tables

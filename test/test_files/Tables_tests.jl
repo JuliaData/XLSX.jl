@@ -1154,11 +1154,10 @@ end
             which(XLSX.writetable, Tuple{String,Vector{Any},Vector{String}})
 
         @test throws_with(() -> XLSX.writetable("hint.xlsx"; Sales=df),
-                        "must be a `(data, columnnames)` tuple", "writetable(filename, :Sales => table)")
+                      "must be a `(data, columnnames)` tuple", "writetable(filename, :Sales => table)")
 
         @test throws_with(() -> XLSX.writetable("hint.xlsx"; Sales=(cols, colnames, 42)),
-                        "must be a `(data, columnnames)` tuple")
-
+                      "must be a `(data, columnnames)` tuple")
         # valid form unaffected
         XLSX.writetable("hint.xlsx"; overwrite=true, REPORT_A=(cols, colnames), REPORT_B=(cols, colnames))
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]

@@ -2066,6 +2066,13 @@ See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals
 function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing, kw...)
 
+    for (sheetname, spec) in kw # do this before confirming isfile - ordering pinned in tests
+        spec isa Tuple{Any,Any} || throw(XLSXError(
+            "Keyword `$sheetname` must be a `(data, columnnames)` tuple, got `$(typeof(spec))`. " *
+            "This form takes columns and labels, not a table — to write a Tables.jl source " *
+            "directly, use `writetable(filename, :$sheetname => table)`."))
+    end
+
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
@@ -2075,13 +2082,9 @@ function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     is_first = true
 
     for (sheetname, spec) in kw
-        (spec isa Tuple{Any,Any} && length(spec) == 2) || throw(XLSXError(
-            "Keyword `$sheetname` must be a `(data, columnnames)` tuple, got `$(typeof(spec))`. " *
-            "This form takes columns and labels, not a table — to write a Tables.jl source " *
-            "directly, use `writetable(filename, :$sheetname => table)`."))
         sheetname_str = string(sheetname)
         data, column_names = spec
- 
+
         if is_first
             sheet = xf[1]
             renamesheet!(sheet, sheetname_str)
