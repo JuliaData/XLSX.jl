@@ -11,16 +11,6 @@
 # never re-read from the worksheet, so it reflects the values as of the last time
 # Excel saved the file.
 #
-# Include after images.jl (reuses `_drawing_path_for_sheet`, `_parse_cell_marker`,
-# `elements_with_tag`, `get_attr`, `root_element`) and after cell.jl
-# (`ERROR_STRING_TO_CODE`, `get_error_string`).
-#
-# Traversal is done with the XML.jl API directly - `XML.eachelement` (a lazy
-# filter, so scanning for one child allocates nothing) and `XML.is_simple_value`
-# (text of a leaf element, handling CData). Only `first_element_with_tag`,
-# `child_text`, `child_val` and `get_attr_localname` are defined here, each
-# because XML.jl has no equivalent and the package has no existing one.
-#
 
 const REL_CHART =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart"
@@ -44,7 +34,7 @@ const ChartAnchor = NamedTuple{
     Tuple{String,Union{Nothing,String},Union{Nothing,String},String},
 }
 
-const ChartRange = Union{Nothing,SheetCellRef,SheetCellRange,SheetColumnRange,NonContiguousRange}
+const ChartRange = Union{Nothing,SheetCellRef,SheetCellRange,SheetRowRange,SheetColumnRange,NonContiguousRange}
 
 const ChartRanges = @NamedTuple{
     idx::Int,
@@ -658,7 +648,7 @@ getChartData(x::Union{Worksheet,XLSXFile}, name::AbstractString; kw...)::DataTab
     getChartData(getChart(x, name; kw...))
 
 """
-    chart_range(r) -> Union{Nothing,SheetCellRef,SheetCellRange,SheetColumnRange,NonContiguousRange}
+    chart_range(r) -> Union{Nothing,SheetCellRef,SheetCellRange,SheetRowRange,SheetColumnRange,NonContiguousRange}
 
 The source range of a `ChartRef`, or `nothing` when it has no addressable one:
 literal series, external-workbook references, and defined names.
@@ -673,7 +663,6 @@ function chart_range(r::Union{Nothing,ChartRef})
     occursin(',', s) && return NonContiguousRange(String(s))
     (is_valid_fixed_sheet_cellrange(s) || is_valid_sheet_cellrange(s)) && return SheetCellRange(s)
     (is_valid_fixed_sheet_cellname(s)  || is_valid_sheet_cellname(s))  && return SheetCellRef(s)
-    is_valid_sheet_column_range(s) && return SheetColumnRange(s)
     (is_valid_fixed_sheet_column_range(s) || is_valid_sheet_column_range(s)) && return SheetColumnRange(s)
     (is_valid_fixed_sheet_row_range(s)    || is_valid_sheet_row_range(s))    && return SheetRowRange(s)
     return nothing                                      # defined name, or unrecognised
@@ -745,8 +734,9 @@ getChartRanges(c::Chart)::Vector{ChartRanges} =
 getChartRanges(x::Union{Worksheet,XLSXFile}, name::AbstractString)::Vector{ChartRanges} =
     getChartRanges(getChart(x, name; cache=false))
 
-    getChartRanges(x::Union{Worksheet,XLSXFile}) =
+getChartRanges(x::Union{Worksheet,XLSXFile}) =
     [(chart = c.name, ranges = getChartRanges(c)) for c in getCharts(x; cache=false)]
+
 # ===========================================================================
 # Display
 # ===========================================================================

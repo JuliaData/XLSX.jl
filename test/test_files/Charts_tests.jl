@@ -14,6 +14,14 @@
     @testset "basic chart" begin  # chart_basic.xlsx
         f = XLSX.readxlsx(joinpath(data_directory, "chart_basic.xlsx"))
 
+        c = XLSX.getChart(f["Data"], "chart1")
+        @test occursin("chart1", repr(c))
+        @test occursin("series", repr(MIME"text/plain"(), c))
+        @test occursin("ChartSeries", repr(c.series[1]))
+        @test occursin("pts", repr(MIME"text/plain"(), c.series[1].values))
+        @test occursin("pts", sprint(show, c.series[1].values))
+        @test occursin("categories", repr(MIME"text/plain"(), c.series[1]))
+
         charts = XLSX.getCharts(f)
         @test length(charts) == 1
 
@@ -363,4 +371,111 @@
         rm(tmp; force=true)
     end
 
+    @testset "chart_range" begin
+        cr(ref) = XLSX.chart_range(XLSX.ChartRef(:num, ref, nothing, 0, Any[], Dict{Int,UInt64}()))
+
+        @test cr(nothing) === nothing
+        @test XLSX.chart_range(nothing) === nothing
+        @test cr("[1]Sheet1!\$A\$1:\$A\$5") === nothing        # external
+        @test cr("MyDefinedName") === nothing                  # defined name
+        @test cr("Sheet1!\$A\$1:\$A\$5") isa XLSX.SheetCellRange
+        @test cr("Sheet1!A1:A5")         isa XLSX.SheetCellRange
+        @test cr("Sheet1!\$A\$1")        isa XLSX.SheetCellRef
+        @test cr("Sheet1!A:C")           isa XLSX.SheetColumnRange
+        @test cr("(Sheet1!\$A\$1:\$A\$3,Sheet1!\$C\$1:\$C\$3)") isa XLSX.NonContiguousRange
+        @test cr("Sheet1!\$A\$1:\$A\$3,Sheet1!\$C\$1:\$C\$3")   isa XLSX.NonContiguousRange
+    end
+    @testset "row-range source (ChartRange union)" begin
+        rr(ref) = XLSX.ChartRef(:num, ref, nothing, 0, Any[], Dict{Int,UInt64}())
+
+        @test XLSX.chart_range(rr("Sheet1!\$2:\$5")) isa XLSX.SheetRowRange
+        @test XLSX.chart_range(rr("Sheet1!2:5"))     isa XLSX.SheetRowRange
+        @test XLSX.chart_range(rr("Sheet1!\$A:\$C")) isa XLSX.SheetColumnRange
+
+        # the conversion that used to throw
+        s = XLSX.ChartSeries(0, 0, :barChart, "S", nothing,
+                            rr("Sheet1!\$2:\$2"), rr("Sheet1!\$3:\$3"), nothing)
+        c = XLSX.Chart("xl/charts/chart1.xml", "chart1", nothing, nothing, nothing, nothing,
+                    nothing, [:barChart], [s])
+        ranges = XLSX.getChartRanges(c)
+        @test ranges[1].categories isa XLSX.SheetRowRange
+        @test ranges[1].values     isa XLSX.SheetRowRange
+    end
+
+    @testset "ChartRange union covers chart_range" begin
+        @test XLSX.SheetCellRef       <: XLSX.ChartRange
+        @test XLSX.SheetCellRange     <: XLSX.ChartRange
+        @test XLSX.SheetColumnRange   <: XLSX.ChartRange
+        @test XLSX.SheetRowRange      <: XLSX.ChartRange
+        @test XLSX.NonContiguousRange <: XLSX.ChartRange
+        @test Nothing                 <: XLSX.ChartRange
+    end
+
+    @testset "unique labels" begin
+        labels = Symbol[]
+        @test XLSX.unique_label!(labels, "Sales") === :Sales
+        @test XLSX.unique_label!(labels, "Sales") === :Sales_2
+        @test XLSX.unique_label!(labels, "Sales") === :Sales_3
+        @test XLSX.unique_label!(labels, "") === :column
+    end
+
+    @testset "getChartRanges dispatch" begin
+        f = XLSX.readxlsx(joinpath(data_directory, "chart_bubble.xlsx"))
+
+        # workbook-wide form: Vector{@NamedTuple{chart::String, ranges::Vector{ChartRanges}}}
+        all_f = XLSX.getChartRanges(f)
+        @test all_f isa Vector
+        @test length(all_f) == 2
+        @test all(x -> x isa NamedTuple{(:chart, :ranges)}, all_f)
+        @test all(x -> x.chart isa String, all_f)
+        @test all(x -> x.ranges isa Vector{XLSX.ChartRanges}, all_f)
+
+        # follows getCharts, per the docstring
+        @test [x.chart for x in all_f] == [c.name for c in XLSX.getCharts(f; cache=false)]
+
+        # identify the two charts by type rather than by part name
+        charts = XLSX.getCharts(f; cache=false)
+        bub = charts[findfirst(c -> :bubbleChart in c.charttypes, charts)]
+        pie = charts[findfirst(c -> :pieChart    in c.charttypes, charts)]
+
+        # --- (x, name) form -----------------------------------------------------
+        rb = XLSX.getChartRanges(f, bub.name)
+        rp = XLSX.getChartRanges(f, pie.name)
+        @test rb isa Vector{XLSX.ChartRanges}
+        @test rp isa Vector{XLSX.ChartRanges}
+
+        # parallel to c.series, document order
+        @test length(rb) == length(bub.series)
+        @test [x.idx  for x in rb] == [s.idx  for s in bub.series]
+        @test [x.name for x in rb] == [s.name for s in bub.series]
+
+        # every field is a member of the declared union
+        for x in vcat(rb, rp), fld in (:categories, :values, :bubble_sizes)
+            @test getfield(x, fld) isa XLSX.ChartRange
+        end
+
+        # the docstring's specific claim: bubble_sizes only on bubble charts
+        @test any(!isnothing(x.bubble_sizes) for x in rb)
+        @test all( isnothing(x.bubble_sizes) for x in rp)
+
+        # bubble uses xVal/yVal, which land in categories/values
+        @test all(!isnothing(x.categories) for x in rb)
+        @test all(!isnothing(x.values)     for x in rb)
+
+        # name forms getChart accepts
+        @test XLSX.getChartRanges(f, bub.name * ".xml") == rb
+
+        @test_throws XLSX.XLSXError XLSX.getChartRanges(f, "nosuchchart")
+
+        # --- worksheet form agrees with the workbook form ------------------------
+        ws = f[bub.sheet]
+        all_ws = XLSX.getChartRanges(ws)
+        @test all(x -> x isa NamedTuple{(:chart, :ranges)}, all_ws)
+        @test issubset(Set(x.chart for x in all_ws), Set(x.chart for x in all_f))
+
+        i = findfirst(x -> x.chart == bub.name, all_f)
+        @test !isnothing(i)
+        @test all_f[i].ranges == rb
+
+    end
 end
