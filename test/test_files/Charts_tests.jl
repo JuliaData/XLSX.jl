@@ -311,7 +311,7 @@
         f = XLSX.readxlsx(joinpath(data_directory, "chart_external.xlsx"))
 
         function external_column(xf, col::String)
-            root = XLSX.root_element(xf.data["xl/externalLinks/externalLink1.xml"])
+            root = XLSX.xml_root_element(xf.data["xl/externalLinks/externalLink1.xml"])
             book = XLSX.first_element_with_tag(root, "externalBook")
             dataset = XLSX.first_element_with_tag(book, "sheetDataSet")
             sheet = XLSX.first_element_with_tag(dataset, "sheetData")

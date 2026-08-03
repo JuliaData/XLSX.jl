@@ -147,4 +147,42 @@
         @test imgs[1].sheet == "Sheet2"
         SAVE_FILES && save_outfile(xf)
     end
+
+    # Regression: the relationships namespace need not be bound to the prefix `r`.
+    # `_find_blip_rid` matched the literal string "r:embed", so a drawing binding
+    # that namespace to any other prefix silently yielded no images.
+    @testset "blip rId with non-standard namespace prefix" begin
+        xf, s = fresh()
+        XLSX.addImage(s, "B2", png)
+
+        path = "xl/drawings/drawing1.xml"
+        doctored = replace(XML.write(xf.data[path]),
+                           "xmlns:r=" => "xmlns:rel=",
+                           "r:embed=" => "rel:embed=")
+
+        # Guard: fail loudly if the rewrite silently did nothing.
+        @test occursin("rel:embed=", doctored)
+        @test !occursin("r:embed", doctored)
+
+        xf.data[path] = parse(doctored, XML.Node)
+
+        imgs = XLSX.getImages(s)
+        @test length(imgs) == 1
+        @test startswith(imgs[1].media_name, "image")
+
+        # ... and through a full write/read cycle
+        tmp = tempname() * ".xlsx"
+        XLSX.writexlsx(tmp, xf)
+        SAVE_FILES && save_outfile(tmp)
+        imgs2 = XLSX.getImages(XLSX.readxlsx(tmp))
+        @test length(imgs2) == 1
+        @test imgs2[1].sheet == "Sheet1"
+    end
+    @testset "prefixed attribute lookup" begin
+        blip = parse("""<a:blip xmlns:rel="$(XLSX.NS_R)" rel:embed="rId7" cstate="print"/>""", XML.Node)[end]
+        @test XLSX.get_prefixed_attr(blip, "embed") == "rId7"
+        @test XLSX.get_prefixed_attr(blip, "cstate") === nothing   # unprefixed: skipped by design
+        @test XLSX.get_prefixed_attr(blip, "id") === nothing
+    end
+    
 end

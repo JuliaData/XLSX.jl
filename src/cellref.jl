@@ -688,8 +688,10 @@ function is_valid_sheet_row_range(n::AbstractString) :: Bool
 end
 
 const RGX_SHEET_PREFIX = r"^.+!"
-const RGX_CELLNAME_RIGHT_FIXED = r"\$[A-Z]+\$[0-9]+$"
-const RGX_SHEET_CELLNAME_RIGHT_FIXED = r"\$[A-Z]+\$[0-9]+:\$[A-Z]+\$[0-9]+$"
+const RGX_SHEET_CELLNAME_RIGHT_FIXED = r"\$[A-Z]+\$[0-9]+$"
+const RGX_SHEET_CELLRANGE_RIGHT_FIXED = r"\$[A-Z]+\$[0-9]+:\$[A-Z]+\$[0-9]+$"
+const RGX_SHEET_COLUMN_RANGE_RIGHT_FIXED = r"\$[A-Z]?[A-Z]?[A-Z]:\$[A-Z]?[A-Z]?[A-Z]$"
+const RGX_SHEET_ROW_RANGE_RIGHT_FIXED    = r"\$[1-9][0-9]*:\$[1-9][0-9]*$"
 
 function parse_sheetname_from_sheetcell_name(n::AbstractString) :: SubString
     !occursin(RGX_SHEET_PREFIX, n) && throw(XLSXError("$n is not a SheetCell reference."))
@@ -702,13 +704,13 @@ function SheetCellRef(n::AbstractString)
     local cellref::CellRef
 
     if is_valid_fixed_sheet_cellname(n)
-        fixed_cellname = match(RGX_CELLNAME_RIGHT_FIXED, n).match
+        fixed_cellname = match(RGX_SHEET_CELLNAME_RIGHT_FIXED, n).match
         cellref = CellRef(replace(fixed_cellname, "\$" => ""))
     else
         !is_valid_sheet_cellname(n) && throw(XLSXError("$n is not a valid SheetCellRef."))
         cellref = CellRef(match(RGX_SHEET_CELLNAME_RIGHT, n).match)
     end
-    sheetname = parse_sheetname_from_sheetcell_name(n)
+    sheetname = unquoteit(parse_sheetname_from_sheetcell_name(n))
     return SheetCellRef(sheetname, cellref)
 end
 
@@ -716,28 +718,45 @@ function SheetCellRange(n::AbstractString)
     local cellrange::CellRange
 
     if is_valid_fixed_sheet_cellrange(n)
-        fixed_cellrange = match(RGX_SHEET_CELLNAME_RIGHT_FIXED, n).match
+        fixed_cellrange = match(RGX_SHEET_CELLRANGE_RIGHT_FIXED, n).match
         cellrange = CellRange(replace(fixed_cellrange, "\$" => ""))
     else
         !is_valid_sheet_cellrange(n) && throw(XLSXError("$n is not a valid SheetCellRange."))
         cellrange = CellRange(match(RGX_SHEET_CELLRANGE_RIGHT, n).match)
     end
 
-    sheetname = parse_sheetname_from_sheetcell_name(n)
+    sheetname = unquoteit(parse_sheetname_from_sheetcell_name(n))
     return SheetCellRange(sheetname, cellrange)
 end
 
 function SheetColumnRange(n::AbstractString)
-    !is_valid_sheet_column_range(n) && throw(XLSXError("$n is not a valid SheetColumnRange."))
-    column_range = match(RGX_SHEET_COLUMN_RANGE_RIGHT, n).match
-    sheetname = parse_sheetname_from_sheetcell_name(n)
-    return SheetColumnRange(sheetname, ColumnRange(column_range))
+    local column_range::ColumnRange
+
+    if is_valid_fixed_sheet_column_range(n)
+        fixed = match(RGX_SHEET_COLUMN_RANGE_RIGHT_FIXED, n).match
+        column_range = ColumnRange(replace(fixed, "\$" => ""))
+    else
+        !is_valid_sheet_column_range(n) && throw(XLSXError("$n is not a valid SheetColumnRange."))
+        column_range = ColumnRange(match(RGX_SHEET_COLUMN_RANGE_RIGHT, n).match)
+    end
+
+    sheetname = unquoteit(parse_sheetname_from_sheetcell_name(n))
+    return SheetColumnRange(sheetname, column_range)
 end
+
 function SheetRowRange(n::AbstractString)
-    !is_valid_sheet_row_range(n) && throw(XLSXError("$n is not a valid SheetRowRange."))
-    row_range = match(RGX_SHEET_ROW_RANGE_RIGHT, n).match
-    sheetname = parse_sheetname_from_sheetcell_name(n)
-    return SheetRowRange(sheetname, RowRange(row_range))
+    local row_range::RowRange
+
+    if is_valid_fixed_sheet_row_range(n)
+        fixed = match(RGX_SHEET_ROW_RANGE_RIGHT_FIXED, n).match
+        row_range = RowRange(replace(fixed, "\$" => ""))
+    else
+        !is_valid_sheet_row_range(n) && throw(XLSXError("$n is not a valid SheetRowRange."))
+        row_range = RowRange(match(RGX_SHEET_ROW_RANGE_RIGHT, n).match)
+    end
+
+    sheetname = unquoteit(parse_sheetname_from_sheetcell_name(n))
+    return SheetRowRange(sheetname, row_range)
 end
 
 # Named ranges
@@ -745,11 +764,15 @@ const RGX_FIXED_CELLNAME = r"^\$[A-Z]+\$[0-9]+$"
 const RGX_FIXED_CELLRANGE = r"^\$[A-Z]+\$[0-9]+:\$[A-Z]+\$[0-9]+$"
 const RGX_FIXED_SHEET_CELLNAME = r"^.+!\$[A-Z]+\$[0-9]+$"
 const RGX_FIXED_SHEET_CELLRANGE = r"^.+!\$[A-Z]+\$[0-9]+:\$[A-Z]+\$[0-9]+$"
+const RGX_FIXED_SHEET_COLUMN_RANGE = r"^.+!\$[A-Z]?[A-Z]?[A-Z]:\$[A-Z]?[A-Z]?[A-Z]$"
+const RGX_FIXED_SHEET_ROW_RANGE    = r"^.+!\$[1-9][0-9]*:\$[1-9][0-9]*$"
 
 is_valid_fixed_cellname(s::AbstractString) = occursin(RGX_FIXED_CELLNAME, s)
 is_valid_fixed_cellrange(s::AbstractString) = occursin(RGX_FIXED_CELLRANGE, s)
 is_valid_fixed_sheet_cellname(s::AbstractString) = occursin(RGX_FIXED_SHEET_CELLNAME, s)
 is_valid_fixed_sheet_cellrange(s::AbstractString) = occursin(RGX_FIXED_SHEET_CELLRANGE, s)
+is_valid_fixed_sheet_column_range(s::AbstractString) = occursin(RGX_FIXED_SHEET_COLUMN_RANGE, s)
+is_valid_fixed_sheet_row_range(s::AbstractString)    = occursin(RGX_FIXED_SHEET_ROW_RANGE, s)
 
 is_valid_non_contiguous_range(v::AbstractString) :: Bool = is_valid_non_contiguous_cellrange(v) || is_valid_non_contiguous_sheetcellrange(v)
 
@@ -812,12 +835,12 @@ function nCR(s::AbstractString, ranges::Vector{String}) :: NonContiguousRange
     
     for n in ranges
         if is_valid_fixed_sheet_cellname(n)
-            fixed_cellname = match(RGX_CELLNAME_RIGHT_FIXED, n).match
+            fixed_cellname = match(RGX_SHEET_CELLNAME_RIGHT_FIXED, n).match
             push!(noncontig, CellRef(replace(fixed_cellname, "\$" => "")))
         elseif is_valid_sheet_cellname(n)
             push!(noncontig, CellRef(match(RGX_SHEET_CELLNAME_RIGHT, n).match))
         elseif is_valid_fixed_sheet_cellrange(n)
-            fixed_cellrange = match(RGX_SHEET_CELLNAME_RIGHT_FIXED, n).match
+            fixed_cellrange = match(RGX_SHEET_CELLRANGE_RIGHT_FIXED, n).match
             push!(noncontig, CellRange(replace(fixed_cellrange, "\$" => "")))
         elseif is_valid_sheet_cellrange(n)
             push!(noncontig, CellRange(match(RGX_SHEET_CELLRANGE_RIGHT, n).match))

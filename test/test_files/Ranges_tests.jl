@@ -51,9 +51,15 @@
             @test collect(XLSX.ColumnRange("B:D")) == ["B", "C", "D"]
             @test XLSX.ColumnRange("B:D") == XLSX.ColumnRange("B:D")
             @test hash(XLSX.ColumnRange("B:D")) == hash(XLSX.ColumnRange("B:D"))
+
+            @test XLSX.SheetColumnRange("Sheet1!\$A:\$C") == XLSX.SheetColumnRange("Sheet1!A:C")
+            @test string(XLSX.SheetColumnRange("'My Sheet'!\$A:\$C")) == "'My Sheet'!A:C"
+            @test string(XLSX.SheetCellRange("'My Sheet'!\$A\$1:\$B\$2")) == "'My Sheet'!A1:B2"
+            @test XLSX.SheetCellRange("'My Sheet'!\$A\$1:\$B\$2").sheet == "My Sheet"
+            @test_throws XLSX.XLSXError XLSX.SheetColumnRange("Sheet1!\$A:C")   # mixed anchoring
+
         end
     end
-
     @testset "Row Range" begin # Issue #150
         cr = XLSX.RowRange("2:5")
         @test string(cr) == "2:5"
@@ -73,6 +79,9 @@
         @test_throws XLSX.XLSXError XLSX.RowRange("5:2")
         @test XLSX.RowRange("2:5") == XLSX.RowRange("2:5")
         @test hash(XLSX.RowRange("2:5")) == hash(XLSX.RowRange("2:5"))
+
+        @test XLSX.SheetRowRange("Sheet1!\$1:\$5") == XLSX.SheetRowRange("Sheet1!1:5")
+
     end
 
     @testset "Non-contiguous Range" begin

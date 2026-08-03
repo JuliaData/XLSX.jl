@@ -58,6 +58,7 @@ const ROW_CHUNKSIZE  =     1_000           # number of rows to be processed in e
 const MAX_THREADS    = Threads.nthreads()  # maximum number of threads to use for parallel processing
 
 include("types.jl")
+include("xmlutil.jl")
 include("xlsx-colors.jl") # must load before sst.jl and cellformat-helpers.jl
 include("formula.jl")
 include("cellref.jl")

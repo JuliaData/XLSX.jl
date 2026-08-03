@@ -95,7 +95,7 @@ end
 
 function new_relationship_id(rels_root::XML.Node)::String
     ids = [parse(Int, m[1])
-           for n in element_children(rels_root)
+           for n in xml_elements(rels_root)
            for m in [match(r"rId(\d+)", get_attr(n, "Id"))]
            if m !== nothing]
     return "rId$(isempty(ids) ? 1 : maximum(ids) + 1)"
@@ -217,7 +217,7 @@ function get_or_create_worksheet_rels!(xf::XLSXFile, sheet_path::String)
         xf.data[rels_path]  = empty_rels_doc()
         xf.files[rels_path] = true
     end
-    return rels_path, root_element(xf.data[rels_path])
+    return rels_path, xml_root_element(xf.data[rels_path])
 end
 
 function make_relative_target(base_dir::AbstractString, target_path::AbstractString)::String

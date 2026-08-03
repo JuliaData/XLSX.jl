@@ -444,8 +444,8 @@ function update_app_xml!(xl::XLSXFile)
 
     c = 1
     while c <= length(pairs) - 1
-        label = _text_value(only(xml_elements(pairs[c])))
-        count = parse(Int, something(_text_value(only(xml_elements(pairs[c+1]))), "0"))
+        label = text_value(only(xml_elements(pairs[c])))
+        count = parse(Int, something(text_value(only(xml_elements(pairs[c+1]))), "0"))
 
         if haskey(new_names, label)
             names = new_names[label]
@@ -1527,7 +1527,7 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
             xl.data[new_rels_path]  = empty_rels_doc()
             xl.files[new_rels_path] = true
         end
-        new_rels_root = root_element(xl.data[new_rels_path])
+        new_rels_root = xml_root_element(xl.data[new_rels_path])
         rid = new_relationship_id(new_rels_root)
         pfx = get_prefix(new_rels_path, xl)
         push!(new_rels_root, XML.Element(prefixed_tag(pfx, "Relationship");
@@ -1653,7 +1653,7 @@ function delete_part_and_orphans!(xf::XLSXFile, path::String)
     part_dir, part_file = rsplit(path, "/"; limit=2)
     part_rels = "$part_dir/_rels/$part_file.rels"
     if haskey(xf.data, part_rels)
-        for node in elements_with_tag(root_element(xf.data[part_rels]), "Relationship")
+        for node in elements_with_tag(xml_root_element(xf.data[part_rels]), "Relationship")
             get_attr(node, "TargetMode") == "External" && continue  # e.g. hyperlinks — not a package part
             target = resolve_relative_target(part_dir, get_attr(node, "Target"))
             delete_part_and_orphans!(xf, target)
@@ -1891,7 +1891,7 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     end
 
     if haskey(xf.data, sheet_rels)
-        for node in elements_with_tag(root_element(xf.data[sheet_rels]), "Relationship")
+        for node in elements_with_tag(xml_root_element(xf.data[sheet_rels]), "Relationship")
             get_attr(node, "Type") == REL_DRAWING && continue
             get_attr(node, "TargetMode") == "External" && continue
             target = resolve_relative_target(sheet_dir, get_attr(node, "Target"))

@@ -33,31 +33,6 @@ const ImageInfo = NamedTuple{
 # Traversal helpers  (eliminate the repeated nodetype/tag/attributes pattern)
 # ===========================================================================
 
-element_children(node::XML.Node) =
-    filter(n -> XML.nodetype(n) === XML.Element, something(XML.children(node), []))
-
-# Match on local name only (ignores namespace prefix)
-elements_with_tag(node::XML.Node, tag::String) =
-    filter(n -> localname(XML.tag(n)) == tag, element_children(node))
-
-function get_attr(node::XML.Node, key::AbstractString, default::AbstractString="")
-    attrs = XML.attributes(node)
-    isnothing(attrs) && return default
-    return something(get(attrs, key, nothing), default)
-end
-
-function root_element(doc::XML.Node)::XML.Node
-    children = something(XML.children(doc), [])
-    idx = findfirst(n -> XML.nodetype(n) === XML.Element, children)
-    idx !== nothing ? children[idx] : throw(XLSXError("Document has no root element"))
-end
-
-function _text_value(node::XML.Node)::Union{Nothing,String}
-    for c in something(XML.children(node), [])
-        XML.nodetype(c) === XML.Text && return XML.value(c)
-    end
-    return nothing
-end
 
 # Prepends prefix if non-empty: prefixed_tag("pkg", "Relationship") → "pkg:Relationship"
 prefixed_tag(prefix::AbstractString, name::AbstractString) =
@@ -227,7 +202,7 @@ function ensure_drawing!(xf::XLSXFile, sheet_path::String)::String
         xf.data[rels_path]  = empty_rels_doc()
         xf.files[rels_path] = true
     end
-    rels_root = root_element(xf.data[rels_path])
+    rels_root = xml_root_element(xf.data[rels_path])
 
     # Return existing drawing path if already linked
     for node in elements_with_tag(rels_root, "Relationship")
@@ -269,7 +244,7 @@ function add_image_rel!(xf::XLSXFile, drawing_path::String, media_name::String):
         xf.data[rels_path]  = empty_rels_doc()
         xf.files[rels_path] = true
     end
-    rels_root = root_element(xf.data[rels_path])
+    rels_root = xml_root_element(xf.data[rels_path])
 
     # Reuse existing rel if the same media is already referenced
     for node in elements_with_tag(rels_root, "Relationship")
@@ -314,8 +289,8 @@ function add_anchor!(
         col_to, row_to = column_number(cellref.stop),  row_number(cellref.stop)
     end
 
-    root_el   = root_element(xf.data[drawing_path])
-    n_anchors = count(_ -> true, element_children(root_el))
+    root_el   = xml_root_element(xf.data[drawing_path])
+    n_anchors = count(_ -> true, xml_elements(root_el))
 
     push!(root_el, build_two_cell_anchor(
         col - 1, row - 1,  # 0-based inclusive from
@@ -336,17 +311,17 @@ function register_content_type!(
     path::AbstractString;
     tag::AbstractString, key::AbstractString, val::AbstractString, content_type::AbstractString,
 )::Nothing
-    ct_root = root_element(xf.data[path])
+    ct_root = xml_root_element(xf.data[path])
     pfx     = get_prefix(path, xf)
     any(n -> localname(XML.tag(n)) == tag && get_attr(n, key) == val,
-        element_children(ct_root)) && return nothing
+        xml_elements(ct_root)) && return nothing
     push!(ct_root, XML.Element(prefixed_tag(pfx, tag); Symbol(key) => val, ContentType=content_type))
     return nothing
 end
 
 function ensure_drawing_element!(xf::XLSXFile, sheet_doc::XML.Node, sheet_path::String, rid::String)
-    sheet_root = root_element(sheet_doc)
-    any(n -> localname(XML.tag(n)) == "drawing", element_children(sheet_root)) && return nothing
+    sheet_root = xml_root_element(sheet_doc)
+    any(n -> localname(XML.tag(n)) == "drawing", xml_elements(sheet_root)) && return nothing
     if !haskey(something(XML.attributes(sheet_root), Dict()), "xmlns:r")
         sheet_root["xmlns:r"] = NS_R
     end
@@ -485,7 +460,7 @@ function _drawing_path_for_sheet(xf::XLSXFile, sheet_path::String)::Union{Nothin
     rels_path = "$sheet_dir/_rels/$sheet_file.rels"
     haskey(xf.data, rels_path) || return nothing
 
-    for node in elements_with_tag(root_element(xf.data[rels_path]), "Relationship")
+    for node in elements_with_tag(xml_root_element(xf.data[rels_path]), "Relationship")
         if get_attr(node, "Type") == REL_DRAWING
             drawing_file = rsplit(get_attr(node, "Target"), "/"; limit=2)[2]
             return "xl/drawings/$drawing_file"
@@ -503,14 +478,14 @@ function _images_for_drawing(xf::XLSXFile, drawing_path::String, sheet_name::Str
     rid_to_media = _rid_to_media(xf.data[rels_path])
     return filter(!isnothing, [
         _parse_anchor(node, rid_to_media, sheet_name)
-        for node in elements_with_tag(root_element(xf.data[drawing_path]), "twoCellAnchor")
+        for node in elements_with_tag(xml_root_element(xf.data[drawing_path]), "twoCellAnchor")
     ])
 end
 
 function _rid_to_media(rels_doc::XML.Node)::Dict{String,String}
     Dict(
         get_attr(n, "Id") => rsplit(get_attr(n, "Target"), "/"; limit=2)[2]
-        for n in elements_with_tag(root_element(rels_doc), "Relationship")
+        for n in elements_with_tag(xml_root_element(rels_doc), "Relationship")
         if get_attr(n, "Type") == REL_IMAGE && !isempty(get_attr(n, "Id"))
     )
 end
@@ -528,30 +503,18 @@ function _parse_anchor(
     return (sheet=sheet_name, media_name=media_name, from=from_ref, to=to_ref)
 end
 
-function _parse_cell_marker(anchor::XML.Node, tag::String; is_to::Bool)::Union{Nothing,String}
-    marker = nothing
-    for n in element_children(anchor)
-        localname(XML.tag(n)) == tag && (marker = n; break)
-    end
-    marker === nothing && return nothing
-    vals = Dict(localname(XML.tag(c)) => _text_value(c) for c in element_children(marker))
-    col  = get(vals, "col", nothing)
-    row  = get(vals, "row", nothing)
+function _parse_cell_marker(anchor::XML.Node, tag::AbstractString; is_to::Bool)::Union{Nothing,String}
+    marker = first_element_with_tag(anchor, tag)
+    col = child_text(marker, "col")
+    row = child_text(marker, "row")
     (col === nothing || row === nothing) && return nothing
     adj = is_to ? 0 : 1
     return string(CellRef(parse(Int, row) + adj, parse(Int, col) + adj))
 end
 
 function _find_blip_rid(node::XML.Node)::Union{Nothing,String}
-    XML.nodetype(node) === XML.Element || return nothing
-    if localname(XML.tag(node)) == "blip"
-        attrs = XML.attributes(node)
-        attrs === nothing && return nothing
-        return something(get(attrs, "r:embed", nothing),
-                         get(attrs, "{$(NS_R)}embed", nothing),
-                         nothing)
-    end
-    for child in something(XML.children(node), [])
+    has_localname(node, "blip") && return get_prefixed_attr(node, "embed")
+    for child in XML.eachelement(node)
         rid = _find_blip_rid(child)
         rid !== nothing && return rid
     end

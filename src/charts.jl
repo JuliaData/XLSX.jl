@@ -44,6 +44,17 @@ const ChartAnchor = NamedTuple{
     Tuple{String,Union{Nothing,String},Union{Nothing,String},String},
 }
 
+const ChartRange = Union{Nothing,SheetCellRef,SheetCellRange,SheetColumnRange,NonContiguousRange}
+
+const ChartRanges = @NamedTuple{
+    idx::Int,
+    name::Union{Nothing,String},
+    categories::ChartRange,
+    values::ChartRange,
+    bubble_sizes::ChartRange,
+}
+
+#=
 # ===========================================================================
 # Traversal helpers
 # ===========================================================================
@@ -78,7 +89,7 @@ function child_val(node::Union{Nothing,XML.Node}, tag::String, default::Int)::In
 end
 
 # Attribute lookup ignoring any namespace prefix (`r:id`, `id`, ...).
-function get_attr_localname(node::XML.Node, key::AbstractString)::Union{Nothing,String}
+function get_prefixed_attr(node::XML.Node, key::AbstractString)::Union{Nothing,String}
     atts = XML.attributes(node)
     isnothing(atts) && return nothing
     for (k, v) in atts
@@ -87,6 +98,7 @@ function get_attr_localname(node::XML.Node, key::AbstractString)::Union{Nothing,
     end
     return nothing
 end
+=#
 
 """
 Id => resolved target path for the relationships of `part_path`, filtered by
@@ -98,7 +110,7 @@ function rid_to_target(xf::XLSXFile, part_path::String, reltype::String)::Dict{S
     rels_path = isempty(dir) ? "_rels/$fname.rels" : "$dir/_rels/$fname.rels"
     targets = Dict{String,String}()
     haskey(xf.data, rels_path) || return targets
-    for n in elements_with_tag(root_element(xf.data[rels_path]), "Relationship")
+    for n in elements_with_tag(xml_root_element(xf.data[rels_path]), "Relationship")
         get_attr(n, "Type") == reltype && get_attr(n, "TargetMode") != "External" || continue
         id = get_attr(n, "Id")
         isempty(id) && continue
@@ -230,7 +242,7 @@ chart_name(path::AbstractString) = first(splitext(last(_split_zip_path(String(pa
 function parts_with_content_type(xf::XLSXFile, ctype::String)::Vector{String}
     paths = String[]
     haskey(xf.data, "[Content_Types].xml") || return paths
-    for n in elements_with_tag(root_element(xf.data["[Content_Types].xml"]), "Override")
+    for n in elements_with_tag(xml_root_element(xf.data["[Content_Types].xml"]), "Override")
         get_attr(n, "ContentType") == ctype || continue
         push!(paths, String(lstrip(get_attr(n, "PartName"), '/')))
     end
@@ -303,7 +315,7 @@ function parse_chart_part(
 
     haskey(xf.data, path) || throw(XLSXError("Chart part `$path` not found in the package."))
 
-    chartspace = root_element(xf.data[path])
+    chartspace = xml_root_element(xf.data[path])
     localname(chartspace) != "chartSpace" &&
         throw(XLSXError("Malformed chart part $path. Root node name should be `chartSpace`. Found $(localname(chartspace))."))
 
@@ -395,11 +407,11 @@ function charts_for_sheet!(anchors::Vector{Pair{String,ChartAnchor}}, xf::XLSXFi
     rid_to_chart = rid_to_target(xf, drawing_path, REL_CHART)
     isempty(rid_to_chart) && return anchors
 
-    for anchor in XML.eachelement(root_element(xf.data[drawing_path]))
+    for anchor in XML.eachelement(xml_root_element(xf.data[drawing_path]))
         endswith(localname(anchor), "Anchor") || continue
         chart_el = anchor_chart_element(anchor)
         isnothing(chart_el) && continue
-        rId = get_attr_localname(chart_el, "id")
+        rId = get_prefixed_attr(chart_el, "id")
         isnothing(rId) && continue
         chart_path = get(rid_to_chart, rId, nothing)
         isnothing(chart_path) && continue
@@ -642,6 +654,96 @@ end
 getChartData(x::Union{Worksheet,XLSXFile}, name::AbstractString; kw...)::DataTable =
     getChartData(getChart(x, name; kw...))
 
+"""
+    chart_range(r) -> Union{Nothing,SheetCellRef,SheetCellRange,SheetColumnRange,NonContiguousRange}
+
+The source range of a `ChartRef`, or `nothing` when it has no addressable one:
+literal series, external-workbook references, and defined names.
+"""
+function chart_range(r::Union{Nothing,ChartRef})
+    (isnothing(r) || isnothing(r.ref)) && return nothing
+    s = strip(r.ref)
+    occursin('[', s) && return nothing                  # external workbook
+    if startswith(s, '(') && endswith(s, ')')           # multi-area
+        s = s[nextind(s, firstindex(s)):prevind(s, lastindex(s))]
+    end
+    occursin(',', s) && return NonContiguousRange(String(s))
+    (is_valid_fixed_sheet_cellrange(s) || is_valid_sheet_cellrange(s)) && return SheetCellRange(s)
+    (is_valid_fixed_sheet_cellname(s)  || is_valid_sheet_cellname(s))  && return SheetCellRef(s)
+    is_valid_sheet_column_range(s) && return SheetColumnRange(s)
+    (is_valid_fixed_sheet_column_range(s) || is_valid_sheet_column_range(s)) && return SheetColumnRange(s)
+    (is_valid_fixed_sheet_row_range(s)    || is_valid_sheet_row_range(s))    && return SheetRowRange(s)
+    return nothing                                      # defined name, or unrecognised
+end
+
+"""
+    getChartRanges(c::Chart) -> Vector{ChartRanges}
+    getChartRanges(ws::Worksheet, name) -> Vector{ChartRanges}
+    getChartRanges(xf::XLSXFile, name) -> Vector{ChartRanges}
+    getChartRanges(ws::Worksheet) -> Vector{@NamedTuple{chart::String, ranges::Vector{ChartRanges}}}
+    getChartRanges(xf::XLSXFile) -> Vector{@NamedTuple{chart::String, ranges::Vector{ChartRanges}}}
+
+The worksheet ranges of the source data a chart plots from.
+
+Given a `Chart`, or a chart `name` in any of the forms [`XLSX.getChart`](@ref)
+accepts, return one entry per series in document order, parallel to `c.series`.
+Each entry carries the series `idx` and `name` alongside its `categories`,
+`values` and `bubble_sizes` ranges.
+
+Given no name, return the ranges of every chart on the worksheet or in the
+workbook, each paired with its chart name, following [`XLSX.getCharts`](@ref).
+
+`categories` holds `c:cat` or `c:xVal` and `values` holds `c:val` or `c:yVal`, so
+the two mean the same thing whatever the chart type, as in [`XLSX.ChartSeries`](@ref).
+`bubble_sizes` is `nothing` for every chart type but bubble.
+
+A range is `nothing` wherever the series has no addressable source: a literal
+series (`c:numLit`/`c:strLit`), a reference to an external workbook, a defined
+name.
+
+
+# Examples
+```julia
+julia> f = XLSX.readxlsx("sales.xlsx");
+
+julia> r = XLSX.getChartRanges(f["Summary"], "chart1");
+
+julia> r[1].name, r[1].values
+("2024", Summary!B2:B5)
+
+julia> XLSX.getdata(f, r[1].values)      # read the live source cells, not the cache
+4-element Vector{Any}:
+ 1250.0
+ 1310.0
+ ⋮
+
+julia> [(x.chart, length(x.ranges)) for x in XLSX.getChartRanges(f)]
+2-element Vector{Tuple{String, Int64}}:
+ ("chart1", 3)
+ ("chart2", 1)
+```
+
+!!! note
+    A range records where the chart says its source data came from, which is not
+    necessarily where the values in [`XLSX.getChartData`](@ref) came from: the
+    cache is a snapshot from the last save, and the cells may have changed
+    since, or the source sheet may have been deleted entirely.
+
+See also [`XLSX.getChart`](@ref), [`XLSX.getCharts`](@ref), [`XLSX.getChartData`](@ref).
+"""
+getChartRanges(c::Chart)::Vector{ChartRanges} =
+    [(idx = s.idx,
+      name = s.name,
+      categories = chart_range(s.categories),
+      values = chart_range(s.values),
+      bubble_sizes = chart_range(s.bubble_sizes))
+     for s in c.series]
+
+getChartRanges(x::Union{Worksheet,XLSXFile}, name::AbstractString)::Vector{ChartRanges} =
+    getChartRanges(getChart(x, name; cache=false))
+
+    getChartRanges(x::Union{Worksheet,XLSXFile}) =
+    [(chart = c.name, ranges = getChartRanges(c)) for c in getCharts(x; cache=false)]
 # ===========================================================================
 # Display
 # ===========================================================================
@@ -662,7 +764,7 @@ Base.show(io::IO, r::ChartRef) =
     
 function Base.show(io::IO, ::MIME"text/plain", c::Chart)
     print(io, "XLSX.Chart \"", c.name, "\"")
-    isnothing(c.sheet) || print(io, " on \"", c.sheet, "\"")
+    isnothing(c.sheet) || print(io, " on sheet \"", c.sheet, "\"")
     isnothing(c.from) || print(io, " at ", c.from, isnothing(c.to) ? "" : ":" * c.to)
     println(io)
     isnothing(c.title) || println(io, "  title: ", repr(c.title))

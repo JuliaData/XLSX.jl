@@ -76,7 +76,7 @@ function _totals_col_attrs(sheet::XLSX.Worksheet, table_name::AbstractString, co
     table_path = nothing
     for r_id in XLSX.get_worksheet_table_rids(xf, sheet)
         path = XLSX.get_worksheet_relationship_target(xf, sheet, r_id)
-        if XLSX.get_attr(XLSX.root_element(XLSX.get_xml_data(xf, path)), "name") == table_name
+        if XLSX.get_attr(XLSX.xml_root_element(XLSX.get_xml_data(xf, path)), "name") == table_name
             table_path = path
             break
         end
@@ -1991,7 +1991,7 @@ end
         XLSX.appendtable!(sh, "T", [(3, 4)])
 
         table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
-        root = XLSX.root_element(table_doc)
+        root = XLSX.xml_root_element(table_doc)
         af = XLSX.elements_with_tag(root, "autoFilter")
         @test !isempty(af)
         @test XLSX.get_attr(af[1], "ref") == "A1:B3"  # no totals row: same as ref
@@ -2042,7 +2042,7 @@ end
         XLSX.appendtable!(sh, "T", [(2, 20), (3, 30)])  # ref becomes A1:B5
 
         table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
-        root = XLSX.root_element(table_doc)
+        root = XLSX.xml_root_element(table_doc)
         @test XLSX.get_attr(root, "ref") == "A1:B5"
         af = XLSX.elements_with_tag(root, "autoFilter")
         @test XLSX.get_attr(af[1], "ref") == "A1:B4"  # one row short of ref
@@ -3194,7 +3194,7 @@ end
         XLSX.settotals!(sh, "T", "b" => :sum)
 
         table_doc = XLSX.get_xml_data(XLSX.get_xlsxfile(sh), XLSX._table_part_path(sh, "T"))
-        root = XLSX.root_element(table_doc)
+        root = XLSX.xml_root_element(table_doc)
         @test XLSX.get_attr(root, "totalsRowShown", "") != ""
         @test XLSX.get_attr(root, "totalsRowCount", "") != ""
 

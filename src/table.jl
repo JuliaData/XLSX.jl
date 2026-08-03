@@ -1053,8 +1053,8 @@ function _find_table_part(sheet::Worksheet, name::AbstractString)::Tuple{String,
     !haskey(xf.data, rels_path) &&
         throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` but no relationship file."))
 
-    rels_root  = root_element(xf.data[rels_path])
-    sheet_root = root_element(get_xml_data(xf, sheet_path))
+    rels_root  = xml_root_element(xf.data[rels_path])
+    sheet_root = xml_root_element(get_xml_data(xf, sheet_path))
 
     tp_container_els = elements_with_tag(sheet_root, "tableParts")
     isempty(tp_container_els) &&
@@ -1067,7 +1067,7 @@ function _find_table_part(sheet::Worksheet, name::AbstractString)::Tuple{String,
         k = findfirst(r -> get_attr(r, "Id") == rid, rel_els)
         isnothing(k) && continue
         path = resolve_relative_target(sheet_dir, get_attr(rel_els[k], "Target"))
-        get_attr(root_element(get_xml_data(xf, path)), "name") == name && return (rid, path)
+        get_attr(xml_root_element(get_xml_data(xf, path)), "name") == name && return (rid, path)
     end
 
     throw(XLSXError("Internal error: could not locate table part for `$name`."))
@@ -1487,7 +1487,7 @@ function addtable!(sheet::Worksheet, ref::CellRange;
         Id=rid, Type=REL_TABLE, Target=make_relative_target(sheet_dir, table_path)))
 
     sheet_doc  = get_xml_data(xf, sheet_path)
-    sheet_root = root_element(sheet_doc)
+    sheet_root = xml_root_element(sheet_doc)
     pfx   = get_prefix(sheet)
     pfx_c = pfx == "" ? "" : "$(pfx):"
 
@@ -1596,8 +1596,8 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     sheet_path = get_relationship_target_by_id("xl", get_workbook(sheet), sheet.relationship_id)
     sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
     rels_path  = "$sheet_dir/_rels/$sheet_file.rels"
-    rels_root  = root_element(xf.data[rels_path])
-    sheet_root = root_element(get_xml_data(xf, sheet_path))
+    rels_root  = xml_root_element(xf.data[rels_path])
+    sheet_root = xml_root_element(get_xml_data(xf, sheet_path))
 
     # remove <tablePart>, shrink/drop <tableParts>
     tp_container = elements_with_tag(sheet_root, "tableParts")[1]
@@ -1719,7 +1719,7 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
 
     table_path = _table_part_path(sheet, name)
     table_doc  = get_xml_data(xf, table_path)
-    table_root = root_element(table_doc)
+    table_root = xml_root_element(table_doc)
 
     old_ref = t.ref
     local totals_row_num::Int
@@ -1899,7 +1899,7 @@ function removetotals!(sheet::Worksheet, name::AbstractString)
 
     table_path = _table_part_path(sheet, name)
     table_doc  = get_xml_data(xf, table_path)
-    table_root = root_element(table_doc)
+    table_root = xml_root_element(table_doc)
 
     totals_row = t.ref.stop.row_number
     col0 = _col_start(t)
@@ -2067,7 +2067,7 @@ function appendtable!(sheet::Worksheet, name::AbstractString, data; check_empty:
 
     # extend ref and autoFilter in the table part
     table_doc  = get_xml_data(xf, _table_part_path(sheet, name))
-    table_root = root_element(table_doc)
+    table_root = xml_root_element(table_doc)
     new_ref = CellRange(t.ref.start, CellRef(new_stop, t.ref.stop.column_number))
     table_root["ref"] = string(new_ref)
 
