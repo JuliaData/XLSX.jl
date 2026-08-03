@@ -18,22 +18,27 @@ XLSX.readdata
 XLSX.getdata
 XLSX.getcell
 XLSX.getcellrange
-XLSX.iserror
-XLSX.geterror
+XLSX.iserror(::XLSX.Worksheet, ::AbstractString)
+XLSX.geterror(::XLSX.Worksheet, ::AbstractString)
+```
+
+## Tables
+```@docs
+XLSX.DataTable
 XLSX.gettable
 XLSX.readtable
+XLSX.appendtable!
+XLSX.gettransposedtable
+XLSX.readtransposedtable
+XLSX.writetable!
 XLSX.Table
 XLSX.tables
 XLSX.table
 XLSX.addtable!
 XLSX.deletetable!
 XLSX.settotals!
-XLSX.appendtable!
-XLSX.readto
-XLSX.gettransposedtable
-XLSX.readtransposedtable
-XLSX.writetable
-XLSX.writetable!
+XLSX.gettotals
+XLSX.removetotals!
 ```
 
 ## Cell formulas

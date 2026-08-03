@@ -1053,8 +1053,8 @@ function _find_table_part(sheet::Worksheet, name::AbstractString)::Tuple{String,
     !haskey(xf.data, rels_path) &&
         throw(XLSXError("Internal error: `$(sheet.name)` has table `$name` but no relationship file."))
 
-    rels_root  = root_element(xf.data[rels_path])
-    sheet_root = root_element(get_xml_data(xf, sheet_path))
+    rels_root  = xml_root_element(xf.data[rels_path])
+    sheet_root = xml_root_element(get_xml_data(xf, sheet_path))
 
     tp_container_els = elements_with_tag(sheet_root, "tableParts")
     isempty(tp_container_els) &&
@@ -1067,7 +1067,7 @@ function _find_table_part(sheet::Worksheet, name::AbstractString)::Tuple{String,
         k = findfirst(r -> get_attr(r, "Id") == rid, rel_els)
         isnothing(k) && continue
         path = resolve_relative_target(sheet_dir, get_attr(rel_els[k], "Target"))
-        get_attr(root_element(get_xml_data(xf, path)), "name") == name && return (rid, path)
+        get_attr(xml_root_element(get_xml_data(xf, path)), "name") == name && return (rid, path)
     end
 
     throw(XLSXError("Internal error: could not locate table part for `$name`."))
@@ -1487,7 +1487,7 @@ function addtable!(sheet::Worksheet, ref::CellRange;
         Id=rid, Type=REL_TABLE, Target=make_relative_target(sheet_dir, table_path)))
 
     sheet_doc  = get_xml_data(xf, sheet_path)
-    sheet_root = root_element(sheet_doc)
+    sheet_root = xml_root_element(sheet_doc)
     pfx   = get_prefix(sheet)
     pfx_c = pfx == "" ? "" : "$(pfx):"
 
@@ -1596,8 +1596,8 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     sheet_path = get_relationship_target_by_id("xl", get_workbook(sheet), sheet.relationship_id)
     sheet_dir, sheet_file = rsplit(sheet_path, "/"; limit=2)
     rels_path  = "$sheet_dir/_rels/$sheet_file.rels"
-    rels_root  = root_element(xf.data[rels_path])
-    sheet_root = root_element(get_xml_data(xf, sheet_path))
+    rels_root  = xml_root_element(xf.data[rels_path])
+    sheet_root = xml_root_element(get_xml_data(xf, sheet_path))
 
     # remove <tablePart>, shrink/drop <tableParts>
     tp_container = elements_with_tag(sheet_root, "tableParts")[1]
@@ -1719,7 +1719,7 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
 
     table_path = _table_part_path(sheet, name)
     table_doc  = get_xml_data(xf, table_path)
-    table_root = root_element(table_doc)
+    table_root = xml_root_element(table_doc)
 
     old_ref = t.ref
     local totals_row_num::Int
@@ -1793,6 +1793,141 @@ settotals!(sheet::Worksheet, id::Integer, settings::Pair...) =
 settotals!(sheet::Worksheet, name::AbstractString; kwargs...) =
     settotals!(sheet, name, (String(k) => v for (k, v) in kwargs)...)
 
+"""
+    gettotals(t::Table) -> NamedTuple
+
+Return the Excel Table's totals row as a `NamedTuple` keyed by column name. Each entry
+is itself a `NamedTuple` with fields:
+
+- `setting`: the column's totals setting — a `Symbol` naming a built-in function
+  (`:sum`, `:average`, …), `:custom` for a custom formula, `:label` for a text label, or
+  `:none` if the column has no totals setting.
+- `formula`: the totals cell's formula as a `String`, or `nothing` if the cell holds no
+  formula.
+- `value`: the totals cell's current value. For a label column this is the label text.
+  For a function or custom column this is `missing` unless the file was written by Excel
+  (XLSX.jl does not evaluate formulas, so a totals cell it wrote holds no cached value
+  until Excel recalculates and saves the file).
+
+Returns an empty `NamedTuple` if the Table has no totals row.
+
+# Example
+```julia
+julia> tot = XLSX.gettotals(t)
+(region = (setting = :label, formula = nothing, value = "Total"), revenue = (setting = :sum, formula = "=SUBTOTAL(109,Sales[revenue])", value = 3400), margin = (setting = :average, formula = "=SUBTOTAL(101,Sales[margin])", value = 243.33))
+
+julia> tot.revenue.setting
+:sum
+
+julia> tot.revenue.value
+3400
+```
+
+`gettotals` requires the `XLSXFile` to have `enable_cache=true` (the default). It throws otherwise.
+
+See also [`XLSX.settotals!`](@ref), [`XLSX.removetotals!`](@ref), [`XLSX.table`](@ref).
+"""
+function gettotals(t::Table)
+    t.has_totals_row || return NamedTuple()
+
+    sheet = t.sheet
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+    ncols = length(t.columns)
+
+    # Read the totals cells FIRST, while the worksheet XML is still in
+    # whatever state the cache machinery expects. `_table_part_path` below
+    # calls `get_xml_data` on the sheet, which permanently promotes a
+    # read-only file's raw XML string to a parsed node and breaks the lazy
+    # per-sheet cache fill that `getcell`/`getFormula` rely on.
+    formulas = Vector{Union{Nothing,String}}(undef, ncols)
+    values   = Vector{Any}(undef, ncols)
+    for idx in 1:ncols
+        cell_ref = CellRef(totals_row, col0 + idx - 1)
+        raw_f = getFormula(sheet, cell_ref)
+        formulas[idx] = (isnothing(raw_f) || isempty(raw_f)) ? nothing : raw_f
+        values[idx] = getdata(sheet, cell_ref)
+    end
+
+    # Now the table part, whose metadata gives each column's setting.
+    table_doc = get_xml_data(get_xlsxfile(sheet), _table_part_path(sheet, t.name))
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    column_nodes = collect(xml_elements(table_doc[i][j]))
+
+    names = Symbol[]
+    entries = Any[]
+    for (idx, col_name) in enumerate(t.columns)
+        node  = column_nodes[idx]
+        func  = get_attr(node, "totalsRowFunction", "")
+        label = get_attr(node, "totalsRowLabel", "")
+
+        setting = if func == "custom"
+            :custom
+        elseif func != ""
+            get(TOTALS_FUNCTION_BY_NAME, func, Symbol(func))
+        elseif label != ""
+            :label
+        else
+            :none
+        end
+
+        push!(names, Symbol(col_name))
+        push!(entries, (setting=setting, formula=formulas[idx], value=values[idx]))
+    end
+
+    return NamedTuple{Tuple(names)}(Tuple(entries))
+end
+
+"""
+    removetotals!(sheet::Worksheet, name::AbstractString) -> Table
+    removetotals!(sheet::Worksheet, id::Integer) -> Table
+
+Remove the totals row from the Excel Table `name` on `sheet`, shrinking the Table by one
+row. Every column's totals function or label is cleared, and the cells that held the
+totals row are emptied.
+
+Does nothing if the Table has no totals row.
+
+See also [`XLSX.settotals!`](@ref), [`XLSX.addtable!`](@ref).
+"""
+function removetotals!(sheet::Worksheet, name::AbstractString)
+    xf = get_xlsxfile(sheet)
+    !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
+
+    t = table(sheet, name)
+    t.has_totals_row || return t
+
+    table_path = _table_part_path(sheet, name)
+    table_doc  = get_xml_data(xf, table_path)
+    table_root = xml_root_element(table_doc)
+
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+
+    # clear the cells that held the totals row
+    for c in col0:(col0 + length(t.columns) - 1)
+        sheet[CellRef(totals_row, c)] = missing
+    end
+
+    # drop per-column totals metadata
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    for col_node in xml_elements(table_doc[i][j])
+        localname(col_node) == "tableColumn" || continue
+        remove_attr!(col_node, "totalsRowFunction")
+        remove_attr!(col_node, "totalsRowLabel")
+    end
+
+    # shrink ref and drop the totals-row flags
+    new_ref = CellRange(t.ref.start, CellRef(totals_row - 1, t.ref.stop.column_number))
+    table_root["ref"] = string(new_ref)
+    remove_attr!(table_root, "totalsRowShown")
+    remove_attr!(table_root, "totalsRowCount")
+
+    sheet.tables_cache = nothing
+    return table(sheet, name)
+end
+
+removetotals!(sheet::Worksheet, id::Integer) = removetotals!(sheet, table(sheet, id).name)
 
 """
     gettable(t::Table; [infer_eltypes], [normalizenames], [missing_strings]) -> DataTable
@@ -1932,7 +2067,7 @@ function appendtable!(sheet::Worksheet, name::AbstractString, data; check_empty:
 
     # extend ref and autoFilter in the table part
     table_doc  = get_xml_data(xf, _table_part_path(sheet, name))
-    table_root = root_element(table_doc)
+    table_root = xml_root_element(table_doc)
     new_ref = CellRange(t.ref.start, CellRef(new_stop, t.ref.stop.column_number))
     table_root["ref"] = string(new_ref)
 

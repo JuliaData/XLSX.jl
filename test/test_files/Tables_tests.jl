@@ -1,3 +1,11 @@
+function throws_with(f, substrings...)
+    try
+        f()
+    catch e
+        return e isa XLSX.XLSXError && all(s -> occursin(s, e.msg), substrings)
+    end
+    return false
+end
 @testset "Tables Helpers" begin
 
     test_data = Vector{Any}(undef, 3)
@@ -1054,4 +1062,107 @@ end
         df = XLSX.eachtablerow(f["lookup"], "B:J") |> DataFrames.DataFrame
         @test eltype.(eachcol(df)) == [Int64, String, Int64, Any, Int64, String, Any, Int64, Int64]
     end
+
+
+    @testset "writetable shape hints" begin
+        
+        df = DataFrames.DataFrame(a=[1, 2], b=["x", "y"])
+        cols = [[1, 2], ["x", "y"]]
+        colnames = ["a", "b"]
+
+        # --- tuple-vector shapes, now accepted via the `#4` fallback branch ---
+
+        XLSX.writetable("hint.xlsx", [(:REPORT, cols, colnames)]; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
+
+        XLSX.writetable("hint.xlsx", [("REPORT", DataFrames.eachcol(df), colnames)]; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
+
+        XLSX.writetable("hint.xlsx", Any[("REPORT", cols, colnames)]; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
+
+        XLSX.writetable("hint.xlsx", [(:A, cols, colnames), ("B", cols, colnames)]; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["A", "B"]
+
+        # non-string column labels are stringified, matching `writetable!`
+        XLSX.writetable("hint.xlsx", [("REPORT", cols, [1, 2])]; overwrite=true)
+        XLSX.openxlsx("hint.xlsx") do xf
+            @test xf[1]["A1"] == "1" && xf[1]["B1"] == "2"
+        end
+
+        # the normalized vector must be concretely typed or `#4` would re-enter itself
+        @test XLSX._normalize_sheet_specs([(:A, cols, colnames)]) isa
+            Vector{Tuple{String,Vector{Any},Vector{String}}}
+
+        # --- pair forms, both key types ---
+
+        XLSX.writetable("hint.xlsx", :REPORT => df; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
+
+        XLSX.writetable("hint.xlsx", ["REPORT_A" => df, :REPORT_B => df]; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
+
+        XLSX.writetable("hint.xlsx", "REPORT_A" => df, :REPORT_B => df; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
+
+        XLSX.writetable("hint.xlsx", split("REPORT_A REPORT_B")[1] => df; overwrite=true)
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A"]
+
+        # --- still rejected, with a hint naming the actual problem ---
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx", [("REPORT", cols)]),
+                        "(sheetname, data, columnnames)", "2-tuple")
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx", Any[("REPORT", cols, colnames), 42]),
+                        "(sheetname, data, columnnames)", "element 2", "not a tuple")
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx", [(1, cols, colnames)]),
+                        "(sheetname, data, columnnames)", "neither `AbstractString` nor `Symbol`")
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx", [1 => df]),
+                        "Sheet name must be an `AbstractString` or `Symbol`", string(Int))
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx", 1 => df),
+                        "name => table", string(Int))
+
+        # `writetable!` writes into an existing sheet, so a pair is never valid there
+        XLSX.openxlsx("hint.xlsx", mode="w") do xf
+            @test throws_with(() -> XLSX.writetable!(xf[1], :REPORT => df),
+                            "name => table", "Symbol")
+        end
+
+        # --- no hint appended where none applies ---
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx", 42),
+                        "does not implement Tables.jl interface")
+        @test XLSX._shape_hint(Any[]) == ""
+        @test XLSX._shape_hint(42) == ""
+        @test XLSX._shape_hint([1, 2, 3]) == ""
+
+        # --- dispatch pins: the typed methods must keep winning over the fallback ---
+
+        m_fallback = which(XLSX.writetable, Tuple{String,Int})
+
+        # `#3` still owns its own shape; the fallback is a fallback
+        @test which(XLSX.writetable,
+                    Tuple{String,Vector{Tuple{String,Vector{Any},Vector{String}}}}) !== m_fallback
+
+        # `#6` wins over `#4` for a single pair, and over `#1` for two
+        @test which(XLSX.writetable, Tuple{String,Pair{String,Any}}) !== m_fallback
+        @test which(XLSX.writetable, Tuple{String,Pair{Symbol,Any}}) !== m_fallback
+        @test which(XLSX.writetable, Tuple{String,Pair{String,Any},Pair{String,Any}}) !==
+            which(XLSX.writetable, Tuple{String,Vector{Any},Vector{String}})
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx"; Sales=df),
+                      "must be a `(data, columnnames)` tuple", "writetable(filename, :Sales => table)")
+
+        @test throws_with(() -> XLSX.writetable("hint.xlsx"; Sales=(cols, colnames, 42)),
+                      "must be a `(data, columnnames)` tuple")
+        # valid form unaffected
+        XLSX.writetable("hint.xlsx"; overwrite=true, REPORT_A=(cols, colnames), REPORT_B=(cols, colnames))
+        @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
+        
+        isfile("hint.xlsx") && rm("hint.xlsx")
+    end
+
 end

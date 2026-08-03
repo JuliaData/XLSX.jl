@@ -753,6 +753,15 @@ struct XLSXTableRowIterator
     table::Table
 end
 
+"""
+`XLSX.DataTable` is a simple `Tables.jl` compatibledata structure to hold tabular 
+data extracted from an Excel worksheet.
+
+It is created by [`XLSX.gettable`](@ref) or, direct from a file, with [`XLSX.readtable`](@ref).
+
+Pass a `DataTable` to any `Tables.jl` compatible sink, e.g. `DataFrame(dt)`.
+
+"""
 struct DataTable
     data::Vector{Any} # columns
     column_labels::Vector{Symbol}
@@ -805,8 +814,94 @@ mutable struct Locked{T}
     Locked(x::T) where {T} = new{T}(x, ReentrantLock())
 end
 
+#=
 function withlock(f, obj::Locked)
     lock(obj.lock) do
         f(obj.value)
     end
+end
+=#
+
+# ===========================================================================
+# Charts
+# ===========================================================================
+
+"""
+    ChartRef
+
+One cached reference from a chart series: the formula it came from, the number
+format Excel recorded for it, and the cached values themselves.
+
+# Fields
+- `kind::Symbol` - one of `:num`, `:str`, `:multiLvlStr`, `:numLit`, `:strLit`.
+- `ref::Union{Nothing,String}` - the `c:f` formula (`Sheet1!\$B\$2:\$B\$9`).
+  `nothing` for literal (`c:numLit` / `c:strLit`) series, which have no source range.
+- `format_code::Union{Nothing,String}` - number format recorded in the cache.
+- `ptCount::Int` - number of points Excel declared, whether or not the cache was read.
+- `data::Vector` - cached values, length `ptCount`, gaps as `missing`. Empty when
+  the chart was read with `cache=false`.
+- `errors::Dict{Int,UInt64}` - index => error code for cached error values.
+
+Excel only caches the error values `#N/A` in the chart data cache. Others are written 
+a 0 and become indistinguishable from real zero in the chart cache.
+
+
+!!! note
+    For `kind == :multiLvlStr` each element of `data` is itself a level vector,
+    in document order (Excel writes the innermost/leaf level first).
+"""
+struct ChartRef
+    kind::Symbol
+    ref::Union{Nothing,String}
+    format_code::Union{Nothing,String}
+    ptCount::Int
+    data::Vector
+    errors::Dict{Int,UInt64}
+end
+
+"""
+    ChartSeries
+
+A single `c:ser` element.
+
+`categories` holds `c:cat` for category charts and `c:xVal` for scatter and bubble
+charts; `values` holds `c:val` or `c:yVal` correspondingly, so the two fields mean
+the same thing whatever the chart type.
+"""
+struct ChartSeries
+    idx::Int
+    order::Int
+    charttype::Symbol
+    name::Union{Nothing,String}
+    name_ref::Union{Nothing,ChartRef}
+    categories::Union{Nothing,ChartRef}
+    values::Union{Nothing,ChartRef}
+    bubble_sizes::Union{Nothing,ChartRef}
+end
+
+"""
+    Chart
+
+Metadata for one chart part, plus its series.
+
+# Fields
+- `path` - package path, e.g. `"xl/charts/chart1.xml"`.
+- `name` - part name without extension, e.g. `"chart1"`.
+- `rId` - relationship id of the chart within its drawing part, if resolved.
+- `sheet` - name of the sheet the chart is anchored to, if resolved.
+- `from`, `to` - anchor cell references as strings, following `getImages`.
+- `title` - chart title text; `nothing` if auto-generated or deleted.
+- `charttypes` - e.g. `[:barChart]`, or several for a combo chart.
+- `series` - `Vector{ChartSeries}` in document order.
+"""
+struct Chart
+    path::String
+    name::String
+    rId::Union{Nothing,String}
+    sheet::Union{Nothing,String}
+    from::Union{Nothing,String}
+    to::Union{Nothing,String}
+    title::Union{Nothing,String}
+    charttypes::Vector{Symbol}
+    series::Vector{ChartSeries}
 end

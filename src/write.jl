@@ -444,8 +444,8 @@ function update_app_xml!(xl::XLSXFile)
 
     c = 1
     while c <= length(pairs) - 1
-        label = _text_value(only(xml_elements(pairs[c])))
-        count = parse(Int, something(_text_value(only(xml_elements(pairs[c+1]))), "0"))
+        label = text_value(only(xml_elements(pairs[c])))
+        count = parse(Int, something(text_value(only(xml_elements(pairs[c+1]))), "0"))
 
         if haskey(new_names, label)
             names = new_names[label]
@@ -1527,7 +1527,7 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
             xl.data[new_rels_path]  = empty_rels_doc()
             xl.files[new_rels_path] = true
         end
-        new_rels_root = root_element(xl.data[new_rels_path])
+        new_rels_root = xml_root_element(xl.data[new_rels_path])
         rid = new_relationship_id(new_rels_root)
         pfx = get_prefix(new_rels_path, xl)
         push!(new_rels_root, XML.Element(prefixed_tag(pfx, "Relationship");
@@ -1653,7 +1653,7 @@ function delete_part_and_orphans!(xf::XLSXFile, path::String)
     part_dir, part_file = rsplit(path, "/"; limit=2)
     part_rels = "$part_dir/_rels/$part_file.rels"
     if haskey(xf.data, part_rels)
-        for node in elements_with_tag(root_element(xf.data[part_rels]), "Relationship")
+        for node in elements_with_tag(xml_root_element(xf.data[part_rels]), "Relationship")
             get_attr(node, "TargetMode") == "External" && continue  # e.g. hyperlinks — not a package part
             target = resolve_relative_target(part_dir, get_attr(node, "Target"))
             delete_part_and_orphans!(xf, target)
@@ -1891,7 +1891,7 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     end
 
     if haskey(xf.data, sheet_rels)
-        for node in elements_with_tag(root_element(xf.data[sheet_rels]), "Relationship")
+        for node in elements_with_tag(xml_root_element(xf.data[sheet_rels]), "Relationship")
             get_attr(node, "Type") == REL_DRAWING && continue
             get_attr(node, "TargetMode") == "External" && continue
             target = resolve_relative_target(sheet_dir, get_attr(node, "Target"))
@@ -1973,7 +1973,7 @@ end
 - `as_table` is a `Bool` to turn the written range into an Excel Table if true.
 - `table_name` is the name of the Excel Table (if `as_table=true`) 
 - `table_style` is the Ezxcel style to use for the Table (if `as_table=true`)
-- `totals` defines whether and how Table totals are defined.
+- `totals` defines whether and how Table totals are defined (if `as_table=true`)
 
 For more details on `table_name`, `table_style`, `totals`, refer to 
 [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref) and [`XLSX.settotals!`](@ref)
@@ -2029,33 +2029,51 @@ where `data` is a vector of columns and `column_names` is a vector of column lab
 Set `as_table=true` to also turn each sheet's written range into an Excel
 Table. `table_style` (if given) is applied to every table the same way.
 
-When `as_table=true`, each table's name defaults to its sheet's name, if
-that's a valid Excel Table name (no spaces, starts with a letter or
-underscore) and doesn't collide with an existing defined name. Otherwise,
-a warning is issued and an auto-generated name (`"Table1"`, `"Table2"`,
-...) is used instead — sheet names and table names don't share the same
-character rules or, in the case of defined names, the same namespace
-guarantees.
+When `as_table=true`, each table's name defaults to its sheet's name. If that
+isn't a valid Excel Table name it is normalized (spaces and invalid characters
+become underscores) and a warning is issued. If the normalized name collides with
+an existing table or defined name, a second warning is issued and an
+auto-generated name (`"Table1"`, `"Table2"`, ...) is used instead — sheet names
+and table names don't share the same character rules or, in the case of defined
+names, the same namespace guarantees.
 
 Example:
 
 ```julia
-julia> import DataFrames, XLSX
+julia> cols_a = [[10, 20, 30], ["Fist", "Sec", "Third"]];
 
-julia> df1 = DataFrames.DataFrame(COL1=[10,20,30], COL2=["Fist", "Sec", "Third"])
+julia> names_a = ["COL1", "COL2"];
 
-julia> df2 = DataFrames.DataFrame(AA=["aa", "bb"], AB=[10.1, 10.2])
+julia> cols_b = [["aa", "bb"], [10.1, 10.2]];
 
-julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2)
+julia> names_b = ["AA", "AB"];
 
-julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2;
-           as_table=true, table_style="TableStyleMedium2")
+julia> XLSX.writetable("report.xlsx"; REPORT_A=(cols_a, names_a), REPORT_B=(cols_b, names_b))
+
+julia> XLSX.writetable("report.xlsx"; overwrite=true, as_table=true, table_style="TableStyleMedium2",
+           REPORT_A=(cols_a, names_a), REPORT_B=(cols_b, names_b))
 ```
+
+!!! note
+    Because sheet names are given as keywords, they must be valid Julia
+    identifiers — `REPORT_A` works, `"Report A"` does not. They also share
+    the keyword namespace with this method's own options so, using this method, 
+    a sheet cannot be named `overwrite`, `as_table` or `table_style` — such a
+    keyword is taken as the option, and the resulting error will not mention sheet
+    names. Use the `Vector{Tuple{String, …}}` form, or `"Report A" => table` pairs,
+    for names that don't satisfy this.
 
 See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
 function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing, kw...)
+
+    for (sheetname, spec) in kw # do this before confirming isfile - ordering pinned in tests
+        spec isa Tuple{Any,Any} || throw(XLSXError(
+            "Keyword `$sheetname` must be a `(data, columnnames)` tuple, got `$(typeof(spec))`. " *
+            "This form takes columns and labels, not a table — to write a Tables.jl source " *
+            "directly, use `writetable(filename, :$sheetname => table)`."))
+    end
 
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
@@ -2065,8 +2083,10 @@ function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     wb = get_workbook(xf)
     is_first = true
 
-    for (sheetname, (data, column_names)) in kw
+    for (sheetname, spec) in kw
         sheetname_str = string(sheetname)
+        data, column_names = spec
+
         if is_first
             sheet = xf[1]
             renamesheet!(sheet, sheetname_str)
@@ -2093,13 +2113,13 @@ is a vector of columns and `column_names` is a vector of column labels.
 Set `as_table=true` to also turn each sheet's written range into an Excel
 Table. `table_style` (if given) is applied to every table the same way.
 
-When `as_table=true`, each table's name defaults to its sheet's name, if
-that's a valid Excel Table name (no spaces, starts with a letter or
-underscore) and doesn't collide with an existing defined name. Otherwise,
-a warning is issued and an auto-generated name (`"Table1"`, `"Table2"`,
-...) is used instead — sheet names and table names don't share the same
-character rules or, in the case of defined names, the same namespace
-guarantees.
+When `as_table=true`, each table's name defaults to its sheet's name. If that
+isn't a valid Excel Table name it is normalized (spaces and invalid characters
+become underscores) and a warning is issued. If the normalized name collides with
+an existing table or defined name, a second warning is issued and an
+auto-generated name (`"Table1"`, `"Table2"`, ...) is used instead — sheet names
+and table names don't share the same character rules or, in the case of defined
+names, the same namespace guarantees.
 
 # Example
 ```julia

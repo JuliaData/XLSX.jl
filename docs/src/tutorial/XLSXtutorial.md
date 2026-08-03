@@ -413,8 +413,12 @@ Pass `as_table=true` to write the data as an Excel Table rather than plain cells
 julia> XLSX.writetable("df.xlsx", df; as_table=true, table_name="Data")
 ```
 
-You can also export multiple tables to Excel, each table in a separate worksheet, by either passing a tuple (columns, names)
-to a keyword argument for each sheet name, or a list `"sheet name" => table` pairs for any Tables.jl compatible source.
+You can also export multiple tables to Excel, each table in a separate worksheet.
+Pass a `(columns, names)` tuple to a keyword argument for each sheet name, or a
+vector of `("sheet name", columns, names)` tuples if the sheet names aren't valid
+Julia identifiers. For any Tables.jl-compatible source, pass a list of
+`"sheet name" => table` or `:sheet_name => table` pairs, or the pairs as separate
+arguments.
 
 ```julia
 julia> import DataFrames, XLSX
@@ -434,10 +438,33 @@ julia> df2 = DataFrames.DataFrame(AA=["aa", "bb"], AB=[10.1, 10.2])
 │ 1   │ aa │ 10.1 │
 │ 2   │ bb │ 10.2 │
 
-julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, "REPORT_B" => df2)
+julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, :REPORT_B => df2)
 ```
 
-This last example shows how to do the same thing, but when you don't know how many tables you'll be exporting in advance.
+Or, alternatively, with plain vectors rather than a DataFrame
+
+```
+julia> cols_a = [[10, 20, 30], ["Fist", "Sec", "Third"]];
+
+julia> names_a = ["COL1", "COL2"];
+
+julia> cols_b = [["aa", "bb"], [10.1, 10.2]];
+
+julia> names_b = ["AA", "AB"];
+
+julia> XLSX.writetable("report_columns.xlsx"; REPORT_A=(cols_a, names_a), REPORT_B=(cols_b, names_b))
+```
+
+Sheet names given as keywords must be valid Julia identifiers. For names like
+`"Report A"`, pass a vector of `(sheetname, columns, names)` tuples instead:
+
+```
+julia> XLSX.writetable("report_columns.xlsx",
+           [("Report A", cols_a, names_a), ("Report B", cols_b, names_b)];
+           overwrite=true)
+```
+
+Finally, this last example shows how to do the same thing, but when you don't know how many tables you'll be exporting in advance.
 
 ```julia
 df1 = DataFrame(A=[1,2], B=[3,4])

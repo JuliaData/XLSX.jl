@@ -39,28 +39,6 @@ The iterator element is a SheetRow.
 @inline get_worksheet(itr::SheetRowIterator) = itr.sheet
 @inline row_number(state::SheetRowStreamIteratorState) = state.row
 
-#Base.show(io::IO, state::SheetRowStreamIteratorState) = print(io, "SheetRowStreamIteratorState( itr = $(state.itr), itr_state = $(state.itr_state), row = $(state.row) )")
-
-xml_elements(node) = filter(n -> XML.nodetype(n) == XML.Element, XML.children(node))
-
-## 1. Parsed DOM document
-#xml_root_element(doc::XML.Document) = XML.root(doc)
-xml_root_element(doc) = last(xml_elements(doc))
-
-# 2. Parsed DOM node
-#xml_root_element(n::XML.Node) = n
-
-# 3. LazyNode
-function xml_root_element(lz::XML.LazyNode)
-    c = XML.Cursor(lz)
-    while XML.next!(c) !== nothing
-        if XML.nodetype(c) == XML.Element
-            return XML.LazyNode(c)
-        end
-    end
-    error("No root element found")
-end
-
 # Opens a file for streaming.
 @inline function open_internal_file_stream(xf::XLSXFile, filename::String) :: XML.LazyNode
 

@@ -87,7 +87,7 @@ throws a `KeyError` if the name or id is not found on that sheet.
 
 ### Getting the data out
 
-A `Table` is itself a [`Tables.jl`](https://github.com/JuliaData/Tables.jl) source, so
+An [`XLSX.Table`](@ref) is itself a [`Tables.jl`](https://github.com/JuliaData/Tables.jl) source, so
 it can be handed directly to any compatible sink. XLSX.jl also provides the same three
 accessors it provides for worksheets:
 
@@ -125,7 +125,7 @@ Table — are never included.
 
 ### Iterating rows
 
-[`XLSX.eachtablerow`](@ref) applied to a `Table` returns an iterator over its data rows:
+[`XLSX.eachtablerow`](@ref) applied to a Table returns an iterator over its data rows:
 
 ```julia
 julia> for r in XLSX.eachtablerow(t)
@@ -192,11 +192,11 @@ Both [`XLSX.readtable`](@ref) and [`XLSX.readto`](@ref) accept a `table_name` ke
 to read a Table without opening the file first:
 
 ```julia
-julia> XLSX.readto("tables.xlsx", "Sheet1", DataFrame; table_name="Age_height")
+julia> df1 = XLSX.readto("tables.xlsx", "Sheet1", DataFrame; table_name="Age_height")
 
-julia> XLSX.readto("tables.xlsx", DataFrame; table_name="Age_height")
+julia> df2 = XLSX.readto("tables.xlsx", DataFrame; table_name="Age_height")
 
-julia> XLSX.readtable("tables.xlsx", "Sheet1"; table_name="Age_height")
+julia> dt = XLSX.readtable("tables.xlsx", "Sheet1"; table_name="Age_height")
 ```
 
 Supplying the sheet name is faster on a workbook with many sheets: only that 
@@ -280,7 +280,7 @@ will simply make Excel fall back to its default Table appearance.
 
 [`XLSX.writetable!`](@ref) and [`XLSX.writetable`](@ref) accept `as_table=true` to turn
 the range they have just written into a Table, so there is no need for a separate
-`addtable!` call:
+[`XLSX.addtable!`](@ref) call:
 
 ```julia
 julia> using DataFrames
@@ -312,8 +312,8 @@ julia> XLSX.writetable("sales.xlsx", df;
 ```
 
 This writes the data, wraps it as a Table named `Sales`, and adds a totals row below it
-in one step — equivalent to calling `writetable` with `as_table=true` and then
-`settotals!` separately. `totals` requires `as_table=true`.
+in one step — equivalent to calling [`XLSX.writetable`](@ref) with `as_table=true` and then
+[`XLSX.settotals!`](@ref) separately. `totals` requires `as_table=true`.
 
 ![image|320x500](../images/tableTotals.png)
 
@@ -329,7 +329,13 @@ julia> XLSX.writetable("sales.xlsx", df;
        )
 ```
 
-Note that `totals` is only supported on the single-sheet forms. For multiple sheets,
+For the multi-sheet forms of [`XLSX.writetable`](@ref), `as_table` and `table_style` apply uniformly
+to every sheet. Each Table's name is taken from its sheet's name, normalized into a
+valid Table name if necessary (so a sheet named `"Q1 Report"` gives a Table named
+`Q1_Report`); if the normalized name would collide with an existing Table or defined
+name, an auto-generated name is used instead and a warning is issued.
+
+In contrast, `totals` is only supported on the single-sheet forms. For multiple sheets,
 build the workbook first with [`XLSX.openxlsx`](@ref) and apply
 [`XLSX.writetable!`](@ref) per sheet, each with its own `totals`:
 
@@ -345,12 +351,6 @@ julia> XLSX.openxlsx("report.xlsx", mode="w") do xf
                             totals=["amount" => :sum])
        end
 ```
-
-For the multi-sheet forms of `writetable`, `as_table` and `table_style` apply uniformly
-to every sheet. Each Table's name is taken from its sheet's name, normalized into a
-valid Table name if necessary (so a sheet named `"Q1 Report"` gives a Table named
-`Q1_Report`); if the normalized name would collide with an existing Table or defined
-name, an auto-generated name is used instead and a warning is issued.
 
 The same keywords are available on [`XLSX.writetable!`](@ref) when writing into an
 existing worksheet.
@@ -414,9 +414,43 @@ julia> XLSX.settotals!(s, "Sales", "margin" => (:custom, "SUBTOTAL(109,Sales[rev
     `SUM(Sales[revenue])` — as in the example above. XLSX.jl does not validate or
     evaluate the formula.
 
+### Reading values from a Totals row
+
+A Totals row is separate from the Table's data. It is not included in the `Tables.jl` access 
+provided for the Table itself. Instead, the function [`XLSX.gettotals`](@ref) is provided, 
+which returns a named tuple of (`column_name` = `values`) where `values` is itself a named 
+tuple giving the `setting`, `formula` and `value` of the total for that column.
+
+The `setting` is a `Symbol` naming a built-in function (`:sum`, `:average`, …), `:custom` for 
+a custom formula, `:label` for a literal text label, or `:none` if the column has no totals 
+setting. The `formula` returns the actual Totals formula (as shown in Excel's formula bar) and 
+`value` gives the cell's value. Thus:
+
+```julia
+julia> tot = XLSX.gettotals(t)
+(region = (setting = :label, formula = nothing, value = "Total"), revenue = (setting = :sum, formula = "=SUBTOTAL(109,Sales[revenue])", value = 3400), margin = (setting = :average, formula = "=SUBTOTAL(101,Sales[margin])", value = 243.33))
+
+julia> tot.revenue.setting
+:sum
+
+julia> tot.revenue.value
+3400
+```
+
+!!! note
+
+    When a Table is read from Excel, [XLSX.gettotals](@ref) will return the cell's 
+    value for each column in the table.
+    
+    In contrast, when a Totals formula in a Table is defined in XLSX.jl, either for a 
+    new Table or overwriting a formula in an existing Table, its cell value is not 
+    (cannot be) calculated by XLSX.jl; its value will be returned as missing. It will 
+    be properly calculated when the file is first opened by Excel.
+
+
 ### Updating a totals row
 
-Columns not mentioned in a `settotals!` call are left alone, so an existing totals row
+Columns not mentioned in a [`XLSX.settotals!`](@ref) call are left alone, so an existing totals row
 can be adjusted one column at a time:
 
 ```julia
@@ -431,10 +465,10 @@ julia> XLSX.settotals!(s, "Sales", "margin" => :none)   # margin's totals cell c
 ```
 
 The totals row itself remains, even if every column's totals is cleared — an empty
-totals row is valid, and Excel displays it.
+totals row is valid, and Excel displays it. Use [`XLSX.removetotals!`](@ref) to remove the row entirely.
 
 As with every formula written by XLSX.jl, no cached value is stored alongside a totals
-formula. `setFormula` replaces the cell with a value-less formula cell, so the cell
+formula. [`XLSX.setFormula`](@ref) replaces the cell with a value-less formula cell, so the cell
 reads back as `missing`, and Excel computes the result when the file is opened (XLSX.jl
 sets `fullCalcOnLoad` to force recalculation).
 
@@ -460,7 +494,7 @@ content is regenerated from the Table's own per-column settings — functions, c
 formulas and labels are all preserved, but values are removed to be recalculated 
 by Excel.
 
-The rows immediately below the Table that will be filled by `appendtable!` must be empty; 
+The rows immediately below the Table that will be filled by [`XLSX.appendtable!`](@ref) must be empty; 
 otherwise an `XLSXError` is thrown. Pass `check_empty=false` to overwrite whatever is there.
 
 `data` may be any `Tables.jl` source (a `DataFrame`, an `XLSX.DataTable`, etc), an
@@ -491,7 +525,7 @@ row, the data rows and any totals row all keep the values they held before the T
 was deleted.
 
 This mirrors Excel's own **Table Design → Convert to Range**. There is no single Excel
-operation that deletes a Table and its data together, and `deletetable!` follows the
+operation that deletes a Table and its data together, and [`XLSX.deletetable!`](@ref) follows the
 same convention. If you want the data gone as well, clear the cells yourself as a
 separate step:
 

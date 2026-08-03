@@ -39,14 +39,15 @@ export
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
-    addtable!, deletetable!, settotals!, appendtable!
+    addtable!, deletetable!, settotals!, gettotals, removetotals!, appendtable!
 
 @static if VERSION >= v"1.11"
     eval(Meta.parse("""
     public getcell, getcellrange, getFormula, getRichTextString,
            getConditionalFormats, getColumnWidth, getRowHeight,
            getFormat, getFont, getBorder, getFill, getAlignment,
-           Table, TableStyleInfo, table, tables
+           DataTable, Table, TableStyleInfo, table, tables,
+           getCharts, getChart, getChartData, Chart, ChartSeries, ChartRef
     """))
 end
 
@@ -58,6 +59,7 @@ const ROW_CHUNKSIZE  =     1_000           # number of rows to be processed in e
 const MAX_THREADS    = Threads.nthreads()  # maximum number of threads to use for parallel processing
 
 include("types.jl")
+include("xmlutil.jl")
 include("xlsx-colors.jl") # must load before sst.jl and cellformat-helpers.jl
 include("formula.jl")
 include("cellref.jl")
@@ -77,6 +79,7 @@ include("panes.jl")
 include("conditional-format-helpers.jl") # must load before conditional-formats.jl
 include("conditional-formats.jl")
 include("images.jl")
+include("charts.jl")
 include("write.jl")
 include("fileArray.jl")
 
