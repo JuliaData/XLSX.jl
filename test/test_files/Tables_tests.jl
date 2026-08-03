@@ -1120,10 +1120,10 @@ end
                         "(sheetname, data, columnnames)", "neither `AbstractString` nor `Symbol`")
 
         @test throws_with(() -> XLSX.writetable("hint.xlsx", [1 => df]),
-                        "Sheet name must be an `AbstractString` or `Symbol`", "Int64")
+                        "Sheet name must be an `AbstractString` or `Symbol`", string(Int))
 
         @test throws_with(() -> XLSX.writetable("hint.xlsx", 1 => df),
-                        "name => table", "Int64")
+                        "name => table", string(Int))
 
         # `writetable!` writes into an existing sheet, so a pair is never valid there
         XLSX.openxlsx("hint.xlsx", mode="w") do xf
