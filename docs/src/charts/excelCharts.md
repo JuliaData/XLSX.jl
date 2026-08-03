@@ -1,5 +1,7 @@
 # Charts
 
+(This guide is a Work in Progress)
+
 ## What XLSX.jl can do with charts
 
 XLSX.jl can *read* the charts in a workbook: where each chart lives, what type it
