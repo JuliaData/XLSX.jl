@@ -93,7 +93,7 @@ Three types carry the result, nested one inside the next.
 | `name` | part name without extension, e.g. `"chart1"` |
 | `rId` | relationship id within the drawing part, if resolved |
 | `sheet` | sheet the chart is anchored to, if resolved |
-| `from`, `to` | anchor cells as strings, following `XLSX.getImages`|
+| `from`, `to` | anchor cells as strings, following [`XLSX.getImages`](@ref) |
 | `title` | title text, or `nothing` when auto-generated or deleted |
 | `charttypes` | `[:barChart]`, or several for a combo chart |
 | `series` | `Vector{ChartSeries}` in document order |

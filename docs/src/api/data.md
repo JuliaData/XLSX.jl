@@ -24,6 +24,7 @@ XLSX.geterror(::XLSX.Worksheet, ::AbstractString)
 
 ## Tables
 ```@docs
+XLSX.DataTable
 XLSX.gettable
 XLSX.readtable
 XLSX.appendtable!

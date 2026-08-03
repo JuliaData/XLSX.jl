@@ -5,6 +5,8 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+- Address [#263](https://github.com/JuliaData/XLSX.jl/issues/263) (Retrieve data from chart)
+- Add docs for Charts (WIP)
 - Tidy `writetable` API and docs (non-breaking)
   
 ## [v0.12.2](https://github.com/JuliaData/XLSX.jl/tree/v0.12.2) - 2026-07-31
