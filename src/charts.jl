@@ -34,7 +34,7 @@ const ChartAnchor = NamedTuple{
     Tuple{String,Union{Nothing,String},Union{Nothing,String},String},
 }
 
-const ChartRange = Union{Nothing,SheetCellRef,SheetCellRange,SheetColumnRange,SheetRowRange,NonContiguousRange}
+const ChartRange = Union{Nothing,SheetCellRef,SheetCellRange,SheetRowRange,SheetColumnRange,NonContiguousRange}
 
 const ChartRanges = @NamedTuple{
     idx::Int,
@@ -736,7 +736,7 @@ getChartRanges(x::Union{Worksheet,XLSXFile}, name::AbstractString)::Vector{Chart
 
 getChartRanges(x::Union{Worksheet,XLSXFile}) =
     [(chart = c.name, ranges = getChartRanges(c)) for c in getCharts(x; cache=false)]
-    
+
 # ===========================================================================
 # Display
 # ===========================================================================
