@@ -46,7 +46,8 @@ export
     public getcell, getcellrange, getFormula, getRichTextString,
            getConditionalFormats, getColumnWidth, getRowHeight,
            getFormat, getFont, getBorder, getFill, getAlignment,
-           Table, TableStyleInfo, table, tables
+           DataTable, Table, TableStyleInfo, table, tables,
+           getCharts, getChart, getChartData, Chart, ChartSeries, ChartRef
     """))
 end
 

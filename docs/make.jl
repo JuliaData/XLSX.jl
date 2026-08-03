@@ -17,6 +17,7 @@ makedocs(
         ],
         "Using Formulas" => "formulae/formulas.md",
         "Using Excel Tables" => "tables/excelTables.md",
+        "Excel Charts" => "charts/excelCharts.md",
         "Examples" => "examples.md",
         "Migration Guide" => "migration.md",
         "API Reference" => Any[

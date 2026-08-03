@@ -525,26 +525,29 @@ end
     iserror(r::ChartRef) -> Vector{Bool}
     iserror(r::ChartRef, i::Integer) -> Bool
 
-Report which cached chart values are Excel error values. Errors are stored as
-`missing` in `r.data`; this distinguishes them from genuinely blank points.
+Report which cached chart values are Excel error values. When Excel writes source data 
+to a chart cache, all error values are written as simple zeros except for `#N/A`. 
+Therefore, when  operating on a chart cache, only `#N/A` values will return `true`. 
+All other error values will return `false`, and are indistinguisable from genuine 
+zero values.
 
 See also [`XLSX.geterror`](@ref).
 """
-iserror(r::ChartRef, i::Integer)::Bool = haskey(r.errors, Int(i))
 iserror(r::ChartRef)::Vector{Bool} = Bool[haskey(r.errors, i) for i in 1:length(r.data)]
+iserror(r::ChartRef, i::Integer)::Bool = haskey(r.errors, Int(i))
 
 """
     geterror(r::ChartRef) -> Vector{String}
     geterror(r::ChartRef, i::Integer) -> String
 
-Resolve cached chart error values to their Excel strings (`"#N/A"`, `"#DIV/0!"`,
-...). Non-error points return an empty string, matching `geterror` on a cell range.
+Resolve cached chart `#N/A`error values to their Excel strings (`"#N/A"`). All other 
+error values are written by Excel as simple zeros in the chart cache, and return "".
 
 See also [`XLSX.iserror`](@ref).
 """
+geterror(r::ChartRef)::Vector{String} = String[geterror(r, i) for i in 1:length(r.data)]
 geterror(r::ChartRef, i::Integer)::String =
     haskey(r.errors, Int(i)) ? get_error_string(r.errors[Int(i)]) : ""
-geterror(r::ChartRef)::Vector{String} = String[geterror(r, i) for i in 1:length(r.data)]
 
 # ===========================================================================
 # Cached data as a table
@@ -793,5 +796,3 @@ function Base.show(io::IO, ::MIME"text/plain", r::ChartRef)
     isempty(r.data) || println(io, "  data: ", r.data)
 end
 
-# Julia 1.10 compatibility for the `public` keyword.
-eval(Meta.parse("public getCharts, getChart, getChartData, Chart, ChartSeries, ChartRef"))

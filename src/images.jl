@@ -433,6 +433,12 @@ end
 # getImages — public API
 # ===========================================================================
 
+"""
+    getImages(s::Worksheet) -> Vector{ImageInfo}
+    getImages(xf::XLSXFile) -> Vector{ImageInfo}
+
+Return a list of all images in the specified worksheet.
+"""
 function getImages(s::Worksheet)::Vector{ImageInfo}
     xf         = get_xlsxfile(s)
     sheet_path = get_relationship_target_by_id("xl", get_workbook(s), s.relationship_id)

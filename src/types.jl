@@ -753,6 +753,15 @@ struct XLSXTableRowIterator
     table::Table
 end
 
+"""
+`XLSX.DataTable` is a simple `Tables.jl` compatibledata structure to hold tabular 
+data extracted from an Excel worksheet.
+
+It is created by [`XLSX.gettable`](@ref) or, direct from a file, with [`XLSX.readtable`](@ref).
+
+Pass a `DataTable` to any `Tables.jl` compatible sink, e.g. `DataFrame(dt)`.
+
+"""
 struct DataTable
     data::Vector{Any} # columns
     column_labels::Vector{Symbol}

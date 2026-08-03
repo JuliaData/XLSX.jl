@@ -18,8 +18,8 @@ XLSX.readdata
 XLSX.getdata
 XLSX.getcell
 XLSX.getcellrange
-XLSX.iserror
-XLSX.geterror
+XLSX.iserror(::XLSX.Worksheet, ::AbstractString)
+XLSX.geterror(::XLSX.Worksheet, ::AbstractString)
 ```
 
 ## Tables
