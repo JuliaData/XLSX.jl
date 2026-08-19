@@ -47,7 +47,8 @@ export
            getConditionalFormats, getColumnWidth, getRowHeight,
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
-           getCharts, getChart, getChartData, Chart, ChartSeries, ChartRef
+           getCharts, getChart, getChartData, Chart, ChartSeries, ChartRef,
+           Workbook
     """))
 end
 

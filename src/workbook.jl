@@ -86,6 +86,24 @@ end
 @inline getsheet(xl::XLSXFile, sheetname::String)::Worksheet = getsheet(xl.workbook, sheetname)
 @inline getsheet(xl::XLSXFile, sheet_index::Int)::Worksheet = getsheet(xl.workbook, sheet_index)
 
+function _print_sheet_table(io::IO, wb::Workbook)
+    @printf(io, "%21s %-13s %-13s\n", "sheetname", "size", "range")
+    println(io, "-"^(21 + 1 + 13 + 1 + 13))
+
+    for s in wb.sheets
+        sheetname = length(s.name) > 20 ? first(s.name, 20) * "…" : s.name
+        if s.dimension !== nothing
+            rg = s.dimension
+            _size = size(rg) |> x -> string(x[1], "x", x[2])
+            @printf(io, "%21s %-13s %-13s\n", sheetname, _size, rg)
+        elseif is_chartsheet(wb, s.name)
+            @printf(io, "%21s Chartsheet\n", sheetname)
+        else
+            @printf(io, "%21s size unknown\n", sheetname)
+        end
+    end
+end
+
 function Base.show(io::IO, xf::XLSXFile)
 
     function sheetcountstr(workbook)
@@ -104,27 +122,19 @@ function Base.show(io::IO, xf::XLSXFile)
     wb = xf.workbook
     print(io, "XLSXFile($(source(xf))) ",
         "containing $(sheetcountstr(wb))\n")
-    @printf(io, "%21s %-13s %-13s\n", "sheetname", "size", "range")
-    println(io, "-"^(21 + 1 + 13 + 1 + 13))
+    _print_sheet_table(io, wb)
+end
 
-    for s in wb.sheets
-        sheetname = s.name
-        if textwidth(sheetname) > 20
-            sheetname = sheetname[collect(eachindex(s.name))[1:20]] * "…"
-        end
-
-        if s.dimension !== nothing
-            rg = s.dimension
-            _size = size(rg) |> x -> string(x[1], "x", x[2])
-            @printf(io, "%21s %-13s %-13s\n", sheetname, _size, rg)
-        else
-            if is_chartsheet(wb, sheetname)
-                @printf(io, "%21s Chartsheet\n", sheetname)
-            else
-                @printf(io, "%21s size unknown\n", sheetname)
-            end
-        end
+function Base.show(io::IO, wb::Workbook)
+    if !isdefined(wb, :package)
+        print(io, "XLSX.Workbook(<uninitialised>)")
+        return
     end
+    xf = get_xlsxfile(wb)
+    sc = sheetcount(wb)
+    src = xf.source isa IOBuffer ? "IOBuffer" : "\"$(xf.source)\""
+    print(io, "Workbook($src) containing ", sc, sc == 1 ? " Worksheet\n" : " Worksheets\n")
+    _print_sheet_table(io, wb)
 end
 
 @inline Base.getindex(xl::XLSXFile, i::Integer) = getsheet(xl, i)
