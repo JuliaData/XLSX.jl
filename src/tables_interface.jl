@@ -162,20 +162,21 @@ Tables.rowaccess(::Type{<:Table}) = true
 Tables.rowaccess(::Type{<:XLSXTableRowIterator}) = true
 Tables.columnaccess(::Type{<:Table}) = true
 
-Tables.rows(t::Table) = XLSXTableRowIterator(t)
+Tables.rows(t::Table) = XLSXTableRowIterator(_resolve(t))
 Tables.rows(it::XLSXTableRowIterator) = it  # identity, matching the existing TableRowIterator convention
 
 function Tables.rowtable(t::Table)
+    t = _resolve(t)
     names = Tuple(Symbol.(t.columns))
     return [NamedTuple{names}(ntuple(i -> Tables.getcolumn(row, i), length(names))) for row in eachtablerow(t)]
 end
 
 Tables.rowtable(it::XLSXTableRowIterator) = Tables.rowtable(it.table)
 
-Tables.schema(t::Table) = Tables.Schema(Symbol.(t.columns), nothing)
+Tables.schema(t::Table)      = Tables.Schema(Symbol.(_resolve(t).columns), nothing)
 Tables.schema(it::XLSXTableRowIterator) = Tables.schema(it.table)
 
-Tables.columnnames(t::Table) = Symbol.(t.columns)
+Tables.columnnames(t::Table) = Symbol.(_resolve(t).columns)
 Tables.columnnames(tr::XLSXTableRow) = Symbol.(tr.table.columns)
 
 Tables.getcolumn(tr::XLSXTableRow, nm::Symbol) =
@@ -192,6 +193,7 @@ function Base.iterate(it::XLSXTableRowIterator, state::Int = _first_data_row(it.
     return XLSXTableRow(it.table, state), state + 1
 end
 function Tables.columns(t::Table)
+    t = _resolve(t)
     row_range = _first_data_row(t):_last_data_row(t)
     col0 = _col_start(t)
     NamedTuple(
@@ -258,7 +260,7 @@ julia> collect(XLSX.eachtablerow(t))    # Vector{XLSX.XLSXTableRow}
 
 See also [`XLSX.table`](@ref), [`XLSX.tables`](@ref), [`XLSX.gettable`](@ref).
 """
-eachtablerow(t::Table) = XLSXTableRowIterator(t)
+eachtablerow(t::Table) = XLSXTableRowIterator(_resolve(t))
 
 Base.getindex(r::XLSXTableRow, i::Integer) = Tables.getcolumn(r, Int(i))
 Base.getindex(r::XLSXTableRow, nm::Symbol) = Tables.getcolumn(r, nm)

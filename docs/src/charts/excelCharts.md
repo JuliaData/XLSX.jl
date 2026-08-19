@@ -399,10 +399,10 @@ addressable within this workbook.
 
 Parsing the cached points is the expensive part of reading a large chart. Where
 you only need the shape of a chart — its title, types, series names, source
-formulas, format codes and point counts — pass `cache=false`:
+formulas, format codes and point counts — pass `read_cached_values=false`:
 
 ```julia
-julia> c = XLSX.getChart(f["Data"], "chart1"; cache=false);
+julia> c = XLSX.getChart(f["Data"], "chart1"; read_cached_values=false);
 
 julia> c.series[1].values
 XLSX.ChartRef Data!$B$2:$B$5 (num, 4 pts)
@@ -416,8 +416,8 @@ Any[]
 read, since they are metadata rather than plotted values.
 
 Calling [`XLSX.getChartData`](@ref) on a chart read this way throws an `XLSXError` rather than
-silently returning an empty table. [`XLSX.getChartRanges`](@ref) uses `cache=false` internally,
-as it never needs the values.
+silently returning an empty table. [`XLSX.getChartRanges`](@ref) uses `read_cached_values=false` 
+internally, as it never needs the values.
 
 ## What is not supported
 

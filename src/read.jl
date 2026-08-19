@@ -1006,6 +1006,15 @@ function internal_xml_file_add!(xl::XLSXFile, filename::String)
     xl.files[filename] = false
     nothing
 end
+# src/XLSX.jl:59
+"""
+    max_threads()
+
+Number of worker tasks to spawn for parallel file processing. Read at call time —
+must not be a `const`, which would bake the *precompiling* machine's thread count
+into the pkgimage.
+"""
+@inline max_threads() = Threads.nthreads()
 
 function strip_bom_and_lf!(bytes::Vector{UInt8})
     # Issue 243 - Need to remove BOM characters that precede the XML declaration.
@@ -1181,7 +1190,9 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
         end
     end
 
-    @sync for _ in 1:MAX_THREADS
+    #@sync for _ in 1:MAX_THREADS
+    nworkers = min(max_threads(), length(ZipArchives.zip_names(zip_io)))
+    @sync for _ in 1:max(nworkers, 1)
         Threads.@spawn begin
             for file in filtered_files
                 readfile = process_file(zip_io, file)
@@ -1193,6 +1204,7 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
     close(read_files)
     wait(consumer)
 end
+
 function process_file(zip_io::ZipArchives.ZipReader, filename::String)
 
     node = nothing

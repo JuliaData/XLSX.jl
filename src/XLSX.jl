@@ -15,6 +15,41 @@ import ZipArchives
 
 import PrecompileTools as PCT    # this is a small dependency.
 
+# ---------------------------------------------------------------------------
+# Naming conventions
+#
+# Keywords: unqualified when the keyword names a property of the function's own
+# subject (`addtable!(...; name, style)` -> the new Table; `setFont(...; name,
+# size)` -> the font). Qualified only where a competing entity is in scope:
+# `writetable(...; table_name, table_style)`, because `sheetname` and cell
+# styles are also in that namespace. Qualify to disambiguate, not by default —
+# `writetable`'s `totals` stays bare because nothing competes with it.
+#
+# Parameters that inject pre-computed state rather than describe the 
+# subject (mergedCells, enable_cache, sheet_template_data) are named 
+# for what they supply, not what they configure.
+#
+# Formatting keywords mirror the OOXML attribute name verbatim when it is
+# already readable (`bgColor`, `vertAlign`, `wrapText`); single-letter OOXML
+# names are expanded (`b` -> `bold`, `sz` -> `size`).
+#
+# Keywords borrowed wholesale from another package keep that package's
+# spelling: `normalizenames` and `header` behave exactly as in CSV.jl, so they
+# are spelled as in CSV.jl. Keywords that are merely inspired by one are ours
+# and use underscores — `missing_strings` takes a set and defaults to nothing,
+# unlike CSV.jl's `missingstring`. Grandfathered: `sheetname`, `overwrite`.
+#
+# Verbs: `delete*` destroys a first-class entity (`deletesheet!`,
+# `deletetable!`); `remove*` clears a property of an entity that survives
+# (`removetotals!`, `removePanes`). So a future image deletion is
+# `deleteImage`, but unmerging cells is `removeMergedCells`.
+#
+# Function casing follows the family a function joins, not a global rule:
+# `*table`/`*sheet`/`*data` are lowercase (`addtable!`, `getdata`), the
+# formatting and feature layer is camelCase (`setFont`, `freezePanes`,
+# `getCharts`). Match the neighbours.
+# ---------------------------------------------------------------------------
+
 export
     # Files and worksheets
     XLSXFile,
@@ -57,7 +92,6 @@ const SPREADSHEET_NAMESPACE_XPATH_ARG = "http://schemas.openxmlformats.org/sprea
 const EXCEL_MAX_COLS =    16_384           # total columns supported by Excel per sheet
 const EXCEL_MAX_ROWS = 1_048_576           # total rows supported by Excel per sheet (including headers)
 const ROW_CHUNKSIZE  =     1_000           # number of rows to be processed in each thread
-const MAX_THREADS    = Threads.nthreads()  # maximum number of threads to use for parallel processing
 
 include("types.jl")
 include("xmlutil.jl")

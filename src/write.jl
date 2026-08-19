@@ -376,8 +376,13 @@ function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{UInt8}
     end
    
     cache_rows = stream_cache_rows(sheet, chunksize)
-   
-    @sync for _ in 1:MAX_THREADS
+
+    cache = sheet.cache
+    isnothing(cache) && throw(XLSXError("Worksheet '$(sheet.name)' cannot be written - it has no cache."))
+    nrows = length(cache.rows_in_cache)
+    nworkers = clamp(cld(nrows, chunksize), 1, max_threads())
+
+    @sync for _ in 1:nworkers
         Threads.@spawn begin
             row_node = IOBuffer()
             column_indexes = Vector{Int}()

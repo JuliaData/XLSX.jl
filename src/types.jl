@@ -349,8 +349,9 @@ Implementations: SheetRowStreamIterator, WorksheetCache.
 =#
 abstract type SheetRowIterator end
 
-mutable struct SheetRowStreamIteratorState{I}
+mutable struct SheetRowStreamIteratorState{I,S}
     row_iter::I
+    row_state::S
     rowcells::Dict{Int,Cell}
     local_formulas::Dict{SheetCellRef,AbstractFormula}
     rows_since_merge::Int

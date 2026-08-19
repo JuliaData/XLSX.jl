@@ -5,12 +5,17 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [v0.12.3](https://github.com/JuliaData/XLSX.jl/tree/v0.12.3) - 2026-08-20
 - Address [#263](https://github.com/JuliaData/XLSX.jl/issues/263) (Retrieve data from chart)
 - Add docs for Charts (WIP)
 - Tidy `writetable` API and docs (non-breaking)
 - Add show method for `XLSX.Workbook`
 - Bump XML.jl compat to v0.4.6, fixing [#448](https://github.com/JuliaData/XLSX.jl/issues/448) (Thanks to @mathieu17g for a quick fix for this)
-- Fix [#447](https://github.com/JuliaData/XLSX.jl/issues/447) - escaping inline strings correctly. 
+- Fix [#447](https://github.com/JuliaData/XLSX.jl/issues/447) - escaping inline strings correctly.
+- Extend Excel-native Table methods and tests
+
+I have changed the `cache` keyword in several functions handling Excel charts (`getChart`, `getCharts`) to `read_cached_values` which is more descriptive and less likely to create confusion with the cell cache. I hope the impact of this is very low as this functionality was only first added a couple of weeks ago and it was not in any release before this one (so technically not breaking).
   
 ## [v0.12.2](https://github.com/JuliaData/XLSX.jl/tree/v0.12.2) - 2026-07-31
 - Add read and write support for native Excel tables

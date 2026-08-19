@@ -150,20 +150,20 @@ cache_ptcount(cache::Union{Nothing,XML.Node})::Int = child_val(cache, "ptCount",
 Parse a series-role container (`c:tx`, `c:cat`, `c:val`, `c:xVal`, `c:yVal`,
 `c:bubbleSize`) into a `ChartRef`, or `nothing` if it holds no cache.
 """
-function parse_chart_ref(container::Union{Nothing,XML.Node}; cache::Bool=true)::Union{Nothing,ChartRef}
+function parse_chart_ref(container::Union{Nothing,XML.Node}; read_cached_values::Bool=true)::Union{Nothing,ChartRef}
     isnothing(container) && return nothing
     for node in XML.eachelement(container)
         tag = localname(node)
         if tag == "numRef" || tag == "strRef"
             numeric = tag == "numRef"
             cnode = first_element_with_tag(node, numeric ? "numCache" : "strCache")
-            pts, errs = (cache && !isnothing(cnode)) ? parse_cached_points(cnode, numeric) : (Any[], Dict{Int,UInt64}())
+            pts, errs = (read_cached_values && !isnothing(cnode)) ? parse_cached_points(cnode, numeric) : (Any[], Dict{Int,UInt64}())
             return ChartRef(numeric ? :num : :str, child_text(node, "f"), child_text(cnode, "formatCode"),
                             cache_ptcount(cnode), pts, errs)
         elseif tag == "multiLvlStrRef"
             cnode = first_element_with_tag(node, "multiLvlStrCache")
             levels = Any[]
-            if cache && !isnothing(cnode)
+            if read_cached_values && !isnothing(cnode)
                 for lvl in XML.eachelement(cnode)
                     localname(lvl) == "lvl" || continue
                     pts, _ = parse_cached_points(lvl, false)
@@ -173,7 +173,7 @@ function parse_chart_ref(container::Union{Nothing,XML.Node}; cache::Bool=true)::
             return ChartRef(:multiLvlStr, child_text(node, "f"), nothing, cache_ptcount(cnode), levels, Dict{Int,UInt64}())
         elseif tag == "numLit" || tag == "strLit"
             numeric = tag == "numLit"
-            pts, errs = cache ? parse_cached_points(node, numeric) : (Any[], Dict{Int,UInt64}())
+            pts, errs = read_cached_values ? parse_cached_points(node, numeric) : (Any[], Dict{Int,UInt64}())
             return ChartRef(numeric ? :numLit : :strLit, nothing,
                             numeric ? child_text(node, "formatCode") : nothing,
                             cache_ptcount(node), pts, errs)
@@ -249,15 +249,15 @@ function chartex_note(xf::XLSXFile)::String
            "(waterfall, funnel, treemap, sunburst, histogram, box & whisker), which XLSX.jl cannot read."
 end
 
-function parse_chart_series(ser::XML.Node, charttype::Symbol; cache::Bool=true)::ChartSeries
-    # The series name always needs its cache, even under `cache=false`: it is metadata.
-    name_ref = parse_chart_ref(first_element_with_tag(ser, "tx"); cache=true)
+function parse_chart_series(ser::XML.Node, charttype::Symbol; read_cached_values::Bool=true)::ChartSeries
+    # The series name always needs its cache, even under `read_cached_values=false`: it is metadata.
+    name_ref = parse_chart_ref(first_element_with_tag(ser, "tx"); read_cached_values=true)
 
-    categories = parse_chart_ref(first_element_with_tag(ser, "cat"); cache=cache)
-    isnothing(categories) && (categories = parse_chart_ref(first_element_with_tag(ser, "xVal"); cache=cache))
+    categories = parse_chart_ref(first_element_with_tag(ser, "cat"); read_cached_values=read_cached_values)
+    isnothing(categories) && (categories = parse_chart_ref(first_element_with_tag(ser, "xVal"); read_cached_values=read_cached_values))
 
-    values = parse_chart_ref(first_element_with_tag(ser, "val"); cache=cache)
-    isnothing(values) && (values = parse_chart_ref(first_element_with_tag(ser, "yVal"); cache=cache))
+    values = parse_chart_ref(first_element_with_tag(ser, "val"); read_cached_values=read_cached_values)
+    isnothing(values) && (values = parse_chart_ref(first_element_with_tag(ser, "yVal"); read_cached_values=read_cached_values))
 
     return ChartSeries(
         child_val(ser, "idx", -1),
@@ -267,7 +267,7 @@ function parse_chart_series(ser::XML.Node, charttype::Symbol; cache::Bool=true):
         name_ref,
         categories,
         values,
-        parse_chart_ref(first_element_with_tag(ser, "bubbleSize"); cache=cache),
+        parse_chart_ref(first_element_with_tag(ser, "bubbleSize"); read_cached_values=read_cached_values),
     )
 end
 
@@ -289,13 +289,13 @@ function parse_chart_title(chartnode::Union{Nothing,XML.Node})::Union{Nothing,St
         return isempty(title) ? nothing : title
     end
 
-    return first_cached_string(parse_chart_ref(tx; cache=true))
+    return first_cached_string(parse_chart_ref(tx; read_cached_values=true))
 end
 
 function parse_chart_part(
     xf::XLSXFile,
     path::String;
-    cache::Bool=true,
+    read_cached_values::Bool=true,
     get_external_refs::Bool=false,
     rId::Union{Nothing,String}=nothing,
     sheet::Union{Nothing,String}=nothing,
@@ -320,7 +320,7 @@ function parse_chart_part(
         charttype = Symbol(tag)
         push!(charttypes, charttype)
         for ser in elements_with_tag(group, "ser")
-            s = parse_chart_series(ser, charttype; cache=cache)
+            s = parse_chart_series(ser, charttype; read_cached_values=read_cached_values)
             if get_external_refs
                 s = ChartSeries(s.idx, s.order, s.charttype, s.name,
                                 materialise(xf, s.name_ref),
@@ -431,13 +431,13 @@ end
 # ===========================================================================
 
 """
-    getCharts(xf::XLSXFile; cache=true, get_external_refs=false) -> Vector{Chart}
-    getCharts(ws::Worksheet; cache=true, get_external_refs=false) -> Vector{Chart}
+    getCharts(xf::XLSXFile; read_cached_values=true, get_external_refs=false) -> Vector{Chart}
+    getCharts(ws::Worksheet; read_cached_values=true, get_external_refs=false) -> Vector{Chart}
 
 Return every chart in the file, or every chart anchored to `ws`, together with
 the data Excel cached inside each chart part.
 
-Pass `cache=false` to read metadata only - title, chart types, series names,
+Pass `read_cached_values=false` to read metadata only - title, chart types, series names,
 source formulas, format codes and point counts - and skip the cached values,
 which is the expensive part for a large chart.
 
@@ -473,9 +473,9 @@ julia> XLSX.getChartData(c)
 
 See also [`XLSX.getChart`](@ref), [`XLSX.getChartData`](@ref).
 """
-function getCharts(x::Union{Worksheet,XLSXFile}; cache::Bool=true, get_external_refs::Bool=false)::Vector{Chart}
+function getCharts(x::Union{Worksheet,XLSXFile}; read_cached_values::Bool=true, get_external_refs::Bool=false)::Vector{Chart}
     xf = get_xlsxfile(x)
-    charts = [parse_chart_at(xf, path, a; cache=cache, get_external_refs=get_external_refs)
+    charts = [parse_chart_at(xf, path, a; read_cached_values=read_cached_values, get_external_refs=get_external_refs)
               for (path, a) in chart_positions(x)]
     if isempty(charts) && !isempty(chartex_parts(xf))
         @warn "No readable charts found." * chartex_note(xf) maxlog=1
@@ -484,8 +484,8 @@ function getCharts(x::Union{Worksheet,XLSXFile}; cache::Bool=true, get_external_
 end
 
 """
-    getChart(ws::Worksheet, name; cache=true, get_external_refs=false) -> Chart
-    getChart(xf::XLSXFile, name; cache=true, get_external_refs=false) -> Chart
+    getChart(ws::Worksheet, name; read_cached_values=true, get_external_refs=false) -> Chart
+    getChart(xf::XLSXFile, name; read_cached_values=true, get_external_refs=false) -> Chart
 
 Return a single chart. `name` may be the part name (`"chart1"` or
 `"chart1.xml"`), the full package path, or the chart's relationship id within its
@@ -494,14 +494,14 @@ drawing part (`"rId1"`).
 See also [`XLSX.getCharts`](@ref).
 """
 function getChart(x::Union{Worksheet,XLSXFile}, name::AbstractString;
-                  cache::Bool=true, get_external_refs::Bool=false)::Chart
+                  read_cached_values::Bool=true, get_external_refs::Bool=false)::Chart
     xf = get_xlsxfile(x)
     positions = chart_positions(x)
     stem = chart_name(name)
     for (path, a) in positions
         path == name || chart_name(path) == stem ||
             (!isnothing(a) && a.rId == name) || continue
-        return parse_chart_at(xf, path, a; cache=cache, get_external_refs=get_external_refs)
+        return parse_chart_at(xf, path, a; read_cached_values=read_cached_values, get_external_refs=get_external_refs)
     end
     throw(XLSXError("No chart matching `$name`. Found: $(join(chart_name.(first.(positions)), ", "))." * chartex_note(get_xlsxfile(x))))
 end
@@ -601,7 +601,7 @@ function getChartData(c::Chart)::DataTable
     for s in c.series, r in (s.categories, s.values, s.bubble_sizes)
         isnothing(r) && continue
         no_cached_values(r) && throw(XLSXError(
-            "Chart `$(c.name)` was read with `cache=false`, so its cached values are not available. Read it again with `cache=true`."))
+            "Chart `$(c.name)` was read with `read_cached_values=false`, so its cached values are not available. Read it again with `read_cached_values=true`."))
     end
     catrefs = [s.categories for s in c.series]
     shared = !isnothing(first(catrefs)) && !isnothing(first(catrefs).ref) &&
@@ -732,10 +732,10 @@ getChartRanges(c::Chart)::Vector{ChartRanges} =
      for s in c.series]
 
 getChartRanges(x::Union{Worksheet,XLSXFile}, name::AbstractString)::Vector{ChartRanges} =
-    getChartRanges(getChart(x, name; cache=false))
+    getChartRanges(getChart(x, name; read_cached_values=false))
 
 getChartRanges(x::Union{Worksheet,XLSXFile}) =
-    [(chart = c.name, ranges = getChartRanges(c)) for c in getCharts(x; cache=false)]
+    [(chart = c.name, ranges = getChartRanges(c)) for c in getCharts(x; read_cached_values=false)]
 
 # ===========================================================================
 # Display

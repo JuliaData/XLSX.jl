@@ -37,6 +37,24 @@
     @test XLSX.get_dimension(ef_Book1["Sheet1"]) == XLSX.range"B2:C8"
     @test XLSX.isdate1904(ef_Book1["Sheet1"]) == false
 
+    @testset "show(Workbook)" begin
+        xf = XLSX.readxlsx(joinpath(data_directory, "Book1.xlsx"))
+        wb = XLSX.get_workbook(xf)
+        s = sprint(show, wb)
+
+        @test startswith(s, "Workbook(")
+        @test occursin("Book1.xlsx", s)
+        @test occursin("Worksheet", s)
+        for sh in XLSX.sheetnames(xf)
+            @test occursin(sh, s)
+        end
+
+        @test occursin(" containing 1 Worksheet\n", sprint(show, XLSX.get_workbook(XLSX.newxlsx())))
+        
+        io = IOBuffer(read(joinpath(data_directory, "Book1.xlsx")))
+        @test occursin("Workbook(IOBuffer)", sprint(show, XLSX.get_workbook(XLSX.readxlsx(io))))
+
+    end
     @testset "Read XLS file error" begin
         @test_throws XLSX.XLSXError XLSX.readxlsx(joinpath(data_directory, "old.xls"))
         try

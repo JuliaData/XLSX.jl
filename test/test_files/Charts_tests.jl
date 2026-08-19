@@ -100,7 +100,7 @@
 
     @testset "metadata only" begin  # chart_basic.xlsx
         f = XLSX.readxlsx(joinpath(data_directory, "chart_basic.xlsx"))
-        c = XLSX.getCharts(f; cache=false)[1]
+        c = XLSX.getCharts(f; read_cached_values=false)[1]
 
         # Metadata survives; values do not.
         @test c.title == "Revenue by Region"
@@ -113,7 +113,7 @@
 
         # A table of `missing` would be a silent lie.
         @test_throws XLSX.XLSXError XLSX.getChartData(c)
-        @test_throws XLSX.XLSXError XLSX.getChartData(f, "chart1"; cache=false)
+        @test_throws XLSX.XLSXError XLSX.getChartData(f, "chart1"; read_cached_values=false)
     end
 
     @testset "gaps and errors" begin  # chart_gaps.xlsx
@@ -431,10 +431,10 @@
         @test all(x -> x.ranges isa Vector{XLSX.ChartRanges}, all_f)
 
         # follows getCharts, per the docstring
-        @test [x.chart for x in all_f] == [c.name for c in XLSX.getCharts(f; cache=false)]
+        @test [x.chart for x in all_f] == [c.name for c in XLSX.getCharts(f; read_cached_values=false)]
 
         # identify the two charts by type rather than by part name
-        charts = XLSX.getCharts(f; cache=false)
+        charts = XLSX.getCharts(f; read_cached_values=false)
         bub = charts[findfirst(c -> :bubbleChart in c.charttypes, charts)]
         pie = charts[findfirst(c -> :pieChart    in c.charttypes, charts)]
 

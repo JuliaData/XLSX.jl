@@ -484,6 +484,7 @@ julia> XLSX.getdata(t)
 See also [`XLSX.table`](@ref), [`XLSX.eachtablerow`](@ref).
 """
 function getdata(t::Table)
+    t = _resolve(t)
     row_range = _first_data_row(t):_last_data_row(t)
     col0 = _col_start(t)
     nrows = length(row_range)
