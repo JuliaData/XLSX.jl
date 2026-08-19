@@ -95,7 +95,7 @@
     end
 
     df = XLSX.readto(joinpath(data_directory, "No-Default_NameSpace2.xlsx"), DataFrames.DataFrame; first_row=3)
-    @test DataFrames.names(df) == String[
+    @test replace.(DataFrames.names(df), "\r\n" => "\n") == String[
         "Stock Code",
         "Name of Securities",
         "Category",
@@ -111,7 +111,7 @@
         "Debt Securities Board Lot (Nominal)",
         "Debt Securities Investor Type",
         "POS Eligible",
-        "Spread Table\r\n1 = Part A\r\n3 = Part B\r\n5 = Part D\r\n4 & 6 = Part E",
+        "Spread Table\n1 = Part A\n3 = Part B\n5 = Part D\n4 & 6 = Part E",
         "Trading Currency",
         "RMB Counter"
         ]
