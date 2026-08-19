@@ -9,7 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Add docs for Charts (WIP)
 - Tidy `writetable` API and docs (non-breaking)
 - Add show method for `XLSX.Workbook`
-- Bump XML.jl compat to v0.4.6, fixing [#448](https://github.com/JuliaData/XLSX.jl/issues/448) (Thanks to @mathieu17g for a quick fix for this) 
+- Bump XML.jl compat to v0.4.6, fixing [#448](https://github.com/JuliaData/XLSX.jl/issues/448) (Thanks to @mathieu17g for a quick fix for this)
+- Fix [#447](https://github.com/JuliaData/XLSX.jl/issues/447) - escaping inline strings correctly. 
   
 ## [v0.12.2](https://github.com/JuliaData/XLSX.jl/tree/v0.12.2) - 2026-07-31
 - Add read and write support for native Excel tables
