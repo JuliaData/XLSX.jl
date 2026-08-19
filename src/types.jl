@@ -689,9 +689,9 @@ end
 
 struct SheetRow
     sheet::Worksheet
-    row::Int                  # index of the row in the worksheet
-    ht::Union{Float64, Nothing}   # row height
-    rowcells::Dict{Int, Cell} # column -> value
+    row::Int                     # index of the row in the worksheet
+    ht::Union{Float64, Nothing}  # row height
+    rowcells::Dict{Int, Cell}    # column -> value
 end
 
 struct Index # for TableRowIterator - based on DataFrames.jl
@@ -827,7 +827,7 @@ end
 # ===========================================================================
 
 """
-    ChartRef
+`ChartRef`
 
 One cached reference from a chart series: the formula it came from, the number
 format Excel recorded for it, and the cached values themselves.
