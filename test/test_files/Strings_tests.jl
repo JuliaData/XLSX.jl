@@ -48,6 +48,39 @@
     @test ismissing(sheet["J1"])
     @test ismissing(sheet["J2"])
     isfile("mydata.xlsx") && rm("mydata.xlsx")
+
+# (issue #447)
+    src = joinpath(data_directory, "one_and_two_start.xlsx")
+    sheetxml = "xl/worksheets/sheet1.xml"
+
+    # (text written into <is>, expected value after round-trip)
+    cases = [
+        ("<t>one &amp; two</t>",        "one & two"),
+        ("<t>a &lt;b&gt; c</t>",        "a <b> c"),
+        ("<t><![CDATA[x & y]]></t>",    "x & y"),
+        ("<t>quote \" and &apos;</t>",  "quote \" and '"),
+        # Multiple runs: exercises the recursive branch of `_rewrite_node` and the
+        # attribute path (`rFont val`), which the single-<t> cases never reach.
+        ("""<r><rPr><b/><rFont val="A &amp; B"/></rPr><t>one &amp; two</t></r>""" *
+         """<r><t xml:space="preserve"> &lt;then&gt; </t></r>""" *
+         """<r><rPr><i/></rPr><t>three</t></r>""",
+         "one & two <then> three"),
+    ]
+
+    for (inner, expected) in cases
+        f = patch_xlsx_entry(src, sheetxml, s -> set_a1_inline(s, inner))
+        xf = XLSX.openxlsx(f, mode="rw")
+        @test xf[1]["A1"] == expected          # read decodes correctly (passes pre-fix)
+
+        out = tempname() * ".xlsx"
+        XLSX.writexlsx(out, xf, overwrite=true)
+
+        sst = check_sst(out)                   # throws pre-fix
+        @test !occursin(r"&(?!amp;|lt;|gt;|apos;|quot;|#)", sst)
+        @test XLSX.readxlsx(out)[1]["A1"] == expected
+
+        rm.([f, out]; force=true)
+    end
 end
 
 @testset "rich text formats" begin
