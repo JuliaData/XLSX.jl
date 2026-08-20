@@ -1968,6 +1968,141 @@ function _removetotals!(t::Table)
     return table(sheet, name)
 end
 
+"""
+    gettotals(t::Table) -> NamedTuple
+
+Return the Excel Table's totals row as a `NamedTuple` keyed by column name. Each entry
+is itself a `NamedTuple` with fields:
+
+- `setting`: the column's totals setting — a `Symbol` naming a built-in function
+  (`:sum`, `:average`, …), `:custom` for a custom formula, `:label` for a text label, or
+  `:none` if the column has no totals setting.
+- `formula`: the totals cell's formula as a `String`, or `nothing` if the cell holds no
+  formula.
+- `value`: the totals cell's current value. For a label column this is the label text.
+  For a function or custom column this is `missing` unless the file was written by Excel
+  (XLSX.jl does not evaluate formulas, so a totals cell it wrote holds no cached value
+  until Excel recalculates and saves the file).
+
+Returns an empty `NamedTuple` if the Table has no totals row.
+
+# Example
+```julia
+julia> tot = XLSX.gettotals(t)
+(region = (setting = :label, formula = nothing, value = "Total"), revenue = (setting = :sum, formula = "=SUBTOTAL(109,Sales[revenue])", value = 3400), margin = (setting = :average, formula = "=SUBTOTAL(101,Sales[margin])", value = 243.33))
+
+julia> tot.revenue.setting
+:sum
+
+julia> tot.revenue.value
+3400
+```
+
+`gettotals` requires the `XLSXFile` to have `enable_cache=true` (the default). It throws otherwise.
+
+See also [`XLSX.settotals!`](@ref), [`XLSX.removetotals!`](@ref), [`XLSX.table`](@ref).
+"""
+function gettotals(t::Table)
+    t.has_totals_row || return NamedTuple()
+
+    sheet = t.sheet
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+    ncols = length(t.columns)
+
+    # Read the totals cells FIRST, while the worksheet XML is still in
+    # whatever state the cache machinery expects. `_table_part_path` below
+    # calls `get_xml_data` on the sheet, which permanently promotes a
+    # read-only file's raw XML string to a parsed node and breaks the lazy
+    # per-sheet cache fill that `getcell`/`getFormula` rely on.
+    formulas = Vector{Union{Nothing,String}}(undef, ncols)
+    values   = Vector{Any}(undef, ncols)
+    for idx in 1:ncols
+        cell_ref = CellRef(totals_row, col0 + idx - 1)
+        raw_f = getFormula(sheet, cell_ref)
+        formulas[idx] = (isnothing(raw_f) || isempty(raw_f)) ? nothing : raw_f
+        values[idx] = getdata(sheet, cell_ref)
+    end
+
+    # Now the table part, whose metadata gives each column's setting.
+    table_doc = get_xml_data(get_xlsxfile(sheet), _table_part_path(sheet, t.name))
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    column_nodes = collect(xml_elements(table_doc[i][j]))
+
+    names = Symbol[]
+    entries = Any[]
+    for (idx, col_name) in enumerate(t.columns)
+        node  = column_nodes[idx]
+        func  = get_attr(node, "totalsRowFunction", "")
+        label = get_attr(node, "totalsRowLabel", "")
+
+        setting = if func == "custom"
+            :custom
+        elseif func != ""
+            get(TOTALS_FUNCTION_BY_NAME, func, Symbol(func))
+        elseif label != ""
+            :label
+        else
+            :none
+        end
+
+        push!(names, Symbol(col_name))
+        push!(entries, (setting=setting, formula=formulas[idx], value=values[idx]))
+    end
+
+    return NamedTuple{Tuple(names)}(Tuple(entries))
+end
+
+"""
+    removetotals!(sheet::Worksheet, name::AbstractString) -> Table
+    removetotals!(sheet::Worksheet, id::Integer) -> Table
+
+Remove the totals row from the Excel Table `name` on `sheet`, shrinking the Table by one
+row. Every column's totals function or label is cleared, and the cells that held the
+totals row are emptied.
+
+Does nothing if the Table has no totals row.
+
+See also [`XLSX.settotals!`](@ref), [`XLSX.addtable!`](@ref).
+"""
+function removetotals!(sheet::Worksheet, name::AbstractString)
+    xf = get_xlsxfile(sheet)
+    !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
+
+    t = table(sheet, name)
+    t.has_totals_row || return t
+
+    table_path = _table_part_path(sheet, name)
+    table_doc  = get_xml_data(xf, table_path)
+    table_root = xml_root_element(table_doc)
+
+    totals_row = t.ref.stop.row_number
+    col0 = _col_start(t)
+
+    # clear the cells that held the totals row
+    for c in col0:(col0 + length(t.columns) - 1)
+        sheet[CellRef(totals_row, c)] = missing
+    end
+
+    # drop per-column totals metadata
+    i, j = get_idces(table_doc, "table", "tableColumns")
+    for col_node in xml_elements(table_doc[i][j])
+        localname(col_node) == "tableColumn" || continue
+        remove_attr!(col_node, "totalsRowFunction")
+        remove_attr!(col_node, "totalsRowLabel")
+    end
+
+    # shrink ref and drop the totals-row flags
+    new_ref = CellRange(t.ref.start, CellRef(totals_row - 1, t.ref.stop.column_number))
+    table_root["ref"] = string(new_ref)
+    remove_attr!(table_root, "totalsRowShown")
+    remove_attr!(table_root, "totalsRowCount")
+
+    sheet.tables_cache = nothing
+    return table(sheet, name)
+end
+
+removetotals!(sheet::Worksheet, id::Integer) = removetotals!(sheet, table(sheet, id).name)
 
 """
     gettable(t::Table; [infer_eltypes], [normalizenames], [missing_strings]) -> DataTable
