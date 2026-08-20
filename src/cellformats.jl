@@ -51,7 +51,8 @@ quietly skipped and the font will be set for the remaining cells.
 For single cells, the value returned is the `fontId` of the font applied to the cell.
 This can be used to apply the same font to other cells or ranges.
 
-For cell ranges, column ranges and named ranges, the value returned is -1.
+For cell ranges, column ranges and named ranges, the value returned is -1 unless 
+the range resolves to a single cell, in which case that cell's id is returned.
 
 # Examples:
 ```julia
@@ -543,7 +544,8 @@ quietly skipped and the border will be set for the remaining cells.
 For single cells, the value returned is the `borderId` of the borders applied to the cell.
 This can be used to apply the same borders to other cells or ranges.
 
-For cell ranges, column ranges and named ranges, the value returned is -1.
+For cell ranges, column ranges and named ranges, the value returned is -1 unless 
+the range resolves to a single cell, in which case that cell's id is returned.
 
 # Examples:
 ```julia
@@ -995,7 +997,8 @@ quietly skipped and the fill will be set for the remaining cells.
 For single cells, the value returned is the `fillId` of the fill applied to the cell.
 This can be used to apply the same fill to other cells or ranges.
 
-For cell ranges, column ranges and named ranges, the value returned is -1.
+For cell ranges, column ranges and named ranges, the value returned is -1 unless 
+the range resolves to a single cell, in which case that cell's id is returned.
 
 # Examples:
 ```julia
@@ -1277,7 +1280,8 @@ Here are the possible values for the `vertical` alignment:
 
 For single cells, the value returned is the `styleId` of the cell.
 
-For cell ranges, column ranges and named ranges, the value returned is -1.
+For cell ranges, column ranges and named ranges, the value returned is -1 unless 
+the range resolves to a single cell, in which case that cell's id is returned.
 
 # Examples:
 ```julia

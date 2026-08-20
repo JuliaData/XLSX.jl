@@ -1,3 +1,11 @@
+# a worksheet whose whole dimension is A1
+function onecell()
+    f = XLSX.newxlsx()
+    s = f[1]
+    s["A1"] = 1
+    return f, s
+end
+
 @testset "Styles" begin
 
     @testset "Original" begin
@@ -2067,4 +2075,181 @@
             end
         end
     end
+#=
+A range that resolves to a single cell should return that cell's attribute id,
+not -1. Multi-cell ranges keep returning -1.
+=#
+
+    @testset "single-cell ranges return an id" begin
+
+         @testset "setFormat - all single-cell spellings agree" begin
+            _, s = onecell()
+            @test XLSX.setFormat(s, XLSX.CellRef("A1"); format="#,##0") == 3   # reference case
+            @test XLSX.setFormat(s, "A1"; format="#,##0") == 3
+            @test XLSX.setFormat(s, "A1:A1"; format="#,##0") == 3              # 1x1 CellRange
+            @test XLSX.setFormat(s, XLSX.CellRange("A1:A1"); format="#,##0") == 3
+            @test XLSX.setFormat(s, 1, 1; format="#,##0") == 3                 # Integer, Integer
+            @test XLSX.setFormat(s, 1:1, 1:1; format="#,##0") == 3             # UnitRange
+            @test XLSX.setFormat(s, "A:A"; format="#,##0") == 3                # column range, 1x1 sheet
+            @test XLSX.setFormat(s, "1:1"; format="#,##0") == 3                # row range, 1x1 sheet
+            @test XLSX.setFormat(s, :, :; format="#,##0") == 3                 # colon, 1x1 sheet
+
+            # single-cell non-contiguous range (process_ncranges)
+            nc = XLSX.NonContiguousRange(s.name, Union{XLSX.CellRef,XLSX.CellRange}[XLSX.CellRef("A1")])
+            @test XLSX.setFormat(s, nc; format="#,##0") == 3
+        end
+
+        @testset "multi-cell ranges still return -1" begin
+            f = XLSX.newxlsx()
+            s = f[1]
+            s["A1"] = 1
+            s["B1"] = 2
+            @test XLSX.setFormat(s, "A1:B1"; format="#,##0") == -1
+            @test XLSX.setFormat(s, 1, 1:2; format="#,##0") == -1
+            @test XLSX.setFormat(s, "A1,B1"; format="#,##0") == -1
+            # ... but each cell did get the format
+            @test XLSX.getFormat(s, "A1").numFmtId == 3
+            @test XLSX.getFormat(s, "B1").numFmtId == 3
+        end
+
+        @testset "other setters agree with the CellRef form" begin
+            _, s = onecell()
+            @test XLSX.setFont(s, "A1:A1"; bold=true) == XLSX.setFont(s, XLSX.CellRef("A1"); bold=true)
+            @test XLSX.setFill(s, "A1:A1"; pattern="solid", fgColor="FFFFFF00") ==
+                XLSX.setFill(s, XLSX.CellRef("A1"); pattern="solid", fgColor="FFFFFF00")
+            @test XLSX.setAlignment(s, "A1:A1"; horizontal="right") ==
+                XLSX.setAlignment(s, XLSX.CellRef("A1"); horizontal="right")
+            @test XLSX.setBorder(s, "A1:A1"; allsides=["style" => "thin"]) ==
+                XLSX.setBorder(s, XLSX.CellRef("A1"); allsides=["style" => "thin"])
+        end
+
+        @testset "empty cell in a single-cell range still throws" begin
+            f = XLSX.newxlsx()
+            s = f[1]
+            s["A1"] = 1
+            s["C1"] = 3                      # B1 is empty but inside the dimension
+            @test_throws XLSX.XLSXError XLSX.setFormat(s, "B1:B1"; format="#,##0")
+            # a multi-cell range skips empties silently
+            @test XLSX.setFormat(s, "A1:C1"; format="#,##0") == -1
+        end
+
+    end
+
+#=
+Tests for issue #454: writing a number into a formatted cell must preserve the
+cell's number format. The only case that should override the existing format is
+writing a number into a cell carrying a date/time format.
+=#
+
+    @testset "numFmt - Issue #454" begin
+
+        # helper: numFmtId currently applied to a cell
+        fmtid(s, ref) = XLSX.getFormat(s, ref).numFmtId
+
+        @testset "integer-like builtin formats preserved" begin
+            # code => builtin numFmtId
+            cases = [
+                "0"                     => 1,
+                "0.00"                  => 2,
+                "#,##0"                 => 3,
+                "#,##0.00"              => 4,
+                "\$#,##0_);(\$#,##0)"   => 5,
+                "\$#,##0.00_);(\$#,##0.00)" => 7,
+                "0%"                    => 9,
+                "#,##0_);(#,##0)"       => 37,
+                "@"                     => 49,
+            ]
+            f = XLSX.newxlsx()
+            s = f[1]
+            for (i, (code, id)) in enumerate(cases)
+                s[i, 1] = 1                              # seed the cell
+                @test XLSX.setFormat(s, i, 1; format=code) == id
+                s[i, 1] = 1234                           # Int rewrite
+                @test fmtid(s, XLSX.CellRef(i, 1)) == id
+                s[i, 1] = 1234.5                         # Float64 rewrite
+                @test fmtid(s, XLSX.CellRef(i, 1)) == id
+                s[i, 1] = true                           # Bool rewrite
+                @test fmtid(s, XLSX.CellRef(i, 1)) == id
+            end
+
+            SAVE_FILES && save_outfile(f)
+        end
+
+        @testset "custom formats preserved" begin
+            f = XLSX.newxlsx()
+            s = f[1]
+            s["A1"] = 1
+            id = XLSX.setFormat(s, "A1"; format="#,##0 \"units\"")
+            @test id >= 164                              # custom, not builtin
+            s["A1"] = 42
+            @test fmtid(s, XLSX.CellRef("A1")) == id
+            s["A1"] = 42.5
+            @test fmtid(s, XLSX.CellRef("A1")) == id
+        end
+
+        @testset "date/time formats overridden by numbers" begin
+            f = XLSX.newxlsx()
+            s = f[1]
+
+            for (ref, code) in (("A1", "m/d/yyyy"), ("A2", "h:mm:ss"), ("A3", "m/d/yyyy h:mm"))
+                s[ref] = Date(2026, 1, 1)
+                XLSX.setFormat(s, ref; format=code)
+                s[ref] = 45000                            # a number in a date cell
+                @test fmtid(s, XLSX.CellRef(ref)) == 0    # General
+            end
+
+            # custom date format (numFmtId >= 164) must also be overridden
+            s["B1"] = Date(2026, 1, 1)
+            cid = XLSX.setFormat(s, "B1"; format="yyyy-mm-dd")
+            @test cid >= 164
+            s["B1"] = 45000
+            @test fmtid(s, XLSX.CellRef("B1")) == 0
+
+            # ... but a date written into a date-formatted cell keeps its format
+            s["C1"] = Date(2026, 1, 1)
+            did = XLSX.setFormat(s, "C1"; format="d-mmm-yy")
+            s["C1"] = Date(2026, 6, 1)
+            @test fmtid(s, XLSX.CellRef("C1")) == did
+
+            SAVE_FILES && save_outfile(f)
+        end
+
+        @testset "other xf attributes survive" begin
+            f = XLSX.newxlsx()
+            s = f[1]
+            s["A1"] = 1
+            id = XLSX.setFormat(s, "A1"; format="#,##0")
+            XLSX.setFont(s, "A1"; bold=true)
+            XLSX.setFill(s, "A1"; pattern="solid", fgColor="FFFFFF00")
+            font_before = XLSX.getFont(s, "A1")
+            fill_before = XLSX.getFill(s, "A1")
+
+            s["A1"] = 999
+
+            @test fmtid(s, XLSX.CellRef("A1")) == id
+            @test XLSX.getFont(s, "A1").font == font_before.font
+            @test XLSX.getFill(s, "A1").fill == fill_before.fill
+        end
+
+        @testset "round trip through file" begin
+            filename = "issue454.xlsx"
+            XLSX.openxlsx(filename, mode="w") do xf
+                s = xf[1]
+                s["A1"] = 1
+                XLSX.setFormat(s, "A1"; format="#,##0")
+                s["A1"] = 1234
+            end
+            XLSX.openxlsx(filename, mode="rw") do xf
+                s = xf[1]
+                @test XLSX.getFormat(s, "A1").numFmtId == 3
+                s["A1"] = 5678                            # rewrite an existing file's cell
+                @test XLSX.getFormat(s, "A1").numFmtId == 3
+                @test s["A1"] == 5678
+            end
+            SAVE_FILES && save_outfile(filename)
+            isfile(filename) && rm(filename)
+        end
+
+    end
+
 end

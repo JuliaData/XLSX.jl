@@ -927,13 +927,14 @@ function setdata!(ws::Worksheet, ref::CellRef, val::Union{AbstractFormula,CellCo
             if isa_dt == false
                 c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_DATETIME_numFmtId), "1"]).id
             end
-        elseif val isa Float64 || val isa Int
-            if styles_is_float(ws.package.workbook, existing_style) == false && Int(existing_style.id) ∉ [0, 1]
-                c.style = update_template_xf(ws, existing_style, ["numFmtId"], [string(DEFAULT_NUMBER_numFmtId)]).id
+        elseif val isa Float64 || val isa Int64
+            if isa_dt # only override a date/time format, which would misdisplay a plain number
+                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_NUMBER_numFmtId), "1"]).id
             end
-        elseif val isa Bool # Now rerouted here rather than assigning an EmptyCellDataFormat.
-            # Change any style to General (0) and retain other formatting.
-            c.style = update_template_xf(ws, existing_style, ["numFmtId"], [string(DEFAULT_BOOL_numFmtId)]).id
+        elseif val isa Bool
+            if isa_dt
+                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_BOOL_numFmtId), "1"]).id
+            end
         end
         if val isa AbstractFormula
             return setdata!(ws, ref, CellFormula(val, CellDataFormat(c.style)))

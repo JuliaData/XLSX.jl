@@ -211,7 +211,7 @@ end
 Concrete supported data-types.
 
 ```julia
-Union{String, Missing, Float64, Int, Bool, Dates.Date, Dates.Time, Dates.DateTime}
+Union{String, Missing, Float64, Int64, Bool, Dates.Date, Dates.Time, Dates.DateTime}
 ```
 
 !!! note
@@ -223,6 +223,10 @@ Union{String, Missing, Float64, Int, Bool, Dates.Date, Dates.Time, Dates.DateTim
 
 """
 const CellConcreteType = Union{String, Missing, Float64, Int64, Bool, Dates.Date, Dates.Time, Dates.DateTime}
+# `Int64`, not `Int`: the set of types a cell can hold must not depend on the
+# host word size, or 32-bit builds would silently narrow it to `Int32`.
+# `setdata!` normalises every `Integer` to `Int64`, so consumers testing a cell
+# value's type must test against `Int64` too (see write.jl).
 
 # CellValue is a Julia type of a value read from a Spreadsheet.
 struct CellValue
