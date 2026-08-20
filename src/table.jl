@@ -995,6 +995,7 @@ end
 # Compact one-line form — used implicitly by default Vector{Table} printing,
 # error messages, and anywhere a Table appears embedded in other output.
 function Base.show(io::IO, t::Table)
+    t = _resolve(t)
     nrows = _last_data_row(t) - _first_data_row(t) + 1
     print(io, nrows, "x", length(t.columns), " Table (id=", t.id, ", \"", t.name, "\", ", t.ref)
     t.has_totals_row && print(io, ", +totals")
@@ -1004,6 +1005,7 @@ end
 # Richer multi-line form — used when a single Table is the direct display
 # value, e.g. at the REPL: `julia> XLSX.table(sheet, "Sales")`
 function Base.show(io::IO, ::MIME"text/plain", t::Table)
+    t = _resolve(t)
     println(io, "XLSX.Table: \"", t.name, "\"", t.name == t.display_name ? "" : " (displayName: \"$(t.display_name)\")")
     println(io, "  id      : ", t.id)
     println(io, "  range   : ", t.ref)
@@ -1232,6 +1234,13 @@ function tables(xf::XLSXFile)::Vector{Table}
     end
     return result
 end
+
+# A `Table` is a handle (sheet + name), not a snapshot: it is immutable, so a
+# handle taken before an `appendtable!`/`settotals!` still carries the old
+# `ref` and `has_totals_row`. Public entry points that read a Table's extent
+# resolve it afresh rather than trusting the caller's copy.
+_resolve(t::Table)::Table = table(t.sheet, t.name)
+
 """
     table(ws::Worksheet, name::AbstractString) -> Table
     table(wb::Workbook, name::AbstractString) -> Table
@@ -1515,11 +1524,12 @@ end
 addtable!(sheet::Worksheet, ref::AbstractString; kw...) = addtable!(sheet, CellRange(ref); kw...)
 
 """
+    deletetable!(t::Table)
     deletetable!(sheet::Worksheet, name::AbstractString)
     deletetable!(sheet::Worksheet, id::Integer)
 
-Delete the given Excel Table from `sheet` by `name` or by its workbook-scoped
-numeric `id`.
+Delete the given Excel Table, provided directly as `t` or by fron `sheet` by 
+its `name` or workbook-scoped numeric `id`.
 
 This removes the table *object* only: its `xl/tables/tableN.xml` part, its
 worksheet-level relationship, its `<tablePart>` entry, and its
@@ -1548,7 +1558,13 @@ Other tables on the same sheet, and tables on other sheets, are unaffected.
 
 See also [`XLSX.addtable!`](@ref), [`XLSX.tables`](@ref), [`XLSX.table`](@ref).
 """
-function deletetable!(sheet::Worksheet, name::AbstractString)
+deletetable!(t::Table)                                = _deletetable!(table(t.sheet, t.name))
+deletetable!(sheet::Worksheet, name::AbstractString)  = _deletetable!(table(sheet, name))
+deletetable!(sheet::Worksheet, id::Integer)           = _deletetable!(table(sheet, id))
+
+function _deletetable!(t::Table)
+    sheet = t.sheet
+    name = t.name
     xf = get_xlsxfile(sheet)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
 
@@ -1624,15 +1640,16 @@ function deletetable!(sheet::Worksheet, name::AbstractString)
     return nothing
 end
 
-deletetable!(sheet::Worksheet, id::Integer) = deletetable!(sheet, table(sheet, id).name)
-
 """
+    settotals!(t::Table, settings::Pair...)
+    settotals!(t::Table; kwargs...)
     settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
-    settotals!(sheet::Worksheet, id::Integer, settings::Pair...)
     settotals!(sheet::Worksheet, name::AbstractString; kwargs...)
+    settotals!(sheet::Worksheet, id::Integer, settings::Pair...)
+    settotals!(sheet::Worksheet, id::Integer; kwargs...)
 
-Add or update the totals row for the Excel Table in `sheet` with the specified 
-`name` or workbook-scoped numeric `id`.
+Add or update the totals row for the Excel Table `t` or the table in `sheet` 
+with the specified `name` or workbook-scoped numeric `id`.
 
 Each element of `settings` is `"ColumnName" => value` (or, in the kwarg form,
 `ColumnName=value` for identifier-safe column names), where `value` is one of:
@@ -1707,11 +1724,27 @@ julia> # A custom formula MUST aggregate each column reference itself
 
 See also [`XLSX.addtable!`](@ref), [`XLSX.tables`](@ref), [`XLSX.table`](@ref).
 """
-function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
+settotals!(t::Table, settings::Pair...)                                = _settotals!(table(t.sheet, t.name), settings...)
+settotals!(t::Table; kwargs...) =
+    _settotals!(t, (String(k) => v for (k, v) in kwargs)...)
+
+settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)  = _settotals!(table(sheet, name), settings...)
+settotals!(sheet::Worksheet, name::AbstractString; kwargs...) =
+    _settotals!(table(sheet, name), (String(k) => v for (k, v) in kwargs)...)
+
+settotals!(sheet::Worksheet, id::Integer, settings::Pair...)           = _settotals!(table(sheet, id), settings...)
+settotals!(sheet::Worksheet, id::Integer; kwargs...) =
+    _settotals!(table(sheet, id), (String(k) => v for (k, v) in kwargs)...)
+
+
+function _settotals!(t::Table, settings::Pair...)
+    sheet = t.sheet
+    name = t.name
     xf = get_xlsxfile(sheet)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
 
-    t = table(sheet, name)  # throws KeyError if missing
+    sheet = t.sheet 
+    name = t.name
 
     for (col, _) in settings
         col ∈ t.columns || throw(XLSXError("Column `$col` not found in table `$name`. Available columns: $(join(t.columns, ", "))."))
@@ -1787,17 +1820,14 @@ function settotals!(sheet::Worksheet, name::AbstractString, settings::Pair...)
     return table(sheet, name)
 end
 
-settotals!(sheet::Worksheet, id::Integer, settings::Pair...) =
-    settotals!(sheet, table(sheet, id).name, settings...)
-
-settotals!(sheet::Worksheet, name::AbstractString; kwargs...) =
-    settotals!(sheet, name, (String(k) => v for (k, v) in kwargs)...)
-
 """
     gettotals(t::Table) -> NamedTuple
+    gettotals(sheet::Worksheet, name::AbstractString)
+    gettotals(sheet::Worksheet, id::Integer)
 
-Return the Excel Table's totals row as a `NamedTuple` keyed by column name. Each entry
-is itself a `NamedTuple` with fields:
+Return the Excel Table's totals row as a `NamedTuple` keyed by column name. Provide the
+Table `t` directly or specify the table in `sheet` by its `name` or workbook-scoped 
+numeric `id`. Each entry is itself a `NamedTuple` with fields:
 
 - `setting`: the column's totals setting — a `Symbol` naming a built-in function
   (`:sum`, `:average`, …), `:custom` for a custom formula, `:label` for a text label, or
@@ -1827,7 +1857,11 @@ julia> tot.revenue.value
 
 See also [`XLSX.settotals!`](@ref), [`XLSX.removetotals!`](@ref), [`XLSX.table`](@ref).
 """
-function gettotals(t::Table)
+gettotals(t::Table)                                = _gettotals(table(t.sheet, t.name))
+gettotals(sheet::Worksheet, name::AbstractString)  = _gettotals(table(sheet, name))
+gettotals(sheet::Worksheet, id::Integer)           = _gettotals(table(sheet, id))
+
+function _gettotals(t::Table)
     t.has_totals_row || return NamedTuple()
 
     sheet = t.sheet
@@ -1879,22 +1913,29 @@ function gettotals(t::Table)
 end
 
 """
+    removetotals!(t::Table) -> Table
     removetotals!(sheet::Worksheet, name::AbstractString) -> Table
     removetotals!(sheet::Worksheet, id::Integer) -> Table
 
-Remove the totals row from the Excel Table `name` on `sheet`, shrinking the Table by one
-row. Every column's totals function or label is cleared, and the cells that held the
-totals row are emptied.
+Remove the totals row from the Excel Table given directly as `t` or by `name` or `id` on 
+`sheet`, shrinking the Table by one row. Every column's totals function or label is 
+cleared, and the cells that held the totals row are emptied.
 
 Does nothing if the Table has no totals row.
 
 See also [`XLSX.settotals!`](@ref), [`XLSX.addtable!`](@ref).
 """
-function removetotals!(sheet::Worksheet, name::AbstractString)
+removetotals!(t::Table)                                = _removetotals!(table(t.sheet, t.name))
+removetotals!(sheet::Worksheet, name::AbstractString)  = _removetotals!(table(sheet, name))
+removetotals!(sheet::Worksheet, id::Integer)           = _removetotals!(table(sheet, id))
+
+function _removetotals!(t::Table)
+    sheet = t.sheet
+    name = t.name
     xf = get_xlsxfile(sheet)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
 
-    t = table(sheet, name)
+#    t = table(sheet, name)
     t.has_totals_row || return t
 
     table_path = _table_part_path(sheet, name)
@@ -1926,8 +1967,6 @@ function removetotals!(sheet::Worksheet, name::AbstractString)
     sheet.tables_cache = nothing
     return table(sheet, name)
 end
-
-removetotals!(sheet::Worksheet, id::Integer) = removetotals!(sheet, table(sheet, id).name)
 
 """
     gettable(t::Table; [infer_eltypes], [normalizenames], [missing_strings]) -> DataTable
@@ -1974,7 +2013,7 @@ function gettable(t::Table;
     normalizenames::Bool=false,
     missing_strings::Union{AbstractString,AbstractVector{<:AbstractString},Nothing}=nothing
 )::DataTable
-
+    t = _resolve(t)
     missing_set = missing_strings === nothing ? nothing :
                   missing_strings isa AbstractString ? Set([missing_strings]) : Set(missing_strings)
 
@@ -1996,10 +2035,13 @@ function gettable(t::Table;
 end
 
 """
+    appendtable!(t::Table, data; kw...) -> Table
     appendtable!(sheet::Worksheet, name::AbstractString, data; [check_empty]) -> Table
+    appendtable!(sheet::Worksheet, id::Integer, data; kw...) -> Table
 
-Append rows to the existing Excel Table `name` on `sheet`, extending the
-table's range.
+
+Append rows to the existing Excel Table. Provide the Table `t` directly or 
+specify the table in `sheet` by its `name` or workbook-scoped numeric `id`.
 
 `data` may be any `Tables.jl`-compatible source (e.g. an `XLSX.DataTable` or a
 `DataFrame`), an `AbstractMatrix`, or a vector of row vectors/tuples.
@@ -2020,11 +2062,17 @@ otherwise. Pass `check_empty=false` to overwrite whatever is there.
 
 See also [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
-function appendtable!(sheet::Worksheet, name::AbstractString, data; check_empty::Bool=true)
+appendtable!(t::Table, data; kw...)                                = _appendtable!(table(t.sheet, t.name), data; kw...)
+appendtable!(sheet::Worksheet, name::AbstractString, data; kw...)  = _appendtable!(table(sheet, name), data; kw...)
+appendtable!(sheet::Worksheet, id::Integer, data; kw...)           = _appendtable!(table(sheet, id), data; kw...)
+
+function _appendtable!(t::Table, data; check_empty::Bool=true, kw... )
+    sheet = t.sheet 
+    name = t.name
     xf = get_xlsxfile(sheet)
     !is_writable(xf) && throw(XLSXError("XLSXFile instance is not writable. Open Excel file with `mode=\"rw\"` instead"))
 
-    t = table(sheet, name)
+#    t = table(sheet, name)
     ncols = length(t.columns)
     rows = _normalize_append_rows(data, t, name)
 #    rows = _normalize_append_rows(data, ncols, name)
@@ -2085,6 +2133,7 @@ function appendtable!(sheet::Worksheet, name::AbstractString, data; check_empty:
     sheet.tables_cache = nothing
     return table(sheet, name)
 end
+
 
 """
 Normalize whatever was passed as `data` into a vector of row-value vectors,

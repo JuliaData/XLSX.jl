@@ -88,25 +88,43 @@ function _read_row_attrs(row::XML.LazyNode, wsname::String)
     return current_row, current_row_ht
 end
 
+# Advance `row_iter` from `next` (a raw `iterate` result) until the next
+# `<row>` element. Returns `(rownode, iterator_state)` or `nothing` at EOF.
+# Takes the first `iterate` result as an argument rather than a sentinel so
+# it works even if the iterator's own state type is `Nothing`.
+@inline function _find_next_row(row_iter, next)
+    while next !== nothing
+        child, st = next
+        if XML.nodetype(child) == XML.Element && localname(child) == "row"
+            return child, st
+        end
+        next = iterate(row_iter, st)
+    end
+    return nothing
+end
+
+# Open the sheet's XML stream and return its <sheetData> node.
+# Shared by the stream iterator and its tests so both navigate identically.
+function _open_sheetdata(ws::Worksheet)
+    target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
+    xf = get_xlsxfile(ws)
+    doc = open_internal_file_stream(xf, target_file)
+    return _find_sheetdata(doc, ws.name)
+end
+
 # Creates an iterator for row elements in the Worksheet's XML.
 # Creates an iterator for row elements in the Worksheet's XML.
 function Base.iterate(itr::SheetRowStreamIterator)
     ws = get_worksheet(itr)
-    target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
     xf = get_xlsxfile(ws)
-    doc = open_internal_file_stream(xf, target_file)
     sst_pfx = get_sst_prefix(ws)
-    sheetdata = _find_sheetdata(doc, ws.name)
+    sheetdata = _open_sheetdata(ws)
     row_iter = XML.eachchildnode(sheetdata)
-    # Find first row
-    rownode = nothing
-    for child in row_iter
-        if XML.nodetype(child) == XML.Element && localname(child) == "row"
-            rownode = child
-            break
-        end
-    end
-    isnothing(rownode) && return nothing
+
+    found = _find_next_row(row_iter, iterate(row_iter))
+    isnothing(found) && return nothing
+    rownode, row_state = found
+
     rowcells = Dict{Int,Cell}()
     local_formulas = Dict{SheetCellRef,AbstractFormula}()
     load_formulas = xf.load_formulas
@@ -114,7 +132,7 @@ function Base.iterate(itr::SheetRowStreamIterator)
     _, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx, local_formulas, load_formulas)
     itr.sheet.sst_count += sst_count
     _merge_local_formulas!(get_workbook(ws), local_formulas)
-    state = SheetRowStreamIteratorState(row_iter, rowcells, local_formulas, 1)
+    state = SheetRowStreamIteratorState(row_iter, row_state, rowcells, local_formulas, 1)
     return SheetRow(ws, current_row, current_row_ht, rowcells), state
 end
 
@@ -122,14 +140,11 @@ function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIterator
     ws = get_worksheet(itr)
     sst_pfx = get_sst_prefix(ws)
     empty!(state.rowcells)
-    rownode = nothing
-    for child in state.row_iter
-        if XML.nodetype(child) == XML.Element && localname(child) == "row"
-            rownode = child
-            break
-        end
-    end
-    isnothing(rownode) && return nothing
+
+    found = _find_next_row(state.row_iter, iterate(state.row_iter, state.row_state))
+    isnothing(found) && return nothing
+    rownode, state.row_state = found
+
     load_formulas = get_xlsxfile(ws).load_formulas
     current_row, current_row_ht = _read_row_attrs(rownode, ws.name)
     _, sst_count = get_rowcells!(state.rowcells, rownode, ws, sst_pfx, state.local_formulas, load_formulas)
@@ -143,6 +158,9 @@ function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIterator
 
     return SheetRow(ws, current_row, current_row_ht, state.rowcells), state
 end
+
+Base.IteratorSize(::Type{<:SheetRowStreamIterator}) = Base.SizeUnknown()
+Base.eltype(::Type{<:SheetRowStreamIterator}) = SheetRow
 
 @inline function _merge_local_formulas!(wb::Workbook, local_formulas::Dict{SheetCellRef,AbstractFormula})
     isempty(local_formulas) && return nothing

@@ -121,44 +121,6 @@ function check_test_data(data::Vector{S}, test_data::Vector{T}) where {S,T}
 
     nothing
 end
-# Rewrite a single entry of an xlsx zip into a temp file. Used to inject XML that
-# Excel itself never produces (inlineStr cells), so the `_rewrite_node` path in
-# cell.jl actually gets exercised.
-function patch_xlsx_entry(src::AbstractString, entry::AbstractString, patch::Function)
-    r = ZipReader(read(src))
-    names = zip_names(r)
-    entry in names || error("no `$entry` in $src")
-    dst = tempname() * ".xlsx"
-    ZipWriter(dst) do w
-        for n in names
-            bytes = zip_readentry(r, n)
-            n == entry && (bytes = Vector{UInt8}(patch(String(bytes))))
-            zip_newfile(w, n; compress=true)
-            write(w, bytes)
-        end
-    end
-    return dst
-end
-
-# `xl/sharedStrings.xml` must be well-formed and must decode back to the original text.
-function check_sst(path::AbstractString)
-    sst = String(zip_readentry(ZipReader(read(path)), "xl/sharedStrings.xml"))
-    XML.parse(sst, XML.Node)   # throws on the corrupt output produced before the fix
-    return sst
-end
-
-# Replace A1's inlineStr content outright. Errors rather than silently no-opping if
-# the fixture changes shape — a patch that quietly does nothing produces tests that
-# pass while covering the wrong thing.
-function set_a1_inline(s::AbstractString, inner::AbstractString)
-    m = match(r"<c\b[^>]*\br=\"A1\"[^>]*>.*?</c>"s, s)
-    m === nothing && error("no A1 cell found in sheet XML")
-    occursin("inlineStr", m.match) || error("A1 is not an inlineStr cell: $(m.match)")
-    stop = m.offset + ncodeunits(m.match) - 1
-    return s[1:prevind(s, m.offset)] *
-           "<c r=\"A1\" t=\"inlineStr\"><is>$inner</is></c>" *
-           s[nextind(s, stop):end]
-end
 
 #=
 Tests have been split across different files each essentially focused on 
@@ -318,4 +280,29 @@ end
             end
         end
     end
+
+# Issue 446
+    f = XLSX.openxlsx(joinpath(data_directory, "general.xlsx"), enable_cache=false)
+    ws = f[1]
+    sheetdata = XLSX._open_sheetdata(ws)
+
+    # A Vector restarts on every `for` — the semantics XML.jl#119 shipped,
+    # and what the old `for … break` silently depended on not happening.
+    nodes = collect(XML.eachchildnode(sheetdata))
+
+    seen = Int[]
+    st = iterate(nodes)
+    while true
+        found = XLSX._find_next_row(nodes, st)
+        found === nothing && break
+        node, st = found
+        push!(seen, XLSX._read_row_attrs(node, ws.name)[1])
+        st = iterate(nodes, st)
+    end
+
+    # Same rows the ordinary streaming path yields.
+    expected = [XLSX.row_number(r) for r in XLSX.eachrow(f[1])]
+    @test seen == expected
+    @test length(seen) > 1   # guards against the row-1-forever failure mode
+    
 end

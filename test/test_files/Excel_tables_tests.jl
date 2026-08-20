@@ -169,6 +169,21 @@ function make_multitable_file(outfile)
     return outfile
 end
 
+function _two_sheet_file()
+    f = XLSX.newxlsx("S1")
+    s1 = f["S1"]
+    s2 = XLSX.addsheet!(f, "S2")
+    for s in (s1, s2)
+        s[1, :] = ["region", "revenue"]
+        s[2, :] = ["north", 10]
+        s[3, :] = ["south", 20]
+    end
+    t1 = XLSX.addtable!(s1, "A1:B3"; name = "T1")
+    t2 = XLSX.addtable!(s2, "A1:B3"; name = "T2")
+    return f, s1, s2, t1, t2
+end
+
+
 @testset "Excel Tables" begin
 
     @testset "tables(sheet)" begin
@@ -3643,6 +3658,89 @@ end
         XLSX.openxlsx("data/two_tables.xlsx", enable_cache=false) do xf
             t = XLSX.table(xf["Sheet1"], "IO_Table")
             @test isempty(XLSX.gettotals(t))
+        end
+    end
+    @testset "Table-first dispatch" begin
+
+        # Two sheets, each with its own table, so cross-sheet delegation is
+        # actually exercised rather than accidentally passing on a one-sheet file.
+        @testset "all three forms agree" begin
+            f, s1, _, t1, _ = _two_sheet_file()
+            XLSX.settotals!(s1, "T1", "revenue" => :sum)   # mutate by name...
+            t1 = XLSX.table(s1, "T1")                      # ...then take a fresh handle
+
+            by_table = XLSX.gettotals(t1)
+            by_name  = XLSX.gettotals(s1, "T1")
+            by_id    = XLSX.gettotals(s1, t1.id)
+
+            @test isequal(by_table, by_name)
+            @test isequal(by_name, by_id)
+            @test by_table.revenue.setting == :sum
+        end
+
+        @testset "stale handle sees post-mutation state" begin
+            f, s1, _, t1, _ = _two_sheet_file()
+            XLSX.settotals!(t1, "revenue" => :sum)         # t1 now predates the totals row
+            @test XLSX.gettotals(t1).revenue.setting == :sum
+
+            XLSX.appendtable!(s1, "T1", (region = ["east"], revenue = [30]))
+            @test XLSX.gettotals(t1).revenue.setting == :sum   # stale ref, still correct
+        end
+        @testset "acts on its own sheet, not the first" begin
+            f, s1, s2, t1, t2 = _two_sheet_file()
+            XLSX.settotals!(t2, "revenue" => :sum)
+
+            @test XLSX.gettotals(s2, "T2").revenue.setting == :sum
+            @test isempty(XLSX.gettotals(s1, "T1"))          # S1 untouched
+            @test length(XLSX.tables(s1)) == 1
+
+            XLSX.deletetable!(t2)
+            @test isempty(XLSX.tables(s2))
+            @test [t.name for t in XLSX.tables(s1)] == ["T1"]
+        end
+
+        @testset "stale Table re-resolves its ref" begin
+            f, s1, _, t1, _ = _two_sheet_file()
+            XLSX.appendtable!(s1, "T1", (region = ["east"], revenue = [30]))
+
+            # `t1` still holds the pre-append ref (A1:B3). Appending through it
+            # must resolve the table afresh and land on row 5, not overwrite row 4.
+            XLSX.appendtable!(t1, (region = ["west"], revenue = [40]))
+
+            @test string(XLSX.table(s1, "T1").ref) == "A1:B5"
+            @test s1["A4"] == "east"
+            @test s1["A5"] == "west"
+        end
+
+        @testset "stale handle through Tables.jl interface" begin
+            f = XLSX.newxlsx("S1")
+            s = f["S1"]
+            s[1, :] = ["region", "revenue"]
+            s[2, :] = ["north", 10]
+            s[3, :] = ["south", 20]
+
+            t = XLSX.addtable!(s, "A1:B3"; name = "T")     # handle taken before append
+            XLSX.appendtable!(s, "T", (region = ["east"], revenue = [30]))
+
+            @test length(XLSX.eachtablerow(t)) == 3
+            @test length(Tables.columns(t).region) == 3
+            @test length(XLSX.gettable(t).data[1]) == 3
+            @test length(Tables.rowtable(t)) == 3
+            @test size(XLSX.getdata(t), 1) == 3
+        end
+        @testset "addtable! result is directly usable" begin
+            f = XLSX.newxlsx("S1")
+            s = f["S1"]
+            s[1, :] = ["region", "revenue"]
+            s[2, :] = ["north", 10]
+
+            t = XLSX.addtable!(s, "A1:B2"; name = "Sales")
+            XLSX.settotals!(t, "revenue" => :sum)
+            @test XLSX.gettotals(t).revenue.setting == :sum
+
+            @test XLSX.removetotals!(t) isa XLSX.Table
+#            XLSX.removetotals!(t)
+            @test isempty(XLSX.gettotals(s, "Sales"))
         end
     end
     
