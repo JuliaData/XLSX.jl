@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Formats · XLSX.jl</title><meta name="title" content="Formats · XLSX.jl"/><meta property="og:title" content="Formats · XLSX.jl"/><meta property="twitter:title" content="Formats · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../../tutorial/XLSXtutorial/">XLSX Tutorial</a></li><li><a class="tocitem" href="../../tutorial/FileIOtutorial/">FileIO Tutorial</a></li></ul></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../../formatting/cellFormatting/">Cell formats</a></li><li><a class="tocitem" href="../../formatting/conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../../formatting/widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../../formatting/mergedCells/">Merged cells</a></li><li><a class="tocitem" href="../../formatting/freezeAndSplitPanes/">Freeze/split panes</a></li></ul></li><li><a class="tocitem" href="../../formulae/formulas/">Using Formulas</a></li><li><a class="tocitem" href="../../tables/excelTables/">Using Excel Tables</a></li><li><a class="tocitem" href="../../charts/excelCharts/">Excel Charts</a></li><li><a class="tocitem" href="../../examples/">Examples</a></li><li><a class="tocitem" href="../../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../files/">Files and worksheets</a></li><li><a class="tocitem" href="../data/">Cells and data</a></li><li class="is-active"><a class="tocitem" href>Formats</a><ul class="internal"><li><a class="tocitem" href="#Cell-format"><span>Cell format</span></a></li><li><a class="tocitem" href="#Conditional-format"><span>Conditional format</span></a></li><li><a class="tocitem" href="#Column-width-and-row-height"><span>Column width and row height</span></a></li><li class="toplevel"><a class="tocitem" href="#Merged-Cells"><span>Merged Cells</span></a></li><li class="toplevel"><a class="tocitem" href="#Freeze/Split-panes"><span>Freeze/Split panes</span></a></li></ul></li><li><a class="tocitem" href="../charts/">Charts</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">API Reference</a></li><li class="is-active"><a href>Formats</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Formats</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/api/formats.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Formatting"><a class="docs-heading-anchor" href="#Formatting">Formatting</a><a id="Formatting-1"></a><a class="docs-heading-anchor-permalink" href="#Formatting" title="Permalink"></a></h1><h2 id="Cell-format"><a class="docs-heading-anchor" href="#Cell-format">Cell format</a><a id="Cell-format-1"></a><a class="docs-heading-anchor-permalink" href="#Cell-format" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.getFormat"><a class="docstring-binding" href="#XLSX.getFormat"><code>XLSX.getFormat</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getFormat(sh::Worksheet, cr::String) -&gt; ::Union{Nothing, CellFormat}
+getFormat(xf::XLSXFile,  cr::String) -&gt; ::Union{Nothing, CellFormat}
+
+getFormat(sh::Worksheet, row::Int, col::int) -&gt; ::Union{Nothing, CellFormat}</code></pre><p>Get the format (numFmt) used by a single cell at reference <code>cr</code> in a worksheet or XLSXFile. The specified cell must be within the sheet dimension.</p><p>Return a <code>CellFormat</code> object containing:</p><ul><li><code>numFmtId</code>          : a 0-based index of the formats in the workbook. Values below 164 are                        reserved for built-in formats. Values of 164 and over are custom formats                       and are stored in the <code>styles.xml</code> file within the XLSXFile.</li><li><code>format</code>            : a dictionary of numFmt attributes: formatAttribute -&gt; (attribute -&gt; value)</li><li><code>applyNumberFormat</code> : &quot;1&quot; or &quot;0&quot;, indicating whether or not the format is applied to the cell.</li></ul><p>Return <code>nothing</code> if no cell format is found. This will occur when a cell uses a built-in format.</p><p>The function will always find any explicitly set custom format. It will also attempt to return  the format for built-in formats, too.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; getFormat(sh, &quot;A1&quot;)
+
+julia&gt; getFormat(xf, &quot;Sheet1!A1&quot;)
+
+julia&gt; getFormat(sh, 1, 1)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1446-L1476">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setFormat"><a class="docstring-binding" href="#XLSX.setFormat"><code>XLSX.setFormat</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setFormat(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setFormat(xf::XLSXFile,  cr::String; kw...) -&gt; ::Int
+
+setFormat(sh::Worksheet, row, col; kw...) -&gt; ::Int</code></pre><p>Set the number format used used by a single cell, a cell range, a column  range or row range or a named cell or named range in a worksheet or  XLSXFile. Alternatively, specify the row and column using any combination  of Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>The function uses one keyword used to define a format:</p><ul><li><code>format::String = nothing</code> : Defines a built-in or custom number format</li></ul><p>The format keyword can define some built-in formats by name:</p><ul><li><code>General</code>    : specifies internal format ID  0 (General)</li><li><code>Number</code>     : specifies internal format ID  2 (<code>0.00</code>)</li><li><code>Currency</code>   : specifies internal format ID  7 (<code>$#,##0.00_);($#,##0.00)</code>)</li><li><code>Percentage</code> : specifies internal format ID  9 (<code>0%</code>)</li><li><code>ShortDate</code>  : specifies internal format ID 14 (<code>m/d/yyyy</code>)</li><li><code>LongDate</code>   : specifies internal format ID 15 (<code>d-mmm-yy</code>)</li><li><code>Time</code>       : specifies internal format ID 21 (<code>h:mm:ss</code>)</li><li><code>Scientific</code> : specifies internal format ID 48 (<code>##0.0E+0</code>)</li></ul><p>If <code>Currency</code> is specified, Excel will use the appropriate local currency symbol.</p><p>Alternatively, the format keyword can define built-in formats by their internal  format ID (as a string). The following built-in format IDs are supported:</p><ul><li>&quot;0&quot; =&gt; &quot;General&quot;</li><li>&quot;1&quot; =&gt; &quot;0&quot;</li><li>&quot;2&quot; =&gt; &quot;0.00&quot;,</li><li>&quot;3&quot; =&gt; &quot;#,##0&quot;</li><li>&quot;4&quot; =&gt; &quot;#,##0.00&quot;</li><li>&quot;5&quot; =&gt; &quot;<span>$#,##0_);($</span>#,##0)&quot;</li><li>&quot;6&quot; =&gt; &quot;$#,##0_);Red&quot;</li><li>&quot;7&quot; =&gt; &quot;<span>$#,##0.00_);($</span>#,##0.00)&quot;</li><li>&quot;8&quot; =&gt; &quot;$#,##0.00_);Red&quot;</li><li>&quot;9&quot; =&gt; &quot;0%&quot;</li><li>&quot;10&quot; =&gt; &quot;0.00%&quot;</li><li>&quot;11&quot; =&gt; &quot;0.00E+00&quot;</li><li>&quot;12&quot; =&gt; &quot;# ?/?&quot;</li><li>&quot;13&quot; =&gt; &quot;# ??/??&quot;</li><li>&quot;14&quot; =&gt; &quot;m/d/yyyy&quot;</li><li>&quot;15&quot; =&gt; &quot;d-mmm-yy&quot;</li><li>&quot;16&quot; =&gt; &quot;d-mmm&quot;</li><li>&quot;17&quot; =&gt; &quot;mmm-yy&quot;</li><li>&quot;18&quot; =&gt; &quot;h:mm AM/PM&quot;</li><li>&quot;19&quot; =&gt; &quot;h:mm:ss AM/PM&quot;</li><li>&quot;20&quot; =&gt; &quot;h:mm&quot;</li><li>&quot;21&quot; =&gt; &quot;h:mm:ss&quot;</li><li>&quot;22&quot; =&gt; &quot;m/d/yyyy h:mm&quot;</li><li>&quot;37&quot; =&gt; &quot;#,##0_);(#,##0)&quot;</li><li>&quot;38&quot; =&gt; &quot;#,##0_);Red&quot;</li><li>&quot;39&quot; =&gt; &quot;#,##0.00_);(#,##0.00)&quot;</li><li>&quot;40&quot; =&gt; &quot;#,##0.00_);Red&quot;</li><li>&quot;45&quot; =&gt; &quot;mm:ss&quot;</li><li>&quot;46&quot; =&gt; &quot;[h]:mm:ss&quot;</li><li>&quot;47&quot; =&gt; &quot;mmss.0&quot;</li><li>&quot;48&quot; =&gt; &quot;##0.0E+0&quot;</li><li>&quot;49&quot; =&gt; &quot;@&quot;</li></ul><p>Lastly, <code>format</code> can be used to specify any custom format directly.  Only weak checks are made of custom formats specified - they are otherwise added  to the <code>XLSXFile</code> verbatim.</p><p>Formats may need characters that must be escaped when specified (see penultimate  example, below).</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setFormat(sh, &quot;D2&quot;; format = &quot;h:mm AM/PM&quot;)
+
+julia&gt; XLSX.setFormat(xf, &quot;Sheet1!A2&quot;; format = &quot;# ??/??&quot;)
+
+julia&gt; XLSX.setFormat(sh, &quot;F1:F5&quot;; format = &quot;Currency&quot;)
+
+julia&gt; XLSX.setFormat(sh, &quot;named_range&quot;; format = &quot;Percentage&quot;)
+
+julia&gt; XLSX.setFormat(sh, &quot;A2&quot;; format = &quot;_-£* #,##0.00_-;-£* #,##0.00_-;_-£* \&quot;-\&quot;??_-;_-@_-&quot;)
+
+julia&gt; XLSX.setFormat(sh, &quot;named_range&quot;; format = &quot;39&quot;) # specifies the built-in format &quot;#,##0.00_);(#,##0.00)&quot;
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1519-L1602">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setUniformFormat"><a class="docstring-binding" href="#XLSX.setUniformFormat"><code>XLSX.setUniformFormat</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setUniformFormat(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setUniformFormat(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setUniformFormat(sh::Worksheet, rows, cols; kw...) -&gt; ::Int</code></pre><p>Set the number format used by a cell range, a column range or row range or a  named range in a worksheet or XLSXFile to be to be uniformly the same format. Alternatively, specify the rows and columns using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>First, the number format of the first cell in the range (the top-left cell) is updated according to the given <code>kw...</code> (using <code>setFormat()</code>). The resultant format is  then applied to each remaining cell in the range.</p><p>As a result, every cell in the range will have a uniform number format.</p><p>This is functionally equivalent to applying <code>setFormat()</code> to each cell in the range  but may be more efficient.</p><p>Applying <code>setUniformFormat()</code> without any keyword arguments simply copies the <code>Format</code>  attributes from the first cell specified to all the others.</p><p>The value returned is the <code>numfmtId</code> of the format uniformly applied to the cells. If all cells in the range are <code>EmptyCells</code>, the returned value is -1.</p><p>For keyword definitions see <a href="#XLSX.setFormat"><code>setFormat()</code></a>.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setUniformFormat(xf, &quot;Sheet1!A2:L6&quot;; format = &quot;# ??/??&quot;)
+
+julia&gt; XLSX.setUniformFormat(sh, &quot;F1:F5&quot;; format = &quot;Currency&quot;)
+
+julia&gt; setUniformFormat(sh, &quot;B2,A5:D22&quot;)                   # Copy `Format` from B2 to cells in A5:D22
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1669-L1706">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setFont"><a class="docstring-binding" href="#XLSX.setFont"><code>XLSX.setFont</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setFont(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setFont(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setFont(sh::Worksheet, row, col; kw...) -&gt; ::Int</code></pre><p>Set the font used by a single cell, a cell range, a column range or  row range or a named cell or named range in a worksheet or XLSXFile. Alternatively, specify the row and column using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>Font attributes are specified using keyword arguments:</p><ul><li><code>bold::Bool = nothing</code>        : set to <code>true</code> to make the font bold.</li><li><code>italic::Bool = nothing</code>      : set to <code>true</code> to make the font italic.</li><li><code>under::String = nothing</code>     : set to <code>single</code>, <code>double</code> or <code>none</code>.</li><li><code>strike::Bool = nothing</code>      : set to <code>true</code> to strike through the font.</li><li><code>size::Int = nothing</code>         : set the font size (0 &lt; size &lt; 410).</li><li><code>color::String = nothing</code>     : set the font color.</li><li><code>name::String = nothing</code>      : set the font name.</li><li><code>vertAlign::String = nothing</code> : set to <code>superscript</code>, <code>subscript</code> or <code>baseline</code>.</li></ul><p>Only the attributes specified will be changed. If an attribute is not specified, the current value will be retained. These are the only attributes supported currently.</p><p>No validation of the font names specified is performed. Available fonts will depend on what your system has installed. If you specify, for example, <code>name = &quot;badFont&quot;</code>, that value will be written to the XLSXFile.</p><p>As an expedient to get fonts to work, the <code>scheme</code> attribute is simply dropped from new font definitions.</p><p>The <code>color</code> attribute can be defined using 8-digit rgb values.</p><ul><li>The first two digits represent transparency (α). Excel ignores transparency.</li><li>The next two digits give the red component.</li><li>The next two digits give the green component.</li><li>The next two digits give the blue component.</li></ul><p>So, FF000000 means a fully opaque black color.</p><p>Alternatively, you can use the name of any named color from <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p>Font attributes cannot be set for <code>EmptyCell</code>s. Set a cell value first. If a cell range or column range includes any <code>EmptyCell</code>s, they will be quietly skipped and the font will be set for the remaining cells.</p><p>For single cells, the value returned is the <code>fontId</code> of the font applied to the cell. This can be used to apply the same font to other cells or ranges.</p><p>For cell ranges, column ranges and named ranges, the value returned is -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; setFont(sh, &quot;A1&quot;; bold=true, italic=true, size=12, name=&quot;Arial&quot;)          # Single cell
+
+julia&gt; setFont(xf, &quot;Sheet1!A1&quot;; bold=false, size=14, color=&quot;yellow&quot;)             # Single cell
+
+julia&gt; setFont(sh, &quot;A1:B7&quot;; name=&quot;Aptos&quot;, under=&quot;double&quot;, strike=true)           # Cell range
+
+julia&gt; setFont(xf, &quot;Sheet1!A1:B7&quot;; size=24, name=&quot;Berlin Sans FB Demi&quot;)          # Cell range
+
+julia&gt; setFont(sh, &quot;A:B&quot;; italic=true, color=&quot;green&quot;, under=&quot;single&quot;)            # Column range
+
+julia&gt; setFont(xf, &quot;Sheet1!A:B&quot;; italic=true, color=&quot;red&quot;, under=&quot;single&quot;)       # Column range
+
+julia&gt; setFont(xf, &quot;Sheet1!6:12&quot;; italic=false, color=&quot;FF8888FF&quot;, under=&quot;none&quot;)  # Row range
+
+julia&gt; setFont(sh, &quot;bigred&quot;; size=48, color=&quot;FF00FF00&quot;)                          # Named cell or range
+
+julia&gt; setFont(xf, &quot;bigred&quot;; size=48, color=&quot;magenta&quot;)                           # Named cell or range
+
+julia&gt; setFont(sh, 1, 2; size=48, color=&quot;magenta&quot;)                               # row and column as integers
+
+julia&gt; setFont(sh, 1:3, 2; size=48, color=&quot;magenta&quot;)                             # row as unit range
+
+julia&gt; setFont(sh, 6, [2, 3, 8, 12]; size=48, color=&quot;magenta&quot;)                   # column as vector of indices
+
+julia&gt; setFont(sh, :, 2:6; size=48, color=&quot;lightskyblue2&quot;)                       # all rows, columns 2 to 6
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L7-L85">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setUniformFont"><a class="docstring-binding" href="#XLSX.setUniformFont"><code>XLSX.setUniformFont</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setUniformFont(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setUniformFont(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setUniformFont(sh::Worksheet, rows, cols; kw...) -&gt; ::Int</code></pre><p>Set the font used by a cell range, a column range or row range or  a named range in a worksheet or XLSXFile to be uniformly the same font. Alternatively, specify the rows and columns using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>First, the font attributes of the first cell in the range (the top-left cell) are updated according to the given <code>kw...</code> (using <code>setFont()</code>). The resultant font is  then applied to each remaining cell in the range.</p><p>As a result, every cell in the range will have a uniform font setting.</p><p>This differs from <code>setFont()</code> which merges the attributes defined by <code>kw...</code> into  the font definition used by each cell individually. For example, if you set the  font size to 12 for a range of cells, but these cells all use different fonts names  or colors, etc, <code>setFont()</code> will change the font size but leave the font name and  color unchanged for each cell individually. </p><p>In contrast, <code>setUniformFont()</code> will set the font size to 12 for the first cell, but  will then apply all the font attributes from the updated first cell (ie. name, color,  etc) to all the other cells in the range.</p><p>This can be more efficient when setting the same font for a large number of cells.</p><p>Applying <code>setUniformFont()</code> without any keyword arguments simply copies the <code>Font</code>  attributes from the first cell specified to all the others.</p><p>The value returned is the <code>fontId</code> of the font uniformly applied to the cells. If all cells in the range are <code>EmptyCells</code> the returned value is -1.</p><p>For keyword definitions see <a href="#XLSX.setFont"><code>setFont()</code></a>.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; setUniformFont(sh, &quot;A1:B7&quot;; bold=true, italic=true, size=12, name=&quot;Arial&quot;)       # Cell range
+
+julia&gt; setUniformFont(xf, &quot;Sheet1!A1:B7&quot;; size=24, name=&quot;Berlin Sans FB Demi&quot;)          # Cell range
+
+julia&gt; setUniformFont(sh, &quot;A:B&quot;; italic=true, color=&quot;FF8888FF&quot;, under=&quot;single&quot;)         # Column range
+
+julia&gt; setUniformFont(xf, &quot;Sheet1!A:B&quot;; italic=true, color=&quot;FF8888FF&quot;, under=&quot;single&quot;)  # Column range
+
+julia&gt; setUniformFont(sh, &quot;33&quot;; italic=true, color=&quot;FF8888FF&quot;, under=&quot;single&quot;)          # Row
+
+julia&gt; setUniformFont(sh, &quot;bigred&quot;; size=48, color=&quot;FF00FF00&quot;)                          # Named range
+
+julia&gt; setUniformFont(sh, 1, [2, 4, 6]; size=48, color=&quot;lightskyblue2&quot;)                 # vector of column indices
+
+julia&gt; setUniformFont(sh, &quot;B2,A5:D22&quot;)                                                  # Copy `Font` from B2 to cells in A5:D22
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L188-L244">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getBorder"><a class="docstring-binding" href="#XLSX.getBorder"><code>XLSX.getBorder</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getBorder(sh::Worksheet, cr::String) -&gt; ::Union{Nothing, CellBorder}
+getBorder(xf::XLSXFile, cr::String)  -&gt; ::Union{Nothing, CellBorder}
+
+getBorder(sh::Worksheet, row::Int, col::Int) -&gt; ::Union{Nothing, CellBorder}</code></pre><p>Get the borders used by a single cell at reference in a worksheet or XLSXFile. The specified cell must be within the sheet dimension.</p><p>Return a <code>CellBorder</code> object containing:</p><ul><li><code>borderId</code>    : a 0-based index of the border in the workbook</li><li><code>border</code>      : a dictionary of border attributes: borderAttribute -&gt; (attribute -&gt; value)</li><li><code>applyBorder</code> : &quot;1&quot; or &quot;0&quot;, indicating whether or not the border is applied to the cell.</li></ul><p>Return <code>nothing</code> if no cell border is found.</p><p>A cell border has two attributes, <code>style</code> and <code>color</code>. A diagonal border also needs to specify  a direction indicating whether a diagonal is needed from bottom-left to top-right (&quot;up&quot;),  from top-left to bottom-left (&quot;down&quot;) or &quot;both&quot;</p><p>Here&#39;s a list of the available <code>style</code>s (thanks to Copilot!):</p><ul><li><code>none</code></li><li><code>thin</code></li><li><code>medium</code></li><li><code>dashed</code></li><li><code>dotted</code></li><li><code>thick</code></li><li><code>double</code></li><li><code>hair</code></li><li><code>mediumDashed</code></li><li><code>dashDot</code></li><li><code>mediumDashDot</code></li><li><code>dashDotDot</code></li><li><code>mediumDashDotDot</code></li><li><code>slantDashDot</code></li></ul><p>A border postion element (e.g. <code>top</code> or <code>left</code>) has a <code>style</code> attribute, but <code>color</code> is a child element. The color element has one or two attributes (e.g. <code>rgb</code>) that define the color of the border. While the key for the <code>style</code> element will always be <code>style</code>, the keys for the <code>color</code> element will vary depending on how the color is defined (e.g. <code>rgb</code>, <code>indexed</code>, <code>auto</code>, etc.). Thus, for example, <code>&quot;top&quot; =&gt; Dict(&quot;style&quot; =&gt; &quot;thin&quot;, &quot;rgb&quot; =&gt; &quot;FF000000&quot;)</code> would indicate a  thin black border at the top of the cell while <code>&quot;top&quot; =&gt; Dict(&quot;style&quot; =&gt; &quot;thin&quot;, &quot;auto&quot; =&gt; &quot;1&quot;)</code> would indicate that the color is set automatically by Excel.</p><p>The <code>color</code> element can have the following attributes:</p><ul><li><code>auto</code>     : Indicates that the color is automatically defined by Excel</li><li><code>indexed</code>  : Specifies the color using an indexed color value.</li><li><code>rgb</code>      : Specifies the rgb color using 8-digit hexadecimal format.</li><li><code>theme</code>    : Specifies the color using a theme color.</li><li><code>tint</code>     : Specifies the tint value to adjust the lightness or darkness of the color.</li></ul><p><code>tint</code> can only be used in conjunction with the theme attribute to derive different shades of the theme color. For example: &lt;color theme=&quot;1&quot; tint=&quot;-0.5&quot;/&gt;.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; getBorder(sh, &quot;A1&quot;)
+
+julia&gt; getBorder(sh, 3, 6)
+
+julia&gt; getBorder(xf, &quot;Sheet1!A1&quot;)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L353-L416">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setBorder"><a class="docstring-binding" href="#XLSX.setBorder"><code>XLSX.setBorder</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setBorder(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setBorder(xf::XLSXFile, cr::String; kw...) -&gt; ::Int
+
+setBorder(sh::Worksheet, row, col; kw...) -&gt; ::Int</code></pre><p>Set the borders used used by a single cell, a cell range, a column range or  row range or a named cell or named range in a worksheet or XLSXFile. Alternatively, specify the row and column using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>Borders are independently defined for the keywords:</p><ul><li><code>left::Vector{Pair{String,String}} = nothing</code></li><li><code>right::Vector{Pair{String,String}} = nothing</code></li><li><code>top::Vector{Pair{String,String}} = nothing</code></li><li><code>bottom::Vector{Pair{String,String}} = nothing</code></li><li><code>diagonal::Vector{Pair{String,String}} = nothing</code></li><li><code>[allsides::Vector{Pair{String,String}} = nothing]</code></li><li><code>[outside::Vector{Pair{String,String}} = nothing]</code></li></ul><p>These represent each of the sides of a cell . The keyword <code>diagonal</code> defines  diagonal lines running across the cell. These lines must share the same style  and color in any cell.</p><p>An additional keyword, <code>allsides</code>, is provided for convenience. It can be used  in place of the four side keywords to apply the same border setting to all four  sides at once. It cannot be used in conjunction with any of the side-specific  keywords or with <code>outside</code> but it can be used together with <code>diagonal</code>.</p><p>A further keyword, <code>outside</code>, can be used to set the outside border around a  range. Any internal borders will remain unchanged. An outside border cannot be  set for any non-contiguous/non-rectangular range, cannot be indexed with  vectors and cannot be used in conjunction with any other keywords.</p><p>The two attributes that can be set for each keyword are <code>style</code> and <code>color</code>. Additionally, for diagonal borders, a third keyword, <code>direction</code> can be used.</p><p>Allowed values for <code>style</code> are:</p><ul><li><code>none</code></li><li><code>thin</code></li><li><code>medium</code></li><li><code>dashed</code></li><li><code>dotted</code></li><li><code>thick</code></li><li><code>double</code></li><li><code>hair</code></li><li><code>mediumDashed</code></li><li><code>dashDot</code></li><li><code>mediumDashDot</code></li><li><code>dashDotDot</code></li><li><code>mediumDashDotDot</code></li><li><code>slantDashDot</code></li></ul><p>The <code>color</code> attribute can be set by specifying an 8-digit hexadecimal value  in the format &quot;FFRRGGBB&quot;. The transparency (&quot;FF&quot;) is ignored by Excel but  is required. Alternatively, you can use the name of any named color from <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p>Valid values for the <code>direction</code> keyword (for diagonal borders) are:</p><ul><li><code>up</code>   : diagonal border runs bottom-left to top-right</li><li><code>down</code> : diagonal border runs top-left to bottom-right</li><li><code>both</code> : diagonal borders run both ways</li></ul><p>Both diagonal borders share the same style and color.</p><p>Setting only one of the attributes leaves the other attributes unchanged for that  side&#39;s border. Omitting one of the keywords leaves the border definition for that side unchanged, only updating the other, specified sides.</p><p>Border attributes cannot be set for <code>EmptyCell</code>s. Set a cell value first. If a cell range or column range includes any <code>EmptyCell</code>s, they will be quietly skipped and the border will be set for the remaining cells.</p><p>For single cells, the value returned is the <code>borderId</code> of the borders applied to the cell. This can be used to apply the same borders to other cells or ranges.</p><p>For cell ranges, column ranges and named ranges, the value returned is -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">Julia&gt; setBorder(sh, &quot;D6&quot;; allsides = [&quot;style&quot; =&gt; &quot;thick&quot;], diagonal = [&quot;style&quot; =&gt; &quot;hair&quot;, &quot;direction&quot; =&gt; &quot;up&quot;])
+
+Julia&gt; setBorder(sh, 2:45, 2:12; outside = [&quot;style&quot; =&gt; &quot;thick&quot;, &quot;color&quot; =&gt; &quot;lightskyblue2&quot;])
+
+Julia&gt; setBorder(xf, &quot;Sheet1!D4&quot;; left     = [&quot;style&quot; =&gt; &quot;dotted&quot;, &quot;color&quot; =&gt; &quot;FF000FF0&quot;],
+                                  right    = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;firebrick2&quot;],
+                                  top      = [&quot;style&quot; =&gt; &quot;thick&quot;,  &quot;color&quot; =&gt; &quot;FF230000&quot;],
+                                  bottom   = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;goldenrod3&quot;],
+                                  diagonal = [&quot;style&quot; =&gt; &quot;dotted&quot;, &quot;color&quot; =&gt; &quot;FF00D4D4&quot;, &quot;direction&quot; =&gt; &quot;both&quot;]
+                                  )
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L470-L562">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setUniformBorder"><a class="docstring-binding" href="#XLSX.setUniformBorder"><code>XLSX.setUniformBorder</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setUniformBorder(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setUniformBorder(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setUniformBorder(sh::Worksheet, rows, cols; kw...) -&gt; ::Int</code></pre><p>Set the border used by a cell range, a column range or row range or  a named range in a worksheet or XLSXFile to be uniformly the same border. Alternatively, specify the rows and columns using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>First, the border attributes of the first cell in the range (the top-left cell) are updated according to the given <code>kw...</code> (using <code>setBorder()</code>). The resultant border is  then applied to each remaining cell in the range.</p><p>As a result, every cell in the range will have a uniform border setting.</p><p>This differs from <code>setBorder()</code> which merges the attributes defined by <code>kw...</code> into  the border definition used by each cell individually. For example, if you set the  border style to <code>thin</code> for a range of cells, but these cells all use different border  colors, <code>setBorder()</code> will change the border style but leave the border color unchanged  for each cell individually. </p><p>In contrast, <code>setUniformBorder()</code> will set the border <code>style</code> to <code>thin</code> for the first cell, but will then apply all the border attributes from the updated first cell (ie. both <code>style</code>  and <code>color</code>) to all the other cells in the range.</p><p>This can be more efficient when setting the same border for a large number of cells.</p><p>Applying <code>setUniformBorder()</code> without any keyword arguments simply copies the <code>Border</code>  attributes from the first cell specified to all the others.</p><p>The value returned is the <code>borderId</code> of the border uniformly applied to the cells. If all cells in the range are <code>EmptyCells</code> the returned value is -1.</p><p>For keyword definitions see <a href="#XLSX.setBorder"><code>setBorder()</code></a>.</p><p>Note: <code>setUniformBorder</code> cannot be used with the <code>outside</code> keyword.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">Julia&gt; setUniformBorder(sh, &quot;B2:D6&quot;; allsides = [&quot;style&quot; =&gt; &quot;thick&quot;], diagonal = [&quot;style&quot; =&gt; &quot;hair&quot;])
+
+Julia&gt; setUniformBorder(sh, [1, 2, 3], [3, 5, 9]; allsides = [&quot;style&quot; =&gt; &quot;thick&quot;], diagonal = [&quot;style&quot; =&gt; &quot;hair&quot;, &quot;color&quot; =&gt; &quot;yellow2&quot;])
+
+Julia&gt; setUniformBorder(xf, &quot;Sheet1!A1:F20&quot;; left     = [&quot;style&quot; =&gt; &quot;dotted&quot;, &quot;color&quot; =&gt; &quot;FF000FF0&quot;],
+                                             right    = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;FF765000&quot;],
+                                             top      = [&quot;style&quot; =&gt; &quot;thick&quot;,  &quot;color&quot; =&gt; &quot;FF230000&quot;],
+                                             bottom   = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;FF0000FF&quot;],
+                                             diagonal = [&quot;style&quot; =&gt; &quot;none&quot;]
+                                             )
+                                             
+julia&gt; setUniformBorder(sh, &quot;B2,A5:D22&quot;)     # Copy `Border` from B2 to cells in A5:D22
+
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L684-L740">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getFill"><a class="docstring-binding" href="#XLSX.getFill"><code>XLSX.getFill</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getFill(sh::Worksheet, cr::String) -&gt; ::Union{Nothing, CellFill}
+getFill(xf::XLSXFile, cr::String)  -&gt; ::Union{Nothing, CellFill}
+
+getFill(sh::Worksheet, row::Int, col::Int) -&gt; ::Union{Nothing, CellFill}</code></pre><p>Get the fill used by a single cell at reference <code>cr</code> in a worksheet or XLSXFile. The specified cell must be within the sheet dimension.</p><p>Return a <code>CellFill</code> object containing:</p><ul><li><code>fillId</code>    : a 0-based index of the fill in the workbook</li><li><code>fill</code>      : a dictionary of fill attributes: borderAttribute -&gt; (attribute -&gt; value)</li><li><code>applyFill</code> : &quot;1&quot; or &quot;0&quot;, indicating whether or not the fill is applied to the cell.</li></ul><p>Return <code>nothing</code> if no cell fill is found.</p><p>The <code>fill</code> element in Excel&#39;s XML schema defines the pattern and color  properties for cell fills. The primary attributes and child elements  in the <code>patternFill</code> element are:</p><ul><li><code>patternType</code> : Specifies the type of fill pattern (see below).</li><li><code>fgColor</code>     : Specifies the foreground color of the pattern.</li><li><code>bgColor</code>     : Specifies the background color of the pattern.</li></ul><p>The child elements <code>fgColor</code> and <code>bgColor</code> can each have one or two attributes  of their own. These color attributes are pushed in to the <code>CellFill.fill</code> Dict  of attributes with either <code>fg</code> or <code>bg</code> prepended to their names to support later  reconstruction of the xml element.</p><p>Thus: <code>&quot;patternFill&quot; =&gt; Dict(&quot;patternType&quot; =&gt; &quot;solid&quot;, &quot;bgindexed&quot; =&gt; &quot;64&quot;, &quot;fgtheme&quot; =&gt; &quot;0&quot;)</code> indicates a solid fill with a foreground color defined by theme 0 (in Excel) and  background color defined by an indexed value. In this case (solid fill), the  background color will be ignored.</p><p>Here is a list of the <code>patternTypes</code> Excel uses (thanks to Copilot!):</p><ul><li><code>none</code></li><li><code>solid</code></li><li><code>mediumGray</code></li><li><code>darkGray</code></li><li><code>lightGray</code></li><li><code>darkHorizontal</code></li><li><code>darkVertical</code></li><li><code>darkDown</code></li><li><code>darkUp</code></li><li><code>darkGrid</code></li><li><code>darkTrellis</code></li><li><code>lightHorizontal</code></li><li><code>lightVertical</code></li><li><code>lightDown</code></li><li><code>lightUp</code></li><li><code>lightGrid</code></li><li><code>lightTrellis</code></li><li><code>gray125</code></li><li><code>gray0625</code></li></ul><p>Definitions for neither <code>fgColor</code> (foreground color) nor <code>bgColor</code> (background color)  are strictly necessary although certain pattern types are more visually meaningful  when both are defined. These pattern types include those that create a pattern or grid  effect, where the contrast between the foreground and background colors enhances the  visual presentation.</p><p>These pattern types include <code>darkTrellis</code>, <code>darkGrid</code>, <code>darkHorizontal</code>, <code>darkVertical</code>, <code>darkDown</code>, <code>darkUp</code>, <code>mediumGray</code>, <code>lightGray</code>, <code>lightTrellis</code>, <code>lightGrid</code>, <code>lightHorizontal</code>, <code>lightVertical</code>, <code>lightDown</code>, <code>lightUp</code>, <code>gray125</code> and <code>gray0625</code>.</p><p>If <code>fgColor</code> (foreground color) and <code>bgColor</code> (background color) are specified when they aren&#39;t  needed, they will simply be ignored by Excel, and the default appearance will be applied.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; getFill(sh, &quot;A1&quot;)
+
+julia&gt; getFill(sh, 3, 4)
+
+julia&gt; getFill(xf, &quot;Sheet1!A1&quot;)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L837-L914">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setFill"><a class="docstring-binding" href="#XLSX.setFill"><code>XLSX.setFill</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setFill(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setFill(xf::XLSXFile,  cr::String; kw...) -&gt; ::Int
+
+setFill(sh::Worksheet, row, col; kw...) -&gt; ::Int</code></pre><p>Set the fill used used by a single cell, a cell range, a column range or  row range or a named cell or named range in a worksheet or XLSXFile. Alternatively, specify the row and column using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>The following keywords are used to define a fill:</p><ul><li><code>pattern::String = nothing</code>   : Sets the patternType for the fill.</li><li><code>fgColor::String = nothing</code>   : Sets the foreground color for the fill.</li><li><code>bgColor::String = nothing</code>   : Sets the background color for the fill.</li></ul><p>Here is a list of the available <code>pattern</code> values (thanks to Copilot!):</p><ul><li><code>none</code></li><li><code>solid</code></li><li><code>mediumGray</code></li><li><code>darkGray</code></li><li><code>lightGray</code></li><li><code>darkHorizontal</code></li><li><code>darkVertical</code></li><li><code>darkDown</code></li><li><code>darkUp</code></li><li><code>darkGrid</code></li><li><code>darkTrellis</code></li><li><code>lightHorizontal</code></li><li><code>lightVertical</code></li><li><code>lightDown</code></li><li><code>lightUp</code></li><li><code>lightGrid</code></li><li><code>lightTrellis</code></li><li><code>gray125</code></li><li><code>gray0625</code></li></ul><p>The two colors may be set by specifying an 8-digit hexadecimal value for the <code>fgColor</code> and/or <code>bgColor</code> keywords.  Alternatively, you can use the name of any named color from <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p>Setting only one or two of the attributes leaves the other attribute(s) unchanged  for that cell&#39;s fill.</p><p>Fill attributes cannot be set for <code>EmptyCell</code>s. Set a cell value first. If a cell range or column range includes any <code>EmptyCell</code>s, they will be quietly skipped and the fill will be set for the remaining cells.</p><p>For single cells, the value returned is the <code>fillId</code> of the fill applied to the cell. This can be used to apply the same fill to other cells or ranges.</p><p>For cell ranges, column ranges and named ranges, the value returned is -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">Julia&gt; setFill(sh, &quot;B2&quot;; pattern=&quot;gray125&quot;, bgColor = &quot;FF000000&quot;)
+
+Julia&gt; setFill(xf, &quot;Sheet1!A1:F20&quot;; pattern=&quot;none&quot;, fgColor = &quot;darkseagreen3&quot;)
+ 
+Julia&gt; setFill(sh, &quot;11:24&quot;; pattern=&quot;none&quot;, fgColor = &quot;yellow2&quot;)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L947-L1009">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setUniformFill"><a class="docstring-binding" href="#XLSX.setUniformFill"><code>XLSX.setUniformFill</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setUniformFill(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setUniformFill(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setUniformFill(sh::Worksheet, rows, cols; kw...) -&gt; ::Int</code></pre><p>Set the fill used by a cell range, a column range or row range or a  named range in a worksheet or XLSXFile to be uniformly the same fill. Alternatively, specify the rows and columns using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>First, the fill attributes of the first cell in the range (the top-left cell) are updated according to the given <code>kw...</code> (using <code>setFill()</code>). The resultant fill is  then applied to each remaining cell in the range.</p><p>As a result, every cell in the range will have a uniform fill setting.</p><p>This differs from <code>setFill()</code> which merges the attributes defined by <code>kw...</code> into  the fill definition used by each cell individually. For example, if you set the  fill <code>patern</code> to <code>darkGrid</code> for a range of cells, but these cells all use different fill   <code>color</code>s, <code>setFill()</code> will change the fill <code>pattern</code> but leave the fill <code>color</code> unchanged  for each cell individually. </p><p>In contrast, <code>setUniformFill()</code> will set the fill <code>pattern</code> to <code>darkGrid</code> for the first cell, but will then apply all the fill attributes from the updated first cell (ie. <code>pattern</code>  and both foreground and background colors) to all the other cells in the range.</p><p>This can be more efficient when setting the same fill for a large number of cells.</p><p>Applying <code>setUniformFill()</code> without any keyword arguments simply copies the <code>Fill</code>  attributes from the first cell specified to all the others.</p><p>The value returned is the <code>fillId</code> of the fill uniformly applied to the cells. If all cells in the range are <code>EmptyCells</code> the returned value is -1.</p><p>For keyword definitions see <a href="#XLSX.setFill"><code>setFill()</code></a>.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">Julia&gt; setUniformFill(sh, &quot;B2:D4&quot;; pattern=&quot;gray125&quot;, bgColor = &quot;FF000000&quot;)
+
+Julia&gt; setUniformFill(xf, &quot;Sheet1!A1:F20&quot;; pattern=&quot;none&quot;, fgColor = &quot;darkseagreen3&quot;)
+
+julia&gt; setUniformFill(sh, &quot;B2,A5:D22&quot;)               # Copy `Fill` from B2 to cells in A5:D22
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1090-L1136">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getAlignment"><a class="docstring-binding" href="#XLSX.getAlignment"><code>XLSX.getAlignment</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getAlignment(sh::Worksheet, cr::String) -&gt; ::Union{Nothing, CellAlignment}
+getAlignment(xf::XLSXFile,  cr::String) -&gt; ::Union{Nothing, CellAlignment}
+
+getAlignment(sh::Worksheet, row::Int, col::Int) -&gt; ::Union{Nothing, CellAlignment}</code></pre><p>Get the alignment used by a single cell at reference <code>cr</code> in a worksheet or XLSXFile. The specified cell must be within the sheet dimension.</p><p>Return a <code>CellAlignment</code> object containing:</p><ul><li><code>alignment</code>      : a dictionary of alignment attributes: alignmentAttribute -&gt; (attribute -&gt; value)</li><li><code>applyAlignment</code> : &quot;1&quot; or &quot;0&quot;, indicating whether or not the alignment is applied to the cell.</li></ul><p>Return <code>nothing</code> if no cell alignment is found.</p><p>The <code>alignment</code> element in Excel&#39;s XML schema defines the following attributes:</p><ul><li><code>horizontal</code>     : Specifies the horizontal alignment of the cell.</li><li><code>vertical</code>       : Specifies the vertical alignment of the cell.</li><li><code>wrapText</code>       : Specifies whether (&quot;1&quot;) or not (&quot;0&quot;) the cell content wraps                    in the cell.</li><li><code>shrinkToFit</code>    : Indicates whether (&quot;1&quot;) or not (&quot;0&quot;) the text should shrink to fit the cell.</li><li><code>indent</code>         : Specifies the number of spaces by which to indent the text (always from the left).</li><li><code>textRotation</code>   : Specifies the rotation angle of the text in a range -90 to 90 (positive values                     rotate the text counterclockwise).</li></ul><p>Excel supports the following values for the horizontal alignment:</p><ul><li><code>left</code>             : Aligns the text to the left of the cell.</li><li><code>center</code>           : Centers the text within the cell.</li><li><code>right</code>            : Aligns the text to the right of the cell.</li><li><code>fill</code>             : Repeats the text to fill the entire width of the cell.</li><li><code>justify</code>          : Justifies the text, spacing it out so that it spans the entire width of the cell.</li><li><code>centerContinuous</code> : Centers the text across multiple cells (specifically the currrent cell and all                       empty cells to the right) as if the text were in a merged cell.</li><li><code>distributed</code>      : Distributes the text evenly across the width of the cell.</li></ul><p>Excel supports the following values for the vertical alignment:</p><ul><li><code>top</code>              : Aligns the text to the top of the cell.</li><li><code>center</code>           : Centers the text vertically within the cell.</li><li><code>bottom</code>           : Aligns the text to the bottom of the cell.</li><li><code>justify</code>          : Justifies the text vertically, spreading it out evenly within the cell.</li><li><code>distributed</code>      : Distributes the text evenly from top to bottom in the cell.</li></ul><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; getAlignment(sh, &quot;A1&quot;)
+
+julia&gt; getAlignment(sh, 2, 5) # Cell E2
+
+julia&gt; getAlignment(xf, &quot;Sheet1!A1&quot;)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1162-L1214">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setAlignment"><a class="docstring-binding" href="#XLSX.setAlignment"><code>XLSX.setAlignment</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setAlignment(sh::Worksheet, cr::String; kw...) -&gt; ::Int}
+setAlignment(xf::XLSXFile,  cr::String; kw...) -&gt; ::Int}
+
+setAlignment(sh::Worksheet, row, col; kw...) -&gt; ::Int}</code></pre><p>Set the alignment used used by a single cell, a cell range, a column range or  row range or a named cell or named range in a worksheet or XLSXFile. Alternatively, specify the row and column using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>The following keywords are used to define an alignment:</p><ul><li><code>horizontal::String = nothing</code> : Sets the horizontal alignment.</li><li><code>vertical::String = nothing</code>   : Sets the vertical alignment.</li><li><code>wrapText::Bool = nothing</code>     : Determines whether the cell content wraps within the cell.</li><li><code>shrink::Bool = nothing</code>       : Indicates whether the text should shrink to fit the cell.</li><li><code>indent::Int = nothing</code>        : Specifies the number of spaces by which to indent the text                                   (always from the left).</li><li><code>rotation::Int = nothing</code>      : Specifies the rotation angle of the text in the range -90 to 90                                   (positive values rotate the text counterclockwise), </li></ul><p>Here are the possible values for the <code>horizontal</code> alignment:</p><ul><li><code>left</code>             : Aligns the text to the left of the cell.</li><li><code>center</code>           : Centers the text within the cell.</li><li><code>right</code>            : Aligns the text to the right of the cell.</li><li><code>fill</code>             : Repeats the text to fill the entire width of the cell.</li><li><code>justify</code>          : Justifies the text, spacing it out so that it spans the entire                       width of the cell.</li><li><code>centerContinuous</code> : Centers the text across multiple cells (specifically the currrent                       cell and all empty cells to the right) as if the text were in                       a merged cell.</li><li><code>distributed</code>      : Distributes the text evenly across the width of the cell.</li></ul><p>Here are the possible values for the <code>vertical</code> alignment:</p><ul><li><code>top</code>              : Aligns the text to the top of the cell.</li><li><code>center</code>           : Centers the text vertically within the cell.</li><li><code>bottom</code>           : Aligns the text to the bottom of the cell.</li><li><code>justify</code>          : Justifies the text vertically, spreading it out evenly within the cell.</li><li><code>distributed</code>      : Distributes the text evenly from top to bottom in the cell.</li></ul><p>For single cells, the value returned is the <code>styleId</code> of the cell.</p><p>For cell ranges, column ranges and named ranges, the value returned is -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; setAlignment(sh, &quot;D18&quot;; horizontal=&quot;center&quot;, wrapText=true)
+
+julia&gt; setAlignment(xf, &quot;sheet1!D18&quot;; horizontal=&quot;right&quot;, vertical=&quot;top&quot;, wrapText=true)
+
+julia&gt; setAlignment(sh, &quot;L6&quot;; horizontal=&quot;center&quot;, rotation=&quot;90&quot;, shrink=true, indent=&quot;2&quot;)
+
+julia&gt; setAlignment(sh, 1:3, 3:6; horizontal=&quot;center&quot;, rotation=&quot;90&quot;, shrink=true, indent=&quot;2&quot;)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1237-L1293">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setUniformAlignment"><a class="docstring-binding" href="#XLSX.setUniformAlignment"><code>XLSX.setUniformAlignment</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setUniformAlignment(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setUniformAlignment(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setUniformAlignment(sh::Worksheet, rows, cols; kw...) -&gt; ::Int</code></pre><p>Set the alignment used by a cell range, a column range or row range or a  named range in a worksheet or XLSXFile to be uniformly the same alignment. Alternatively, specify the rows and columns using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>First, the alignment attributes of the first cell in the range (the top-left cell) are updated according to the given <code>kw...</code> (using <code>setAlignment()</code>). The resultant alignment  is then applied to each remaining cell in the range.</p><p>As a result, every cell in the range will have a uniform alignment setting.</p><p>This differs from <code>setAlignment()</code> which merges the attributes defined by <code>kw...</code> into  the alignment definition used by each cell individually. For example, if you set the  <code>horizontal</code> alignment to <code>left</code> for a range of cells, but these cells all use different  <code>vertical</code> alignment or <code>wrapText</code>, <code>setAlignment()</code> will change the horizontal alignment but  leave the <code>vertical</code> alignment and <code>wrapText</code> unchanged for each cell individually. </p><p>In contrast, <code>setUniformAlignment()</code> will set the <code>horizontal</code> alignment to <code>left</code> for   the first cell, but will then apply all the alignment attributes from the updated first   cell to all the other cells in the range.</p><p>This can be more efficient when setting the same alignment for a large number of cells.</p><p>Applying <code>setUniformAlignment()</code> without any keyword arguments simply copies the <code>Alignment</code>  attributes from the first cell specified to all the others.</p><p>The value returned is the <code>styleId</code> of the reference (top-left) cell, from which the  alignment uniformly applied to the cells was taken. If all cells in the range are <code>EmptyCells</code>, the returned value is -1.</p><p>For keyword definitions see <a href="#XLSX.setAlignment"><code>setAlignment()</code></a>.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">Julia&gt; setUniformAlignment(sh, &quot;B2:D4&quot;; horizontal=&quot;center&quot;, wrap = true)
+
+Julia&gt; setUniformAlignment(xf, &quot;Sheet1!A1:F20&quot;; horizontal=&quot;center&quot;, vertical=&quot;top&quot;)
+
+Julia&gt; setUniformAlignment(sh, :, 1:24; horizontal=&quot;center&quot;, vertical=&quot;top&quot;)
+
+julia&gt; setUniformAlignment(sh, &quot;B2,A5:D22&quot;)                # Copy `Alignment` from B2 to cells in A5:D22
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1371-L1420">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setUniformStyle"><a class="docstring-binding" href="#XLSX.setUniformStyle"><code>XLSX.setUniformStyle</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setUniformStyle(sh::Worksheet, cr::String) -&gt; ::Int
+setUniformStyle(xf::XLSXFile,  cr::String) -&gt; ::Int
+
+setUniformStyle(sh::Worksheet, rows, cols) -&gt; ::Int</code></pre><p>Set the cell <code>style</code> used by a cell range, a column range or row range  or a named range in a worksheet or XLSXFile to be the same as that of  the first cell in the range that is not an <code>EmptyCell</code>. Alternatively, specify the rows and columns using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>.</p><p>As a result, every cell in the range will have a uniform <code>style</code>.</p><p>A cell <code>style</code> consists of the collection of <code>format</code>, <code>alignment</code>, <code>border</code>,  <code>font</code> and <code>fill</code>.</p><p>If the first cell has no defined <code>style</code> (<code>s=&quot;&quot;</code>), all cells will be given the  same undefined <code>style</code>.</p><p>The value returned is the <code>styleId</code> of the <code>style</code> uniformly applied to the cells or  <code>nothing</code> if the style is undefined. If all cells in the range are <code>EmptyCells</code>, the returned value is -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setUniformStyle(xf, &quot;Sheet1!A2:L6&quot;)
+
+julia&gt; XLSX.setUniformStyle(sh, &quot;F1:F5&quot;)
+
+julia&gt; XLSX.setUniformStyle(sh, 2:5, 5)
+
+julia&gt; XLSX.setUniformStyle(sh, 2, :)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1732-L1767">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.RichTextRun"><a class="docstring-binding" href="#XLSX.RichTextRun"><code>XLSX.RichTextRun</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">RichTextRun(text::String, pairs::Union{Nothing,Vector{Pair{Symbol,Any}}}=nothing)     -&gt; RichTextRun
+RichTextRun(text::String)                                                             -&gt; RichTextRun</code></pre><p>Create an instance of a RichTextRun, representing a formatted substring element (run) to form part  of a RichTextString. Each RichTextRun defines none, one or several font attributes to apply to its text.</p><ul><li><code>text</code> specifies the text of the run&#39;s substring element.</li><li><code>pairs</code> is a vector of formatting attributes to apply to <code>text</code> (default = <code>nothing</code>).</li></ul><p>Valid attributes that can be defined in <code>pairs</code> are:</p><ul><li><code>:bold</code> - set <code>:bold =&gt; true</code> for this run to be emboldened. Omit otherwise.</li><li><code>:italic</code> - set <code>:italic =&gt; true</code> for this run to be italicised. Omit otherwise.</li><li><code>:under</code> - set <code>:under =&gt; true</code> to underline this run. Omit otherwise.</li><li><code>:strike</code> - set <code>:strike =&gt; true</code> to apply strikethrough to this run. Omit otherwise.</li><li><code>:vertAlign</code> - whether this run is <code>subscript</code> or <code>superscript</code> (eg <code>:vertAling =&gt; &quot;superscript&quot;</code>). Omit otherwise.</li><li><code>:color</code> - the color of this run (eg <code>:color =&gt; &quot;red&quot;</code>).</li><li><code>:size</code> - the size of the font to be used (eg <code>:size =&gt; 12</code>).</li><li><code>:name</code> - the name of the font to be used (e.g. <code>:name =&gt; &quot;Arial&quot;</code>).</li></ul><p>Omit <code>pairs</code> to specify a run without formatting.</p><p>See also <a href="#XLSX.RichTextString"><code>XLSX.RichTextString</code></a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; rt1 = XLSX.RichTextRun(&quot;Water is H&quot;)
+RichTextRun (&quot;Water is H&quot;  [ ])
+
+julia&gt; rt2 = XLSX.RichTextRun(&quot;2&quot;, [:vertAlign =&gt; &quot;subscript&quot;])
+RichTextRun (&quot;2&quot;  [:vertAlign =&gt; &quot;subscript&quot;])
+
+julia&gt; rt3 = XLSX.RichTextRun(&quot;O!&quot;)
+RichTextRun (&quot;O!&quot;  [ ])
+
+julia&gt; rt = XLSX.RichTextString(rt1, rt2, rt3)
+RichTextString: &quot;Water is H2O!&quot; 
+ containing 3 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Water is H&quot;             [ ]
+ &quot;2&quot;                      [:vertAlign =&gt; &quot;subscript&quot;]
+ &quot;O!&quot;                     [ ]
+
+julia&gt; s[&quot;A1&quot;] = rt
+RichTextString: &quot;Water is H2O!&quot; 
+ containing 3 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Water is H&quot;             [ ]
+ &quot;2&quot;                      [:vertAlign =&gt; &quot;subscript&quot;]
+ &quot;O!&quot;                     [ ]
+</code></pre><p><img src="../../images/H2O.png" alt="image|320x500"/></p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/types.jl#L480-L535">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.RichTextString"><a class="docstring-binding" href="#XLSX.RichTextString"><code>XLSX.RichTextString</code></a> — <span class="docstring-category">Type</span></summary><section><div><pre><code class="language-julia hljs">RichTextString(runs::RichTextRun...)      -&gt; RichTextString
+RichTextString(runs::Vector{RichTextRun}) -&gt; RichTextString</code></pre><p>Create an instance of a RichTextString from a set of RichTextRuns. A RichTextString supports rich text  formatting within a single cell and is made up of multiple substrings (runs), each with different font  attributes. The text in the cell is the simple concatenation of the text of each run but Excel will display  each run with its own distinct font formatting within the cell. See also <a href="#XLSX.RichTextRun"><code>XLSX.RichTextRun</code></a>.</p><p>If a <code>RichTextString</code> containing only one run is assigned to a cell, the text will be assigned as plain  text and the formatting attributes will be implemented on the whole cell using <a href="#XLSX.setFont"><code>XLSX.setFont</code></a>.</p><p>See also <a href="#XLSX.RichTextRun"><code>XLSX.RichTextRun</code></a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; rt = XLSX.RichTextString(rtf1, rtf2, rtf3, rtf4) # Create a RichTextString from four separate RichTextRuns.
+
+julia&gt; rt = XLSX.RichTextString([rtf1, rtf2, rtf3, rtf4]) # Create a RichTextString from a vector of four RichTextRuns.
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/types.jl#L555-L576">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getRichTextString"><a class="docstring-binding" href="#XLSX.getRichTextString"><code>XLSX.getRichTextString</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getRichTextString(ws::Worksheet, cr::String)                 -&gt; Union{RichTextString, Nothing}
+getRichTextString(xl::XLSXFile, sheetcell::String)           -&gt; Union{RichTextString, Nothing}
+getRichTextString(ws::Worksheet, row::Integer, col::Integer) -&gt; Union{RichTextString, Nothing}</code></pre><p>Create a RichTextString object from a cell value.</p><p>If the cell value is not a string, return nothing.</p><p>If the cell contains simple text with no rich text formatting, return nothing.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">
+julia&gt; rtf1=XLSX.RichTextRun(&quot;Hello&quot;, [:vertAlign =&gt; &quot;subscript&quot;])
+RichTextRun (&quot;Hello&quot;  [:vertAlign =&gt; &quot;subscript&quot;] )
+
+julia&gt; rtf2=XLSX.RichTextRun(&quot; Kitty &quot;, [:color =&gt; &quot;green&quot;, :size =&gt; 14, :bold =&gt; true, :under =&gt; true])
+RichTextRun (&quot; Kitty &quot;  [:color =&gt; &quot;green&quot;, :bold =&gt; true, :size =&gt; 14, :under =&gt; true] )
+
+julia&gt; rtf3=XLSX.RichTextRun(&quot;Hello&quot;, [:color =&gt; &quot;green&quot;, :size =&gt; 14, :under =&gt; true])
+RichTextRun (&quot;Hello&quot;  [:color =&gt; &quot;green&quot;, :size =&gt; 14, :under =&gt; true] )
+
+julia&gt; r = XLSX.RichTextString(rtf1, rtf2, rtf3)
+RichTextString: &quot;Hello Kitty Hello&quot; 
+ containing 3 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Hello&quot;                  [:vertAlign =&gt; &quot;subscript&quot;]
+ &quot; Kitty &quot;                [:color =&gt; &quot;green&quot;, :bold =&gt; true, :size =&gt; 14, :under =&gt; true]
+ &quot;Hello&quot;                  [:color =&gt; &quot;green&quot;, :size =&gt; 14, :under =&gt; true]
+
+julia&gt; f = newxlsx()
+XLSXFile(&quot;blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+
+julia&gt; s=f[1]
+1×1 Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; s[&quot;A1&quot;] = r
+RichTextString: &quot;Hello Kitty Hello&quot; 
+ containing 3 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Hello&quot;                  [:vertAlign =&gt; &quot;subscript&quot;]
+ &quot; Kitty &quot;                [:color =&gt; &quot;green&quot;, :bold =&gt; true, :size =&gt; 14, :under =&gt; true]
+ &quot;Hello&quot;                  [:color =&gt; &quot;green&quot;, :size =&gt; 14, :under =&gt; true]
+
+julia&gt; s[&quot;A2&quot;] = styled&quot;The {bold:{italic:quick {(foreground=#cd853f):brown} fox} jumps over the {(foreground=#FFC000):lazy} dog}&quot;
+&quot;The quick brown fox jumps over the lazy dog&quot;
+
+julia&gt; XLSX.getRichTextString(s, &quot;A2&quot;)
+RichTextString: &quot;The quick brown fox jumps over the lazy dog&quot; 
+ containing 7 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;The &quot;                   [:size =&gt; 12.0]
+ &quot;quick &quot;                 [:bold =&gt; true, :italic =&gt; true, :size =&gt; 12.0]
+ &quot;brown&quot;                  [:bold =&gt; true, :color =&gt; &quot;FFCD853F&quot;, :italic =&gt; true, :size =&gt; …]
+ &quot; fox&quot;                   [:bold =&gt; true, :italic =&gt; true, :size =&gt; 12.0]
+ &quot; jumps over the &quot;       [:bold =&gt; true, :size =&gt; 12.0]
+ &quot;lazy&quot;                   [:bold =&gt; true, :color =&gt; &quot;FFFFC000&quot;, :size =&gt; 12.0]
+ &quot; dog&quot;                   [:bold =&gt; true, :size =&gt; 12.0]
+
+julia&gt; a = XLSX.getRichTextString(s, &quot;A1&quot;)
+RichTextString: &quot;Hello Kitty Hello&quot; 
+ containing 3 runs:
+ Run text                 Run attributes
+ -------------------------------------------------------------------------------------------
+ &quot;Hello&quot;                  [:vertAlign =&gt; &quot;subscript&quot;]
+ &quot; Kitty &quot;                [:bold =&gt; true, :color =&gt; &quot;FF008000&quot;, :size =&gt; 14.0, :under =&gt; t…]
+ &quot;Hello&quot;                  [:color =&gt; &quot;FF008000&quot;, :size =&gt; 14.0, :under =&gt; true]</code></pre><p>A rich text cell value created in Excel may have its colors defined using an Excel theme. Reading  such a value to a RichTextString will convert the theme color to the actual RGB color in the current  theme. If this RichTextString is subsequently written back to the same or a different cell, the  color will be written as an RGB color and the link to the theme will be lost.</p><p>When they are written to a cell, named colors are converted to RGB values for Excel. However,  two RichTextStrings will be considered equal regardless of this representation so long as the  colors are identical. So:</p><pre><code class="language-julia hljs">julia&gt; a == r
+true</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/sst.jl#L474-L565">source</a></section></details></article><h2 id="Conditional-format"><a class="docs-heading-anchor" href="#Conditional-format">Conditional format</a><a id="Conditional-format-1"></a><a class="docs-heading-anchor-permalink" href="#Conditional-format" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.getConditionalFormats"><a class="docstring-binding" href="#XLSX.getConditionalFormats"><code>XLSX.getConditionalFormats</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getConditionalFormats(ws::Worksheet)</code></pre><p>Get the conditional formats for a worksheet.</p><p><strong>Arguments</strong></p><ul><li><code>ws::Worksheet</code>: The worksheet for which to get the conditional formats.</li></ul><p>Return a vector of pairs: CellRange =&gt; NamedTuple{type::String, priority::Int}}.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/conditional-formats.jl#L457-L468">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setConditionalFormat"><a class="docstring-binding" href="#XLSX.setConditionalFormat"><code>XLSX.setConditionalFormat</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setConditionalFormat(ws::Worksheet, cr::String, type::Symbol; kw...) -&gt; ::Int
+setConditionalFormat(xf::XLSXFile,  cr::String, type::Symbol; kw...) -&gt; ::Int
+
+setConditionalFormat(ws::Worksheet, rows, cols, type::Symbol; kw...) -&gt; ::Int</code></pre><p>Add a new conditional format to a cell range, row range or column range in a  worksheet or <code>XLSXFile</code>.  Alternatively, ranges can be specified by giving rows  and columns separately.</p><p>There are many options for applying differnt types of custom format. For a basic guide,  refer to the section on <a href="../../formatting/conditionalFormatting/#Conditional-formats">Conditional formats</a> in the Formatting Guide.</p><p>The <code>type</code> argument specifies which of Excel&#39;s conditional format types will be applied.</p><p>Valid options for <code>type</code> are:</p><ul><li><code>:cellIs</code></li><li><code>:top10</code></li><li><code>:aboveAverage</code></li><li><code>:containsText</code></li><li><code>:notContainsText</code></li><li><code>:beginsWith</code></li><li><code>:endsWith</code></li><li><code>:timePeriod</code></li><li><code>:containsErrors</code></li><li><code>:notContainsErrors</code></li><li><code>:containsBlanks</code></li><li><code>:notContainsBlanks</code></li><li><code>:uniqueValues</code></li><li><code>:duplicateValues</code></li><li><code>:dataBar</code></li><li><code>:colorScale</code></li><li><code>:iconSet</code></li></ul><p>Keyword options differ according to the <code>type</code> specified, as set out below.</p><p><strong>type = :cellIs</strong></p><p>Defines a conditional format based on the value of each cell in a range.</p><p>Valid keywords are:</p><ul><li><code>operator</code>   : Defines the comparison to make.</li><li><code>value</code>      : defines the first value to compare against. This can be a cell reference (e.g. <code>&quot;A1&quot;</code>) or a number.</li><li><code>value2</code>     : defines the second value to compare against. This can be a cell reference (e.g. <code>&quot;A1&quot;</code>) or a number.</li><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>All keywords are defined using Strings (e.g. <code>value = &quot;2&quot;</code> or <code>value = &quot;A2&quot;</code>).</p><p>The keyword <code>operator</code> defines the comparison to use in the conditional formatting.  If the condition is met, the format is applied. Valid options are:</p><ul><li><code>greaterThan</code>     (cell &gt;  <code>value</code>) (default)</li><li><code>greaterEqual</code>    (cell &gt;= <code>value</code>)</li><li><code>lessThan</code>        (cell &lt;  <code>value</code>)</li><li><code>lessEqual</code>       (cell &lt;= <code>value</code>)</li><li><code>equal</code>           (cell == <code>value</code>)</li><li><code>notEqual</code>        (cell != <code>value</code>)</li><li><code>between</code>         (cell between <code>value</code> and <code>value2</code>)</li><li><code>notBetween</code>      (cell not between <code>value</code> and <code>value2</code>)</li></ul><p>If not specified (when required), <code>value</code> will be the arithmetic average of the  (non-missing) cell values in the range if values are numeric. If the cell values  are non-numeric, an error is thrown.</p><p>Formatting to be applied if the condition is met can be defined in one of two ways.  Use the keyword <code>dxStyle</code> to select one of the built-in Excel formats.  Valid options are:</p><ul><li><code>redfilltext</code>     (light red fill, dark red text) (default)</li><li><code>yellowfilltext</code>  (light yellow fill, dark yellow text)</li><li><code>greenfilltext</code>   (light green fill, dark green text)</li><li><code>redfill</code>         (light red fill)</li><li><code>redtext</code>         (dark red text)</li><li><code>redborder</code>       (dark red cell borders)</li></ul><p>Alternatively, you can define a custom format by using the keywords <code>format</code>, <code>font</code>, <code>border</code>, and <code>fill</code> which each take a vector of pairs of strings. The first string  is the name of the attribute to set and the second is the value to set it to.   Valid attributes for each keyword are:</p><ul><li><code>format</code> : <code>format</code></li><li><code>font</code>   : <code>color</code>, <code>bold</code>, <code>italic</code>, <code>under</code>, <code>strike</code></li><li><code>fill</code>   : <code>pattern</code>, <code>bgColor</code>, <code>fgColor</code></li><li><code>border</code> : <code>style</code>, <code>color</code></li></ul><p>Refer to <a href="#XLSX.setFormat"><code>setFormat()</code></a>, <a href="#XLSX.setFont"><code>setFont()</code></a>, <a href="#XLSX.setFill"><code>setFill()</code></a> and <a href="#XLSX.setBorder"><code>setBorder()</code></a> for more details on the valid attributes and values.</p><div class="admonition is-info" id="Note-5689fd3e67112ad"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-5689fd3e67112ad" title="Permalink"></a></header><div class="admonition-body"><p>Excel limits the formatting attributes that can be set in a conditional format. It is not possible to set the size or name of a font and neither is it possible to set  any of the cell alignment attributes. Diagonal borders cannot be set either.</p><p>Although it is not a limitation of Excel, this function sets all the border attributes  for each side of a cell to be the same.</p></div></div><p>If both <code>dxStyle</code> and custom formatting keywords are specified, <code>dxStyle</code> will be used  and the custom formatting will be ignored. If neither <code>dxStyle</code> nor custom formatting keywords are specified, the default  is <code>dxStyle=&quot;redfilltext&quot;</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;B1:B5&quot;, :cellIs) # Defaults to `operator=&quot;greaterThan&quot;`, `dxStyle=&quot;redfilltext&quot;` and `value` set to the arithmetic agverage of cell values in `rng`.
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B1:B5&quot;, :cellIs;
+            operator=&quot;between&quot;,
+            value=&quot;2&quot;,
+            value2=&quot;3&quot;,
+            fill = [&quot;pattern&quot; =&gt; &quot;none&quot;, &quot;bgColor&quot;=&gt;&quot;FFFFC7CE&quot;],
+            format = [&quot;format&quot;=&gt;&quot;0.00%&quot;],
+            font = [&quot;color&quot;=&gt;&quot;blue&quot;, &quot;bold&quot;=&gt;&quot;true&quot;]
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B1:B5&quot;, :cellIs; 
+            operator=&quot;greaterThan&quot;,
+            value=&quot;4&quot;,
+            fill = [&quot;pattern&quot; =&gt; &quot;none&quot;, &quot;bgColor&quot;=&gt;&quot;green&quot;],
+            format = [&quot;format&quot;=&gt;&quot;0.0&quot;],
+            font = [&quot;color&quot;=&gt;&quot;red&quot;, &quot;italic&quot;=&gt;&quot;true&quot;]
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B1:B5&quot;, :cellIs;
+            operator=&quot;lessThan&quot;,
+            value=&quot;2&quot;,
+            fill = [&quot;pattern&quot; =&gt; &quot;none&quot;, &quot;bgColor&quot;=&gt;&quot;yellow&quot;],
+            format = [&quot;format&quot;=&gt;&quot;0.0&quot;],
+            font = [&quot;color&quot;=&gt;&quot;green&quot;],
+            border = [&quot;style&quot;=&gt;&quot;thick&quot;, &quot;color&quot;=&gt;&quot;coral&quot;]
+        )
+</code></pre><p><strong>type = :top10</strong></p><p>This conditional format can be used to highlight cells in the top (bottom) n within the  range or in the top (bottom) n% (ie in the top 5 or in the top 5% of values in the range). </p><p>The available keywords are:</p><ul><li><code>operator</code>   : Defines the comparison to make.</li><li><code>value</code>      : Gives the for comparison or a cell reference (e.g. <code>&quot;A1&quot;</code>).</li><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply.</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>Valid values for the <code>operator</code> keyword are the following:</p><ul><li><code>topN</code>            (cell is in the top n (= <code>value</code>) values of the range)</li><li><code>bottomN</code>         (cell is in the bottom n (= <code>value</code>) values of the range)</li><li><code>topN%</code>           (cell is in the top n% (= <code>value</code>) values of the range)</li><li><code>bottomN%</code>        (cell is in the bottom n% (= <code>value</code>) values of the range)</li></ul><p>Default keyowrds are <code>operator=&quot;TopN&quot;</code> and <code>value=&quot;10&quot;</code>.</p><p>Multiple conditional formats may be applied to the same or overlapping cell ranges.  If <code>stopIfTrue=true</code> the first condition that is met will be applied but all subsequent  conditional formats for that cell will be skipped. If <code>stopIfTrue=false</code> (default) all  relevant conditional formats will be applied to the cell in turn.</p><p>For example usage of the <code>stopIfTrue</code> keyword, refer to <a href="../../formatting/conditionalFormatting/#Overlaying-conditional-formats">Overlaying conditional formats</a>  in the Formatting Guide.</p><p>The remaining keywords are defined as above for <code>type = :cellIs</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1)
+
+julia&gt; for i=1:10;for j=1:10; s[i,j]=i*j;end;end
+
+julia&gt; s[:]
+10×10 Matrix{Any}:
+  1   2   3   4   5   6   7   8   9   10
+  2   4   6   8  10  12  14  16  18   20
+  3   6   9  12  15  18  21  24  27   30
+  4   8  12  16  20  24  28  32  36   40
+  5  10  15  20  25  30  35  40  45   50
+  6  12  18  24  30  36  42  48  54   60
+  7  14  21  28  35  42  49  56  63   70
+  8  16  24  32  40  48  56  64  72   80
+  9  18  27  36  45  54  63  72  81   90
+ 10  20  30  40  50  60  70  80  90  100
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:J10&quot;, :top10; operator=&quot;bottomN&quot;, value=&quot;1&quot;, stopIfTrue=&quot;true&quot;, dxStyle=&quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:J10&quot;, :top10; operator=&quot;topN&quot;, value=&quot;1&quot;, stopIfTrue=&quot;true&quot;, dxStyle=&quot;greenfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:J10&quot;, :top10;
+                operator=&quot;topN%&quot;,
+                value=&quot;20&quot;,
+                fill=[&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;cyan&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:J10&quot;, :top10;
+                operator=&quot;bottomN%&quot;,
+                value=&quot;20&quot;,
+                fill=[&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;yellow&quot;])
+0
+</code></pre><p><img src="../../images/topN.png" alt="image|320x500"/></p><p><strong>type = :aboveAverage</strong></p><p>This conditional format can be used to compare cell values in the range with the  average value for the range. </p><p>The available keywords are:</p><ul><li><code>operator</code>   : Defines the comparison to make.</li><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply.</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>Valid values for the <code>operator</code> keyword are the following:</p><ul><li><code>aboveAverage</code>    (cell is above the average of the range) (default)</li><li><code>aboveEqAverage</code>  (cell is above or equal to the average of the range)</li><li><code>plus1StdDev</code>     (cell is above the average of the range + 1 standard deviation)</li><li><code>plus2StdDev</code>     (cell is above the average of the range + 2 standard deviations)</li><li><code>plus3StdDev</code>     (cell is above the average of the range + 3 standard deviations)</li><li><code>belowAverage</code>    (cell is below the average of the range)</li><li><code>belowEqAverage</code>  (cell is below or equal to the average of the range)</li><li><code>minus1StdDev</code>    (cell is below the average of the range - 1 standard deviation)</li><li><code>minus2StdDev</code>    (cell is below the average of the range - 2 standard deviations)</li><li><code>minus3StdDev</code>    (cell is below the average of the range - 3 standard deviations)</li></ul><p>The remaining keywords are defined as above for <code>type = :cellIs</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; using Random, Distributions
+
+julia&gt; d=Normal()
+Normal{Float64}(μ=0.0, σ=1.0)
+
+julia&gt; columns=rand(d,1000)                                                                                                                                                        
+1000-element Vector{Float64}:
+-1.5515478694605092
+  0.36859583733587165
+  1.5349535865662158
+ -0.2352610551087202
+  0.12355875388105911
+  0.5859222303845908
+ -0.6326662651426166
+  1.0610118292961683
+ -0.7891578831398097
+  0.031022172414689787
+ -0.5534440118018843
+ -2.3538883599955023
+  ⋮
+  0.4813001892130465
+  0.03871017417416217
+  0.7224728281160403
+ -1.1265372949908539
+  1.5714393857211955
+  0.31438739499933255
+  0.4852591013082452
+  0.5363388236349432
+  1.1268430910133729
+  0.7691442442244849
+  1.0061732938516454
+
+julia&gt; f=XLSX.newxlsx()
+XLSXFile(&quot;C:\...\blank.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 1x1           A1:A1
+
+
+julia&gt; s=f[1]
+1×1 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:A1) 
+
+julia&gt; XLSX.writetable!(s, [columns], [&quot;normal&quot;])
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;plus3StdDev&quot;,
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;red&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;minus3StdDev&quot;,
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;red&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;plus2StdDev&quot;,
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;tomato&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;minus2StdDev&quot;,
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;tomato&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;minus1StdDev&quot;,
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;pink&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;plus1StdDev&quot;,
+                stopIfTrue = &quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;pink&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;belowEqAverage&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;green&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A2:A1001&quot;, :aboveAverage ;
+                operator=&quot;aboveEqAverage&quot;, 
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;green&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+</code></pre><p><strong>type = :containsText, :notContainsText, :beginsWith or :endsWith</strong></p><p>Highlight cells in the range that contain (or do not contain), begin or end with  a specific text string. The default is <code>containsText</code>.</p><p>Valid keywords are:</p><ul><li><code>value</code>      : Gives the literal text to match or provides a cell reference (e.g. <code>&quot;A1&quot;</code>).</li><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply.</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>The keyword <code>value</code> gives the literal text to compare (eg. &quot;Hello World&quot;) or provides a cell reference  (e.g. <code>&quot;A1&quot;</code>). It is a required keyword with no default value.</p><p>The remaining keywords are optional and are defined as above for <code>type = :cellIs</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; s[:]
+4×1 Matrix{Any}:
+ &quot;Hello World&quot;
+ &quot;Life the universe and everything&quot;
+ &quot;Once upon a time&quot;
+ &quot;In America&quot;
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A4&quot;, :containsText;
+                value=&quot;th&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;cyan&quot;],
+                font = [&quot;color&quot;=&gt;&quot;black&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A4&quot;, :notContainsText;
+                value=&quot;i&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;green&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A4&quot;, :beginsWith ;
+                value=&quot;On&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;red&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A4&quot;, :endsWith ;
+                value=&quot;ica&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;blue&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+</code></pre><p><img src="../../images/containsText.png" alt="image|320x500"/></p><p><strong>type = :timePeriod</strong></p><p>When cells contain dates, this conditional format can be used to highlight cells. The available keywords are:</p><ul><li><code>operator</code>   : Defines the comparison to make.</li><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>Valid values for the keyword <code>operator</code> are the following:</p><ul><li><code>yesterday</code></li><li><code>today</code></li><li><code>tomorrow</code></li><li><code>last7Days</code> (default)</li><li><code>lastWeek</code></li><li><code>thisWeek</code></li><li><code>nextWeek</code></li><li><code>lastMonth</code></li><li><code>thisMonth</code></li><li><code>nextMonth</code></li></ul><p>The remaining keywords are defined as above for <code>type = :cellIs</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; s[1:13, 1]
+13×1 Matrix{Any}:
+ &quot;Dates&quot;
+ 2024-11-20
+ 2024-12-20
+ 2025-01-08
+ 2025-02-08
+ 2025-03-08
+ 2025-04-08
+ 2025-05-08
+ 2025-05-09
+ 2025-05-10
+ 2025-05-14
+ 2025-06-08
+ 2025-07-08
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A13&quot;, :timePeriod; operator=&quot;today&quot;, dxStyle = &quot;greenfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A13&quot;, :timePeriod; operator=&quot;tomorrow&quot;, dxStyle = &quot;yellowfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A13&quot;, :timePeriod; operator=&quot;nextMonth&quot;, dxStyle = &quot;redfilltext&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A13&quot;, :timePeriod;
+                operator=&quot;lastMonth&quot;, 
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;blue&quot;], 
+                font = [&quot;color&quot;=&gt;&quot;yellow&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])        
+0
+</code></pre><p><img src="../../images/timePeriod-9thMay2025.png" alt="image|320x500"/></p><p><strong>type = :containsErrors, :notContainsErrors, :containsBlanks, :notContainsBlanks, :uniqueValues or :duplicateValues</strong></p><p>These conditional formatting options highlight cells that contain or don&#39;t contain errors,  are blank (default) or not blank, are unique in the range or are duplicates within the range.  The available keywords are: </p><ul><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>These keywords are defined as above for the <code>:cellIs</code> conditional format type.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A7&quot;, :containsErrors;
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;blue&quot;],
+                font = [&quot;color&quot;=&gt;&quot;white&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])        
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A7&quot;, :containsBlanks;
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;green&quot;],
+                font = [&quot;color&quot;=&gt;&quot;black&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])       
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A7&quot;, :uniqueValues;
+                stopIfTrue=&quot;true&quot;,
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;yellow&quot;],
+                font = [&quot;color&quot;=&gt;&quot;black&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])        
+0
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A7&quot;, :duplicateValues;
+                fill = [&quot;pattern&quot;=&gt;&quot;solid&quot;, &quot;bgColor&quot;=&gt;&quot;cyan&quot;],
+                font = [&quot;color&quot;=&gt;&quot;black&quot;, &quot;bold&quot;=&gt;&quot;true&quot;])
+0
+</code></pre><p><img src="../../images/errorBlank.png" alt="image|320x500"/></p><p><strong>type = :expressiom</strong></p><p>Set a conditional format when an expression evaluated in each cell is <code>true</code>.</p><p>The available keywords are:</p><ul><li><code>formula</code>    : Specifies the formula to use. This must be a valid Excel formula.</li><li><code>stopIfTrue</code> : Stops evaluating further conditional formats in any cell if this one is true.</li><li><code>dxStyle</code>    : Used optionally to select one of the built-in Excel formats to apply</li><li><code>format</code>     : defines the numFmt to apply if opting for a custom format.</li><li><code>font</code>       : defines the font to apply if opting for a custom format.</li><li><code>border</code>     : defines the border to apply if opting for a custom format.</li><li><code>fill</code>       : defines the fill to apply if opting for a custom format.</li></ul><p>The keyword <code>formula</code> is required and there is no default value. Formulae must be valid  Excel formulae and written in US english with comma separators. Cell references may be  absolute or relative references in either the row or the column or both.</p><p>The remaining keywords are defined as above for <code>type = :cellIs</code>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A1:C4&quot;, :expression; formula = &quot;A1 &lt; 16&quot;, dxStyle=&quot;greenfilltext&quot;)
+
+julia&gt; XLSX.setConditionalFormat(s, 1:5, 1:4, :expression;
+            formula=&quot;A1=1&quot;,
+            fill=[&quot;pattern&quot; =&gt; &quot;none&quot;, &quot;bgColor&quot; =&gt; &quot;yellow&quot;],
+            format=[&quot;format&quot; =&gt; &quot;0.0&quot;],
+            font=[&quot;color&quot; =&gt; &quot;green&quot;],
+            border=[&quot;style&quot; =&gt; &quot;thick&quot;, &quot;color&quot; =&gt; &quot;coral&quot;]
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B2:D11&quot;, :expression; formula = &quot;average(B$2:B$11) &gt; average(A$2:A$11)&quot;, dxStyle = &quot;greenfilltext&quot;)
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;A1:E5&quot;, :expression; formula = &quot;E5&lt;50&quot;, dxStyle = &quot;redfilltext&quot;)
+</code></pre><p><strong>type = :dataBar</strong></p><p>Apply data bars to cells in a range depending on their values. The keyword <code>databar</code> can be used to select one of 12 built-in databars Excel provides by name. Valid names are:</p><ul><li><code>bluegrad</code> (default)</li><li><code>greengrad</code></li><li><code>redgrad</code></li><li><code>orangegrad</code></li><li><code>lightbluegrad</code></li><li><code>purplegrad</code></li><li><code>blue</code></li><li><code>green</code></li><li><code>red</code></li><li><code>orange</code></li><li><code>lightblue</code></li><li><code>purple</code></li></ul><p>The first six (with a <code>grad</code> suffix) yield bars with a color gradient while the remainder  yield bars of solid color. By default, all built in data bars define their range from the  minumum and maximum values in the range and negative values are given a red bar. These default settings can each be modified using the other keyword options available.</p><p>Remaining keyword options provided are:</p><ul><li><code>showVal</code> - set to &quot;false&quot; to show databars only and hide cell values</li><li><code>gradient</code> - set to &quot;false&quot; to use a solid color bar rather than a gradient fill</li><li><code>borders</code> - set to &quot;true&quot; to show borders around each bar</li><li><code>sameNegFill</code> - set to &quot;true&quot; to use the same fill color on negative bars as positive.</li><li><code>sameNegBorders</code> - set to &quot;false&quot; to use the same border color on negative bars as positive</li><li><code>direction</code> - determines the direction of the bars from the axis, &quot;leftToRight&quot; or &quot;rightToLeft&quot;</li><li><code>min_type</code> - Defines how the minimum of the bar scale is defined (&quot;num&quot;, &quot;min&quot;, &quot;percent&quot;, percentile&quot;, &quot;formula&quot; or &quot;automatic&quot;)</li><li><code>min_val</code> - Defines the minimum value for the data bar scale. May be a number(as a string), a cell reference or a formula (if type=&quot;formula&quot;).</li><li><code>max_type</code> - Defines how the maximum of the bar scale is defined (&quot;num&quot;, &quot;max&quot;, &quot;percent&quot;, percentile&quot;, &quot;formula&quot; or &quot;automatic&quot;)</li><li><code>max_val</code> - Defines the maximum value for the data bar scale. May be a number(as a string), a cell reference or a formula (if type=&quot;formula&quot;).</li><li><code>fill_col</code> - Defines the color of the fill for positive bars (8 digit hex or by name)</li><li><code>border_col</code> - Defines the color of the border for positive bars (8 digit hex or by name)</li><li><code>neg_fill_col</code> - Defines the color of the fill for negative bars (8 digit hex or by name)</li><li><code>neg_border_col</code> - Defines the color of the border for negative bars (8 digit hex or by name)</li><li><code>axis_pos</code> - Defines the position of the axis (&quot;middle&quot; or &quot;none&quot;)</li><li><code>axis_col</code> - Defines the color of the axis (8 digit hex or by name)</li></ul><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(s, &quot;A1:A11&quot;, :dataBar)
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;B1:B11&quot;, :dataBar; databar=&quot;purple&quot;)
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;D1:D11&quot;, :dataBar; 
+            gradient=&quot;true&quot;, 
+            direction=&quot;rightToLeft&quot;, 
+            axis_pos=&quot;none&quot;, 
+            showVal=&quot;false&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;F1:F11&quot;, :dataBar;
+            gradient=&quot;false&quot;,
+            sameNegFill=&quot;true&quot;,
+            sameNegBorders=&quot;true&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(f, &quot;Sheet1!G1:G11&quot;, :dataBar;
+            fill_col=&quot;coral&quot;, border_col = &quot;cyan&quot;,
+            neg_fill_col=&quot;cyan&quot;, neg_border_col = &quot;coral&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(f, &quot;Sheet1!J1:J11&quot;, :dataBar; axis_col=&quot;magenta&quot;)
+
+julia&gt; XLSX.setConditionalFormat(s, 15:25, 1, :dataBar;
+            min_type=&quot;least&quot;, max_type=&quot;highest&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, 15:25, 2, :dataBar; 
+            databar=&quot;purple&quot;, 
+            min_type=&quot;percent&quot;, max_type=&quot;percent&quot;,
+            min_val=&quot;20&quot;, max_val=&quot;60&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;C15:C25&quot;, :dataBar;
+            databar=&quot;blue&quot;,
+            min_type=&quot;num&quot;, max_type=&quot;num&quot;,
+            min_val=&quot;-1&quot;, max_val=&quot;6&quot;,
+            gradient=&quot;true&quot;,
+            direction=&quot;leftToRight&quot;, 
+            axis_pos=&quot;none&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;E15:E25&quot;, :dataBar;
+            gradient=&quot;true&quot;,
+            min_type=&quot;percentile&quot;, max_type=&quot;percentile&quot;,
+            min_val=&quot;20&quot;, max_val=&quot;80&quot;,
+            direction=&quot;rightToLeft&quot;,
+            axis_pos=&quot;middle&quot;
+        )
+
+julia&gt; XLSX.setConditionalFormat(s, &quot;G15:G25&quot;, :dataBar; 
+            min_type=&quot;num&quot;, max_type=&quot;formula&quot;, 
+            min_val=&quot;$L$1&quot;, max_val=&quot;$M$1 * $N$1 + 3&quot;,
+            fill_col=&quot;coral&quot;, border_col = &quot;cyan&quot;,
+            neg_fill_col=&quot;cyan&quot;, neg_border_col = &quot;coral&quot;
+        )
+</code></pre><p><strong>type = :colorScale</strong></p><p>Define a 2-color or 3-color colorscale conditional format.</p><p>Use the keyword <code>colorscale</code> to choose one of the 12 built-in Excel colorscales:</p><ul><li><code>&quot;redyellowgreen&quot;</code>: Red, Yellow, Green 3-color scale.</li><li><code>&quot;greenyellowred&quot;</code>: Green, Yellow, Red 3-color scale.</li><li><code>&quot;redwhitegreen&quot;</code> : Red, White, Green 3-color scale.</li><li><code>&quot;greenwhitered&quot;</code> : Green, White, Red 3-color scale.</li><li><code>&quot;redwhiteblue&quot;</code>  : Red, White, Blue 3-color scale.</li><li><code>&quot;bluewhitered&quot;</code>  : Blue, White, Red 3-color scale.</li><li><code>&quot;redwhite&quot;</code>      : Red, White 2-color scale.</li><li><code>&quot;whitered&quot;</code>      : White, Red 2-color scale.</li><li><code>&quot;whitegreen&quot;</code>    : White, Green 2-color scale.</li><li><code>&quot;greenwhite&quot;</code>    : Green, White 2-color scale.</li><li><code>&quot;yellowgreen&quot;</code>   : Yellow, Green 2-color scale.</li><li><code>&quot;greenyellow&quot;</code>   : Green, Yellow 2-color scale (default).</li></ul><p>Alternatively, you can define a custom color scale by omitting the <code>colorscale</code> keyword and  instead using the following keywords:</p><ul><li><code>min_type</code>: The type of the minimum value. Valid values are: <code>min</code>, <code>percentile</code>, <code>percent</code>, <code>num</code> or <code>formula</code>.</li><li><code>min_val</code> : The value of the minimum. Omit if <code>min_type=&quot;min&quot;</code>.</li><li><code>min_col</code> : The color of the minimum value.</li><li><code>mid_type</code>: Valid values are: <code>percentile</code>, <code>percent</code>, <code>num</code> or <code>formula</code>. Omit for a 2-color scale.</li><li><code>mid_val</code> : The value of the scale mid point. Omit for a 2-color scale.</li><li><code>mid_col</code> : The color of the mid point. Omit for a 2-color scale.</li><li><code>max_type</code>: The type of the maximum value. Valid values are: <code>max</code>, <code>percentile</code>, <code>percent</code>, <code>num</code> or <code>formula</code>.</li><li><code>max_val</code> : The value of the maximum value. Omit if <code>max_type=&quot;max&quot;</code>.</li><li><code>max_col</code> : The color of the maximum value.</li></ul><p>The keywords <code>min_val</code>, <code>mid_val</code>, and <code>max_val</code> can be a number or cell reference (e.g. <code>&quot;$A$1&quot;</code>) for any value  of the related type keyword or, if the related type keyword is set to <code>formula</code>, may be a valid Excel formula that  calculates a number. Cell references used in a formula must be specified as absolute references.</p><p>Colors can be specified using an 8-digit hex string (e.g. <code>FF0000FF</code> for blue) or any named  color from <a href="https://juliagraphics.github.io/Colors.jl/stable/namedcolors/">Colors.jl</a>.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A1:F12&quot;, :colorScale) # Defaults to the `greenyellow` built-in scale.
+0
+
+julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A13:C18&quot;, :colorScale; colorscale=&quot;whitered&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;D13:F18&quot;, :colorScale; colorscale=&quot;bluewhitered&quot;)
+0
+
+julia&gt; XLSX.setConditionalFormat(f[&quot;Sheet1&quot;], &quot;A13:F22&quot;, :colorScale;
+            min_type=&quot;num&quot;, 
+            min_val=&quot;2&quot;,
+            min_col=&quot;tomato&quot;,
+            mid_type=&quot;num&quot;,
+            mid_val=&quot;6&quot;, 
+            mid_col=&quot;lawngreen&quot;,
+            max_type=&quot;num&quot;,
+            max_val=&quot;10&quot;,
+            max_col=&quot;cadetblue&quot;
+        )
+0
+</code></pre><p><strong>type = :iconSet</strong></p><p>Apply a set of icons to cells in a range depending on their values. The keyword <code>iconset</code> can be used to select one of 20 built-in icon sets Excel provides by name. Valid names are:</p><ul><li><code>3Arrows</code></li><li><code>5ArrowsGray</code></li><li><code>3TrafficLights</code> (default)</li><li><code>3Flags</code></li><li><code>5Quarters</code></li><li><code>4Rating</code></li><li><code>5Rating</code></li><li><code>3Symbols</code></li><li><code>3Symbols2</code></li><li><code>3Signs</code></li><li><code>3TrafficLights2</code></li><li><code>4TrafficLights</code></li><li><code>4BlackToRed</code></li><li><code>4Arrows</code></li><li><code>5Arrows</code></li><li><code>3ArrowsGray</code></li><li><code>4ArrowsGray</code></li><li><code>3Triangles</code></li><li><code>3Stars</code></li><li><code>5Boxes</code></li></ul><p>The digit prefix to the name indicates how many icons there are in a set, and therefore how the cell values with be binned by value. Bin boundaries may optionally be specified by the following keywords to override the default values for each icon set:</p><ul><li><code>min_type</code>  = &quot;percent&quot; (default), &quot;percentile&quot;, &quot;num&quot; or &quot;formula&quot;</li><li><code>min_val</code>     (default: &quot;33&quot; (3 icons), &quot;25&quot; (4 icons) or &quot;20&quot; (5 icons))</li><li><code>mid_type</code>  = &quot;percent&quot; (default), &quot;percentile&quot;, &quot;num&quot; or &quot;formula&quot;</li><li><code>mid_val</code>     (default: &quot;50&quot; (4 icons), &quot;40&quot; (5 icons))</li><li><code>mid2_type</code> = &quot;percent&quot; (default), &quot;percentile&quot;, &quot;num&quot; or &quot;formula&quot;</li><li><code>mid2_val</code>    (default: &quot;60&quot; (5 icons))</li><li><code>max_type</code>  = &quot;percent&quot; (default), &quot;percentile&quot;, &quot;num&quot; or &quot;formula&quot;</li><li><code>max_val</code>     (default: &quot;67&quot; (3 icons), &quot;75&quot; (4 icons) or &quot;80&quot; (5 icons))</li></ul><p>The keywords <code>min_val</code>, <code>mid_val</code>, <code>mid2_val</code> and <code>max_val</code> may contain numbers (as strings)  or valid cell references. If <code>formula</code> is specified for the related type keyword, a valid  Excel formula can be provided to evaluate to the bin threshold value to be used. Three-icon sets require two thresholds (<code>min_type</code>/<code>min_val</code> and <code>max_type</code>/<code>max_val</code>),  four-icon sets require three thresholds (with the addition of <code>mid_type</code>/<code>mid_val</code>) and  five-icon sets require four thresholds (adding <code>mid2_type</code>/<code>mid2_val</code>). Thresholds defined  (using val and type keywords) that are unnecessary are simply ignored.</p><p>Each value can be tested using <code>&gt;=</code> (default) or <code>&gt;</code>. To change from the default, optionally set <code>min_gte</code>, <code>mid_gte</code>, <code>mid2_gte</code> and/or <code>max_gte</code> to <code>&quot;false&quot;</code> to  use <code>&gt;</code> in the comparison. Any other value for these gte keywords will be ignored  and the default <code>&gt;=</code> comparison used.</p><p>The built-in icon sets Excel provides are composed of 52 individual icons. It is  possible to mix and match any of these to make a custom 3-icon, 4-icon or 5-icon  set by specifying <code>iconset = &quot;Custom&quot;</code>. The number of icons in the set will be  determined by whether the <code>mid_val</code>/<code>mid_type</code> keywords and <code>mid2_val</code>/<code>mid2_type</code>  keywords are provided.</p><p>The icons that will be used in a <code>Custom</code> iconset are defined using the <code>icon_list</code>  keyword which takes a vector of integers in the range from 1 to 52. For a key relating integers to the icons they represent, see the <a href="../../formatting/conditionalFormatting/#Icon-Set">Icon Set</a> section in the Formatting  Guide.</p><p>The order in which the symbols are appiled can be reversed from the default order (or, for  <code>Custom</code> icon sets, the order given in <code>icon_list</code>), by optionally setting <code>reverse = &quot;true&quot;</code>.  Any other value provided for <code>reverse</code> will be ignored, and the default order applied.</p><p>The cell value can be suppressed, so that only the icon is shown in the Excel cell by  optionally specifying <code>showVal = &quot;false&quot;</code>. Any other value provided for <code>showVal</code> will be  ignored, and the cell value will be displayed with the icon.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">XLSX.setConditionalFormat(s, &quot;F2:F11&quot;, :iconSet; iconset=&quot;3Arrows&quot;)
+
+XLSX.setConditionalFormat(s, 2, :, :iconSet; iconset = &quot;5Boxes&quot;,
+            reverse = &quot;true&quot;,
+            showVal = &quot;false&quot;,
+            min_type=&quot;num&quot;,  mid_type=&quot;percentile&quot;, mid2_type=&quot;percentile&quot;, max_type=&quot;num&quot;,
+            min_val=&quot;3&quot;,     mid_val=&quot;45&quot;,          mid2_val=&quot;65&quot;,          max_val=&quot;8&quot;,
+            min_gte=&quot;false&quot;, mid_gte=&quot;false&quot;,       mid2_gte=&quot;false&quot;,       max_gte=&quot;false&quot;)
+
+XLSX.setConditionalFormat(s, &quot;A2:A11&quot;, :iconSet;
+        iconset = &quot;Custom&quot;,
+        icon_list = [31,24],
+        min_type=&quot;num&quot;,  max_type=&quot;formula&quot;,
+        min_val=&quot;3&quot;,     max_val=&quot;if($G$4=&quot;y&quot;, $G$1+5, 10)&quot;)
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/conditional-formats.jl#L515-L1336">source</a></section></details></article><h2 id="Column-width-and-row-height"><a class="docs-heading-anchor" href="#Column-width-and-row-height">Column width and row height</a><a id="Column-width-and-row-height-1"></a><a class="docs-heading-anchor-permalink" href="#Column-width-and-row-height" title="Permalink"></a></h2><article><details class="docstring" open="true"><summary id="XLSX.getColumnWidth"><a class="docstring-binding" href="#XLSX.getColumnWidth"><code>XLSX.getColumnWidth</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getColumnWidth(sh::Worksheet, cr::String) -&gt; ::Union{Nothing, Real}
+getColumnWidth(xf::XLSXFile,  cr::String) -&gt; ::Union{Nothing, Real}
+
+getColumnWidth(sh::Worksheet,  row::Int, col::Int) -&gt; ::Union{Nothing, Real}</code></pre><p>Get the width of a column defined by a cell reference or named cell. The specified cell must be within the sheet dimension.</p><p>A standard cell reference or defined name may be used to define the column.  The function will use the column number and ignore the row.</p><p>The function returns the value of the column width or nothing if the column  does not have an explicitly defined width.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.getColumnWidth(xf, &quot;Sheet1!A2&quot;)
+
+julia&gt; XLSX.getColumnWidth(sh, &quot;F1&quot;)
+
+julia&gt; XLSX.getColumnWidth(sh, 1, 6)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1948-L1972">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setColumnWidth"><a class="docstring-binding" href="#XLSX.setColumnWidth"><code>XLSX.setColumnWidth</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setColumnWidth(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setColumnWidth(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setColumnWidth(sh::Worksheet, row, col; kw...) -&gt; ::Int
+setColumnWidth(sh::Worksheet, col; kw...) -&gt; ::Int</code></pre><p>Set the width of a column or column range.</p><p>A standard cell reference or cell range can be used to define the column range.  The function will use the columns and ignore the rows. Named cells and named ranges can similarly be used. Alternatively, specify the row and column using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>, but only the columns will be used. The row can be omitted and column specified alone, using an integer or colon.</p><p>The function uses one keyword used to define a column width:</p><ul><li><code>width::Real = nothing</code> : Defines width in Excel&#39;s own (internal) units</li></ul><p>When you set a column widths interactively in Excel you can see the width  in &quot;internal&quot; units and in pixels. The width stored in the xlsx file is slightly  larger than the width shown intertactively because Excel adds some cell padding.  The method Excel uses to calculate the padding is obscure and complex. This  function does not attempt to replicate it, but simply adds 0.71 internal units  to the value specified. The value set is unlikely to match the value seen  interactivley in the resultant spreadsheet, but will be close.</p><p>You can set a column width to 0.</p><p>The function returns a value of 0. The return value is meaningless but required to comply with the range dispatch infrastructure, which expects an <code>Int</code> return from all <code>set*</code> functions.</p><p><code>setColumnWidth</code> requires a file to be open for writing as well as reading (<code>mode=&quot;rw&quot;</code> or open as a template) but  it can work on empty cells.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setColumnWidth(xf, &quot;Sheet1!A2&quot;; width = 50)
+
+julia&gt; XLSX.seColumnWidth(sh, &quot;F1:F5&quot;; width = 0)
+
+julia&gt; XLSX.setColumnWidth(sh, &quot;I&quot;; width = 24.37)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L1810-L1855">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getRowHeight"><a class="docstring-binding" href="#XLSX.getRowHeight"><code>XLSX.getRowHeight</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getRowHeight(sh::Worksheet, cr::String) -&gt; ::Union{Nothing, Real}
+getRowHeight(xf::XLSXFile,  cr::String) -&gt; ::Union{Nothing, Real}
+
+getRowHeight(sh::Worksheet,  row::Int, col::Int) -&gt; ::Union{Nothing, Real}</code></pre><p>Get the height of a row defined by a cell reference or named cell. The specified cell must be within the sheet dimension.</p><p>A standard cell reference or defined name must be used to define the row.  The function will use the row number and ignore the column.</p><p>The function returns the value of the row height or nothing if the row  does not have an explicitly defined height.</p><p>If the row is not found (an empty row), returns -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.getRowHeight(xf, &quot;Sheet1!A2&quot;)
+
+julia&gt; XLSX.getRowHeight(sh, &quot;F1&quot;)
+
+julia&gt; XLSX.getRowHeight(sh, 1, 6)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L2119-L2145">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.setRowHeight"><a class="docstring-binding" href="#XLSX.setRowHeight"><code>XLSX.setRowHeight</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">setRowHeight(sh::Worksheet, cr::String; kw...) -&gt; ::Int
+setRowHeight(xf::XLSXFile,  cr::String, kw...) -&gt; ::Int
+
+setRowHeight(sh::Worksheet, row, col; kw...) -&gt; ::Int</code></pre><p>Set the height of a row or row range.</p><p>A standard cell reference or cell range must be used to define the row range.  The function will use the rows and ignore the columns. Named cells and named ranges can similarly be used. Alternatively, specify the row and column using any combination of  Integer, UnitRange, Vector{Integer} or <code>:</code>, but only the rows will be used.</p><p>The function uses one keyword used to define a row height:</p><ul><li><code>height::Real = nothing</code> : Defines height in Excel&#39;s own (internal) units.</li></ul><p>When you set row heights interactively in Excel you can see the height  in &quot;internal&quot; units and in pixels. The height stored in the xlsx file is slightly  larger than the height shown interactively because Excel adds some cell padding.  The method Excel uses to calculate the padding is obscure and complex. This  function does not attempt to replicate it, but simply adds 0.21 internal units  to the value specified. The value set is unlikely to match the value seen  interactivley in the resultant spreadsheet, but it will be close.</p><p>Row height cannot be set for empty rows, which will quietly be skipped. A row must have at least one cell containing a value before its height can be set.</p><p>You can set a row height to 0.</p><p>The function returns a value of 0 unless all rows are empty, in which case  it returns a value of -1.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.setRowHeight(xf, &quot;Sheet1!A2&quot;; height = 50)
+
+julia&gt; XLSX.setRowHeight(sh, &quot;F1:F5&quot;; height = 0)
+
+julia&gt; XLSX.setRowHeight(sh, &quot;I&quot;; height = 24.56)
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L2014-L2056">source</a></section></details></article><h1 id="Merged-Cells"><a class="docs-heading-anchor" href="#Merged-Cells">Merged Cells</a><a id="Merged-Cells-1"></a><a class="docs-heading-anchor-permalink" href="#Merged-Cells" title="Permalink"></a></h1><article><details class="docstring" open="true"><summary id="XLSX.getMergedCells"><a class="docstring-binding" href="#XLSX.getMergedCells"><code>XLSX.getMergedCells</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getMergedCells(ws::Worksheet) -&gt; Union{Vector{CellRange}, Nothing}</code></pre><p>Return a vector of the <code>CellRange</code> of all merged cells in the specified worksheet. Return nothing if the worksheet contains no merged cells.</p><p>The Excel file must be opened in write mode to work with merged cells.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; f = XLSX.readxlsx(&quot;test.xlsx&quot;)
+XLSXFile(&quot;C:\Users\...\test.xlsx&quot;) containing 1 Worksheet
+            sheetname size          range
+-------------------------------------------------
+               Sheet1 2x2           A1:B2
+
+julia&gt; s = f[&quot;Sheet1&quot;]
+2×2 XLSX.Worksheet: [&quot;Sheet1&quot;](A1:B2)
+
+julia&gt; XLSX.getMergedCells(s)
+1-element Vector{XLSX.CellRange}:
+ B1:B2
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L2177-L2201">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.isMergedCell"><a class="docstring-binding" href="#XLSX.isMergedCell"><code>XLSX.isMergedCell</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">isMergedCell(ws::Worksheet,  cr::String) -&gt; Bool
+isMergedCell(xf::XLSXFile,   cr::String) -&gt; Bool
+
+isMergedCell(ws::Worksheet,  row::Int, col::Int) -&gt; Bool</code></pre><p>Return <code>true</code> if a cell is part of a merged cell range and <code>false</code> if not. The specified cell must be within the sheet dimension.</p><p>Alternatively, if you have already obtained the merged cells for the worksheet, you can avoid repeated determinations and pass them as a keyword argument to  the function:</p><pre><code class="language-julia hljs">isMergedCell(ws::Worksheet, cr::String; mergedCells::Union{Vector{CellRange}, Nothing, Missing}=missing) -&gt; Bool
+isMergedCell(xf::XLSXFile,  cr::String; mergedCells::Union{Vector{CellRange}, Nothing, Missing}=missing) -&gt; Bool
+
+isMergedCell(ws::Worksheet,  row:Int, col::Int; mergedCells::Union{Vector{CellRange}, Nothing, Missing}=missing) -&gt; Bool</code></pre><p>The Excel file must be opened in write mode to work with merged cells.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.isMergedCell(xf, &quot;Sheet1!A1&quot;)
+
+julia&gt; XLSX.isMergedCell(sh, &quot;A1&quot;)
+
+julia&gt; XLSX.isMergedCell(sh, 2, 4) # cell D2
+
+julia&gt; mc = XLSX.getMergedCells(sh)
+
+julia&gt; XLSX.isMergedCell(sh, XLSX.CellRef(&quot;A1&quot;), mc)
+ </code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L2234-L2267">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.getMergedBaseCell"><a class="docstring-binding" href="#XLSX.getMergedBaseCell"><code>XLSX.getMergedBaseCell</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">getMergedBaseCell(ws::Worksheet, cr::String) -&gt; Union{Nothing, NamedTuple{CellRef, Any}}
+getMergedBaseCell(xf::XLSXFile,  cr::String) -&gt; Union{Nothing, NamedTuple{CellRef, Any}}
+
+getMergedBaseCell(ws::Worksheet, row::Int, col::Int) -&gt; Union{Nothing, NamedTuple{CellRef, Any}}</code></pre><p>Return the cell reference and cell value of the base cell of a merged cell range in a worksheet as a named tuple. The specified cell must be within the sheet dimension. If the specified cell is not part of a merged cell range, return <code>nothing</code>.</p><p>The base cell is the top-left cell of the merged cell range and is the reference cell for the range.</p><p>The tuple returned contains:</p><ul><li><code>baseCell</code>  : the reference (<code>CellRef</code>) of the base cell</li><li><code>baseValue</code> : the value of the base cell</li></ul><p>Additionally, if you have already obtained the merged cells for the worksheet, you can avoid repeated determinations and pass them as a keyword argument to  the function:</p><pre><code class="language-julia hljs">getMergedBaseCell(ws::Worksheet, cr::String; mergedCells::Union{Vector{CellRange}, Nothing, Missing}=missing) -&gt; Union{Nothing, NamedTuple{CellRef, Any}}
+getMergedBaseCell(xf::XLSXFile,  cr::String; mergedCells::Union{Vector{CellRange}, Nothing, Missing}=missing) -&gt; Union{Nothing, NamedTuple{CellRef, Any}}
+
+getMergedBaseCell(ws::Worksheet, row::Int, col::Int; mergedCells::Union{Vector{CellRange}, Nothing, Missing}=missing) -&gt; Union{Nothing, NamedTuple{CellRef, Any}}</code></pre><p>The Excel file must be opened in write mode to work with merged cells.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.getMergedBaseCell(xf, &quot;Sheet1!B2&quot;)
+(baseCell = B1, baseValue = 3)
+
+julia&gt; XLSX.getMergedBaseCell(sh, &quot;B2&quot;)
+(baseCell = B1, baseValue = 3)
+
+julia&gt; XLSX.getMergedBaseCell(sh, 2, 2)
+(baseCell = B1, baseValue = 3)
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L2302-L2341">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.mergeCells"><a class="docstring-binding" href="#XLSX.mergeCells"><code>XLSX.mergeCells</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">mergeCells(ws::Worksheet, cr::String) -&gt; 0
+mergeCells(xf::XLSXFile,  cr::String) -&gt; 0
+
+mergeCells(ws::Worksheet, row::Int, col::Int) -&gt; 0</code></pre><p>Merge the cells in the range given by <code>cr</code>. The value of the merged cell  will be the value of the first cell in the range (the base cell) prior  to the merge. All other cells in the range will be set to <code>missing</code>,  reflecting the behaviour of Excel itself.</p><p>Merging is limited to the extent of the worksheet dimension.</p><p>The specified range must not overlap with any previously merged cells.</p><p>It is not possible to merge a single cell!</p><p>A non-contiguous range composed of multiple cell ranges will be processed as a  list of separate ranges. Each range will be merged separately. No range within  a non-contiguous range may be a single cell.</p><p>The Excel file must be opened in write mode to work with merged cells.</p><p><strong>Examples:</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.mergeCells(xf, &quot;Sheet1!B2:D3&quot;)  # Merge a cell range.
+
+julia&gt; XLSX.mergeCells(sh, 1:3, :)          # Merge rows to the extent of the dimension.
+
+julia&gt; XLSX.mergeCells(sh, &quot;A:D&quot;)           # Merge columns to the extent of the dimension.
+</code></pre></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/cellformats.jl#L2375-L2407">source</a></section></details></article><h1 id="Freeze/Split-panes"><a class="docs-heading-anchor" href="#Freeze/Split-panes">Freeze/Split panes</a><a id="Freeze/Split-panes-1"></a><a class="docs-heading-anchor-permalink" href="#Freeze/Split-panes" title="Permalink"></a></h1><article><details class="docstring" open="true"><summary id="XLSX.freezePanes"><a class="docstring-binding" href="#XLSX.freezePanes"><code>XLSX.freezePanes</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">freezePanes(ws::Worksheet; nrows::Int=1, ncols::Int=0)
+freezePanes(ws::Worksheet, anchor_cell::AbstractString)</code></pre><p>Freeze the first <code>nrows</code> rows and/or <code>ncols</code> columns of <code>ws</code> so they stay visible while scrolling, or equivalently freeze everything above/left of <code>anchor_cell</code> (the first cell of the scrolling region). Calling this again replaces any existing frozen/split panes.</p><p><strong>Examples</strong></p><pre><code class="language-julia hljs">julia&gt; XLSX.freezePanes(sh)                       # freeze row 1 (the default)
+julia&gt; XLSX.freezePanes(sh; nrows=2, ncols=1)     # freeze first 2 rows and column A
+julia&gt; XLSX.freezePanes(sh, &quot;B2&quot;)                 # equivalent to nrows=1, ncols=1</code></pre><p>The Excel file must be opened in write mode to work with panes.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/panes.jl#L210-L228">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.splitFreeze"><a class="docstring-binding" href="#XLSX.splitFreeze"><code>XLSX.splitFreeze</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">splitFreeze(ws::Worksheet; nrows::Int=1, ncols::Int=0)
+splitFreeze(ws::Worksheet, anchor_cell::AbstractString)</code></pre><p>Like <a href="#XLSX.freezePanes"><code>freezePanes</code></a>, but marks the pane as originating from a split (<code>state=&quot;frozenSplit&quot;</code>) rather than a plain freeze (<code>state=&quot;frozen&quot;</code>). This mirrors what Excel writes when a user freezes panes while a draggable split already exists. Functionally very similar to <code>freezePanes</code> for a freshly created pane; the distinction mainly affects how Excel behaves if the pane is later unfrozen interactively.</p><p>The Excel file must be opened in write mode to work with panes.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/panes.jl#L232-L245">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.splitPanes"><a class="docstring-binding" href="#XLSX.splitPanes"><code>XLSX.splitPanes</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">splitPanes(ws::Worksheet; nrows::Int=1, ncols::Int=0)
+splitPanes(ws::Worksheet, anchor_cell::AbstractString)</code></pre><p>Split <code>ws</code> into a draggable (non-frozen) pane layout at the given row/column boundary.</p><div class="admonition is-info" id="Approximate-divider-placement-1d3c94d36aee4bb0"><header class="admonition-header">Approximate divider placement<a class="admonition-anchor" href="#Approximate-divider-placement-1d3c94d36aee4bb0" title="Permalink"></a></header><div class="admonition-body"><p>The requested boundary is converted to a twips position by summing actual column widths / row heights (falling back to <code>sheetFormatPr</code> defaults, then Excel&#39;s built-in defaults). The column-width-to-pixel step assumes a Maximum Digit Width of 7 (Calibri 11 / Arial 10 @ 96dpi). The divider will be very close to the requested cell boundary but not  necessarily exact.</p></div></div><p>The Excel file must be opened in write mode to work with panes.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/panes.jl#L249-L266">source</a></section></details></article><article><details class="docstring" open="true"><summary id="XLSX.removePanes"><a class="docstring-binding" href="#XLSX.removePanes"><code>XLSX.removePanes</code></a> — <span class="docstring-category">Function</span></summary><section><div><pre><code class="language-julia hljs">removePanes(ws::Worksheet)</code></pre><p>Remove any frozen or split panes from <code>ws</code>, restoring a plain single-pane view. Equivalent to <code>freezePanes(ws; nrows=0, ncols=0)</code>.</p><p>The Excel file must be opened in write mode to work with panes.</p></div><a class="docs-sourcelink" target="_blank" href="https://github.com/JuliaData/XLSX.jl/blob/06b007b00e0c135796dc159f76e0c13d6d77e5ce/src/panes.jl#L270-L278">source</a></section></details></article></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../data/">« Cells and data</a><a class="docs-footer-nextpage" href="../charts/">Charts »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 20 August 2026 01:42">Thursday 20 August 2026</span>. Using Julia version 1.12.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
