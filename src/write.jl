@@ -927,7 +927,7 @@ function setdata!(ws::Worksheet, ref::CellRef, val::Union{AbstractFormula,CellCo
             if isa_dt == false
                 c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_DATETIME_numFmtId), "1"]).id
             end
-        elseif val isa Float64 || val isa Int
+        elseif val isa Float64 || val isa Int64
             if isa_dt # only override a date/time format, which would misdisplay a plain number
                 c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_NUMBER_numFmtId), "1"]).id
             end

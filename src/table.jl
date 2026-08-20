@@ -720,7 +720,7 @@ end
 # Validates and coerces first_column to Int or nothing.
 function _parse_first_column(first_column)
     first_column isa String && return decode_column_number(first_column)
-    (first_column isa Int || isnothing(first_column)) && return first_column
+    (first_column isa Integer || isnothing(first_column)) && return first_column
     throw(XLSXError("first_column must be an integer column number or a column string like \"A\", \"B\", etc."))
 end
 

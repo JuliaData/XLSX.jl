@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 - fix [#454](https://github.com/JuliaData/XLSX.jl/issues/454) (retain number formats)
-- `setFormat`, `setFont`, `setFill`, `setBorder` and `setAlignment` now return the cell's attribute id when a given range resolves to a single cell, instead of -1.
+- When given range that resolves to a single cell, `setFormat`, `setFont`, `setFill`, `setBorder` and `setAlignment` now return the cell's attribute id, instead of -1.
 
 ## [v0.12.3](https://github.com/JuliaData/XLSX.jl/tree/v0.12.3) - 2026-08-20
 - Address [#263](https://github.com/JuliaData/XLSX.jl/issues/263) (Retrieve data from chart)
@@ -17,8 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fix [#447](https://github.com/JuliaData/XLSX.jl/issues/447) - escaping inline strings correctly.
 - Fix [#446](https://github.com/JuliaData/XLSX.jl/issues/446) (Fix sheet row stream iterator on resumption)
 - Extend Excel-native Table methods and tests
-
-I have changed the `cache` keyword in several functions handling Excel charts (`getChart`, `getCharts`) to `read_cached_values` which is more descriptive and less likely to create confusion with the cell cache. I hope the impact of this is very low as this functionality was only first added a couple of weeks ago and it was not in any release before this one (so technically not breaking).
+- The `cache` keyword in several functions handling Excel charts (`getChart`, `getCharts`) is changed to `read_cached_values` which is more descriptive and less likely to create confusion with the cell cache. The impact of this should be very low as this functionality was only first added a couple of weeks ago and it was not in any release before this one (so technically not breaking).
   
 ## [v0.12.2](https://github.com/JuliaData/XLSX.jl/tree/v0.12.2) - 2026-07-31
 - Add read and write support for native Excel tables
