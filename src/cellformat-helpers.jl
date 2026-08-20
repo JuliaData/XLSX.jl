@@ -625,33 +625,34 @@ function process_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange;
     OK &= dim.start.row_number <= bounds.start.row_number
     OK &= dim.stop.row_number >= bounds.stop.row_number
     if OK
+        newid = -1 # Each cell may have a different attribute Id so we can't return a single value...
         for r in ncrng.rng
             if r isa CellRef && getcell(ws, r) isa EmptyCell
                 single && throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(r)). Set the value first."))
                 continue
             end
-            _ = f(ws, r; kw...)
+            id = f(ws, r; kw...)
+            single && (newid = id) # ...unless the range is a single cell.
+
         end
-        return -1
+        return newid
     else
         throw(XLSXError("Non-contiguous range $ncrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
     end
 end
 function process_cellranges(f::Function, ws::Worksheet, rng::CellRange; kw...)::Int
-    if length(rng) == 1
-        single = true
-    else
-        single = false
-    end
+    single = length(rng) == 1
     isInDim(ws, get_dimension(ws), rng)
+    newid = -1 # Each cell may have a different attribute Id so we can't return a single value...
     for cellref in rng
         if getcell(ws, cellref) isa EmptyCell
             single && throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
             continue
         end
-        _ = f(ws, cellref; kw...)
+        id = f(ws, cellref; kw...)
+        single && (newid = id) # ...unless the range is a single cell.
     end
-    return -1 # Each cell may have a different attribute Id so we can't return a single value.
+    return newid
 end
 function process_get_sheetcell(f::Function, xl::XLSXFile, sheetcell::String; kw...)
     ref = SheetCellRef(sheetcell)
