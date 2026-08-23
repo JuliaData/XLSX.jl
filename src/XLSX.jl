@@ -72,7 +72,7 @@ export
     setConditionalFormat,
     RichTextString, RichTextRun,
     setColumnWidth, setRowHeight,
-    getMergedCells, isMergedCell, getMergedBaseCell, mergeCells,
+    getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
     addtable!, deletetable!, settotals!, gettotals, removetotals!, appendtable!
