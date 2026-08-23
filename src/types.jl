@@ -596,6 +596,36 @@ struct DefinedNameValue
     isabs::Union{Bool, Vector{Bool}}
 end
 
+"""
+    DefinedName
+
+A defined name and its definition, as returned by [`getDefinedNames`](@ref) and
+[`getAllDefinedNames`](@ref).
+
+# Fields
+- `name::String` — the defined name.
+- `scope::Union{Nothing,String}` — `nothing` for a workbook-scoped name, or the
+  display name of the worksheet it is scoped to.
+- `value::DefinedNameValueTypes` — a `SheetCellRef`, `SheetCellRange` or
+  `NonContiguousRange` for a name referring to a range, or the constant itself.
+- `absolute::Union{Bool,Vector{Bool}}` — whether the reference is written as an
+  absolute one (`\$A\$1` rather than `A1`); a vector, one entry per part, for a
+  `NonContiguousRange`. Always `false` for a constant.
+
+Together these are enough to recreate the name:
+`addDefinedName(x, dn.name, dn.value; absolute=dn.absolute)`.
+
+This is a snapshot of the definition at the time it was read, not a live handle:
+it does not track later edits, and renaming a worksheet does not update the
+`scope` or `value` of a `DefinedName` already in hand.
+"""
+struct DefinedName
+    name::String
+    scope::Union{Nothing,String}
+    value::DefinedNameValueTypes
+    absolute::Union{Bool,Vector{Bool}}
+end
+
 # Workbook is the result of parsing file `xl/workbook.xml`.
 # The `xl/workbook.xml` will need to be updated using the Workbook_names and 
 # worksheet_names from here when a workbook is saved in case any new defined 
@@ -613,6 +643,11 @@ mutable struct Workbook
     formulas_lock::ReentrantLock
     sst_lock::ReentrantLock
     workbook_names::Dict{String, DefinedNameValue}
+    # Keyed by (sheetId, name). NOT by localSheetId: the `localSheetId`
+    # attribute of <definedName> is a zero-based index into <sheets>, so it
+    # shifts whenever sheets are added, deleted or reordered. sheetId is stable
+    # for the life of the sheet, so it is what we key on; the conversion to and
+    # from localSheetId happens only at the read and write boundaries.
     worksheet_names::Dict{Tuple{Int, String}, DefinedNameValue}
     styles_xroot::Union{XML.Node, Nothing}
     num_style_index_cache::Dict{Int, CellDataFormat}

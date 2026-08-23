@@ -64,7 +64,8 @@ export
     iserror, geterror,
     gettransposedtable, readtransposedtable,
     writetable, writetable!,
-    addDefinedName, setFormula,
+    addDefinedName, deleteDefinedName, deleteAllDefinedNames, 
+    setFormula,
     # Formats
     setFormat, setFont, setBorder, setFill, setAlignment,
     setUniformFormat, setUniformFont, setUniformBorder, setUniformFill, setUniformAlignment, setUniformStyle,
@@ -83,6 +84,7 @@ export
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
            getCharts, getChart, getChartData, Chart, ChartSeries, ChartRef,
+           getDefinedNames, getAllDefinedNames,
            Workbook
     """))
 end

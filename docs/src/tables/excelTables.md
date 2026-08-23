@@ -252,8 +252,9 @@ own. If `name` is omitted, a unique name is generated (`"Table1"`, `"Table2"`, �
 
 Table names are workbook-scoped and share a namespace with defined names, so
 `addtable!` rejects a name already used by another Table or by a defined name anywhere
-in the workbook. Names must also be valid Excel Table names — no spaces, and beginning
-with a letter or underscore.
+in the workbook. Use [`XLSX.getAllDefinedNames`](@ref) to see what is already taken, and
+[`XLSX.deleteDefinedName`](@ref) to free up a name. Names must also be valid Excel Table
+names — no spaces, and beginning with a letter or underscore.
 
 `ref` must span at least two rows: a header row plus at least one data row. Excel does
 not support header-only Tables.
