@@ -5,6 +5,8 @@ Worksheets may contain merged cells. XLSX.jl provides functions to identify the 
 to determine if a cell is part of a merged range and to determine the value of a merged cell range from any 
 cell in that range.
 
+## Identifying merged cells in a worksheet
+
 ```julia
 
 julia> using XLSX
@@ -53,6 +55,8 @@ false
 julia> XLSX.getMergedBaseCell(f[1], "E18") # E18 is a merged cell. The base cell in the merged range is D18.
 (baseCell = D18, baseValue = "Here") # The base cell in the merged range is D18 and it's value is "Here".
 ```
+
+## Creating merged cells
 
 It is also possible to create new merged cells:
 
@@ -165,3 +169,25 @@ It is not allowed to create new merged cells that overlap at all with any existi
     Assigning values to cells in a merged range like this is prevented in Excel itself by the UI 
     although it is possible using VBA. There is currently no check to prevent this in `XLSX.jl`.
     See [#241](https://github.com/juliadata/XLSX.jl/issues/241)
+
+## Unmerging cells 
+
+Merged cells can be unmerged again:
+
+```julia
+julia> XLSX.removeMergedCells(f[1], "J8")  # Unmerge the range containing J8.
+0
+
+julia> XLSX.isMergedCell(f[1], "J8")
+false
+
+julia> XLSX.removeMergedCells(f[1])        # Unmerge everything in the worksheet.
+0
+
+julia> XLSX.getMergedCells(f[1])
+
+```
+
+A merged range is unmerged if it fully encloses the range given, so naming 
+any single cell of a merged range unmerges the whole of it. Unmerging changes 
+no cell values — whatever each cell holds, it keeps.

@@ -46,6 +46,7 @@ XLSX.getMergedCells
 XLSX.isMergedCell
 XLSX.getMergedBaseCell
 XLSX.mergeCells
+XLSX.removeMergedCells
 ```
 
 # Freeze/Split panes

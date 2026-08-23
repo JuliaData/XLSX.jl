@@ -2487,3 +2487,130 @@ function mergeCells(ws::Worksheet, cr::CellRange)
 
     return 0 # meaningless return value. Int required to comply with reference decoding structure.
 end
+
+"""
+    removeMergedCells(ws::Worksheet, cr::String) -> 0
+    removeMergedCells(xf::XLSXFile,  cr::String) -> 0
+
+    removeMergedCells(ws::Worksheet, row::Int, col::Int) -> 0
+
+    removeMergedCells(ws::Worksheet)             -> 0
+    removeMergedCells(ws::Worksheet, ::Colon)    -> 0
+
+Unmerge merged cells in a worksheet.
+
+A merged range is unmerged if it fully encloses the range given by `cr`. Naming
+any single cell of a merged range is therefore enough to unmerge the whole of
+it, without needing to know its extent. A range larger than the merge encloses
+nothing and is a no-op: `removeMergedCells(sh, "D47:J47")` leaves a merged
+`D47:H47` intact.
+
+Because merged ranges cannot overlap one another, a contiguous `cr` unmerges at
+most one range. Use the non-contiguous form, or the no-argument form, to unmerge
+several at once.
+
+Called with no cell reference at all (or with a single `Colon`), every merged
+range in the worksheet is unmerged.
+
+Unmerging does not change any cell values, reflecting the behaviour of Excel
+itself.
+
+If nothing in the worksheet encloses `cr`, the worksheet is left untouched.
+Specifying a range that is not merged is not an error it is a no-op.
+
+A non-contiguous range composed of multiple cell ranges will be processed as a
+list of separate ranges. Each range will be unmerged separately.
+
+The Excel file must be opened in write mode to work with merged cells.
+
+# Examples:
+```julia
+julia> XLSX.removeMergedCells(xf, "Sheet1!B2")     # Unmerge the range containing B2.
+
+julia> XLSX.removeMergedCells(sh, "B2:C3")         # Unmerge a range enclosing B2:C3.
+
+julia> XLSX.removeMergedCells(sh, 4, 4)            # Unmerge the range containing D4.
+
+julia> XLSX.removeMergedCells(sh, :, 10)           # Unmerge a whole-column merge in J.
+
+julia> XLSX.removeMergedCells(sh)                  # Unmerge everything in the worksheet.
+
+```
+"""
+function removeMergedCells end
+removeMergedCells(ws::Worksheet, rng::SheetCellRange) = do_sheet_names_match(ws, rng) && removeMergedCells(ws, rng.rng)
+removeMergedCells(ws::Worksheet, rng::SheetColumnRange) = do_sheet_names_match(ws, rng) && removeMergedCells(ws, rng.colrng)
+removeMergedCells(ws::Worksheet, rng::SheetRowRange) = do_sheet_names_match(ws, rng) && removeMergedCells(ws, rng.rowrng)
+removeMergedCells(ws::Worksheet, colrng::ColumnRange)::Int = process_columnranges(removeMergedCells, ws, colrng)
+removeMergedCells(ws::Worksheet, rowrng::RowRange)::Int = process_rowranges(removeMergedCells, ws, rowrng)
+removeMergedCells(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges(removeMergedCells, ws, ncrng; kw...)
+removeMergedCells(xl::XLSXFile, sheetcell::AbstractString)::Int = process_sheetcell(removeMergedCells, xl, sheetcell)
+removeMergedCells(ws::Worksheet, ref_or_rng::AbstractString)::Int = process_ranges(removeMergedCells, ws, ref_or_rng)
+removeMergedCells(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon) = process_colon(removeMergedCells, ws, row, nothing)
+removeMergedCells(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}) = process_colon(removeMergedCells, ws, nothing, col)
+removeMergedCells(ws::Worksheet, ::Colon, ::Colon) = process_colon(removeMergedCells, ws, nothing, nothing)
+removeMergedCells(ws::Worksheet, ::Colon) = process_colon(removeMergedCells, ws, nothing, nothing)
+removeMergedCells(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = removeMergedCells(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
+
+# Unlike `mergeCells`, a single cell is meaningful here: it identifies the merged
+# range that contains it, so `process_ranges` can hand us a bare `CellRef`.
+removeMergedCells(ws::Worksheet, cellref::CellRef)::Int = removeMergedCells(ws, CellRange(cellref, cellref))
+
+removeMergedCells(ws::Worksheet)::Int = _remove_merged_cells(ws, nothing)
+removeMergedCells(ws::Worksheet, cr::CellRange)::Int = _remove_merged_cells(ws, cr)
+
+# `cr === nothing` means "every merged range in the worksheet".
+function _remove_merged_cells(ws::Worksheet, cr::Union{CellRange,Nothing})::Int
+
+    xf = get_xlsxfile(ws)
+
+    if !xf.is_writable
+        throw(XLSXError("Cannot remove merged cells: `XLSXFile` is not writable."))
+    end
+
+    if !xf.use_cache_for_sheet_data
+        throw(XLSXError("Cannot remove merged cells because cache is not enabled."))
+    end
+
+    if !isnothing(cr) && !issubset(cr, get_dimension(ws))
+        throw(XLSXError("Range `$cr` goes outside worksheet dimension."))
+    end
+
+    sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id) # find the <mergeCells> block in the worksheet's xml file
+    i, j = get_idces(sheetdoc, "worksheet", "mergeCells")
+
+    isnothing(j) && return 0 # There are no merged cells, so nothing to remove.
+
+    block = sheetdoc[i][j]
+    kids = XML.children(block)
+
+    # Indices of the <mergeCell> children to drop, in ascending order (as `deleteat!` requires).
+    drop = Int[]
+    nrefs = 0
+    for (k, child) in enumerate(kids)
+        XML.nodetype(child) == XML.Element || continue
+        nrefs += 1
+        !haskey(child, "ref") && throw(XLSXError("No `ref` attribute found in `mergeCell` element."))
+        if isnothing(cr) || issubset(cr, CellRange(child["ref"]))
+            push!(drop, k)
+        end
+    end
+
+    if nrefs != parse(Int, block["count"])
+        throw(XLSXError("Unexpected number of mergeCells found: $nrefs. Expected $(block["count"])."))
+    end
+
+    isempty(drop) && return 0 # Nothing matched: leave the xml untouched.
+
+    if length(drop) == nrefs
+        # An empty <mergeCells count="0"/> is not schema-valid, so drop the whole block.
+        deleteat!(sheetdoc[i].children, j)
+    else
+        deleteat!(kids, drop)
+        block["count"] = nrefs - length(drop)
+    end
+
+    update_worksheets_xml!(xf)
+
+    return 0 # meaningless return value. Int required to comply with reference decoding structure.
+end
