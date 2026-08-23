@@ -685,15 +685,20 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
     end
 
     #update defined names
-    if length(wb.workbook_names) > 0 || length(wb.worksheet_names) > 0 # skip if no defined names present
-        i, j = get_idces(wbdoc, "workbook", "definedNames")
+    i, j = get_idces(wbdoc, "workbook", "definedNames")
+
+    if isempty(wb.workbook_names) && isempty(wb.worksheet_names)
+        # No defined names left: drop any existing block rather than leaving a
+        # stale one behind (an empty <definedNames/> is not valid ECMA-376).
+        isnothing(j) || deleteat!(wbdoc[i].children, j)
+    else
         if isnothing(j)
             # there is no <definedNames> block in the workbook's xml file, so we'll need to create one
             l = insert_index(wbdoc[end], "definedNames", WORKBOOK_ORDER)
             definedNames = XML.Element("$(pfx)definedNames")
             len = length(wbdoc[end])
             if l != len
-                insert!(wbdoc[end].children, l+1, definedNames)
+                insert!(wbdoc[end].children, l + 1, definedNames)
             else
                 push!(wbdoc[end], definedNames)
             end
@@ -701,6 +706,7 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
         else
             definedNames = unlink(wbdoc[i][j], ("definedNames", "definedName"), pfx) # Remove old defined names
         end
+
         for (k, v) in wb.workbook_names
             if typeof(v.value) <: DefinedNameRangeTypes
                 v = make_absolute(v)
@@ -710,15 +716,22 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
             dn_node = XML.Element("$(pfx)definedName", name=k, XML.Text(v))
             push!(definedNames, dn_node)
         end
+
+        # `n` deliberately not `i`: `i` is still needed for `wbdoc[i][j]` below.
+        sheet_ordinals = Dict(s.sheetId => n for (n, s) in enumerate(wb.sheets))
         for (k, v) in wb.worksheet_names
+            ordinal = get(sheet_ordinals, first(k), nothing)
+            isnothing(ordinal) &&
+                throw(XLSXError("Defined name `$(last(k))` is scoped to sheetId $(first(k)), which is not in the workbook."))
             if typeof(v.value) <: DefinedNameRangeTypes
                 v = make_absolute(v)
             else
                 v = string(v.value)
             end
-            dn_node = XML.Element("$(pfx)definedName", name=last(k), localSheetId=string(first(k) - 1), XML.Text(v))
+            dn_node = XML.Element("$(pfx)definedName", name=last(k), localSheetId=string(ordinal - 1), XML.Text(v))
             push!(definedNames, dn_node)
         end
+
         wbdoc[i][j] = definedNames # Add the new definedNames block to the workbook's xml file
     end
 
@@ -1323,6 +1336,7 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     end
 
     update_formulas_renamed_sheet!(get_workbook(ws), ws.name, name)
+    update_defined_names_renamed_sheet!(get_workbook(ws), ws.name, name)   # <-- add
 
     # updates the new name in the worksheet instance
     ws.name = name
@@ -1848,16 +1862,8 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     for key in found_wsnames
         delete!(wb.worksheet_names, key)
     end
-    renumber_keys = Vector{Pair{Tuple{Int64,String},Tuple{Int64,String}}}()
     for (k, _) in wb.worksheet_names
         first(k) == sId && throw(XLSXError("Something wrong here!"))
-        if first(k) > sId
-            push!(renumber_keys, k => (sId, last(k)))
-        end
-    end
-    for (oldkey, newkey) in renumber_keys
-        wb.worksheet_names[newkey] = wb.worksheet_names[oldkey]
-        delete!(wb.worksheet_names, oldkey)
     end
 
     # Sheet-owned parts cleanup. Drawings/media keep their existing dedup-aware

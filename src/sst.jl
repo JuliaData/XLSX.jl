@@ -308,6 +308,15 @@ Base.codeunit(rts::RichTextString, i::Integer) = codeunit(rts.text, i)
 Base.String(rts::RichTextString) = rts.text
 Base.isvalid(rts::RichTextString, i::Integer) = isvalid(rts.text, i)
 
+"""
+Truncate `s` to `n` characters, marking any string that had to be cut so a
+shortened value is never mistaken for a complete one.
+"""
+function truncate_len(s::AbstractString, n::Int)
+    length(s) > n && return first(s, n - 1) * "…"
+    return s
+end
+
 function Base.show(io::IO, rts::RichTextString)
     maxlen_txt = 22
     maxlen_atts = 64
@@ -326,16 +335,18 @@ function Base.show(io::IO, rts::RichTextString)
             s = join(parts, ", ")
 
             # Truncate if too long
-            if length(s) > maxlen_atts
-                s = s[1:prevind(s, maxlen_atts)] * "…"
-            end
+#            if length(s) > maxlen_atts
+#                s = s[1:prevind(s, maxlen_atts)] * "…"
+#            end
+            s = truncate_len(s, maxlen_atts)
         end
 
-        t = if length(run.text) > maxlen_txt
-            run.text[1:prevind(run.text, maxlen_txt)] * "…"
-        else
-            run.text
-        end
+        t = truncate_len(run.text, maxlen_txt)
+#        t = if length(run.text) > maxlen_txt
+#            run.text[1:prevind(run.text, maxlen_txt)] * "…"
+#        else
+#            run.text
+#        end
 
         @printf(io, " %-24s %-66s\n", "\""*t*"\"", "["*s*"]")
     end
@@ -434,17 +445,19 @@ function Base.show(io::IO, run::RichTextRun)
         parts = (":"*string(k) * " => " * sprint(show, v) for (k,v) in sort(collect(run.atts), by=first))
         s = join(parts, ", ")
 
-        # Truncate if too long
-        if length(s) > maxlen_atts
-            s = s[1:prevind(s, maxlen_atts)] * "…"
+            # Truncate if too long
+#            if length(s) > maxlen_atts
+#                s = s[1:prevind(s, maxlen_atts)] * "…"
+#            end
+            s = truncate_len(s, maxlen_atts)
         end
-    end
 
-    t = if length(run.text) > maxlen_txt
-        run.text[1:prevind(run.text, maxlen_txt)] * "…"
-    else
-        run.text
-    end
+        t = truncate_len(run.text, maxlen_txt)
+#        t = if length(run.text) > maxlen_txt
+#            run.text[1:prevind(run.text, maxlen_txt)] * "…"
+#        else
+#            run.text
+#        end
 
     print(io,"RichTextRun (","\""*t*"\"  [", s,"])")
 end

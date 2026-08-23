@@ -921,9 +921,10 @@ function parse_workbook!(xf::XLSXFile)
 
             attrs = XML.attributes(dn_node)
             if haskey(attrs, "localSheetId")
-                localSheetId = parse(Int, attrs["localSheetId"]) + 1
-                sheetId = wb.sheets[localSheetId].sheetId
-                wb.worksheet_names[(sheetId, name)] = DefinedNameValue(defined_value, isabs)
+                ordinal = parse(Int, attrs["localSheetId"]) + 1   # localSheetId is 0-based
+                (ordinal < 1 || ordinal > length(wb.sheets)) &&
+                    throw(XLSXError("Defined name `$name` has localSheetId $(ordinal - 1), but the workbook has $(length(wb.sheets)) sheets."))
+                wb.worksheet_names[(wb.sheets[ordinal].sheetId, name)] = DefinedNameValue(defined_value, isabs)
             else
                 wb.workbook_names[name] = DefinedNameValue(defined_value, isabs)
             end
