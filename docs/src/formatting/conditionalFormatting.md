@@ -95,7 +95,7 @@ are used here, as follows:
 
 Use of these different `:type`s is illustrated in the following sections.
 For more details on the range of `:type` values and their associated keyword 
-options, refer to [XLSX.setConditionalFormat()](@ref).
+options, refer to [`XLSX.setConditionalFormat`](@ref).
 
 ### Cell Value
 
@@ -262,7 +262,7 @@ julia> XLSX.getConditionalFormats(s)
 ![image|320x500](../images/custom-cellvalue-example.png)
 
 Each of the conditional format `type`s in the cell value group take similar keyword options but 
-the specific details vary for each. For more details, refer to [XLSX.setConditionalFormat()](@ref).
+the specific details vary for each. For more details, refer to [`XLSX.setConditionalFormat`](@ref).
 
 ### Expressions
 

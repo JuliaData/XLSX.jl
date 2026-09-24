@@ -144,4 +144,11 @@ end
     @test s[[2, 4], [3, 5]] == [0 0; 0 0]
     SAVE_FILES && save_outfile(f)
 
+    @testset "issue 460: attributes on <v>" begin
+        xf = XLSX.readxlsx(joinpath(data_directory, "issue460_whitespace.xlsx"))
+        sh = xf[1]
+        @test sh["B4"] == " 6000056"          # t="str", <v xml:space="preserve">
+        @test sh["B6"] == 6000056             # numeric, <v xml:space="preserve">
+        @test all(!ismissing, sh["B2:B7"])
+    end
 end

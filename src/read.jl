@@ -356,7 +356,7 @@ end
     opentemplate(source::Union{AbstractString, IO}) :: XLSXFile
 
 Read an existing Excel (`.xlsx`) file as a template and return as a writable `XLSXFile` for editing 
-and saving to another file with [XLSX.writexlsx](@ref).
+and saving to another file with [`XLSX.writexlsx`](@ref).
 
 A convenience function equivalent to `openxlsx(source; mode="rw", enable_cache=true)`
 
@@ -374,7 +374,7 @@ opentemplate(source::Union{AbstractString,IO})::XLSXFile = open_or_read_xlsx(sou
     newxlsx([sheetname::AbstractString]; update_timestamp::Bool) :: XLSXFile
 
 Return an empty, writable `XLSXFile` with 1 worksheet for editing and 
-subsequent saving to a file with [XLSX.writexlsx](@ref).
+subsequent saving to a file with [`XLSX.writexlsx`](@ref).
 By default, the worksheet is `Sheet1`. Specify `sheetname` to give the worksheet a different name.
 
 Use keyword argument `update_timestamp=false` to prevent timestamps in the file properties from being 
@@ -659,6 +659,7 @@ end
 
 function convert_strict_to_transitional!(xf::XLSXFile, pass::Int)
     for filename in keys(xf.files)
+        haskey(xf.data, filename) || continue      # target_sheet: only some files are loaded
         should_process = if pass == 1
             !occursin(r"xl/worksheets/sheet\d*\.xml|xl/sharedStrings\.xml", filename)
         elseif pass == 2

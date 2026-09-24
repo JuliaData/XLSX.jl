@@ -1166,4 +1166,30 @@ end
         
         isfile("hint.xlsx") && rm("hint.xlsx")
     end
+    @testset "empty shared strings read as missing (issue 460 follow-up)" begin
+        f = joinpath(data_directory, "empty_sst_numeric.xlsx")
+
+        @testset "numeric column with blanks" begin
+            dt = XLSX.readtable(f, "Numbers"; infer_eltypes=true)
+            col = XLSX.Tables.getcolumn(dt, Symbol("Test column"))
+            @test length(col) == 7
+            @test eltype(col) == Union{Missing, Float64}
+            @test count(ismissing, col) == 2
+            @test col[1] === 5761420.0   # Int promoted to Float64
+            @test eltype(XLSX.Tables.getcolumn(dt, :ID)) == Int64
+        end
+
+        @testset "empty-SST row stops the table" begin
+            dt = XLSX.readtable(f, "StopRow"; infer_eltypes=true)
+            col = XLSX.Tables.getcolumn(dt, 1)
+            @test col == [1.5, 2.0]
+            @test eltype(col) == Float64
+        end
+
+        @testset "getdata on an empty-SST cell" begin
+            xf = XLSX.readxlsx(f)
+            @test ismissing(xf["Numbers"]["A5"])
+            @test ismissing(xf["Numbers"]["A7"])
+        end
+    end
 end

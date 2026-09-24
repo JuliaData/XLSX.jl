@@ -161,5 +161,13 @@
         end
         isfile("mytest.xlsx") && rm("mytest.xlsx")
     end
-
+    @testset "readtable on Strict OOXML with target_sheet" begin
+        f = joinpath(data_directory, "strict.xlsx")
+        # readtable loads only the target sheet; the others must not be touched
+        for s in ("general", "table", "lookup")
+            @test XLSX.readtable(f, s) isa XLSX.DataTable
+        end
+        @test XLSX.readtable(f, 1) isa XLSX.DataTable
+    end
+    
 end

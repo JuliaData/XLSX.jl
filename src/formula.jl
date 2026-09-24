@@ -761,7 +761,7 @@ show a `#SPILL` error.
 
 More details can be found in the section [Using Formulas](@ref).
 
-See also [XLSX.getFormula](@ref).
+See also [`XLSX.getFormula`](@ref).
 
 # Examples:
 
@@ -979,7 +979,7 @@ to the external workbook. Use the keyword option `get_external_refs=true` to rep
 the index with the actual workbook path (as stored in the workbook's externalReferences).
 By default, `get_external_refs=false` and the formula is returned unchanged.
 
-See also [XLSX.setFormula](@ref).
+See also [`XLSX.setFormula`](@ref).
 
 # Examples:
 ```julia

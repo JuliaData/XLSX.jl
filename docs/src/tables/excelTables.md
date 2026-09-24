@@ -440,7 +440,7 @@ julia> tot.revenue.value
 
 !!! note
 
-    When a Table is read from Excel, [XLSX.gettotals](@ref) will return the cell's 
+    When a Table is read from Excel, [`XLSX.gettotals`](@ref) will return the cell's 
     value for each column in the table.
     
     In contrast, when a Totals formula in a Table is defined in XLSX.jl, either for a 

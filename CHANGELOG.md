@@ -5,6 +5,10 @@ All notable changes to this package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [v0.12.4](https://github.com/JuliaData/XLSX.jl/tree/v0.12.4) - 2026-09-24
+- Fixed a regression (since v0.11.0) where cells referencing an empty shared string were read as "" instead of missing.
+- fix [#460](https://github.com/JuliaData/XLSX.jl/issues/460) (partial)
 - fix [#454](https://github.com/JuliaData/XLSX.jl/issues/454) (retain number formats)
 - When given range that resolves to a single cell, `setFormat`, `setFont`, `setFill`, `setBorder` and `setAlignment` now return the cell's attribute id, instead of -1.
 

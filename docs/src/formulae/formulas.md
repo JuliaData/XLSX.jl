@@ -1,15 +1,15 @@
 # Using Formulas
 
-`XLSX.jl` provides two functions allowing direct access to cell formulas, [XLSX.getFormula](@ref) and [setFormula](@ref).
+`XLSX.jl` provides two functions allowing direct access to cell formulas, [`XLSX.getFormula`](@ref) and [`setFormula`](@ref).
 
 ## Using a simple formula
 
-Find the formula in a cell using the [XLSX.getFormula](@ref) function. This returns a string representation 
+Find the formula in a cell using the [`XLSX.getFormula`](@ref) function. This returns a string representation 
 of the function used in the specified cell (e.g. `"=A1+B1"`). For most standard functions, this is the 
 same as the representation of the same formula in the Excel formula bar (but see the section on Newer 
 Functions (below) for exceptions).
 
-Similarly, set a formula in a cell using the [setFormula](@ref) function, entering the function 
+Similarly, set a formula in a cell using the [`setFormula`](@ref) function, entering the function 
 exactly as it would appear in the Excel formula bar.
 
 To set a formula, it must be a valid Excel formula and written in US english with 
@@ -118,13 +118,13 @@ julia> XLSX.getFormula(s, "J10")
 
 ## Referenced formulas
 
-If a contiguous range is specfied, [setFormula](@ref) will usually create a 
+If a contiguous range is specfied, [`setFormula`](@ref) will usually create a 
 `ReferencedFormula`. This is the same as Excel would use if using drag fill to 
 copy a formula into a range of cells.
 
 The first cell in the range (reference cell) contains the formula and the other 
 cells in the range contain a reference to the reference cell. The formula 
-returned by [XLSX.getFormula](@ref) will be adjusted appropriately to allow for the offset 
+returned by [`XLSX.getFormula`](@ref) will be adjusted appropriately to allow for the offset 
 from the reference cell. This will match what is shown in the formula bar for 
 this cell in Excel.
 
@@ -156,7 +156,7 @@ to the user.
 
 An existing formula may contain references to cells in external workbooks, in the form
 `[index]SheetName!A1` where `index` is an integer providing an internal Excel reference 
-to the external workbook. [XLSX.getFormula](@ref) can be used to obtain the file name of the external 
+to the external workbook. [`XLSX.getFormula`](@ref) can be used to obtain the file name of the external 
 reference using the keyword option `get_external_refs=true` to replace the index with the 
 actual workbook path (as stored in the workbook's externalReferences).
 By default, `get_external_refs=false` and the formula is returned unchanged.
@@ -202,8 +202,8 @@ julia> writexlsx("mytest.xlsx", f, overwrite=true)
 ```
 
 The prefix is not shown by Excel in the formula bar, but it is needed in the internal xml file.
-[setFormula](@ref) adds this prefix automatically. A dummy `ref` xml attribute is also created 
-by [setFormula](@ref) and will be properly calculated on opening when Excel determines the spill range.
+[`setFormula`](@ref) adds this prefix automatically. A dummy `ref` xml attribute is also created 
+by [`setFormula`](@ref) and will be properly calculated on opening when Excel determines the spill range.
 
 ![image|320x500](../images/sortPrefix.png)
 
@@ -224,13 +224,13 @@ Currently only simple aggregator functions are supported (e.g. `SUM`, `AVERAGE`,
 More complex versions of theses functions and some of the other newer Excel functions are 
 not easy to parse. For example, Excel's `LAMBDA` function is not well supported (in 
 `GROUPBY`/`PIVOTBY` or otherwise). Moreover, as Microsoft adds more new functions in future that 
-require a prefix or that generate a spill range (or both), [setFormula](@ref) may not recognise them 
+require a prefix or that generate a spill range (or both), [`setFormula`](@ref) may not recognise them 
 automatically.
 
 For these cases, a keyword option, `raw`, is provided (default=`false`), allowing the internal xml 
 representation of a function (which may differ significantly from its representation in the formula 
-bar) to be entered directly. This allows any arbitrary future function to be added using [setFormula](@ref). 
-An additional keyword, `spill` (default=`nothing`), can be used to tell [setFormula](@ref) that the raw 
+bar) to be entered directly. This allows any arbitrary future function to be added using [`setFormula`](@ref). 
+An additional keyword, `spill` (default=`nothing`), can be used to tell [`setFormula`](@ref) that the raw 
 function will create a spill range (or to force it not to). The simplest way to determine the raw 
 representation of any arbitrary function is to create it in Excel and then to inspect the resulting 
 xml file. For example:
@@ -245,7 +245,7 @@ setFormula(f[1], "H21", "_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVER
 
 Some functions, such as `SORT` or `UNIQUE`, will return multiple values and Excel will "spill" these 
 into a spill range the extent of which depends on the data on which the function is operating.
-Generally, [setFormula](@ref) will handle this transparently and create a cell formula that spills when 
+Generally, [`setFormula`](@ref) will handle this transparently and create a cell formula that spills when 
 needed by adding an attribute `t="array"` to the cell in the internal xml file. For example
 
 ```julia
@@ -284,10 +284,10 @@ value from a range or array, based on the context of the formula. For example, i
 references a column of values but is entered in a single cell, Excel uses @ to pick the value 
 from the same row as the formula.
 
-For most formulas, [setFormula](@ref) will determine the correct attribute value for `t`. In cases 
+For most formulas, [`setFormula`](@ref) will determine the correct attribute value for `t`. In cases 
 where it doesn't (usually when using `raw=true`), it is possible to force the formula to indicate 
 (to Excel) that it spills using the `spill=true` keyword option as described above. Similarly, in 
-the unlikely event that [setFormula](@ref) might choose to create a spill function incorrectly, this can 
+the unlikely event that [`setFormula`](@ref) might choose to create a spill function incorrectly, this can 
 be prevented with `spill=false`.
 
 Only rarely in complex, nested formulae involving cell range references, aggregator functions and/or 
