@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · XLSX.jl</title><meta name="title" content="Examples · XLSX.jl"/><meta property="og:title" content="Examples · XLSX.jl"/><meta property="twitter:title" content="Examples · XLSX.jl"/><meta name="description" content="Documentation for XLSX.jl."/><meta property="og:description" content="Documentation for XLSX.jl."/><meta property="twitter:description" content="Documentation for XLSX.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.63.2/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">XLSX.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><span class="tocitem">Tutorial</span><ul><li><a class="tocitem" href="../tutorial/XLSXtutorial/">XLSX Tutorial</a></li><li><a class="tocitem" href="../tutorial/FileIOtutorial/">FileIO Tutorial</a></li></ul></li><li><span class="tocitem">Formatting Guide</span><ul><li><a class="tocitem" href="../formatting/cellFormatting/">Cell formats</a></li><li><a class="tocitem" href="../formatting/conditionalFormatting/">Conditional formats</a></li><li><a class="tocitem" href="../formatting/widthAndHeight/">Column width and row height</a></li><li><a class="tocitem" href="../formatting/mergedCells/">Merged cells</a></li><li><a class="tocitem" href="../formatting/freezeAndSplitPanes/">Freeze/split panes</a></li></ul></li><li><a class="tocitem" href="../formulae/formulas/">Using Formulas</a></li><li><a class="tocitem" href="../tables/excelTables/">Using Excel Tables</a></li><li><span class="tocitem">Excel Charts</span><ul><li><a class="tocitem" href="../charts/excelCharts/">Overview</a></li><li><a class="tocitem" href="../charts/readingCharts/">Reading charts</a></li><li><a class="tocitem" href="../charts/formattingCharts/">Formatting charts</a></li><li><a class="tocitem" href="../charts/creatingCharts/">Creating charts</a></li><li><a class="tocitem" href="../charts/creatingChartEx/">Creating chartEx charts</a></li><li><a class="tocitem" href="../charts/chartSheets/">Sheets with charts</a></li><li><a class="tocitem" href="../charts/chartLimitations/">Limitations</a></li></ul></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Applying-formulas"><span>Applying formulas</span></a></li><li><a class="tocitem" href="#Applying-cell-format-to-an-existing-table"><span>Applying cell format to an existing table</span></a></li><li><a class="tocitem" href="#Creating-a-formatted-form"><span>Creating a formatted form</span></a></li><li><a class="tocitem" href="#Adding-a-dataBar-with-varying-colors"><span>Adding a dataBar with varying colors</span></a></li><li><a class="tocitem" href="#Adding-a-plot-image"><span>Adding a plot image</span></a></li><li><a class="tocitem" href="#Adding-a-simple-native-Excel-chart"><span>Adding a simple native Excel chart</span></a></li><li><a class="tocitem" href="#A-diverging-stacked-bar-chart-for-Likert-scale-survey-data"><span>A diverging stacked bar chart for Likert-scale survey data</span></a></li></ul></li><li><a class="tocitem" href="../migration/">Migration Guide</a></li><li><span class="tocitem">API Reference</span><ul><li><a class="tocitem" href="../api/files/">Files and worksheets</a></li><li><a class="tocitem" href="../api/data/">Cells and data</a></li><li><a class="tocitem" href="../api/tables/">Tables</a></li><li><a class="tocitem" href="../api/formats/">Cell formats</a></li><li><a class="tocitem" href="../api/conditionalFormats/">Conditional formats</a></li><li><a class="tocitem" href="../api/sheetLayout/">Sheet layout</a></li><li><a class="tocitem" href="../api/charts/">Charts</a></li><li><a class="tocitem" href="../api/chartElements/">Chart axes and elements</a></li><li><a class="tocitem" href="../api/chartEx/">chartEx charts</a></li><li><a class="tocitem" href="../api/chartTypes/">Chart types</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/JuliaData/XLSX.jl/blob/master/docs/src/examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><h2 id="Applying-formulas"><a class="docs-heading-anchor" href="#Applying-formulas">Applying formulas</a><a id="Applying-formulas-1"></a><a class="docs-heading-anchor-permalink" href="#Applying-formulas" title="Permalink"></a></h2><p>Using the widely used <a href="https://archive.ics.uci.edu/dataset/53/iris">Iris data set</a>:</p><pre><code class="language-julia hljs">
+using CSV
+using DataFrames
+using XLSX
+
+f = CSV.read(&quot;iris.csv&quot;, XLSXFile)
+f[1][1, 6]=&quot;year&quot; # arbitrary data column for aggregation purposes
+f[1][2:3:151, 6]=1993
+f[1][3:3:151, 6]=1994
+f[1][4:3:151, 6]=1995
+XLSX.setFormula(f[1], &quot;J3&quot;, &quot;=GROUPBY(E1:E151,A1:D151,AVERAGE,3,1)&quot;)
+f[1][&quot;P3&quot;] = &quot;versicolor&quot;
+XLSX.setFormula(f[1], &quot;P4&quot;, &quot;=VLOOKUP(P3,J3#,3,FALSE)&quot;)
+XLSX.setFormula(f[1], &quot;J11&quot;, &quot;=PIVOTBY(E1:E151,F1:F151,A1:D151,COUNT,3,1,,0)&quot;)
+XLSX.setFormula(f[1], &quot;J21&quot;, &quot;_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x,AVERAGE(_xlpm.x)),3,1)&quot;; raw=true)
+XLSX.setFormula(f[1], &quot;H2&quot;, &quot;=A2:A151+B2:B151+C2:C151+D2:D151&quot;)
+
+f[1][&quot;H1&quot;] = &quot;Using ranges in simple formula:&quot;
+f[1][&quot;J2&quot;] = &quot;Using GROUPBY:&quot;
+f[1][&quot;P2&quot;] = &quot;Using VLOOKUP with a spill range:&quot;
+f[1][&quot;J10&quot;] = &quot;Using PIVOTBY:&quot;
+f[1][&quot;J20&quot;] = &quot;Using LAMBDA with &#39;raw=true&#39;:&quot;
+setFont(f[1], &quot;H1,J2,P2,J10,J20&quot;; size=12, bold=true)
+setAlignment(f[1], &quot;H1&quot;; horizontal=&quot;center&quot;)
+</code></pre><p><img src="../images/iris.png" alt="image|320x500"/></p><h2 id="Applying-cell-format-to-an-existing-table"><a class="docs-heading-anchor" href="#Applying-cell-format-to-an-existing-table">Applying cell format to an existing table</a><a id="Applying-cell-format-to-an-existing-table-1"></a><a class="docs-heading-anchor-permalink" href="#Applying-cell-format-to-an-existing-table" title="Permalink"></a></h2><p>Consider a simple table, created from scratch, like this:</p><pre><code class="language-julia hljs">using XLSX
+using Dates
+
+# First create some data in an empty XLSXfile
+xf = XLSX.newxlsx()
+sheet = xf[&quot;Sheet1&quot;]
+
+col_names = [&quot;Integers&quot;, &quot;Strings&quot;, &quot;Floats&quot;, &quot;Booleans&quot;, &quot;Dates&quot;, &quot;Times&quot;, &quot;DateTimes&quot;, &quot;AbstractStrings&quot;, &quot;Rational&quot;, &quot;Irrationals&quot;, &quot;MixedStringNothingMissing&quot;]
+data = Vector{Any}(undef, 11)
+data[1] = [1, 2, missing, UInt8(4)]
+data[2] = [&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;]
+data[3] = [101.5, 102.5, missing, 104.5]
+data[4] = [true, false, missing, true]
+data[5] = [Date(2018, 2, 1), Date(2018, 3, 1), Date(2018, 5, 20), Date(2018, 6, 2)]
+data[6] = [Dates.Time(19, 10), Dates.Time(19, 20), Dates.Time(19, 30), Dates.Time(0, 0)]
+data[7] = [Dates.DateTime(2018, 5, 20, 19, 10), Dates.DateTime(2018, 5, 20, 19, 20), Dates.DateTime(2018, 5, 20, 19, 30), Dates.DateTime(2018, 5, 20, 19, 40)]
+data[8] = SubString.([&quot;Hey&quot;, &quot;You&quot;, &quot;Out&quot;, &quot;There&quot;], 1, 2)
+data[9] = [1 // 2, 1 // 3, missing, 22 // 3]
+data[10] = [pi, sqrt(2), missing, sqrt(5)]
+data[11] = [nothing, &quot;middle&quot;, missing, &quot;rotated&quot;]
+
+XLSX.writetable!(
+    sheet,
+    data,
+    col_names;
+    anchor_cell=XLSX.CellRef(&quot;B2&quot;),
+    write_columnnames=true,
+)
+
+XLSX.writexlsx(&quot;mytable_unformatted.xlsx&quot;, xf, overwrite=true)</code></pre><p>By default, this table will look like this in Excel:</p><p><img src="../images/unformatted-table.png" alt="image|320x500"/></p><p>We can apply some formatting choices to change the table&#39;s appearance:</p><p><img src="../images/formatted-table.png" alt="image|320x500"/></p><p>This is achieved with the following code:</p><pre><code class="language-julia hljs"># Cell borders
+XLSX.setUniformBorder(sheet, &quot;B2:L6&quot;;
+    top    = [&quot;style&quot; =&gt; &quot;hair&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;],
+    bottom = [&quot;style&quot; =&gt; &quot;hair&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;],
+    left   = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;],
+    right  = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;]
+)
+XLSX.setBorder(sheet, &quot;B2:L2&quot;; bottom = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;]) 
+XLSX.setBorder(sheet, &quot;B6:L6&quot;; top = [&quot;style&quot; =&gt; &quot;double&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;])
+XLSX.setOutsideBorder(sheet, &quot;B2:L6&quot;; outside = [&quot;style&quot; =&gt; &quot;thick&quot;, &quot;color&quot; =&gt; &quot;FF000000&quot;])
+
+# Cell fill
+XLSX.setFill(sheet, &quot;B2:L2&quot;; pattern = &quot;solid&quot;, fgColor = &quot;FF444444&quot;)
+
+# Cell fonts
+XLSX.setFont(sheet, &quot;B2:L2&quot;; bold=true, color = &quot;FFFFFFFF&quot;)
+XLSX.setFont(sheet, &quot;B3:L6&quot;; color = &quot;FF444444&quot;)
+XLSX.setFont(sheet, &quot;C3&quot;; name = &quot;Times New Roman&quot;)
+XLSX.setFont(sheet, &quot;C6&quot;; name = &quot;Wingdings&quot;, color = &quot;FF2F75B5&quot;)
+
+# Cell alignment
+XLSX.setAlignment(sheet, &quot;L2&quot;; wrapText = true)
+XLSX.setAlignment(sheet, &quot;I4&quot;; horizontal=&quot;right&quot;)
+XLSX.setAlignment(sheet, &quot;I6&quot;; horizontal=&quot;right&quot;)
+XLSX.setAlignment(sheet, &quot;C4&quot;; indent=2)
+XLSX.setAlignment(sheet, &quot;F4&quot;; vertical=&quot;top&quot;)
+XLSX.setAlignment(sheet, &quot;G4&quot;; vertical=&quot;center&quot;)
+XLSX.setAlignment(sheet, &quot;L4&quot;; horizontal=&quot;center&quot;, vertical=&quot;center&quot;)
+XLSX.setAlignment(sheet, &quot;G3:G6&quot;; horizontal = &quot;center&quot;)
+XLSX.setAlignment(sheet, &quot;H3:H6&quot;; shrink = true)
+XLSX.setAlignment(sheet, &quot;L6&quot;; horizontal = &quot;center&quot;, rotation = 90, wrapText=true)
+
+# Row height and column width
+XLSX.setRowHeight(sheet, &quot;B4&quot;; height=50)
+XLSX.setRowHeight(sheet, &quot;B6&quot;; height=15)
+XLSX.setColumnWidth(sheet, &quot;I&quot;; width = 20.5)
+
+# Conditional formatting
+function blankmissing(sheet, rng) # Fill with grey and apply both diagonal borders on cells
+    for c in rng                  # with missing values
+        if ismissing(sheet[c])
+            XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;grey&quot;)
+            XLSX.setBorder(sheet, c; diagonal = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+           end
+    end
+end
+function trueorfalse(sheet, rng) # Use green or red font for true or false respectively
+    for c in rng
+        if !ismissing(sheet[c]) &amp;&amp; sheet[c] isa Bool
+            XLSX.setFont(sheet, c, bold=true, color = sheet[c] ? &quot;FF548235&quot; : &quot;FFC00000&quot;)
+        end
+    end
+end
+function redgreenminmax(sheet, rng) # Fill light green / light red the cell with maximum / minimum value
+    mn, mx = extrema(x for x in sheet[rng] if !ismissing(x))
+    for c in rng
+        if !ismissing(sheet[c])
+            if sheet[c] == mx
+               XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;FFC6EFCE&quot;)
+            elseif sheet[c] == mn
+                XLSX.setFill(sheet, c; pattern = &quot;solid&quot;, fgColor = &quot;FFFFC7CE&quot;)
+            end
+        end
+    end
+end
+
+blankmissing(sheet, XLSX.CellRange(&quot;B3:L6&quot;))
+trueorfalse(sheet, XLSX.CellRange(&quot;B2:L6&quot;))
+redgreenminmax(sheet, XLSX.CellRange(&quot;D3:D6&quot;))
+redgreenminmax(sheet, XLSX.CellRange(&quot;J3:J6&quot;))
+redgreenminmax(sheet, XLSX.CellRange(&quot;K3:K6&quot;))
+
+# Number formats
+XLSX.setFormat(sheet, &quot;J3&quot;; format = &quot;Percentage&quot;)
+XLSX.setFormat(sheet, &quot;J4&quot;; format = &quot;Currency&quot;)
+XLSX.setFormat(sheet, &quot;J6&quot;; format = &quot;Number&quot;)
+XLSX.setFormat(sheet, &quot;K3&quot;; format = &quot;0.0&quot;)
+XLSX.setFormat(sheet, &quot;K4&quot;; format = &quot;0.000&quot;)
+XLSX.setFormat(sheet, &quot;K6&quot;; format = &quot;0.0000&quot;)
+
+# Save to an actual XLSX file
+XLSX.writexlsx(&quot;mytable_formatted.xlsx&quot;, xf, overwrite=true)</code></pre><h2 id="Creating-a-formatted-form"><a class="docs-heading-anchor" href="#Creating-a-formatted-form">Creating a formatted form</a><a id="Creating-a-formatted-form-1"></a><a class="docs-heading-anchor-permalink" href="#Creating-a-formatted-form" title="Permalink"></a></h2><p>There is a file, customXml.xlsx, in the \data folder of this project that looks like a template  file - a form to be filled in. The code below creates this form from scratch and makes  extensive use of vector indexing for rows and columns and of non-contiguous ranges:</p><pre><code class="language-julia hljs">using XLSX
+
+f = XLSX.newxlsx()
+s = f[1]
+s[&quot;A1:K116&quot;] = &quot;&quot;
+
+s[&quot;B2&quot;] = &quot;Catalogue Entry Form&quot;
+
+s[&quot;B5&quot;] = &quot;User Data&quot;
+s[&quot;B7&quot;] = &quot;Recipient ID&quot;
+s[&quot;B9&quot;] = &quot;Recipient Name&quot;
+s[&quot;B11&quot;] = &quot;Address 1&quot;
+s[&quot;B12&quot;] = &quot;Address 2&quot;
+s[&quot;B13&quot;] = &quot;Address 3&quot;
+s[&quot;B14&quot;] = &quot;Town&quot;
+s[&quot;B16&quot;] = &quot;Postcode&quot;
+s[&quot;B18&quot;] = &quot;Ward&quot;
+s[&quot;B20&quot;] = &quot;Region&quot;
+s[&quot;H18&quot;] = &quot;Local Authority&quot;
+s[&quot;H20&quot;] = &quot;UK Constituency&quot;
+s[&quot;B22&quot;] = &quot;GrantID&quot;
+s[&quot;D22&quot;] = &quot;Grant Date&quot;
+s[&quot;F22&quot;] = &quot;Grant Amount&quot;
+s[&quot;H22&quot;] = &quot;Grant Title&quot;
+s[&quot;J22&quot;] = &quot;Distributor&quot;
+s[&quot;B32&quot;] = &quot;Distributor&quot;
+
+s[&quot;B30&quot;] = &quot;Creator&quot;
+s[&quot;B34&quot;] = &quot;Created by&quot;
+s[&quot;D36&quot;] = &quot;Email&quot;
+s[&quot;H36&quot;] = &quot;Phone&quot;
+s[&quot;B38&quot;] = &quot;Grant Manager&quot;
+s[&quot;D40&quot;] = &quot;Email&quot;
+s[&quot;H40&quot;] = &quot;Phone number&quot;
+
+s[&quot;B43&quot;] = &quot;Summary&quot;
+s[&quot;B45&quot;] = &quot;Summary ID&quot;
+s[&quot;H45&quot;] = &quot;Date Created&quot;
+s[&quot;B47&quot;] = &quot;Summary Name&quot;
+s[&quot;B49&quot;] = &quot;Headline&quot;
+s[&quot;B51&quot;] = &quot;Short Description&quot;
+s[&quot;B55&quot;] = &quot;Long Description&quot;
+s[&quot;B62&quot;] = &quot;Quote 1&quot;
+s[&quot;D65&quot;] = &quot;Quote Attribution&quot;
+s[&quot;H65&quot;] = &quot;Quote Date&quot;
+s[&quot;B67&quot;] = &quot;Quote 2&quot;
+s[&quot;D70&quot;] = &quot;Quote Attribution&quot;
+s[&quot;H70&quot;] = &quot;Quote Date&quot;
+s[&quot;B72&quot;] = &quot;Keywords&quot;
+s[&quot;B74&quot;] = &quot;Website&quot;
+s[&quot;B76&quot;] = &quot;Social media handles&quot;
+s[&quot;D76&quot;] = &quot;Twitter&quot;
+s[&quot;D78&quot;] = &quot;Facebook&quot;
+s[&quot;D80&quot;] = &quot;Instagram&quot;
+s[&quot;H76&quot;] = &quot;LinkedIn&quot;
+s[&quot;H78&quot;] = &quot;TikTok&quot;
+s[&quot;H80&quot;] = &quot;YouTube&quot;
+s[&quot;B82&quot;] = &quot;Image 1 filename&quot;
+s[&quot;D84&quot;] = &quot;Alt-Text&quot;
+s[&quot;D86&quot;] = &quot;Image Attribution&quot;
+s[&quot;D88&quot;] = &quot;Image Date&quot;
+s[&quot;D90&quot;] = &quot;Confirm permission to use image&quot;
+s[&quot;B92&quot;] = &quot;Image 2 filename&quot;
+s[&quot;D94&quot;] = &quot;Alt-Text&quot;
+s[&quot;D96&quot;] = &quot;Image Attribution&quot;
+s[&quot;D98&quot;] = &quot;Image Date&quot;
+s[&quot;D100&quot;] = &quot;Confirm permission to use image&quot;
+
+s[&quot;B103&quot;] = &quot;Penultimate category&quot;
+s[&quot;B105&quot;] = &quot;Competition Details&quot;
+s[&quot;D105&quot;] = &quot;Last year of entry&quot;
+s[&quot;D107&quot;] = &quot;Year of last win&quot;
+s[&quot;H105&quot;] = &quot;Categories of entry&quot;
+s[&quot;H107&quot;] = &quot;Categories of win&quot;
+
+s[&quot;B110&quot;] = &quot;Last category&quot;
+s[&quot;B112&quot;] = &quot;Use for Comms&quot;
+s[&quot;D112&quot;] = &quot;Comms Priority&quot;
+s[&quot;F112&quot;] = &quot;Comms End Date&quot;
+
+XLSX.setColumnWidth(s, 1:2:11; width=1.3)
+XLSX.setColumnWidth(s, 2:2:10; width=18)
+XLSX.setRowHeight(s, :; height=15)
+XLSX.setRowHeight(s, [3, 4, 19, 28, 29, 35, 39, 41, 42, 64, 69, 77, 79, 83, 85, 87, 89, 93, 95, 97, 99, 101, 102, 106, 108, 109, 116]; height=5.5)
+XLSX.setRowHeight(s, [5, 30, 43, 103, 110]; height=18)
+XLSX.setRowHeight(s, 2; height=23)
+
+XLSX.setFont(s, &quot;B2&quot;; size=18, bold=true)
+XLSX.setUniformFont(s, [5, 30, 43, 103, 110], 2; size=14, bold=true)
+
+XLSX.setUniformFill(s, [1, 2, 3, 4, 5, 6, 8, 10, 15, 17, 19, 21, 28, 29, 30, 31, 33, 35, 37, 39, 41, 42, 43, 44, 46, 48, 50, 52, 53, 54, 56, 57, 58, 59, 60, 61, 63, 64, 66, 68, 69, 71, 73, 75, 77, 79, 81, 83, 85, 87, 89, 91, 93, 95, 97, 99, 101, 102, 103, 104, 106, 108, 109, 110, 111, 115, 116], :; pattern=&quot;solid&quot;, fgColor=&quot;lightgrey&quot;)
+XLSX.setUniformFill(s, :, [1, 3, 5, 7, 9, 11]; pattern=&quot;solid&quot;, fgColor=&quot;lightgrey&quot;)
+XLSX.setFill(s, &quot;F7,H7,J7,J9,H11:J16,F14,F16:F20,H32:J32,B36,B40,F45,J47:J49,B65,B70,B78:B80,B84:B90,B94:B100,H88:J90,H98:J100,B107,F114,H112:J115&quot;; pattern=&quot;solid&quot;, fgColor=&quot;lightgrey&quot;)
+XLSX.setFill(s, &quot;D18,D20,J18,J20,D45&quot;; pattern=&quot;solid&quot;, fgColor=&quot;darkgrey&quot;)
+XLSX.setFill(s, &quot;B112:B114,D112:D115&quot;; pattern=&quot;solid&quot;, fgColor=&quot;white&quot;)
+XLSX.setFill(s, &quot;E90,E100,D115&quot;; pattern=&quot;none&quot;)
+
+XLSX.mergeCells(s, &quot;D9:H9&quot;)
+XLSX.mergeCells(s, &quot;D11:G11,D12:G12,D13:G13&quot;)
+XLSX.mergeCells(s, &quot;D32:F32,D34:J34,D38:J38&quot;)
+XLSX.mergeCells(s, &quot;D47:H47,D49:H49&quot;)
+XLSX.mergeCells(s, &quot;D51:J53,D55:J60&quot;)
+XLSX.mergeCells(s, &quot;D62:J63,D67:J68&quot;)
+XLSX.mergeCells(s, &quot;D72:J72,D74:J74&quot;)
+XLSX.mergeCells(s, &quot;D82:J82,F84:J84,F86:J86&quot;)
+XLSX.mergeCells(s, &quot;D92:J92,F94:J94,F96:J96&quot;)
+
+XLSX.setAlignment(s, &quot;D51:J53,D55:J60,D62:J63,D67:J68&quot;; vertical=&quot;top&quot;, wrapText=true)
+
+XLSX.setBorder(s, &quot;A1:K3&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A4:K28&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A29:K41&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A42:K101&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A102:K108&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;A109:K116&quot;; outside = [&quot;style&quot; =&gt; &quot;medium&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B7:D7,B9:H9&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B11:G13,B14:D14,B16:D16&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B18:D18,B20:D20,H18:J18,H20:J20&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setUniformBorder(s, &quot;B22:J27&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B32:F32&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B34:C34,D34:J34,D36:F36,H36:J36&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B38:C38,D38:J38,D40:F40,H40:J40&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D34:J36,D38:J40&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B45:D45,H45:J45&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B47:H47,B49:H49&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B51:C51,B55:C55&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D51:J53,D55:J60&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B62:C62,D65:F65,H65:J65&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B67:C67,D70:F70,H70:J70&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D62:J63,D67:J68&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D62:J65,D67:J70&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B72:J72,B74:J74&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B76:F76,H76:J76,D78:F78,H78:J78,D80:F80,H80:J80&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D76:J80&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B82:J82,D84:J84,D86:J86,D88:F88,D90:F90&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D82:J90&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B92:J92,D94:J94,D96:J96,D98:F98,D100:F100&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D92:J100&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;B105:F105,H105:J105,D107:F107,H107:J107&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;D105:J107&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.setBorder(s, &quot;F112,F113&quot;; allsides = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+XLSX.setBorder(s, &quot;B112:B114,D112:D115&quot;; outside = [&quot;style&quot; =&gt; &quot;thin&quot;, &quot;color&quot; =&gt; &quot;black&quot;])
+
+XLSX.writexlsx(&quot;myNewTemplate.xlsx&quot;, f, overwrite=true)</code></pre><h2 id="Adding-a-dataBar-with-varying-colors"><a class="docs-heading-anchor" href="#Adding-a-dataBar-with-varying-colors">Adding a dataBar with varying colors</a><a id="Adding-a-dataBar-with-varying-colors-1"></a><a class="docs-heading-anchor-permalink" href="#Adding-a-dataBar-with-varying-colors" title="Permalink"></a></h2><p>Excel&#39;s databar conditional format have a fixed color. The bar length  changes with the cell value but the color doesn&#39;t. The function <code>setColoredDataBars</code> provides a pragmatic workaround to make this possible in XLSX.</p><pre><code class="nohighlight hljs">xf = newxlsx()
+s=xf[1]
+s[&quot;B1&quot;] = &quot;dataBar&quot;
+s[&quot;C1&quot;] = &quot;coloredDataBar&quot;
+s[&quot;A2:A11&quot;] = sort!(rand(10))
+s[&quot;B2:B11&quot;] = s[&quot;A2:A11&quot;]
+s[&quot;C2:C11&quot;] = s[&quot;A2:A11&quot;]
+setConditionalFormat(s, &quot;B2:B11&quot;, :dataBar; showVal=&quot;false&quot;)
+XLSX.setColoredDataBars(s, &quot;C2:C11&quot;; 
+    bands=5, 
+    min_val=&quot;0&quot;, 
+    max_val=&quot;1&quot;,
+    breaks=[0.2, 0.4, 0.6, 0.8],
+    colors=[:red, :orange, :yellow3, :chartreuse3, :green], 
+    showVal=&quot;false&quot;)
+writexlsx(&quot;coloredDataBar.xlsx&quot;, xf)</code></pre><p><img src="../images/coloredDataBars.png" alt="image|320x500"/></p><p>This function uses the native databar conditional format, but it partitions the range  supplied based on cell values and applies different databars of different colors to  each partition at the time the function is called. If the data subsequently change, the bar lengths will allways change but the colors won&#39;t, and so become misleading. This function therefore behaves like a static conditional format.</p><div class="admonition is-info" id="Note-20c6809e3b92b820"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-20c6809e3b92b820" title="Permalink"></a></header><div class="admonition-body"><p><code>setColoredDataBars</code> requires cells to contain values. If cells contain formulas written by <code>setFormula</code>, there values will be set to missing but will be recalculated when the resulting file is opened by Excel. Until such a recalculation by Excel  happens, `setColoredDataBars cannot work:</p><pre><code class="language-julia hljs">xf = newxlsx()
+s=xf[1]
+s[&quot;A2:A11&quot;] = sort!(rand(10))
+setFormula(s, &quot;B2:B11&quot;, &quot;=A1&quot;) # setting a formula sets values to missing
+setFormula(s, &quot;C2:C11&quot;, &quot;=A1&quot;) # values are are only populated when Excel recalculates
+setConditionalFormat(s, &quot;B2:B11&quot;, :dataBar; showVal=&quot;false&quot;) # works as it does not depend on cell contents
+XLSX.setColoredDataBars(s, &quot;C2:C11&quot;; # fails
+    bands=5, 
+    min_val=&quot;0&quot;, 
+    max_val=&quot;1&quot;,
+    breaks=[0.2, 0.4, 0.6, 0.8],
+    colors=[:red, :orange, :yellow3, :chartreuse3, :green], 
+    showVal=&quot;false&quot;)
+ERROR: XLSXError: No numeric values in `C2:C11` to band.</code></pre></div></div><div class="admonition is-info" id="Note-950e433a09f14e67"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-950e433a09f14e67" title="Permalink"></a></header><div class="admonition-body"><p>This function is provided on an experimental basis and isn&#39;t public. It may be withdrawn  in future and only remain here (more fully documented) as an example.</p></div></div><h2 id="Adding-a-plot-image"><a class="docs-heading-anchor" href="#Adding-a-plot-image">Adding a plot image</a><a id="Adding-a-plot-image-1"></a><a class="docs-heading-anchor-permalink" href="#Adding-a-plot-image" title="Permalink"></a></h2><p>Use Julia functionality to create a chart based upon data from a spreadsheet and then add that chart  (as a static image) back into the worksheet.</p><p><img src="../images/Add_image_1.png" alt="image|320x500"/></p><pre><code class="language-julia hljs">using CairoMakie, XLSX
+
+f=opentemplate(&quot;Example_add_chart.xlsx&quot;)
+table = XLSX.gettable(f[1])
+x = 1:length(table.data[1])
+
+fig = Figure()
+ax = Axis(fig[1, 1], xticks=(x, table.data[1]))
+barplot!(ax, x, table.data[2])
+
+# Write PNG to IOBuffer
+io = IOBuffer()
+show(io, MIME(&quot;image/png&quot;), fig)
+
+XLSX.addImage(f[1], &quot;D2:H12&quot;, io)
+
+XLSX.writexlsx(&quot;Example_add_chart_out.xlsx&quot;, f, overwrite=true)</code></pre><p><img src="../images/Add_image_2.png" alt="image|320x500"/></p><h2 id="Adding-a-simple-native-Excel-chart"><a class="docs-heading-anchor" href="#Adding-a-simple-native-Excel-chart">Adding a simple native Excel chart</a><a id="Adding-a-simple-native-Excel-chart-1"></a><a class="docs-heading-anchor-permalink" href="#Adding-a-simple-native-Excel-chart" title="Permalink"></a></h2><p>The same plot as a native Excel chart rather than a static image. Excel draws it from the cells, so it updates when the data change, and it can be edited in Excel like any chart made there. Everything about its appearance is Excel&#39;s own default for a column chart.</p><pre><code class="language-julia hljs">using XLSX, XLSX.Charts
+
+f = XLSX.opentemplate(&quot;Example_add_chart.xlsx&quot;)
+n = length(XLSX.gettable(f[1]).data[1])
+
+c = addChart(f[1], :column; anchor = &quot;D2:H12&quot;, title = false)
+addSeries(c, &quot;B2:B$(n + 1)&quot;; categories = &quot;A2:A$(n + 1)&quot;, name_ref = &quot;B1&quot;)
+
+XLSX.writexlsx(&quot;Example_add_native_chart_out.xlsx&quot;, f, overwrite=true)</code></pre><p><img src="../images/Add_native_chart.png" alt="image|320x500"/></p><h2 id="A-diverging-stacked-bar-chart-for-Likert-scale-survey-data"><a class="docs-heading-anchor" href="#A-diverging-stacked-bar-chart-for-Likert-scale-survey-data">A diverging stacked bar chart for Likert-scale survey data</a><a id="A-diverging-stacked-bar-chart-for-Likert-scale-survey-data-1"></a><a class="docs-heading-anchor-permalink" href="#A-diverging-stacked-bar-chart-for-Likert-scale-survey-data" title="Permalink"></a></h2><p>Survey questions answered on a five-point Likert scale, from <em>strongly disagree</em> to <em>strongly agree</em>, are often shown as a diverging stacked bar chart. Each question gets one bar, the disagreeing responses run left of a central zero line, the agreeing responses run right, and the neutral responses straddle the line. This example builds one from scratch: raw counts in an Excel table, proportions calculated from them by Excel formulas, a native Excel chart of the proportions, and its formatting. Because the proportions are formulas, the finished workbook stays live: edit the counts, or sort the table in Excel, and the chart follows.</p><h3 id="The-raw-data"><a class="docs-heading-anchor" href="#The-raw-data">The raw data</a><a id="The-raw-data-1"></a><a class="docs-heading-anchor-permalink" href="#The-raw-data" title="Permalink"></a></h3><p>Six questions, with the number of responses at each level. The data are synthetic and written out in full, so the example gives the same result every time it is run. Not every respondent answered every question, so the totals differ.</p><p>The counts are written as an Excel table, so they can be sorted and filtered in Excel.</p><pre><code class="language-julia hljs">using XLSX, XLSX.Charts
+
+questions = [&quot;The course objectives were clear&quot;,
+             &quot;The pace of the course was about right&quot;,
+             &quot;The course materials were useful&quot;,
+             &quot;The assessments were fair&quot;,
+             &quot;I would recommend this course to others&quot;,
+             &quot;The venue was comfortable&quot;]
+levels = [&quot;Strongly disagree&quot;, &quot;Disagree&quot;, &quot;Neutral&quot;, &quot;Agree&quot;, &quot;Strongly agree&quot;]
+counts = [2  5  8 20 15
+          4 10 12 15  7
+          1  3  6 22 18
+          6 12  9 12  6
+          3  6  9 18 14
+          9 12  9  8  4]
+n    = length(questions)
+last = n + 1
+
+xf = XLSX.newxlsx(&quot;Survey&quot;)
+s  = xf[&quot;Survey&quot;]
+XLSX.writetable!(s, [questions, collect.(eachcol(counts))...], [&quot;Question&quot;; levels];
+                 as_table = true)</code></pre><h3 id="Preparing-the-data"><a class="docs-heading-anchor" href="#Preparing-the-data">Preparing the data</a><a id="Preparing-the-data-1"></a><a class="docs-heading-anchor-permalink" href="#Preparing-the-data" title="Permalink"></a></h3><p>Because the totals differ, each count is divided by its question&#39;s total before the questions are compared. To make the bars diverge, the disagreeing proportions are made negative, and the neutral proportion is split into two halves, one negative and one positive, so that the neutral block straddles zero. Excel&#39;s stacked bar chart draws negative values to the left of zero, so no invisible padding series is needed.</p><p>The order of the negative columns matters. Excel stacks negative values outwards from zero in series order, so the first negative series sits against the zero line. The neutral half therefore comes first, then <em>disagree</em>, then <em>strongly disagree</em>, which ends up outermost.</p><p>The proportions are Excel formulas, written beside the table after an empty column. Each call to <code>setFormula</code> fills a whole column: the formula is written for the first cell, and its relative references move down the range, so each row divides by its own total. A final column of zeros is added for the legend, as explained below.</p><pre><code class="language-julia hljs">headers = [&quot;Neutral (left half)&quot;, &quot;Disagree&quot;, &quot;Strongly disagree&quot;,
+           &quot;Neutral (right half)&quot;, &quot;Agree&quot;, &quot;Strongly agree&quot;, &quot;Key&quot;]
+for (col, h) in zip(&#39;H&#39;:&#39;N&#39;, headers)
+    s[&quot;$(col)1&quot;] = h
+end
+
+total = &quot;SUM(B2:F2)&quot;
+XLSX.setFormula(s, &quot;H2:H$last&quot;, &quot;=-D2/2/$total&quot;)   # neutral, left half
+XLSX.setFormula(s, &quot;I2:I$last&quot;, &quot;=-C2/$total&quot;)     # disagree
+XLSX.setFormula(s, &quot;J2:J$last&quot;, &quot;=-B2/$total&quot;)     # strongly disagree
+XLSX.setFormula(s, &quot;K2:K$last&quot;, &quot;=D2/2/$total&quot;)    # neutral, right half
+XLSX.setFormula(s, &quot;L2:L$last&quot;, &quot;=E2/$total&quot;)      # agree
+XLSX.setFormula(s, &quot;M2:M$last&quot;, &quot;=F2/$total&quot;)      # strongly agree
+s[&quot;N2:N$last&quot;] = 0                                 # key series: plots nothing
+XLSX.setFormat(s, &quot;H2:M$last&quot;; format = &quot;Percentage&quot;)</code></pre><p>Because each formula refers only to its own row, sorting the table in Excel by any of its columns reorders the proportions with it, and so reorders the chart.</p><p>The formulas are not evaluated until Excel opens the file, so their cells hold no values when the chart is made, and the chart is saved without cached values. Excel recalculates on opening and draws the chart from the results.</p><p>The value axis will run from the furthest reach on the left to the furthest reach on the right, each rounded outwards to the next 20%. Excel has no formula for an axis bound, so these are calculated here, from the same counts, and are fixed when the file is written. On this data they are −80% and 100%.</p><pre><code class="language-julia hljs">p     = counts ./ sum(counts; dims = 2)
+half  = p[:, 3] ./ 2
+left  = vec(sum(p[:, 1:2]; dims = 2)) .+ half
+right = vec(sum(p[:, 4:5]; dims = 2)) .+ half
+lo = -ceil(maximum(left) * 5) / 5
+hi =  ceil(maximum(right) * 5) / 5</code></pre><h3 id="Making-the-chart"><a class="docs-heading-anchor" href="#Making-the-chart">Making the chart</a><a id="Making-the-chart-1"></a><a class="docs-heading-anchor-permalink" href="#Making-the-chart" title="Permalink"></a></h3><p>The chart is a horizontal stacked bar chart, <code>:stackedBar</code>, placed below the data. Each series takes its values from one column of proportions and its category labels from the question texts in column A. The two neutral halves get the same colour, so the split can&#39;t be seen.</p><pre><code class="language-julia hljs">palette = [:red, :orange, :yellow, :lightgreen, :green]
+cats = &quot;Survey!A2:A$last&quot;
+c = addChart(s, :stackedBar; anchor = &quot;A9:N40&quot;, title = &quot;Course feedback&quot;)
+
+plotted = [(&quot;H&quot;, 3), (&quot;I&quot;, 2), (&quot;J&quot;, 1), (&quot;K&quot;, 3), (&quot;L&quot;, 4), (&quot;M&quot;, 5)]   # column, level
+for (col, level) in plotted
+    addSeries(c, &quot;Survey!$(col)2:$(col)$last&quot;;
+              categories = cats, name = levels[level], color = palette[level])
+end</code></pre><p>Excel draws a legend entry for every series, in series order. That would show two <em>Neutral</em> entries, and the disagreeing levels in reverse order. Excel&#39;s legend can hide entries but can&#39;t reorder them, so instead the chart gets five more series, one per level in natural order, all plotting the column of zeros. They draw nothing, but they each get a legend entry. The legend entries of the six series that draw the data are then hidden, leaving a legend that reads from <em>strongly disagree</em> to <em>strongly agree</em>.</p><pre><code class="language-julia hljs">for level in 1:5
+    addSeries(c, &quot;Survey!N2:N$last&quot;;
+              categories = cats, name = levels[level], color = palette[level])
+end
+setLegendEntryDeleted(c, 1:6, true)</code></pre><h3 id="Formatting-the-chart"><a class="docs-heading-anchor" href="#Formatting-the-chart">Formatting the chart</a><a id="Formatting-the-chart-1"></a><a class="docs-heading-anchor-permalink" href="#Formatting-the-chart" title="Permalink"></a></h3><p>Thin black borders on the bars, and narrower gaps between them:</p><pre><code class="language-julia hljs">for i in 1:11
+    setSeriesLine(c, i; color = &quot;000000&quot;, width = 0.75)
+end
+setGroupGapWidth(c, only(getChartGroups(c)), 50)</code></pre><p>A bar chart plots its first category at the bottom. Reversing the category axis puts the first question at the top, but it also moves the value axis to the top of the chart, so the value axis is set to cross the category axis at its maximum, which is now the bottom. The question labels are placed at the <code>:low</code> end of the value axis, the left edge of the plot area, rather than beside the zero line where the category axis now sits.</p><pre><code class="language-julia hljs">catax = only(getChartAxes(c, :category))
+valax = only(getChartAxes(c, :value))
+
+setAxisOrientation(c, catax, :maxMin)
+setAxisTickLabelPos(c, catax, :low)
+setAxisCrosses(c, valax, :max)</code></pre><p>The value axis gets the range calculated earlier, a tick every 20%, and the number format <code>0%;0%</code>. The second section of that format applies to negative values, and because it has no minus sign, both sides of the axis read as positive percentages.</p><pre><code class="language-julia hljs">setAxisScaling(c, valax; min = lo, max = hi)
+setAxisMajorUnit(c, valax, 0.2)
+setAxisNumberFormatCode(c, valax, &quot;0%;0%&quot;)
+setAxisTitleText(c, valax, &quot;Proportion of responses&quot;)</code></pre><p>Finally, the chart&#39;s appearance: no gridlines, a black border round the plot area, black axes with tick marks crossing the category axis and outside the value axis, and all the text in Comic Sans at sizes chosen for each element. Text properties use the Excel (rather than DrawingML) vocabulary: <code>:font</code> is the <code>:latin</code> typeface  and <code>:color</code> the text <code>:fill</code>.</p><pre><code class="language-julia hljs">setAxisGridlines(c, valax; major = false)
+setPlotAreaLine(c; color = &quot;000000&quot;)
+
+font, black = &quot;Comic Sans MS&quot;, &quot;000000&quot;
+for (ax, size, mark) in ((catax, 14, :cross), (valax, 10, :out))
+    setAxisLine(c, ax; color = black)
+    setAxisMajorTickMark(c, ax, mark)
+    setAxisTextProp(c, ax, :size, size)
+    setAxisTextProp(c, ax, :font, font)
+    setAxisTextProp(c, ax, :color, black)
+end
+
+setAxisTitleTextProp(c, valax, :size, 12)
+setAxisTitleTextProp(c, valax, :font, font)
+setAxisTitleTextProp(c, valax, :color, black)
+
+setChartTitleTextProp(c, :size, 18)
+setChartTitleTextProp(c, :font, font)
+setChartTitleTextProp(c, :color, black)
+setLegendTextProp(c, :size, 12)
+setLegendTextProp(c, :font, font)
+
+XLSX.writexlsx(&quot;likert.xlsx&quot;, xf; overwrite = true)</code></pre><p>The result, opened in Excel:</p><p><img src="../images/likert.png" alt="image|320x500"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../charts/chartLimitations/">« Limitations</a><a class="docs-footer-nextpage" href="../migration/">Migration Guide »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Friday 2 October 2026 21:52">Friday 2 October 2026</span>. Using Julia version 1.13.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
