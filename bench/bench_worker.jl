@@ -76,6 +76,14 @@ for fixture_name in [
     ext  = startswith(fixture_name, "xl_") ? ".xlsm" : ".xlsx"
     path = joinpath(fixtures_dir, "$(fixture_name)$(ext)")
     isfile(path) || continue
+    # Skip a fixture this XLSX version can't open (v0.11 rejects the macro-enabled
+    # xl_* files), rather than failing the whole run. report.jl shows it as N/A.
+    try
+        XLSX.openxlsx(_ -> nothing, path; enable_cache=false)
+    catch e
+        println("Skipping $fixture_name: XLSX v$(pkgversion(XLSX)) can't open it ($(sprint(showerror, e)))")
+        continue
+    end
     sheet = table_sheet(fixture_name)
 
     suite[fixture_name] = BenchmarkGroup()
