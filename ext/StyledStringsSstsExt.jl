@@ -14,6 +14,10 @@ module StyledStringsSstsExt
 
 const _AnnStr = Union{AnnotatedString, SubString{<:AnnotatedString}}
 
+# Bounds chains of faces whose foreground names another face (as StyledStrings'
+# MAX_COLOR_FORWARDS does), so a cycle gives no colour rather than a stack overflow.
+const _SS_MAX_COLOR_FORWARDS = 12
+
 function setdata!(sheet::Worksheet, ref::CellRef, ss::_AnnStr)
     isempty(ss) && return setdata!(sheet, ref, "")
     return setdata!(sheet, ref, RichTextString(_ssToRuns(ss)))
@@ -36,17 +40,19 @@ Converts an `AnnotatedString` to a vector of `RichTextRun`s.
     end
 
 """
-    _ss_color(color::SimpleColor) -> String
+    _ss_color(color::SimpleColor, stamina::Int=_SS_MAX_COLOR_FORWARDS) -> String
 
 Convert a `SimpleColor` to an Excel-compatible hex color string (e.g. `"#ff0000"`),
 or `""` if the color represents the default foreground.
+Returns `""` if more than `stamina` face-to-face forwards are needed (e.g. a cycle).
 """
-    function _ss_color(color::SimpleColor)
+    function _ss_color(color::SimpleColor, stamina::Int=_SS_MAX_COLOR_FORWARDS)
         if color.value isa Symbol
             if color.value in (:default, :foreground)
                 return ""
-            elseif (fg = get(FACES.current[], color.value, getface()).foreground) != SimpleColor(color.value)
-                return _ss_color(fg)
+            elseif (fg = getface(color.value).foreground) != SimpleColor(color.value)
+                stamina > 0 || return ""
+                return _ss_color(fg, stamina - 1)
             else
                 @static if VERSION >= v"1.14-"
                     rgb = get(FACES.basecolors, color.value, nothing)

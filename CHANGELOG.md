@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fix `Tables.getcolumn(row, i)` on `eachtablerow` rows, which threw a `MethodError` for every integer index
 - Column numbers and row ranges outside Excel's limits are now rejected (e.g. `CellRef(1, 20000)` no longer gives `]OF1`)
 - An invalid reference passed to `setdata!` with a vector now raises `XLSXError` rather than `UndefVarError`
+- Assigning an `AnnotatedString` whose colour names a face without its own foreground (e.g. `styled"{(foreground=highlight):x}"`) no longer throws a `MethodError`
+- Faces whose foregrounds name each other in a cycle no longer cause a stack overflow when assigned as an `AnnotatedString`; the text is written without a colour
 - Modest tidy-up of Charts docs
 
 ## [v0.13.0](https://github.com/JuliaData/XLSX.jl/tree/v0.13.0) - 2026-09-02
