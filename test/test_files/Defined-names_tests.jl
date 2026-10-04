@@ -111,7 +111,6 @@
     @test f["single"] == "NAME"
     @test f["range"] == Any["name1"; "name2"; "name3";;] # A 2D Array, size (3, 1)
     @test f["NonContig"] == [["name1"; "name2"; "name3";;], [100; 200; 300;;]] # NonContiguousRanges return a vector of matrices
-    isfile("mytest.xlsx") && rm("mytest.xlsx")
 
     @test XLSX.readdata(joinpath(data_directory, "general.xlsx"), "SINGLE_CELL") == "single cell A2"
     @test XLSX.readdata(joinpath(data_directory, "general.xlsx"), "RANGE_B4C5") == Any["range B4:C5" "range B4:C5"; "range B4:C5" "range B4:C5"]
@@ -136,7 +135,6 @@
     f = XLSX.readxlsx("mytest.xlsx")
     @test s["MyCell"] == true
     @test s["YourCells"] == Any[false false; false false]
-    isfile("mytest.xlsx") && rm("mytest.xlsx")
 
     @test_throws XLSX.XLSXError XLSX.addDefinedName(f, "A1", "Sheet1!B1")
     @test_throws XLSX.XLSXError XLSX.addDefinedName(f, "A1:A3", "Sheet1!B2:B3")

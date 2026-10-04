@@ -319,7 +319,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "two_tables_roundtrip_noedits.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -349,7 +348,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "two_tables_roundtrip_celledit.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -377,7 +375,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "two_tables_roundtrip_nocache.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -537,7 +534,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "newtable_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -625,7 +621,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "deletetable_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -660,7 +655,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "deletetable_fixture_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -917,7 +911,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "settotals_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -1149,11 +1142,10 @@ end
 
     @testset "writetable (single-sheet, new file) - as_table=true" begin
         outfile = "writetable_astable_single.xlsx"
-        isfile(outfile) && rm(outfile)
 
         columns = [[1, 2, 3], ["x", "y", "z"]]
         colnames = ["num", "letter"]
-        XLSX.writetable(outfile, columns, colnames; as_table=true, table_name="Data")
+        XLSX.writetable(outfile, columns, colnames; as_table=true, table_name="Data", overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
         XLSX.openxlsx(outfile) do xf
@@ -1167,7 +1159,6 @@ end
 
     @testset "writetable (kwarg multi-sheet) - as_table=true, table names from sheet names" begin
         outfile = "writetable_astable_multi_kw.xlsx"
-        isfile(outfile) && rm(outfile)
 
         colsA = [[1, 2], [3, 4]]
         namesA = ["a", "b"]
@@ -1175,7 +1166,7 @@ end
         namesB = ["c", "d"]
 
         XLSX.writetable(outfile, as_table=true, table_style="TableStyleLight1",
-            REPORT_A=(colsA, namesA), REPORT_B=(colsB, namesB))
+            REPORT_A=(colsA, namesA), REPORT_B=(colsB, namesB), overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
         XLSX.openxlsx(outfile) do xf
@@ -1193,7 +1184,6 @@ end
 
     @testset "writetable (Vector{Tuple} multi-sheet) - as_table=true, table names from sheet names" begin
         outfile = "writetable_astable_multi_vec.xlsx"
-        isfile(outfile) && rm(outfile)
 
         colsA = [[1, 2], [3, 4]]
         namesA = ["a", "b"]
@@ -1203,7 +1193,7 @@ end
         XLSX.writetable(outfile, [
             ("First", colsA, namesA),
             ("Second", colsB, namesB),
-        ]; as_table=true)
+        ]; as_table=true, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
         XLSX.openxlsx(outfile) do xf
@@ -1216,7 +1206,6 @@ end
 
     @testset "writetable - table name normalized from an invalid sheet name (spaces)" begin
         outfile = "writetable_astable_normalize.xlsx"
-        isfile(outfile) && rm(outfile)
 
         cols = [[1, 2], [3, 4]]
         names = ["x", "y"]
@@ -1224,7 +1213,7 @@ end
         # sheet names may contain spaces; table names may not — expect a
         # warning and a normalized fallback name ("Report A" -> "Report_A")
         @test_logs (:warn, r"valid Excel Table name"i) match_mode=:any begin
-            XLSX.writetable(outfile, [("Report A", cols, names)]; as_table=true)
+            XLSX.writetable(outfile, [("Report A", cols, names)]; as_table=true, overwrite=true)
         end
         SAVE_FILES && save_outfile(outfile)
 
@@ -1240,7 +1229,6 @@ end
 
     @testset "writetable - normalized name falls back to auto-generated on collision" begin
         outfile = "writetable_astable_normalize_collision.xlsx"
-        isfile(outfile) && rm(outfile)
 
         cols = [[1, 2], [3, 4]]
         names = ["x", "y"]
@@ -1255,7 +1243,7 @@ end
             XLSX.writetable(outfile, [
                 ("Report A", cols, names),
                 ("Report_A", cols, names),
-            ]; as_table=true)
+            ]; as_table=true, overwrite=true)
         end
         SAVE_FILES && save_outfile(outfile)
 
@@ -1274,7 +1262,6 @@ end
 
     @testset "writetable - reserved Julia keyword as sheet name still normalizes" begin
         outfile = "writetable_astable_reserved.xlsx"
-        isfile(outfile) && rm(outfile)
 
         cols = [[1, 2], [3, 4]]
         names = ["x", "y"]
@@ -1283,7 +1270,7 @@ end
         # reserved Julia keyword; normalizename prepends "_" for these. The
         # resulting warning isn't the focus of this test, so it's suppressed.
         with_logger(NullLogger()) do
-            XLSX.writetable(outfile, [("for", cols, names)]; as_table=true)
+            XLSX.writetable(outfile, [("for", cols, names)]; as_table=true, overwrite=true)
         end
         SAVE_FILES && save_outfile(outfile)
 
@@ -1297,11 +1284,10 @@ end
 
     @testset "writetable - as_table=false leaves no tables in multi-sheet write" begin
         outfile = "writetable_no_table_multi.xlsx"
-        isfile(outfile) && rm(outfile)
 
         cols = [[1, 2], [3, 4]]
         names = ["x", "y"]
-        XLSX.writetable(outfile, [("Sheet1", cols, names), ("Sheet2", cols, names)])
+        XLSX.writetable(outfile, [("Sheet1", cols, names), ("Sheet2", cols, names)]; overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
         XLSX.openxlsx(outfile) do xf
@@ -1825,7 +1811,6 @@ end
 
     @testset "infer_eltypes / normalizenames / missing_strings still apply" begin
         outfile = "readtable_tablename_kwargs.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -1895,7 +1880,6 @@ end
 
     @testset "table with a totals row: totals excluded" begin
         outfile = "readtable_tablename_totals.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -1919,7 +1903,6 @@ end
 
     @testset "table with a blank row: row preserved" begin
         outfile = "readtable_tablename_blank.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -1955,7 +1938,6 @@ end
 
     @testset "multiple spaces collapse to a single underscore" begin
         outfile = "readtable_normalize_multispace.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -1977,7 +1959,6 @@ end
 
     @testset "header starting with a digit gets a leading underscore" begin
         outfile = "readtable_normalize_digit.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -1995,7 +1976,6 @@ end
 
     @testset "reserved Julia keyword header gets a leading underscore" begin
         outfile = "readtable_normalize_reserved.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -2322,7 +2302,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "appendtable_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -2578,7 +2557,6 @@ end
 
     @testset "readto passes normalizenames / missing_strings through" begin
         outfile = "readto_tablename_kwargs.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -2600,7 +2578,6 @@ end
 
     @testset "readto with a totals row: totals excluded" begin
         outfile = "readto_tablename_totals.xlsx"
-        isfile(outfile) && rm(outfile)
 
         f = XLSX.newxlsx()
         sh = f[1]
@@ -2893,7 +2870,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "deletetable_totals_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -3475,7 +3451,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "removetotals_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
@@ -3737,7 +3712,6 @@ end
         SAVE_FILES && save_outfile(f)
 
         outfile = "gettotals_roundtrip.xlsx"
-        isfile(outfile) && rm(outfile)
         XLSX.writexlsx(outfile, f, overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 

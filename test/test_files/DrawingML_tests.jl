@@ -689,8 +689,8 @@ const _NSDECL = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main
         @test mp.bold === true                 # from defRPr
     end
     @testset "setting a run property clears it from the runs" begin
-        tmp = joinpath(mktempdir(), "runclear.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "runclear.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         h = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "histogram", XLSX.Charts.getCharts(xf)))
 
@@ -718,6 +718,7 @@ const _NSDECL = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main
             XLSX.first_element_with_tag(rpr, "rPr"), "solidFill"))
         @test XLSX.Charts.default_run_props(XLSX.Charts.getChartTitleTextProps(h)).fill.fgcolor.rgb == "C00000"
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
     @testset "formatting cascade" begin
         f = XLSX.readxlsx(joinpath(data_directory, "chartex_formatted.xlsx"))

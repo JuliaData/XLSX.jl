@@ -1802,7 +1802,7 @@ end
         # `distinct=true` gives every row its own custom numFmt (K distinct cell
         # styles); `distinct=false` gives every row the same custom numFmt (1 style).
         function build_styled_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_styles_caching_issue_426.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1828,7 +1828,7 @@ end
                     end
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
         @testset "cellXfs/numFmt caches behave like caches" begin
@@ -1849,7 +1849,7 @@ end
                     @test length(cache1) >= K
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
 
@@ -1859,7 +1859,7 @@ end
             # used once <numFmts> already exists (e.g. via conditional formatting).
             # Both must keep wb.numFmt_cache correct — this reproduces the
             # "numFmtId ... not found" bug from testing the original patch.
-            path = tempname() * ".xlsx"
+            path = "styles_regression_numfmt_cache_stays_in.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             sh["A1"] = 1.5
@@ -1881,7 +1881,7 @@ end
                     @test length(XLSX.getConditionalFormats(xf[1])) == 1
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
             SAVE_FILES && save_outfile(f)
         end
@@ -1900,7 +1900,7 @@ end
                     @test nodes_a === nodes_b   # same object: never rebuilt mid-loop
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
     end
@@ -1910,7 +1910,7 @@ end
         # `distinct=true` gives every row its own font/border/fill (K distinct
         # style attributes); `distinct=false` gives every row the same attribute.
         function build_font_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_font_border_fill_caching.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1928,7 +1928,7 @@ end
         end
 
         function build_border_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_font_border_fill_caching_2.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1942,7 +1942,7 @@ end
         end
 
         function build_fill_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_font_border_fill_caching_3.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1969,7 +1969,7 @@ end
                     end
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
         @testset "fonts/borders/fills caches behave like caches" begin
@@ -2000,7 +2000,7 @@ end
                     @test length(nodes1) >= K
                 end
             finally
-                rm(fpath; force=true); rm(bpath; force=true); rm(gpath; force=true)
+                isfile(fpath) && rm(fpath); isfile(bpath) && rm(bpath); isfile(gpath) && rm(gpath)
             end
         end
 
@@ -2008,7 +2008,7 @@ end
             # Mirrors the numFmt_cache regression test: force-build the cache,
             # then write a *new* distinct font — the addition must go through the
             # push!-sync path in styles_add_cell_attribute, not just a fresh build.
-            path = tempname() * ".xlsx"
+            path = "styles_regression_style_table_cache.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             sh["A1"] = 1.5
@@ -2027,7 +2027,7 @@ end
                     @test parse(Int, XLSX.getFont(sh2, 2, 1).font["sz"]["val"]) == 16
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
             SAVE_FILES && save_outfile(f)
         end
@@ -2047,7 +2047,7 @@ end
                 try
                     push!(mediantime, time_read(path))
                 finally
-                    rm(path; force=true)
+                    isfile(path) && rm(path)
                 end
             end
 
@@ -2077,7 +2077,7 @@ end
                     @test nodes_a === nodes_b   # same object: never rebuilt mid-loop
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
     end

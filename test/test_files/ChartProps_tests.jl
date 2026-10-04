@@ -546,8 +546,8 @@
     @testset "setSeriesFill" begin
         # Setters mutate xf.data, so work on a copy rather than the tracked fixture.
         src = joinpath(data_directory, "chart_appearance.xlsx")
-        tmp = joinpath(mktempdir(), "appearance.xlsx")
-        cp(src, tmp)
+        tmp = "appearance_setseriesfill.xlsx"
+        cp(src, tmp; force=true)
 
         xf = XLSX.openxlsx(tmp; mode="rw")
         local c = first(XLSX.Charts.getCharts(xf[1]))
@@ -603,11 +603,12 @@
         c2 = first(XLSX.Charts.getCharts(xf2[1]))
         @test XLSX.Charts.getSeriesFill(c2, 1).value.fgcolor.rgb == "008000"
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
     @testset "setSeriesLine" begin
         # Setters mutate xf.data, so work on a copy rather than the tracked fixture.
-        tmp = joinpath(mktempdir(), "appearance.xlsx")
-        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp)
+        tmp = "appearance_setseriesline.xlsx"
+        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp; force=true)
 
         xf = XLSX.openxlsx(tmp; mode="rw")
         local c = first(XLSX.Charts.getCharts(xf[1]))
@@ -689,6 +690,7 @@
         @test XLSX.Charts.getSeriesLine(c2, 1).value.fill.fgcolor.rgb == "008000"
         SAVE_FILES && save_outfile(xf)
 
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "chart error branches" begin
@@ -699,8 +701,8 @@
     end
 
     @testset "setMarker" begin
-        tmp = joinpath(mktempdir(), "appearance.xlsx")
-        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp)
+        tmp = "appearance_setmarker.xlsx"
+        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp; force=true)
 
         xf = XLSX.openxlsx(tmp; mode="rw")
         local c = first(XLSX.Charts.getCharts(xf[1]))
@@ -760,11 +762,12 @@
         c2 = first(XLSX.Charts.getCharts(XLSX.openxlsx(tmp)[1]))
         @test XLSX.Charts.getSeriesMarker(c2, 3).symbol === :square
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "setLabelTextProp" begin
-        tmp = joinpath(mktempdir(), "appearance.xlsx")
-        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp)
+        tmp = "appearance_setlabeltextprop.xlsx"
+        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp; force=true)
 
         xf = XLSX.openxlsx(tmp; mode="rw")
         wb = XLSX.get_workbook(xf[1])
@@ -857,6 +860,7 @@
         c2 = first(XLSX.Charts.getCharts(XLSX.openxlsx(tmp)[1]))
         @test XLSX.Charts.getLabelTextProp(c2, 3, :size).value ≈ 11.0
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "run properties written in hundredths" begin
@@ -869,8 +873,8 @@
         SAVE_FILES && save_outfile(xf)
     end
     @testset "title and legend text" begin
-        tmp = joinpath(mktempdir(), "appearance.xlsx")
-        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp)
+        tmp = "appearance_title_and_legend_text.xlsx"
+        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         local c = first(XLSX.Charts.getCharts(xf[1]))
         wb = XLSX.get_workbook(xf[1])
@@ -923,11 +927,12 @@
         ax2 = XLSX.Charts.getChartAxis(c2, 612078287)
         @test XLSX.Charts.text_content(XLSX.Charts.getAxisTitleText(c2, ax2)) == "Quarter"
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "created spPr takes the chart prefix" begin
-        tmp = joinpath(mktempdir(), "prefix.xlsx")
-        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp)
+        tmp = "prefix.xlsx"
+        cp(joinpath(data_directory, "chart_appearance.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         local c = only(filter(x -> x isa XLSX.Charts.Chart, XLSX.Charts.getCharts(xf)))
 
@@ -940,11 +945,12 @@
         @test XLSX.Charts.setSeriesFill(c, 1, "FF00B0F0") === c
         @test XLSX.XML.tag(XLSX.first_element_with_tag(XLSX.Charts._series(c, 1).raw, "spPr")) == "c:spPr"
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "title run properties yield to the paragraph default" begin
-        tmp = joinpath(mktempdir(), "c_runclear.xlsx")
-        cp(joinpath(data_directory, "chart_basic.xlsx"), tmp)
+        tmp = "c_runclear.xlsx"
+        cp(joinpath(data_directory, "chart_basic.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         local c = only(filter(x -> x isa XLSX.Charts.Chart, XLSX.Charts.getCharts(xf)))
         c = XLSX.Charts.setChartTitleTextProp(c, :size, 18)
@@ -956,6 +962,7 @@
             isnothing(rpr) || @test isempty(XLSX.get_attr(rpr, "sz"))
         end
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "Chart handles are durable" begin

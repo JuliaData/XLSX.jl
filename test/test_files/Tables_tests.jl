@@ -996,9 +996,9 @@ end
 
     # multiple tables in same file
     table2 = (a=[1, 2, 3, 4], b=["a", "b", "c", "d"])
-    XLSX.writetable("output_table3.xlsx", "report1" => table, "report2" => table2)
+    XLSX.writetable("output_table3.xlsx", "report1" => table, "report2" => table2; overwrite=true)
     SAVE_FILES && save_outfile("output_table3.xlsx")
-    XLSX.writetable("output_table4.xlsx", ["report1" => table, "report2" => table2])
+    XLSX.writetable("output_table4.xlsx", ["report1" => table, "report2" => table2]; overwrite=true)
     SAVE_FILES && save_outfile("output_table4.xlsx")
     for file in ["output_table4.xlsx", "output_table3.xlsx"]
         try

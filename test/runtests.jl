@@ -16,7 +16,7 @@ using Colors
 # has stricter rules, rejects. By creating the output of every testset as a 
 # file explicitly, it is possible to confirm that this never happens in practice 
 # by manually opening each output file.
-# If TRUE, approx 220 files are created in `outdir`.
+# If TRUE, approx 600 files are created in `outdir`.
 # This flag should be reserved for local use and **never** left as TRUE for CI.
 const SAVE_FILES = false
 

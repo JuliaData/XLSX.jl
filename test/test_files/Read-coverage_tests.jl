@@ -358,8 +358,7 @@ end
 
     @testset "readtable - columns argument is not a valid column range" begin
         outfile = "read_badrange.xlsx"
-        isfile(outfile) && rm(outfile)
-        XLSX.writetable(outfile, [[1, 2], [3, 4]], ["a", "b"])
+        XLSX.writetable(outfile, [[1, 2], [3, 4]], ["a", "b"]; overwrite=true)
         SAVE_FILES && save_outfile(outfile)
 
         @test_throws XLSX.XLSXError XLSX.readtable(outfile, 1, "not a range")
@@ -439,12 +438,13 @@ end
             @test !isempty(collect(XLSX.eachrow(xf[1])))
         end
         # "rw" writes back on close, so use a copy
-        copy_path = joinpath(mktempdir(), "general.xlsx")
-        cp(file, copy_path)
+        copy_path = "general_copy.xlsx"
+        cp(file, copy_path; force=true)
         XLSX.openxlsx(copy_path; mode = "rw") do xf
             @test isempty(xf.sheet_stubs)
         end
         SAVE_FILES && save_outfile(copy_path)
+        isfile(copy_path) && rm(copy_path)
     end
 
     @testset "reading the stub-swapped sheet afterwards" begin

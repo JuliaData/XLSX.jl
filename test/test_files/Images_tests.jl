@@ -78,8 +78,8 @@
         for (label, src) in [("file path", jpeg), ("IOBuffer", IOBuffer(copy(bytes)))]
             xf, s = fresh()
             XLSX.addImage(s, 1, 1, src)
-            tmp = tempname() * ".xlsx"
-            XLSX.writexlsx(tmp, xf)
+            tmp = "images_round_trip_file_and_iobuffer.xlsx"
+            XLSX.writexlsx(tmp, xf; overwrite=true)
             SAVE_FILES && save_outfile(tmp)
             @test isfile(tmp) && filesize(tmp) > 0
 
@@ -88,6 +88,7 @@
             @test length(imgs) == 1
             @test imgs[1].sheet == "Sheet1"
             @test startswith(imgs[1].media_name, "image")
+            isfile(tmp) && rm(tmp)
         end
     end
 
@@ -171,12 +172,13 @@
         @test startswith(imgs[1].media_name, "image")
 
         # ... and through a full write/read cycle
-        tmp = tempname() * ".xlsx"
-        XLSX.writexlsx(tmp, xf)
+        tmp = "images_blip_rid_with_non_standard.xlsx"
+        XLSX.writexlsx(tmp, xf; overwrite=true)
         SAVE_FILES && save_outfile(tmp)
         imgs2 = XLSX.getImages(XLSX.readxlsx(tmp))
         @test length(imgs2) == 1
         @test imgs2[1].sheet == "Sheet1"
+        isfile(tmp) && rm(tmp)
     end
     @testset "prefixed attribute lookup" begin
         blip = parse("""<a:blip xmlns:rel="$(XLSX.NS_R)" rel:embed="rId7" cstate="print"/>""", XML.Node)[end]

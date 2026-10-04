@@ -46,7 +46,6 @@ end
     @test XML.unescape("hello&amp;world&lt;&apos;") == "hello&world<'"
 
     esc_filename = "output_table_escape_test.xlsx"
-    isfile(esc_filename) && rm(esc_filename)
 
     esc_col_names = ["&' & \" < > '", "I❤Julia", "\"<'&O-O&'>\"", "<&>"]
     esc_sheetname = "& & \" > < "
@@ -65,7 +64,6 @@ end
     @test r1_col_names[3] == Symbol(esc_col_names[3])
     @test r1_col_names[2] == Symbol(esc_col_names[2])
     @test r1_col_names[1] == Symbol(esc_col_names[1])
-    isfile(esc_filename) && rm(esc_filename)
 
     # compare to the backup version: escape.xlsx
     dtable = XLSX.readtable(joinpath(data_directory, "escape.xlsx"), esc_sheetname)

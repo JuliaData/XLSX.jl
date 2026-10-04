@@ -167,8 +167,8 @@
     end
 
     @testset "setSeriesFill" begin
-        tmp = joinpath(mktempdir(), "cx_fill.xlsx")
-        cp(joinpath(data_directory, "chartex_formatted.xlsx"), tmp)
+        tmp = "cx_fill.xlsx"
+        cp(joinpath(data_directory, "chartex_formatted.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         c = only(filter(x -> x isa XLSX.Charts.ChartEx, XLSX.Charts.getCharts(xf)))
 
@@ -204,7 +204,7 @@
             XLSX.elements_with_tag(XLSX.Charts._cx_series_node(c, 1), "dataPt"))
 
         # the changes reach disk
-        out = joinpath(mktempdir(), "cx_fill_out.xlsx")
+        out = "cx_fill_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
         f = XLSX.readxlsx(out)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx, XLSX.Charts.getCharts(f)))
@@ -212,21 +212,24 @@
         @test XLSX.Charts.getSeriesFill(d, 1; point=7).value.fgcolor.rgb == "008000"
         @test XLSX.Charts.getSeriesFill(d, 1; point=2).value.kind === :none
         SAVE_FILES && save_outfile(xf)
+        isfile(out) && rm(out)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "setSeriesFill :inherit writes nothing where nothing was set" begin
-        tmp = joinpath(mktempdir(), "cx_inherit.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "cx_inherit.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         w = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall", XLSX.Charts.getCharts(xf)))
         XLSX.Charts.setSeriesFill(w, 1, :inherit)
         @test isnothing(XLSX.first_element_with_tag(XLSX.Charts._cx_series_node(w, 1), "spPr"))
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "setSeriesLine" begin
-        tmp = joinpath(mktempdir(), "cx_line.xlsx")
-        cp(joinpath(data_directory, "chartex_formatted.xlsx"), tmp)
+        tmp = "cx_line.xlsx"
+        cp(joinpath(data_directory, "chartex_formatted.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         c = only(filter(x -> x isa XLSX.Charts.ChartEx, XLSX.Charts.getCharts(xf)))
 
@@ -266,16 +269,18 @@
         @test_throws XLSX.XLSXError XLSX.Charts.setSeriesLine(c, 1, :dotted)
 
         # reaches disk
-        out = joinpath(mktempdir(), "cx_line_out.xlsx")
+        out = "cx_line_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx, XLSX.Charts.getCharts(XLSX.readxlsx(out))))
         @test XLSX.Charts.getSeriesLine(d, 1; point=2).value.width ≈ 1.5
         SAVE_FILES && save_outfile(xf)
+        isfile(out) && rm(out)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "setLabelTextProp" begin
-        tmp = joinpath(mktempdir(), "cx_label.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "cx_label.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         # the funnel has no cx:dataLabels at all
         c = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "funnel", XLSX.Charts.getCharts(xf)))
@@ -309,17 +314,19 @@
         @test XLSX.Charts.getLabelFlag(w, 1, :value) === true
         @test XLSX.Charts.getLabelTextProp(w, 1, :size).value ≈ 9.0
 
-        out = joinpath(mktempdir(), "cx_label_out.xlsx")
+        out = "cx_label_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
         f = XLSX.readxlsx(out)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "funnel", XLSX.Charts.getCharts(f)))
         @test XLSX.Charts.getLabelTextProp(d, 1, :bold).value === true
         SAVE_FILES && save_outfile(xf)
+        isfile(out) && rm(out)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "title, legend and axis text" begin
-        tmp = joinpath(mktempdir(), "cx_text.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "cx_text.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         w = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall", XLSX.Charts.getCharts(xf)))
 
@@ -349,7 +356,7 @@
         @test XLSX.XML.tag(lg) == "cx:legend"
         @test XLSX.Charts.default_run_props(XLSX.Charts.getLegendTextProps(fn)).size ≈ 9.0
 
-        out = joinpath(mktempdir(), "cx_text_out.xlsx")
+        out = "cx_text_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall",
             XLSX.Charts.getCharts(XLSX.readxlsx(out))))
@@ -359,11 +366,13 @@
         @test_throws XLSX.XLSXError XLSX.Charts.getAxisTitleTextProps(x, 999)     # no such axis id
         SAVE_FILES && save_outfile(xf)
     
+        isfile(out) && rm(out)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "setChartTitleText and setSeriesName" begin
-        tmp = joinpath(mktempdir(), "cx_text_set.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "cx_text_set.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
 
         # histogram: a typed title, with the text also in the txPr runs
@@ -396,17 +405,19 @@
         XLSX.Charts.setSeriesName(w, 1, "Movement")
         @test XLSX.Charts.getSeriesName(w, 1) == "Movement"
 
-        out = joinpath(mktempdir(), "cx_text_set_out.xlsx")
+        out = "cx_text_set_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
         f = XLSX.readxlsx(out)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "histogram", XLSX.Charts.getCharts(f)))
         @test XLSX.Charts.getChartTitle(d) == "Distribution of values"
         SAVE_FILES && save_outfile(xf)
+        isfile(out) && rm(out)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "setSeriesSubtotals" begin
-        tmp = joinpath(mktempdir(), "cx_subtotals.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "cx_subtotals.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         w = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall", XLSX.Charts.getCharts(xf)))
 
@@ -428,17 +439,19 @@
         @test XLSX.Charts.getSeriesSubtotals(fn, 1) == [2]
         @test XLSX.XML.tag(XLSX.Charts._cx_layoutpr(fn, 1)) == "cx:layoutPr"
 
-        out = joinpath(mktempdir(), "cx_subtotals_out.xlsx")
+        out = "cx_subtotals_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall",
             XLSX.Charts.getCharts(XLSX.readxlsx(out))))
         @test isnothing(XLSX.Charts.getSeriesSubtotals(d, 1))
         SAVE_FILES && save_outfile(xf)
+        isfile(out) && rm(out)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "layoutPr setters" begin
-        tmp = joinpath(mktempdir(), "cx_layoutpr.xlsx")
-        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp)
+        tmp = "cx_layoutpr.xlsx"
+        cp(joinpath(data_directory, "chartex_layouts.xlsx"), tmp; force=true)
         xf = XLSX.openxlsx(tmp; mode="rw")
         chart(sheet) = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == sheet,
             XLSX.Charts.getCharts(xf)))
@@ -523,14 +536,16 @@
         end
 
         @testset "reaches disk" begin
-            out = joinpath(mktempdir(), "cx_layoutpr_out.xlsx")
+            out = "cx_layoutpr_out.xlsx"
             XLSX.writexlsx(out, xf, overwrite=true)
             f = XLSX.readxlsx(out)
             h = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "histogram",
                 XLSX.Charts.getCharts(f)))
             @test XLSX.Charts.getSeriesBinning(h, 1).binCount == 7
+            isfile(out) && rm(out)
         end
         SAVE_FILES && save_outfile(xf)
+        isfile(tmp) && rm(tmp)
     end
     @testset "every line setter reaches a ChartEx" begin
         xf = XLSX.openxlsx(joinpath(data_directory, "chartex_kinds.xlsx"); mode="rw")

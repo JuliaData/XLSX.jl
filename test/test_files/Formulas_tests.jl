@@ -25,7 +25,6 @@
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("A11")) == XLSX.ReferencedFormula("=A10/\$D11", 1, "A11:C11", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C11")) == XLSX.FormulaReference(1, nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D11")) == XLSX.Formula("=sum(A1:C10)", nothing, nothing, nothing)
-        isfile("formulas.xlsx") && rm("formulas.xlsx")
 
         SAVE_FILES && save_outfile(f)
         f = XLSX.newxlsx("mySheet")

@@ -2,7 +2,7 @@
     f = XLSX.open_xlsx_template(joinpath(data_directory, "general.xlsx"))
     filename_copy = "general_copy.xlsx"
 
-    XLSX.writexlsx(filename_copy, f)
+    XLSX.writexlsx(filename_copy, f; overwrite=true)
     SAVE_FILES && save_outfile(filename_copy)
     @test isfile(filename_copy)
 

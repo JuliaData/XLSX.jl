@@ -1,6 +1,5 @@
 @testset "Edit Template" begin
     new_filename = "new_file_from_empty_template.xlsx"
-    isfile(new_filename) && rm(new_filename)
     f = XLSX.open_empty_template()
     f["Sheet1"]["A1"] = "Hello"
     f["Sheet1"]["A2"] = 10
@@ -11,7 +10,7 @@
     @test f["Sheet1"]["A1"] == "Hello"
     @test f["Sheet1"]["A2"] == 10
 
-    rm(new_filename)
+    isfile(new_filename) && rm(new_filename)
 end
 
 @testset "Edit" begin

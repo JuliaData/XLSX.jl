@@ -357,8 +357,8 @@ end
 
     @testset "plain worksheets: rename + add updates HeadingPairs and TitlesOfParts" begin
         src = joinpath(data_directory, "Book1.xlsx")
-        p = tempname() * ".xlsx"
-        cp(src, p)
+        p = "testfiles_plain_worksheets_rename_add.xlsx"
+        cp(src, p; force=true)
  
         XLSX.openxlsx(p; mode="rw") do xf
             XLSX.renamesheet!(xf["Sheet1"], "Renamed")
@@ -380,13 +380,13 @@ end
         @test ws_idx !== nothing
         @test pairs[ws_idx][2] == 3
 
-        rm(p; force=true)
+        isfile(p) && rm(p)
     end
 
     @testset "chartsheet workbook: Worksheets/Charts categories stay separate and correctly counted" begin
         src = joinpath(data_directory, "Chartsheet.xlsx")
-        p = tempname() * ".xlsx"
-        cp(src, p)
+        p = "testfiles_chartsheet_workbook_worksheets.xlsx"
+        cp(src, p; force=true)
 
         XLSX.openxlsx(p; mode="rw") do xf
             XLSX.renamesheet!(xf["Sheet1"], "RenamedData")
@@ -419,7 +419,7 @@ end
             @test issetequal(XLSX.sheetnames(xf2), ["RenamedData", "ExtraData", "Chart1"])
         end
 
-        rm(p; force=true)
+        isfile(p) && rm(p)
     end
 
 end

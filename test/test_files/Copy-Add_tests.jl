@@ -245,7 +245,7 @@
             a, b = XLSX.getChartData(yf, d.name), XLSX.getChartData(xf, c.name)
             @test a.column_labels == b.column_labels && a.data == b.data
             SAVE_FILES && save_outfile(yf)
-            rm(f; force=true)
+            isfile(f) && rm(f)
         end
 
         @testset "chartEx chart loses the reference" begin
@@ -285,7 +285,7 @@
             d = only(filter(d -> XLSX.Charts.getChartType(d) === :treemap, XLSX.getCharts(yf)))
             @test all(isnothing, XLSX.getChartRanges(d))
             SAVE_FILES && save_outfile(yf)
-            rm(f; force=true)
+            isfile(f) && rm(f)
         end
         @testset "levels in a chartEx reference" begin
             @test XLSX._ref_levels("Data!\$A\$2:\$B\$7", "") == 2         # columns, the default
@@ -372,8 +372,8 @@
         @testset "deletesheet! on a table-only sheet (no drawing) removes its rels file" begin
             # UTF-16.xlsx's SourceData sheet has a table but no drawing.
             src = joinpath(data_directory, "UTF-16.xlsx")
-            p = tempname() * ".xlsx"
-            cp(src, p)
+            p = "copyadd_deletesheet_on_a_table_only.xlsx"
+            cp(src, p; force=true)
 
             XLSX.openxlsx(p; mode="rw") do xf
                 XLSX.deletesheet!(xf, "SourceData")
@@ -390,13 +390,13 @@
             XLSX.openxlsx(p) do xf2
                 @test XLSX.sheetnames(xf2) == ["Sheet1"]
             end
-            rm(p; force=true)
+            isfile(p) && rm(p)
         end
 
         @testset "deletesheet! removes table, comments, VML, drawing, media, and their Overrides together" begin
             src = joinpath(data_directory, "TableCommentsVML.xlsx")
-            p = tempname() * ".xlsx"
-            cp(src, p)
+            p = "copyadd_deletesheet_removes_table.xlsx"
+            cp(src, p; force=true)
 
             XLSX.openxlsx(p; mode="rw") do xf
                 XLSX.addsheet!(xf, "Blank")   # deletesheet! refuses to delete the only sheet
@@ -423,13 +423,13 @@
             XLSX.openxlsx(p) do xf2
                 @test XLSX.sheetnames(xf2) == ["Blank"]
             end
-            rm(p; force=true)
+            isfile(p) && rm(p)
         end
 
         @testset "copysheet! strips table/comments/VML but still duplicates the drawing" begin
             src = joinpath(data_directory, "TableCommentsVML.xlsx")
-            p = tempname() * ".xlsx"
-            cp(src, p)
+            p = "copyadd_copysheet_strips_table_comments.xlsx"
+            cp(src, p; force=true)
 
             XLSX.openxlsx(p; mode="rw") do xf
                 XLSX.copysheet!(xf["Sheet1"], "Copy")
@@ -489,7 +489,7 @@
             XLSX.openxlsx(p) do xf2
                 @test XLSX.sheetnames(xf2) == ["Sheet1", "Copy"]
             end
-            rm(p; force=true)
+            isfile(p) && rm(p)
         end
 
     end

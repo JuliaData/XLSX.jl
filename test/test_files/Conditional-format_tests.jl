@@ -2089,14 +2089,14 @@
     @testset "getConditionalFormats does not break subsequent cell reads (issue #425)" begin
 
         function build_cf_workbook()
-            path = tempname() * ".xlsx"
+            path = "cf_getconditionalformats_does_not.xlsx"
             f = XLSX.newxlsx()
             s = f[1]
             for i in 1:5, j in 1:5
                 s[i, j] = i + j
             end
             XLSX.setConditionalFormat(s, "A1:E1", :dataBar)
-            XLSX.writexlsx(path, f)
+            XLSX.writexlsx(path, f; overwrite=true)
             SAVE_FILES && save_outfile(f)
             return path
         end
@@ -2112,7 +2112,7 @@
                 @test data[1, 1] == 2
                 @test size(data) == (5, 5)
             end
-            rm(path; force=true)
+            isfile(path) && rm(path)
         end
 
         @testset "getdata then getConditionalFormats (originally-working order, must not regress)" begin
@@ -2125,7 +2125,7 @@
                 cfs = XLSX.getConditionalFormats(ws)
                 @test length(cfs) == 1
             end
-            rm(path; force=true)
+            isfile(path) && rm(path)
         end
 
         @testset "getConditionalFormats then eachrow" begin
@@ -2138,7 +2138,7 @@
                 @test length(rows) == 5
                 @test XLSX.getdata(rows[1], 1) == 2
             end
-            rm(path; force=true)
+            isfile(path) && rm(path)
         end
 
         @testset "getConditionalFormats then readtable" begin
@@ -2151,7 +2151,7 @@
                 @test length(tbl.data) == 5          # 5 columns
                 @test length(tbl.data[1]) == 5       # 5 rows
             end
-            rm(path; force=true)
+            isfile(path) && rm(path)
         end
 
         @testset "readxlsx: getConditionalFormats then getdata" begin
@@ -2162,11 +2162,11 @@
             @test length(cfs) == 1
             data = XLSX.getdata(ws)
             @test data[1, 1] == 2
-            rm(path; force=true)
+            isfile(path) && rm(path)
         end
 
         @testset "getConditionalExtFormats (allExtCfs) does not break subsequent reads" begin
-            path = tempname() * ".xlsx"
+            path = "cf_getconditionalextformats.xlsx"
             f = XLSX.newxlsx()
             s = f[1]
             for i in 1:5, j in 1:5
@@ -2175,7 +2175,7 @@
             # icon sets / top10 / etc. route through the x14 extension block —
             # use whichever of these your API exposes as the ext-format path.
             XLSX.setConditionalFormat(s, "A1:E1", :iconSet; iconset="5Boxes")
-            XLSX.writexlsx(path, f)
+            XLSX.writexlsx(path, f; overwrite=true)
 
             XLSX.openxlsx(path) do xf2
                 ws = xf2[1]
@@ -2183,7 +2183,7 @@
                 data = XLSX.getdata(ws)
                 @test data[1, 1] == 2
             end
-            rm(path; force=true)
+            isfile(path) && rm(path)
             SAVE_FILES && save_outfile(f)
         end
 
@@ -2306,7 +2306,7 @@
             XLSX.setConditionalFormat(s, "A1,A3", :cellIs; operator="greaterThan", value="1", fill=["pattern" => "solid", "bgColor" => "FFFFC7CE"])
             @test length(XLSX.getConditionalFormats(s)) == 3   # 2007 x2 + ext databar
 
-            f = tempname() * ".xlsx"
+            f = "cf_setconditionalformat_on_a_non.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             xf2 = XLSX.opentemplate(f)
             rng2 = first(first(XLSX.getConditionalFormats(xf2[1])))
@@ -2314,6 +2314,7 @@
             @test XLSX._cf_sqref(rng2) == "A1 A3"
             SAVE_FILES && save_outfile(xf2)
             SAVE_FILES && save_outfile(xf)
+            isfile(f) && rm(f)
         end
 
         @testset "setColoredDataBars" begin
@@ -2327,7 +2328,7 @@
             @test length(p) == 4
             @test first.(p) == [1, 2, 3, 4]
 
-            f = tempname() * ".xlsx"
+            f = "cf_setcoloreddatabars.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             x = ZipArchives.zip_readentry(ZipArchives.ZipReader(read(f)),
                 "xl/worksheets/sheet1.xml", String)
@@ -2353,6 +2354,7 @@
             @test !occursin(r"sqref=\"[^\"]*,", x)
             @test occursin(r"sqref=\"[^\"]* [^\"]*\"", x)
             SAVE_FILES && save_outfile(xf)
+            isfile(f) && rm(f)
         end
 
         @testset "setColoredDataBars options" begin
@@ -2518,13 +2520,14 @@
             # __CR__ anchors to the first area's top-left, not the lowest cell
             @test XLSX.setConditionalFormat(s, "C5:C9,A1:A3", :containsText; value="a") == 0
 
-            f = tempname() * ".xlsx"
+            f = "cf_formula_anchoring_on_a_non.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             x = ZipArchives.zip_readentry(ZipArchives.ZipReader(read(f)),
                 "xl/worksheets/sheet1.xml", String)
             @test occursin("C5", x)
             @test occursin(r"sqref=\"C5:C9 A1:A3\"", x)
             SAVE_FILES && save_outfile(xf)
+            isfile(f) && rm(f)
         end
 
         @testset "_check_cf_range errors" begin
@@ -2564,7 +2567,7 @@
             @test XLSX.setConditionalFormat(s, "ncr", :dataBar) == 0
             @test XLSX.setConditionalFormat(s, "A1,A3", :dataBar) == 0
 
-            f = tempname() * ".xlsx"
+            f = "cf_defined_names_resolve_to_one.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             x = ZipArchives.zip_readentry(ZipArchives.ZipReader(read(f)),
                 "xl/worksheets/sheet1.xml", String)
@@ -2573,6 +2576,7 @@
             @test count("sqref=\"A1 A3\"", x) == 1   # both rules join one block
             @test count("<cfRule ", x) == 2
             SAVE_FILES && save_outfile(xf)
+            isfile(f) && rm(f)
         end
 
         @testset "single-cell sqref round-trips" begin
@@ -2581,13 +2585,14 @@
             s["A1"] = 1
             @test XLSX.setConditionalFormat(s, "A1", :dataBar) == 0
 
-            f = tempname() * ".xlsx"
+            f = "cf_single_cell_sqref_round_trips.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             xf2 = XLSX.opentemplate(f)
             rng = first(first(XLSX.getConditionalFormats(xf2[1])))
             @test XLSX._cf_sqref(rng) == "A1:A1"
             SAVE_FILES && save_outfile(xf2)
             SAVE_FILES && save_outfile(xf)
+            isfile(f) && rm(f)
         end
 
         @testset "setColoredDataBars CellRef form" begin
@@ -2640,7 +2645,7 @@
                 mid_type="num", mid_val="6",
                 max_type="num", max_val="10") == 0
 
-            f = tempname() * ".xlsx"
+            f = "cf_colorscale_numeric_bounds_and.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             x = ZipArchives.zip_readentry(ZipArchives.ZipReader(read(f)),
                 "xl/worksheets/sheet1.xml", String)
@@ -2651,6 +2656,7 @@
             @test occursin("<cfvo type=\"num\" val=\"10\"/>", x)
             @test occursin("rgb=\"FFFCFCFF\"", x)
             SAVE_FILES && save_outfile(xf)
+            isfile(f) && rm(f)
         end
 
         @testset "cellIs default value averages the cells of a non-contiguous range" begin
@@ -2662,7 +2668,7 @@
             s["A4"] = "text"
             XLSX.setConditionalFormat(s, "A1,A3", :cellIs)            # the average of A1 and A3 only
             XLSX.setConditionalFormat(s, "A1:A4", :cellIs)            # contiguous, with a text cell
-            f = tempname() * ".xlsx"
+            f = "cf_cellis_default_value_averages.xlsx"
             XLSX.writexlsx(f, xf; overwrite=true)
             r = XLSX.ZipArchives.ZipReader(read(f))
             xml = XLSX.ZipArchives.zip_readentry(r, "xl/worksheets/sheet1.xml", String)
@@ -2670,7 +2676,7 @@
             @test "3.0" in fmls                                       # (2 + 4) / 2
             @test any(x -> parse(Float64, x) ≈ 106 / 3, fmls)         # (2 + 100 + 4) / 3; text ignored
             @test !any(x -> occursin(r"\[|;;", x), fmls)              # never a printed array
-            rm(f)
+            isfile(f) && rm(f)
             SAVE_FILES && save_outfile(xf)
         end
 
@@ -2683,7 +2689,7 @@
         XLSX.setColoredDataBars(s, "A1:A10"; bands=1, colors="steelblue")
         XLSX.setColoredDataBars(s, "A1:A10"; bands=3)
 
-        f = tempname() * ".xlsx"
+        f = "cf_clear_replaces_previous_bands.xlsx"
         XLSX.writexlsx(f, xf; overwrite=true)
         x = ZipArchives.zip_readentry(ZipArchives.ZipReader(read(f)),
             "xl/worksheets/sheet1.xml", String)
@@ -2709,6 +2715,7 @@
         @test length(XLSX.getConditionalFormats(s2)) == 2 * length(p)
         SAVE_FILES && save_outfile(xf2)
         SAVE_FILES && save_outfile(xf)
+        isfile(f) && rm(f)
     end
     @testset "coverage: clearConditionalFormats with a string range" begin
         xf = XLSX.newxlsx()
