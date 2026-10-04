@@ -4,5 +4,5 @@ XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
 BenchmarkTools = "1"
-XLSX = "=0.11.11"
+XLSX = "0.11"
 julia = "1"
