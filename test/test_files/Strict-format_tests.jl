@@ -164,6 +164,7 @@
         @test XLSX.sheetnames(f) == ["Tabelle1"]
         @test isempty(XLSX.Charts.getCharts(f))
         isfile("mytest.xlsx") && rm("mytest.xlsx")
+        SAVE_FILES && save_outfile(f)
     end
     @testset "readtable on Strict OOXML with target_sheet" begin
         f = joinpath(data_directory, "strict.xlsx")

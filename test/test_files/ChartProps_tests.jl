@@ -602,6 +602,7 @@
         xf2 = XLSX.openxlsx(tmp)
         c2 = first(XLSX.Charts.getCharts(xf2[1]))
         @test XLSX.Charts.getSeriesFill(c2, 1).value.fgcolor.rgb == "008000"
+        SAVE_FILES && save_outfile(xf)
     end
     @testset "setSeriesLine" begin
         # Setters mutate xf.data, so work on a copy rather than the tracked fixture.
@@ -686,6 +687,7 @@
         xf2 = XLSX.openxlsx(tmp)
         c2 = first(XLSX.Charts.getCharts(xf2[1]))
         @test XLSX.Charts.getSeriesLine(c2, 1).value.fill.fgcolor.rgb == "008000"
+        SAVE_FILES && save_outfile(xf)
 
     end
 
@@ -693,6 +695,7 @@
         local xf = XLSX.openxlsx(joinpath(data_directory, "chart_basic.xlsx"); mode="rw")
         local c = XLSX.getChart(xf["Data"], "chart1")
         @test_throws XLSX.XLSXError XLSX.Charts.setSeriesLine(c, 1, :bogus)       # not :none/:inherit
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setMarker" begin
@@ -756,6 +759,7 @@
         XLSX.writexlsx(tmp, xf; overwrite=true)
         c2 = first(XLSX.Charts.getCharts(XLSX.openxlsx(tmp)[1]))
         @test XLSX.Charts.getSeriesMarker(c2, 3).symbol === :square
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setLabelTextProp" begin
@@ -852,6 +856,7 @@
         XLSX.writexlsx(tmp, xf; overwrite=true)
         c2 = first(XLSX.Charts.getCharts(XLSX.openxlsx(tmp)[1]))
         @test XLSX.Charts.getLabelTextProp(c2, 3, :size).value ≈ 11.0
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "run properties written in hundredths" begin
@@ -917,6 +922,7 @@
         @test XLSX.Charts.text_content(XLSX.Charts.getChartTitleText(c2)) == "Q4"
         ax2 = XLSX.Charts.getChartAxis(c2, 612078287)
         @test XLSX.Charts.text_content(XLSX.Charts.getAxisTitleText(c2, ax2)) == "Quarter"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "created spPr takes the chart prefix" begin
@@ -933,6 +939,7 @@
         XLSX.Charts.set_chart_root!(c, new)
         @test XLSX.Charts.setSeriesFill(c, 1, "FF00B0F0") === c
         @test XLSX.XML.tag(XLSX.first_element_with_tag(XLSX.Charts._series(c, 1).raw, "spPr")) == "c:spPr"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "title run properties yield to the paragraph default" begin
@@ -948,6 +955,7 @@
             rpr = XLSX.first_element_with_tag(r, "rPr")
             isnothing(rpr) || @test isempty(XLSX.get_attr(rpr, "sz"))
         end
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "Chart handles are durable" begin

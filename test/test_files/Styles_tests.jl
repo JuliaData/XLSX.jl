@@ -1811,6 +1811,7 @@ end
                 XLSX.setFormat(sh, i, 1; format=fmt)
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -1882,6 +1883,7 @@ end
             finally
                 rm(path; force=true)
             end
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "cellXfs/numFmt caches are built exactly once regardless of K" begin
@@ -1921,6 +1923,7 @@ end
                 end
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -1934,6 +1937,7 @@ end
                 XLSX.setBorder(sh, i, 1; allsides=["style"=>"thin", "color"=>col])
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -1947,6 +1951,7 @@ end
                 XLSX.setFill(sh, i, 1; pattern="solid", fgColor=col)
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -2024,6 +2029,7 @@ end
             finally
                 rm(path; force=true)
             end
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "reading distinct fonts scales ~linearly, not quadratically" begin
@@ -2097,6 +2103,7 @@ not -1. Multi-cell ranges keep returning -1.
             # single-cell non-contiguous range (process_ncranges)
             nc = XLSX.NonContiguousRange(s.name, Union{XLSX.CellRef,XLSX.CellRange}[XLSX.CellRef("A1")])
             @test XLSX.setFormat(s, nc; format="#,##0") == 3
+            SAVE_FILES && save_outfile(XLSX.get_xlsxfile(s))
         end
 
         @testset "multi-cell ranges still return -1" begin
@@ -2110,6 +2117,7 @@ not -1. Multi-cell ranges keep returning -1.
             # ... but each cell did get the format
             @test XLSX.getFormat(s, "A1").numFmtId == 3
             @test XLSX.getFormat(s, "B1").numFmtId == 3
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "other setters agree with the CellRef form" begin
@@ -2121,6 +2129,7 @@ not -1. Multi-cell ranges keep returning -1.
                 XLSX.setAlignment(s, XLSX.CellRef("A1"); horizontal="right")
             @test XLSX.setBorder(s, "A1:A1"; allsides=["style" => "thin"]) ==
                 XLSX.setBorder(s, XLSX.CellRef("A1"); allsides=["style" => "thin"])
+            SAVE_FILES && save_outfile(XLSX.get_xlsxfile(s))
         end
 
         @testset "empty cell in a single-cell range still throws" begin
@@ -2131,6 +2140,7 @@ not -1. Multi-cell ranges keep returning -1.
             @test_throws XLSX.XLSXError XLSX.setFormat(s, "B1:B1"; format="#,##0")
             # a multi-cell range skips empties silently
             @test XLSX.setFormat(s, "A1:C1"; format="#,##0") == -1
+            SAVE_FILES && save_outfile(f)
         end
 
     end
@@ -2185,6 +2195,7 @@ writing a number into a cell carrying a date/time format.
             @test fmtid(s, XLSX.CellRef("A1")) == id
             s["A1"] = 42.5
             @test fmtid(s, XLSX.CellRef("A1")) == id
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "date/time formats overridden by numbers" begin
@@ -2229,6 +2240,7 @@ writing a number into a cell carrying a date/time format.
             @test fmtid(s, XLSX.CellRef("A1")) == id
             @test XLSX.getFont(s, "A1").font == font_before.font
             @test XLSX.getFill(s, "A1").fill == fill_before.fill
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "round trip through file" begin

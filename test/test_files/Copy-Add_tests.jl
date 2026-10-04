@@ -18,6 +18,7 @@
         SAVE_FILES && save_outfile(new_filename)
         fx = XLSX.opentemplate(new_filename)
         @test XLSX.sheetnames(f) == ["Sheet1", "new_sheet", big_sheetname]
+        SAVE_FILES && save_outfile(fx)
 
     end
 
@@ -90,6 +91,7 @@
         @test XLSX.getConditionalFormats(f["copied_sheet (copy)"]) == XLSX.getConditionalFormats(s4)
         @test XLSX.getBorder(f["copied_sheet (copy)"], "C5").border == XLSX.getBorder(f["new_name"], "C5").border
         @test XLSX.getBorder(f["copied_sheet (copy)"], "G5").border == XLSX.getBorder(s4, "G5").border
+        SAVE_FILES && save_outfile(f)
 
     end
     isfile("copied_sheets.xlsx") && rm("copied_sheets.xlsx")
@@ -146,6 +148,7 @@
         @test_throws XLSX.XLSXError XLSX.deletesheet!(s)
         @test_throws XLSX.XLSXError XLSX.deletesheet!(f, "Sheet1")
 
+        SAVE_FILES && save_outfile(f)
         f = XLSX.openxlsx(joinpath(data_directory, "deletesheet.xlsx"), mode="rw")
         XLSX.deletesheet!(f[1])
         @test XLSX.getcell(f[1], "A1") == XLSX.Cell(XLSX.get_workbook(f), XLSX.CellRef("A1"), "e", "", "#REF!", "", true)
@@ -205,6 +208,7 @@
         @test active(xf) == 1                                                  # still C
         XLSX.deletesheet!(xf, "C")
         @test active(xf) == 0                                                  # C gone: clamped to B
+        SAVE_FILES && save_outfile(xf)
     end
 
     # Chart references to a deleted sheet, invalidated as Excel does it.
@@ -374,6 +378,7 @@
             XLSX.openxlsx(p; mode="rw") do xf
                 XLSX.deletesheet!(xf, "SourceData")
             end
+            SAVE_FILES && save_outfile(p)
 
             r = ZipReader(read(p))
             names = zip_names(r)
@@ -397,6 +402,7 @@
                 XLSX.addsheet!(xf, "Blank")   # deletesheet! refuses to delete the only sheet
                 XLSX.deletesheet!(xf, "Sheet1")
             end
+            SAVE_FILES && save_outfile(p)
 
             r = ZipReader(read(p))
             names = zip_names(r)
@@ -428,6 +434,7 @@
             XLSX.openxlsx(p; mode="rw") do xf
                 XLSX.copysheet!(xf["Sheet1"], "Copy")
             end
+            SAVE_FILES && save_outfile(p)
 
             zipbytes = read(p)
             r = ZipReader(zipbytes)
@@ -495,6 +502,7 @@
         @test isempty(XLSX.Charts.chart_parts(f))
         @test !haskey(f.data, "xl/charts/chart1.xml")
         @test !haskey(f.data, "xl/drawings/drawing1.xml")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletesheet! with a chartEx chart" begin
@@ -516,6 +524,7 @@
         g = XLSX.writexlsx("mytest.xlsx", f, overwrite=true)          # your save_outfile helper
         h = XLSX.readxlsx(g)
         @test isempty(XLSX.Charts.getCharts(h))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "copysheet! clones and repoints c: chart parts" begin
@@ -554,6 +563,7 @@
         cp2 = only(filter(c -> c.sheet == "Copy", XLSX.Charts.getCharts(h)))
         @test [string(r.values) for r in XLSX.Charts.getChartRanges(cp2)] ==
             ["Copy!B2:B5", "Copy!C2:C5"]
+        SAVE_FILES && save_outfile(f)
     end
     @testset "copysheet! with a chartEx chart" begin
         f = XLSX.opentemplate(joinpath(data_directory, "chart_ex.xlsx"))
@@ -587,6 +597,7 @@
         h = XLSX.readxlsx(g)
         @test length(XLSX.Charts.getCharts(h)) == 2
         @test allunique(c.path for c in XLSX.Charts.getCharts(h))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "copysheet! keeps a shared chartEx name shared" begin
@@ -653,6 +664,7 @@
         h = XLSX.readxlsx(g)
         @test length(XLSX.Charts.getCharts(h)) == 4
         @test allunique(c.path for c in XLSX.Charts.getCharts(h))
+        SAVE_FILES && save_outfile(f)
     end
 
     isfile("mytest.xlsx") && rm("mytest.xlsx")

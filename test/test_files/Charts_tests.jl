@@ -314,6 +314,7 @@
         # survives a round trip
         f = "regionmap_rt.xlsx"
         XLSX.writexlsx(f, XLSX.openxlsx(joinpath(data_directory, "chartex_regionmap.xlsx"); mode="rw"); overwrite=true)
+        SAVE_FILES && save_outfile(f)
         @test only(XLSX.getCharts(XLSX.readxlsx(f))) isa XLSX.Charts.ChartEx
         rm(f; force=true)
     end
@@ -967,6 +968,7 @@
         @test_throws XLSX.XLSXError XLSX.Charts.addChartEx(xf, :waterfall, "Nowhere!B2:B6")  # no such sheet
         @test XLSX.sheetnames(xf) == ["data"]
         @test isempty(XLSX.Charts.getCharts(xf))
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "chart values compare by content" begin
@@ -1020,6 +1022,7 @@
         XLSX.Charts.setSeriesFill(c, 1, "red")
         @test XLSX.Charts.getSeriesShapeProps(c, 1) != before
         isfile(path) && rm(path)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "chart_extras.xlsx: elements with no other fixture" begin
@@ -1105,6 +1108,7 @@
         @test !isnothing(gl)                                         # still there
         @test isnothing(gl.fill) && isnothing(gl.line)               # but unformatted
         isfile(path) && rm(path)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "XLSX-level chart names" begin

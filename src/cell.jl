@@ -350,100 +350,14 @@ function parse_formula_from_element(wb, c_child_element)::AbstractFormula
     return Formula(formula_string, nothing, ref_val, _extra_attrs(unhandled))
 end
 
+# Cell values are parsed as Float64 millions of times per sheet. `Base.parse(Float64, s)`
+# goes through C `strtod` (often copying the text first), which costs ~300-400 ns a
+# value (#462). Parsers.jl (≥ 3) gives the same correctly rounded result, and the same
+# `ArgumentError` on bad input, in ~5-20 ns, including 16- and 17-digit values.
+@inline _parse_cell_float(s::AbstractString)::Float64 = Parsers.parse(Float64, s)
+
 # Returns (raw_value::UInt64, datatype::CellValueType) for datetime strings,
 # keeping the value in its Excel numeric form for storage in Cell.
-# Cell values are parsed as Float64 millions of times per sheet, and
-# `parse(Float64, s)` goes through C `strtod` (often copying the text first), which
-# here costs ~300 ns a value (#462). `_parse_cell_float` reads plain decimals itself and
-# hands everything else to `parse(Float64, s)`.
-#
-# The fast path takes only `-?digits[.digits][(E|e)[+-]digits]` with at most 15
-# significant digits and a value `m × 10^p` with |p| ≤ 22. Then `m` (< 10^15 < 2^53)
-# and `10^|p|` (5^22 < 2^53) are both exact Float64s, and IEEE-754 rounds the single
-# multiply or divide correctly, which is the one correctly rounded result `strtod`
-# gives too (Clinger's fast path). Anything else, including 16- and 17-digit values,
-# whitespace, `inf`/`nan`, hex and malformed text, goes to `parse(Float64, s)`, so
-# values and errors outside the fast path are unchanged. Needs IEEE double arithmetic
-# without x87 extended precision, as on every platform Julia supports (SSE2 on i686).
-const _EXACT_POW10 = ntuple(i -> 10.0^(i - 1), 23)  # 1e0 … 1e22, all exact
-
-@inline function _fast_decimal(s::AbstractString)::Union{Nothing,Float64}
-    cu = codeunits(s)
-    n = length(cu)
-    n == 0 && return nothing
-    i = 1
-    neg = false
-    if cu[1] == UInt8('-')
-        neg = true
-        i = 2
-        i > n && return nothing
-    end
-    m = UInt64(0)        # significant digits
-    ndig = 0             # count of significant digits
-    frac = 0             # digits after the point
-    seen_digit = false
-    seen_dot = false
-    @inbounds while i <= n
-        b = cu[i]
-        if UInt8('0') <= b <= UInt8('9')
-            seen_digit = true
-            if !(m == 0 && b == UInt8('0'))      # leading zeros aren't significant
-                ndig += 1
-                ndig > 15 && return nothing
-                m = m * 10 + (b - UInt8('0'))
-            end
-            seen_dot && (frac += 1)
-        elseif b == UInt8('.') && !seen_dot
-            seen_dot = true
-        else
-            break
-        end
-        i += 1
-    end
-    seen_digit || return nothing
-    e = 0
-    if i <= n
-        b = cu[i]
-        (b == UInt8('E') || b == UInt8('e')) || return nothing
-        i += 1
-        i > n && return nothing
-        eneg = false
-        if cu[i] == UInt8('-')
-            eneg = true
-            i += 1
-        elseif cu[i] == UInt8('+')
-            i += 1
-        end
-        i > n && return nothing
-        @inbounds while i <= n
-            b = cu[i]
-            UInt8('0') <= b <= UInt8('9') || return nothing
-            e = e * 10 + (b - UInt8('0'))
-            e > 400 && return nothing
-            i += 1
-        end
-        eneg && (e = -e)
-    end
-    p = e - frac         # value = m × 10^p
-    x = Float64(m)
-    if m != 0
-        if p >= 0
-            p > 22 && return nothing
-            x *= _EXACT_POW10[p + 1]
-        else
-            p < -22 && return nothing
-            x /= _EXACT_POW10[1 - p]
-        end
-    end
-    return neg ? -x : x
-end
-
-# `parse(Float64, s)`, with the exact fast path above for plain decimals.
-@inline function _parse_cell_float(s::AbstractString)::Float64
-    x = _fast_decimal(s)
-    return isnothing(x) ? parse(Float64, s) : x
-end
-
 function _parse_excel_datetime_raw(v::AbstractString)
     isempty(v) && throw(XLSXError("Cannot convert an empty string into a datetime value."))
     if occursin('.', v) || v == "0"
@@ -470,7 +384,7 @@ function process_tv(wb::Workbook, t::AbstractString, v::AbstractString, num_styl
             datatype = CT_FLOAT
             value = reinterpret(UInt64, _parse_cell_float(v))
         else
-            parsed_int = tryparse(Int64, v)
+            parsed_int = Parsers.tryparse(Int64, v)
             if parsed_int !== nothing
                 datatype = CT_INT
                 value = reinterpret(UInt64, parsed_int)
@@ -481,7 +395,7 @@ function process_tv(wb::Workbook, t::AbstractString, v::AbstractString, num_styl
         end
 
     elseif t == "s"
-        parsed = tryparse(Int64, v)
+        parsed = Parsers.tryparse(Int64, v)
         parsed === nothing && throw(XLSXError("Expected SST index in cell value, got: $v"))
         datatype = CT_STRING
         value = reinterpret(UInt64, parsed::Int64)

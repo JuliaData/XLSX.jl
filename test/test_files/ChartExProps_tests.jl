@@ -211,6 +211,7 @@
         @test XLSX.Charts.getSeriesFill(d, 1).value.fgcolor.rgb == "FF0000"
         @test XLSX.Charts.getSeriesFill(d, 1; point=7).value.fgcolor.rgb == "008000"
         @test XLSX.Charts.getSeriesFill(d, 1; point=2).value.kind === :none
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setSeriesFill :inherit writes nothing where nothing was set" begin
@@ -220,6 +221,7 @@
         w = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall", XLSX.Charts.getCharts(xf)))
         XLSX.Charts.setSeriesFill(w, 1, :inherit)
         @test isnothing(XLSX.first_element_with_tag(XLSX.Charts._cx_series_node(w, 1), "spPr"))
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setSeriesLine" begin
@@ -268,6 +270,7 @@
         XLSX.writexlsx(out, xf, overwrite=true)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx, XLSX.Charts.getCharts(XLSX.readxlsx(out))))
         @test XLSX.Charts.getSeriesLine(d, 1; point=2).value.width ≈ 1.5
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setLabelTextProp" begin
@@ -311,6 +314,7 @@
         f = XLSX.readxlsx(out)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "funnel", XLSX.Charts.getCharts(f)))
         @test XLSX.Charts.getLabelTextProp(d, 1, :bold).value === true
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "title, legend and axis text" begin
@@ -353,6 +357,7 @@
          
         x = XLSX.getCharts(XLSX.readxlsx(joinpath(data_directory, "chartex_kinds.xlsx")))[1]
         @test_throws XLSX.XLSXError XLSX.Charts.getAxisTitleTextProps(x, 999)     # no such axis id
+        SAVE_FILES && save_outfile(xf)
     
     end
 
@@ -396,6 +401,7 @@
         f = XLSX.readxlsx(out)
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "histogram", XLSX.Charts.getCharts(f)))
         @test XLSX.Charts.getChartTitle(d) == "Distribution of values"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setSeriesSubtotals" begin
@@ -427,6 +433,7 @@
         d = only(filter(x -> x isa XLSX.Charts.ChartEx && x.sheet == "waterfall",
             XLSX.Charts.getCharts(XLSX.readxlsx(out))))
         @test isnothing(XLSX.Charts.getSeriesSubtotals(d, 1))
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "layoutPr setters" begin
@@ -523,6 +530,7 @@
                 XLSX.Charts.getCharts(f)))
             @test XLSX.Charts.getSeriesBinning(h, 1).binCount == 7
         end
+        SAVE_FILES && save_outfile(xf)
     end
     @testset "every line setter reaches a ChartEx" begin
         xf = XLSX.openxlsx(joinpath(data_directory, "chartex_kinds.xlsx"); mode="rw")

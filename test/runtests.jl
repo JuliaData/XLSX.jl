@@ -58,7 +58,10 @@ const outfile_counter = Ref(0)
 function save_outfile(xf::XLSX.XLSXFile)
     outfile_counter[] += 1
     label = sanitize_filename(current_testset_label())
-    fname = "outfile_$(lpad(outfile_counter[], 3, '0'))_$(label).xlsx"
+    # Excel won't open a macro-enabled workbook saved with an `.xlsx` extension
+    src_ext = xf.source isa AbstractString ? lowercase(splitext(xf.source)[2]) : ""
+    ext = (src_ext in (".xlsm", ".xltm") || xf.template_type == XLSX.XLTMTemplate) ? ".xlsm" : ".xlsx"
+    fname = "outfile_$(lpad(outfile_counter[], 3, '0'))_$(label)$(ext)"
     XLSX.writexlsx(joinpath(outdir, fname), xf)
 end
 

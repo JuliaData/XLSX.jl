@@ -134,6 +134,7 @@ function make_readto_file(outfile)
     sh2["E1"] = "outside"; sh2["E2"] = "not in table"
 
     XLSX.writexlsx(outfile, f, overwrite=true)
+    SAVE_FILES && save_outfile(f)
     return outfile
 end
 
@@ -166,6 +167,7 @@ function make_multitable_file(outfile)
     XLSX.addtable!(sh3, "A1:B2"; name="TableThree")
 
     XLSX.writexlsx(outfile, f, overwrite=true)
+    SAVE_FILES && save_outfile(f)
     return outfile
 end
 
@@ -277,6 +279,7 @@ end
         xf = XLSX.newxlsx()
         sh = xf[1]
         @test XLSX.tables(sh) == XLSX.Table[]
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "consistent under enable_cache=false" begin
@@ -411,6 +414,7 @@ end
         @test length(XLSX.tables(sh)) == 1
         @test XLSX.table(sh, "MyTable").ref == XLSX.CellRange("A1:C3")
         @test XLSX.table(sh, 1).name == "MyTable"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - auto-generated name" begin
@@ -426,6 +430,7 @@ end
         sh["D2"] = 1;   sh["E2"] = 2
         t2 = XLSX.addtable!(sh, "D1:E2")
         @test t2.name == "Table2"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - with style and totals row (empty row, no warning)" begin
@@ -441,6 +446,7 @@ end
         @test t.has_totals_row == true
         @test !isnothing(t.style)
         @test t.style.name == "TableStyleMedium9"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - has_totals_row with nonempty last row warns, still creates table" begin
@@ -463,6 +469,7 @@ end
         # cell contents must be completely untouched by addtable!
         @test sh["A4"] == "Total"
         @test sh["B4"] == 14.49
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - has_totals_row=false always treats last row as data, even if blank" begin
@@ -476,6 +483,7 @@ end
 
         @test t.has_totals_row == false
         @test t.ref == XLSX.CellRange("A1:B3")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - name collisions" begin
@@ -488,6 +496,7 @@ end
         sh["D1"] = "c"; sh["E1"] = "d"
         sh["D2"] = 1;   sh["E2"] = 2
         @test_throws XLSX.XLSXError XLSX.addtable!(sh, "D1:E2"; name="Dup")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - invalid header (empty cell)" begin
@@ -496,6 +505,7 @@ end
         sh["A1"] = "a"; sh["B1"] = missing
         sh["A2"] = 1;   sh["B2"] = 2
         @test_throws XLSX.XLSXError XLSX.addtable!(sh, "A1:B2")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - invalid header (duplicate names)" begin
@@ -504,6 +514,7 @@ end
         sh["A1"] = "same"; sh["B1"] = "same"
         sh["A2"] = 1;       sh["B2"] = 2
         @test_throws XLSX.XLSXError XLSX.addtable!(sh, "A1:B2")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - displayName validation" begin
@@ -512,6 +523,7 @@ end
         sh["A1"] = "a"; sh["B1"] = "b"
         sh["A2"] = 1;   sh["B2"] = 2
         @test_throws XLSX.XLSXError XLSX.addtable!(sh, "A1:B2"; name="has space")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "addtable! - round trip (create -> save -> reopen)" begin
@@ -557,6 +569,7 @@ end
         XLSX.deletetable!(sh, "ToDelete")
         @test length(XLSX.tables(sh)) == 0
         @test_throws KeyError XLSX.table(sh, "ToDelete")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletetable! - by id" begin
@@ -568,6 +581,7 @@ end
 
         XLSX.deletetable!(sh, t.id)
         @test length(XLSX.tables(sh)) == 0
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletetable! - one of several tables survives" begin
@@ -591,6 +605,7 @@ end
         @test remaining[1].name == "Keep"
         @test XLSX.table(sh, "Keep").ref == XLSX.CellRange("A1:B2")
         @test_throws KeyError XLSX.table(sh, "Remove")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletetable! - survives round trip, remaining table intact" begin
@@ -683,6 +698,7 @@ end
 
         # formula cell has no cached value (per the no-calc-engine convention)
         @test ismissing(sh["B4"])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - errors if extension row already has content" begin
@@ -694,6 +710,7 @@ end
 
         XLSX.addtable!(sh, "A1:B2"; name="Sales")  # table itself only spans A1:B2
         @test_throws XLSX.XLSXError XLSX.settotals!(sh, "Sales", "price" => :sum)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - label column" begin
@@ -716,6 +733,7 @@ end
         func2, label2 = _totals_col_attrs(sh, "Scores", "score")
         @test func2 == "sum"
         @test isnothing(label2)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - custom formula (:custom tuple)" begin
@@ -738,6 +756,7 @@ end
         @test func == "custom"
         @test isnothing(label)
         @test ismissing(sh["C4"])  # formula cell, no cached value
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - rejects malformed custom tuple" begin
@@ -748,6 +767,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
 
         @test_throws XLSX.XLSXError XLSX.settotals!(sh, "T", "b" => (:notcustom, "SUM(1,2)"))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - unknown column name errors" begin
@@ -758,6 +778,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
 
         @test_throws XLSX.XLSXError XLSX.settotals!(sh, "T", "nope" => :sum)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - unknown built-in function symbol errors" begin
@@ -768,6 +789,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
 
         @test_throws XLSX.XLSXError XLSX.settotals!(sh, "T", "b" => :median)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - invalid value type errors" begin
@@ -778,6 +800,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
 
         @test_throws XLSX.XLSXError XLSX.settotals!(sh, "T", "b" => 3.14)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - only mentioned columns change; others untouched" begin
@@ -804,6 +827,7 @@ end
         func_b2, _ = _totals_col_attrs(sh, "T", "b")
         @test func_a2 == "max"
         @test func_b2 == "average"  # unchanged
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - overwriting a column's totals replaces stale content" begin
@@ -826,6 +850,7 @@ end
         @test func2 == "sum"
         @test isnothing(label2)  # old totalsRowLabel attribute must be gone
         @test ismissing(sh["B3"])  # old literal "Label first" value must be gone
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - kwarg form" begin
@@ -842,6 +867,7 @@ end
         func_m, _ = _totals_col_attrs(sh, "Rpt", "margin")
         @test func_r == "sum"
         @test func_m == "average"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - by id" begin
@@ -855,6 +881,7 @@ end
         @test t.has_totals_row == true
         func, _ = _totals_col_attrs(sh, "ById", "b")
         @test func == "sum"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - updating a table that already has a totals row (real fixture)" begin
@@ -874,6 +901,7 @@ end
         @test t_after.ref == ref_before  # unchanged — table already had a totals row
         func_after, _ = _totals_col_attrs(sh2, "with_total", "sin")
         @test func_after == "average"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - round trip (create -> save -> reopen)" begin
@@ -929,6 +957,7 @@ end
         @test occursin("id=$(t.id)", s)
         @test occursin("1x3", s)   # 1 data row x 3 columns
         @test !occursin("totals", s)  # no totals row -> no "+totals" marker
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "show(Table) - compact form, with totals" begin
@@ -945,6 +974,7 @@ end
         @test occursin("id=$(t.id)", s)
         @test occursin("1x2", s)   # data rows exclude header and totals row
         @test occursin("totals", s)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "show(Table) - compact form used in Vector display" begin
@@ -970,6 +1000,7 @@ end
         @test occursin("T1", s_repl)
         @test occursin("T2", s_repl)
         @test occursin("2-element", s_repl)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "show(text/plain, Table) - no style, no totals" begin
@@ -988,6 +1019,7 @@ end
         @test occursin("style   : none", s)
         @test occursin("totals  : no", s)
         @test !occursin("displayName", s)  # name == display_name, so no extra note
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "show(text/plain, Table) - with style and totals row" begin
@@ -1005,6 +1037,7 @@ end
         @test occursin("TableStyleMedium9", s)
         @test occursin("row stripes", s)  # default style_info sets show_row_stripes=true
         @test occursin("totals  : yes", s)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "show(TableStyleInfo) - compact form" begin
@@ -1062,6 +1095,7 @@ end
         @test t.ref == XLSX.CellRange("A1:B4")
         @test t.columns == ["id", "name"]
         @test t.has_totals_row == false
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "writetable! - as_table=false writes no table (default)" begin
@@ -1073,6 +1107,7 @@ end
         XLSX.writetable!(sh, data, cols)  # as_table defaults to false
 
         @test isempty(XLSX.tables(sh))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "writetable! - as_table=true requires write_columnnames=true" begin
@@ -1083,6 +1118,7 @@ end
 
         @test_throws XLSX.XLSXError XLSX.writetable!(sh, data, cols;
             as_table=true, write_columnnames=false)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "writetable! - as_table=true requires at least one data row" begin
@@ -1092,6 +1128,7 @@ end
         cols = ["a", "b"]
 
         @test_throws XLSX.XLSXError XLSX.writetable!(sh, data, cols; as_table=true)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "writetable! - as_table=true with style and anchor offset" begin
@@ -1107,6 +1144,7 @@ end
         t = XLSX.table(sh, "Prices")
         @test t.ref == XLSX.CellRange("C3:D5")
         @test t.style.name == "TableStyleMedium9"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "writetable (single-sheet, new file) - as_table=true" begin
@@ -1298,6 +1336,7 @@ end
         # the issue #225 regression.
         @test sch.names == (:id, :name, :score)
         @test isnothing(sch.types)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "Tables.columns / DataFrame infer concrete column types (issue #225 regression)" begin
@@ -1328,6 +1367,7 @@ end
         @test eltype(df.score) != Any
         @test eltype(df.score) <: Union{Missing,Float64}
         @test eltype(df.label) <: Union{Missing,String}
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "Tables.schema - matches between Table and its row iterator" begin
@@ -1343,6 +1383,7 @@ end
         @test Tables.rows(it) === it  # identity, matching TableRowIterator convention
         @test Tables.schema(it).names == Tables.schema(t).names
         @test Tables.schema(it).types == Tables.schema(t).types
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "Tables.columnnames matches table columns" begin
@@ -1355,6 +1396,7 @@ end
         row = first(XLSX.eachtablerow(t))
         @test Tables.columnnames(row) == [:x, :y]
         @test Tables.columnnames(t) == [:x, :y]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "Tables.columns - values match what was written" begin
@@ -1371,6 +1413,7 @@ end
         @test cols.id == [1, 2, 3]
         @test cols.name == ["alice", "bob", "carol"]
         @test cols.score == [10.5, 20.0, 15.0]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow - length excludes header row" begin
@@ -1386,6 +1429,7 @@ end
 
         @test length(rows) == 3
         @test length(XLSX.eachtablerow(t)) == 3  # Base.length via iterator, not just collect
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow - minimum valid table (one data row)" begin
@@ -1402,6 +1446,7 @@ end
         @test Tables.getcolumn(rows[1], :b) == 2
         @test Tables.getcolumn(rows[1], 1) == 1
         @test Tables.getcolumn(rows[1], 2) == 2
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow - values match by name and by index" begin
@@ -1418,6 +1463,7 @@ end
         @test Tables.getcolumn(rows[1], :name) == "alice"
         @test Tables.getcolumn(rows[2], 1) == 2
         @test Tables.getcolumn(rows[2], 2) == "bob"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow - totals row excluded (created via settotals!)" begin
@@ -1438,6 +1484,7 @@ end
         cols = Tables.columns(t)
         @test cols.item == ["Apples", "Pears"]
         @test cols.amount == [12, 8]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow - missing values pass through" begin
@@ -1452,6 +1499,7 @@ end
 
         @test ismissing(Tables.getcolumn(rows[1], :b))
         @test ismissing(Tables.getcolumn(rows[2], :a))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow - a fully blank row within ref is preserved, not skipped" begin
@@ -1481,6 +1529,7 @@ end
         cols = Tables.columns(t)
         @test length(cols.a) == 3
         @test ismissing(cols.a[2])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "Tables.rowtable - generic Tables.jl round trip" begin
@@ -1498,6 +1547,7 @@ end
         @test nt_rows[1].score == 10.5
         @test nt_rows[2].id == 2
         @test nt_rows[2].score == 20.0
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "real fixture (two_tables.xlsx) - with_total (Sheet2), has a totals row" begin
@@ -1552,6 +1602,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
         t = XLSX.table(sh, "T")
         @test t.sheet === sh
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "row-access path (Tables.rows) resolves schema/columnnames without erroring" begin
@@ -1571,6 +1622,7 @@ end
         @test Tables.schema(it).names == (:id, :name)
         @test !isnothing(Tables.columnnames(first(it)))
         @test collect(it) isa Vector{XLSX.XLSXTableRow}
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "basic matrix shape and values" begin
@@ -1589,6 +1641,7 @@ end
         @test m[1, 1] == "North"; @test m[1, 2] == 1000
         @test m[2, 1] == "South"; @test m[2, 2] == 1500
         @test m[3, 1] == "East";  @test m[3, 2] == 900
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "excludes totals row" begin
@@ -1605,6 +1658,7 @@ end
         @test size(m) == (2, 2)  # totals row (row 4) must not appear
         @test m[end, 1] == "Pears"
         @test m[end, 2] == 8
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "blank row within ref is preserved, not skipped" begin
@@ -1623,6 +1677,7 @@ end
         @test ismissing(m[2, 1])
         @test ismissing(m[2, 2])
         @test m[3, 1] == 3
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "minimum valid table (one data row)" begin
@@ -1637,6 +1692,7 @@ end
         @test size(m) == (1, 2)
         @test m[1, 1] == 1
         @test m[1, 2] == 2
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "real fixture (two_tables.xlsx) - IO_Table" begin
@@ -1882,6 +1938,7 @@ end
         end
 
         isfile(outfile) && rm(outfile)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "existing readtable behaviour unaffected when table_name omitted" begin
@@ -1933,6 +1990,7 @@ end
         @test dt.column_labels == [:_2024, :_2025_total]
 
         isfile(outfile) && rm(outfile)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "reserved Julia keyword header gets a leading underscore" begin
@@ -1950,6 +2008,7 @@ end
         @test dt.column_labels == [:_end, :_function]
 
         isfile(outfile) && rm(outfile)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "gettable(t) directly honours normalizenames" begin
@@ -1964,6 +2023,7 @@ end
 
         dt_raw = XLSX.gettable(t)
         @test dt_raw.column_labels == [Symbol("col one"), :already_ok]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "appends rows to a table with no totals row" begin
@@ -1984,6 +2044,7 @@ end
         cols = Tables.columns(t)
         @test cols.id == [1, 2, 3, 4]
         @test cols.name == ["alice", "bob", "carol", "dave"]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "appending zero rows is a no-op" begin
@@ -1995,6 +2056,7 @@ end
 
         t = XLSX.appendtable!(sh, "T", Tuple{Int,Int}[])
         @test t.ref == XLSX.CellRange("A1:B2")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "autoFilter extends with ref (no totals row)" begin
@@ -2010,6 +2072,7 @@ end
         af = XLSX.elements_with_tag(root, "autoFilter")
         @test !isempty(af)
         @test XLSX.get_attr(af[1], "ref") == "A1:B3"  # no totals row: same as ref
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "totals row moves down and is regenerated (sum + label)" begin
@@ -2044,6 +2107,7 @@ end
         cols = Tables.columns(t)
         @test cols.item == ["Apples", "Pears", "Cherries", "Damsons"]
         @test cols.amount == [12, 8, 25, 5]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "totals row: autoFilter excludes the totals row after append" begin
@@ -2061,6 +2125,7 @@ end
         @test XLSX.get_attr(root, "ref") == "A1:B5"
         af = XLSX.elements_with_tag(root, "autoFilter")
         @test XLSX.get_attr(af[1], "ref") == "A1:B4"  # one row short of ref
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "totals row: preserves a custom formula" begin
@@ -2092,6 +2157,7 @@ end
         i, j = XLSX.get_idces(table_doc, "table", "tableColumns")
         margin_node = collect(XLSX.xml_elements(table_doc[i][j]))[3]
         @test XLSX.get_attr(margin_node, "totalsRowFunction") == "custom"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "totals row: preserves every built-in function kind" begin
@@ -2126,6 +2192,7 @@ end
         @test XLSX.get_attr(nodes[4], "totalsRowFunction") == "count"
         @test XLSX.get_attr(nodes[5], "totalsRowFunction") == "max"
         @test XLSX.get_attr(nodes[6], "totalsRowFunction") == "min"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "totals row: columns with no totals setting stay empty" begin
@@ -2143,6 +2210,7 @@ end
         @test ismissing(sh[XLSX.CellRef(totals_row, 1)])   # a: no totals
         @test !ismissing(XLSX.getFormula(sh, XLSX.CellRef(totals_row, 2)))  # b: sum
         @test ismissing(sh[XLSX.CellRef(totals_row, 3)])   # c: no totals
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "input shapes: vector of tuples, vector of vectors, matrix, Tables.jl source" begin
@@ -2151,17 +2219,21 @@ end
         t = XLSX.appendtable!(sh, "T", [(2, 20), (3, 30)])
         @test Tables.columns(t).x == [1, 2, 3]
 
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
         sh = fresh()
         t = XLSX.appendtable!(sh, "T", [[2, 20], [3, 30]])
         @test Tables.columns(t).x == [1, 2, 3]
 
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
         sh = fresh()
         t = XLSX.appendtable!(sh, "T", [2 20; 3 30])
         @test Tables.columns(t).x == [1, 2, 3]
 
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
         sh = fresh()
         t = XLSX.appendtable!(sh, "T", DataFrames.DataFrame(x=[2, 3], y=[20, 30]))
         @test Tables.columns(t).x == [1, 2, 3]
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "column count mismatch errors" begin
@@ -2173,6 +2245,7 @@ end
 
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", [(1, 2, 3)])
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", [(1,)])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "refuses non-empty rows below the table; check_empty=false overrides" begin
@@ -2191,6 +2264,7 @@ end
         t = XLSX.appendtable!(sh, "T", [(9, 9)]; check_empty=false)
         @test t.ref == XLSX.CellRange("A1:B3")
         @test sh["A3"] == 9
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "table not found errors" begin
@@ -2201,6 +2275,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
 
         @test_throws KeyError XLSX.appendtable!(sh, "NoSuchTable", [(1, 2)])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "appending missing values" begin
@@ -2214,6 +2289,7 @@ end
         @test t.ref == XLSX.CellRange("A1:B4")
         @test ismissing(sh["B3"])
         @test ismissing(sh["A4"])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "two tables on one sheet: appending to one leaves the other alone" begin
@@ -2232,6 +2308,7 @@ end
         @test XLSX.table(sh, "Left").ref == XLSX.CellRange("A1:B3")
         @test XLSX.table(sh, "Right").ref == XLSX.CellRange("D1:E2")  # untouched
         @test length(XLSX.tables(sh)) == 2
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "round trip: append then save and reopen" begin
@@ -2283,6 +2360,7 @@ end
         @test t.ref == XLSX.CellRange("A1:A7")   # header + 5 data + totals
         @test Tables.columns(t).n == [1, 2, 3, 4, 5]
         @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, "A7"))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "not writable errors" begin
@@ -2304,6 +2382,7 @@ end
         @test cols.a == [1, 10, 40]
         @test cols.b == [2, 20, 50]
         @test cols.c == [3, 30, 60]
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "DataTable source works and is name-matched" begin
@@ -2318,6 +2397,7 @@ end
         @test cols.a == [1, 10, 40]
         @test cols.b == [2, 20, 50]
         @test cols.c == [3, 30, 60]
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "DataTable read from one table appended to another" begin
@@ -2341,24 +2421,28 @@ end
         cols = Tables.columns(t)
         @test cols.y == [99, 10, 20]   # matched by name despite reversal
         @test cols.x == [9, 1, 2]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "missing column errors" begin
         sh = fresh_abc()
         df = DataFrames.DataFrame(a=[10], b=[20])   # no "c"
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", df)
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "extra column errors" begin
         sh = fresh_abc()
         df = DataFrames.DataFrame(a=[10], b=[20], c=[30], d=[40])   # extra "d"
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", df)
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "both missing and extra columns errors" begin
         sh = fresh_abc()
         df = DataFrames.DataFrame(a=[10], b=[20], z=[99])   # missing c, extra z
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", df)
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "unnamed sources remain positional" begin
@@ -2371,6 +2455,7 @@ end
         @test cols.c == [3, 30]
 
         # vector of tuples
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
         sh = fresh_abc()
         t = XLSX.appendtable!(sh, "T", [(10, 20, 30)])
         cols = Tables.columns(t)
@@ -2378,11 +2463,13 @@ end
         @test cols.c == [3, 30]
 
         # vector of vectors
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
         sh = fresh_abc()
         t = XLSX.appendtable!(sh, "T", [[10, 20, 30]])
         cols = Tables.columns(t)
         @test cols.a == [1, 10]
         @test cols.c == [3, 30]
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "name matching still works when a totals row is present" begin
@@ -2403,6 +2490,7 @@ end
         @test cols.item == ["Apples", "Pears", "Cherries"]
         @test cols.amount == [12, 8, 25]
         @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, "B5"))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "readto(source, sheet, sink; table_name=...)" begin
@@ -2507,6 +2595,7 @@ end
         @test ismissing(df_miss[2, 1])
 
         isfile(outfile) && rm(outfile)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "readto with a totals row: totals excluded" begin
@@ -2528,6 +2617,7 @@ end
         @test df.amount == [12, 8]
 
         isfile(outfile) && rm(outfile)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "readto errors: table_name with a columns range" begin
@@ -2606,6 +2696,7 @@ end
         @test rows[1]["id"] == 1
         @test rows[1]["name"] == "alice"
         @test rows[2]["score"] == 20.0
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "all three index forms agree" begin
@@ -2619,6 +2710,7 @@ end
 
         @test r[1] == r[:a] == r["a"]
         @test r[2] == r[:b] == r["b"]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "getindex agrees with Tables.getcolumn" begin
@@ -2635,6 +2727,7 @@ end
             @test r[:x] == Tables.getcolumn(r, :x)
             @test r["y"] == Tables.getcolumn(r, :y)
         end
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "column names with spaces are reachable by string" begin
@@ -2649,6 +2742,7 @@ end
         @test r["col one"] == 1
         @test r["col two"] == 2
         @test r[Symbol("col one")] == 1   # symbol form still works, just awkward
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "missing values via getindex" begin
@@ -2664,6 +2758,7 @@ end
         @test ismissing(rows[1][:b])
         @test ismissing(rows[1][2])
         @test ismissing(rows[2]["a"])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "totals row excluded when indexing rows" begin
@@ -2679,6 +2774,7 @@ end
         @test length(rows) == 2
         @test rows[end][:item] == "Pears"   # not "Total"
         @test rows[end][:amount] == 8
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "real fixture (two_tables.xlsx)" begin
@@ -2744,6 +2840,7 @@ end
         # Cell data survives the delete, as documented.
         @test sh["A2"] == 100
         @test sh["C3"] == 110
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletetable! - totals row with a column that has no totals at all" begin
@@ -2762,6 +2859,7 @@ end
         @test !occursin("T[", XLSX.getFormula(sh, "A3"))
         @test ismissing(sh["B3"])
         @test isempty(XLSX.tables(sh))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletetable! - sheet name needing quoting" begin
@@ -2780,6 +2878,7 @@ end
         @test !occursin("Amounts[", fa)
         @test occursin("My Data", fa)
         @test occursin("\$A\$2:\$A\$3", fa)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "deletetable! - round trip after totals rewrite" begin
@@ -2835,6 +2934,7 @@ end
         # an entirely empty totals row is still a totals row
         @test t.has_totals_row == true
         @test t.ref == XLSX.CellRange("A1:B3")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "settotals! - :none on a table with no totals row still adds one" begin
@@ -2848,6 +2948,7 @@ end
         @test t.has_totals_row == true
         @test t.ref == XLSX.CellRange("A1:B3")
         @test ismissing(sh["A3"])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "appendtable! - :none columns stay clear after the totals row moves" begin
@@ -2864,6 +2965,7 @@ end
         totals_row = t.ref.stop.row_number
         @test occursin("SUBTOTAL(109", XLSX.getFormula(sh, XLSX.CellRef(totals_row, 1)))
         @test ismissing(sh[XLSX.CellRef(totals_row, 2)])
+        SAVE_FILES && save_outfile(f)
     end
 
 
@@ -2885,6 +2987,7 @@ end
     @testset "tables(xf) - workbook with no tables" begin
         xf = XLSX.newxlsx()
         @test XLSX.tables(xf) == XLSX.Table[]
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "table(xf, name) / table(xf, id)" begin
@@ -2938,6 +3041,7 @@ end
         @test cols.a == [1, 10, 40]
         @test cols.b == [2, 20, 50]
         @test cols.c == [3, 30, 60]
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "appendtable! - schemaless source with wrong columns still errors" begin
@@ -2945,6 +3049,7 @@ end
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T", NoSchemaCols((a=[1], b=[2])))
         @test_throws XLSX.XLSXError XLSX.appendtable!(sh, "T",
             NoSchemaCols((a=[1], b=[2], c=[3], d=[4])))
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
     @testset "appendtable! - nameless Tables.jl source falls back to positional" begin
@@ -2958,6 +3063,7 @@ end
         @test cols.a == [1, 10, 40]
         @test cols.b == [2, 20, 50]
         @test cols.c == [3, 30, 60]
+        SAVE_FILES && save_outfile(XLSX.get_xlsxfile(sh))
     end
 
 
@@ -3009,6 +3115,7 @@ end
         @test_throws XLSX.XLSXError XLSX.parse_table_xml(
             _tbl_doc("""<table xmlns="$_TBL_NS" id="1" name="T" ref="A1:B2"/>"""),
             "bad.xml", sh)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "parse_table_columns - <tableColumn> without a name" begin
@@ -3049,6 +3156,7 @@ end
 
         # displayName defaults to name when absent
         @test tbl("").display_name == "T"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "parse_table_style_info - element present but bare" begin
@@ -3086,6 +3194,7 @@ end
         sh.tables_cache = nothing
 
         @test_throws XLSX.XLSXError XLSX.parse_totals_settings(sh, XLSX.table(sh, "T"))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "parse_totals_settings - custom function with no formula errors" begin
@@ -3101,6 +3210,7 @@ end
         sh.tables_cache = nothing
 
         @test_throws XLSX.XLSXError XLSX.parse_totals_settings(sh, XLSX.table(sh, "T"))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "parse_totals_settings - label-only column is returned as a String" begin
@@ -3114,6 +3224,7 @@ end
         settings = Dict(XLSX.parse_totals_settings(sh, XLSX.table(sh, "T")))
         @test settings["a"] == "Total"
         @test settings["b"] === :sum
+        SAVE_FILES && save_outfile(f)
     end
 
 
@@ -3157,6 +3268,7 @@ end
         @test r[1:2] == [1, 2]
         @test r[[1, 3]] == [1, 3]
         @test r[1:3] == [1, 2, 3]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "eachtablerow(sheet) - leading row whose cells all read missing" begin
@@ -3172,6 +3284,7 @@ end
         dt = XLSX.gettable(sh)
         @test dt.column_labels == [:a, :b]
         @test dt.data[1] == [1]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "removes the totals row and shrinks ref" begin
@@ -3199,6 +3312,7 @@ end
         cols = Tables.columns(t)
         @test cols.item == ["Apples", "Pears"]
         @test cols.amount == [12, 8]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "drops totalsRowShown / totalsRowCount from the table part" begin
@@ -3219,6 +3333,7 @@ end
         @test XLSX.get_attr(root, "totalsRowShown", "") == ""
         @test XLSX.get_attr(root, "totalsRowCount", "") == ""
         @test XLSX.get_attr(root, "ref") == "A1:B2"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "drops per-column totalsRowFunction / totalsRowLabel" begin
@@ -3238,6 +3353,7 @@ end
             @test XLSX.get_attr(node, "totalsRowFunction", "") == ""
             @test XLSX.get_attr(node, "totalsRowLabel", "") == ""
         end
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "clears a custom totals formula" begin
@@ -3258,6 +3374,7 @@ end
         @test XLSX.table(sh, "PnL").ref == XLSX.CellRange("A1:C2")
         @test ismissing(sh["A3"])
         @test ismissing(sh["C3"])
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "no-op when the table has no totals row" begin
@@ -3273,6 +3390,7 @@ end
         @test t_after.has_totals_row == false
         @test sh["A2"] == 1   # nothing cleared
         @test sh["B2"] == 2
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "by id" begin
@@ -3286,6 +3404,7 @@ end
         t = XLSX.removetotals!(sh, tbl.id)
         @test t.has_totals_row == false
         @test t.ref == XLSX.CellRange("A1:B2")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "table not found errors" begin
@@ -3296,6 +3415,7 @@ end
         XLSX.addtable!(sh, "A1:B2"; name="T")
 
         @test_throws KeyError XLSX.removetotals!(sh, "NoSuchTable")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "not writable errors" begin
@@ -3324,6 +3444,7 @@ end
         @test t.ref == XLSX.CellRange("A1:B4")
         @test t.has_totals_row == true
         @test occursin("SUBTOTAL(101", XLSX.getFormula(sh, "B4"))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "appendtable! works after removing totals" begin
@@ -3339,6 +3460,7 @@ end
         @test t.ref == XLSX.CellRange("A1:B4")
         @test t.has_totals_row == false
         @test Tables.columns(t).a == [1, 2, 3]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "round trip: remove totals, save and reopen" begin
@@ -3392,6 +3514,7 @@ end
 
         # other sheet's tables unaffected
         @test length(XLSX.tables(f["Sheet1"])) == 2
+        SAVE_FILES && save_outfile(f)
     end
 
    @testset "empty NamedTuple when there is no totals row" begin
@@ -3405,6 +3528,7 @@ end
         @test tot isa NamedTuple
         @test isempty(tot)
         @test length(tot) == 0
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "keys match the table's columns, in order" begin
@@ -3418,6 +3542,7 @@ end
         tot = XLSX.gettotals(t)
         @test collect(keys(tot)) == [:region, :revenue, :margin]
         @test length(tot) == 3
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "built-in function columns" begin
@@ -3440,6 +3565,7 @@ end
         @test tot.av.setting == :average
         @test occursin("SUBTOTAL(101", tot.av.formula)
         @test ismissing(tot.av.value)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "label column" begin
@@ -3455,6 +3581,7 @@ end
         @test tot.name.setting == :label
         @test isnothing(tot.name.formula)       # a label is a plain value
         @test tot.name.value == "Grand Total"   # and the value is the label text
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "custom formula column" begin
@@ -3475,6 +3602,7 @@ end
         @test occursin("PnL[revenue]", tot.margin.formula)
         @test occursin("PnL[cost]", tot.margin.formula)
         @test ismissing(tot.margin.value)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "columns with no totals setting" begin
@@ -3496,6 +3624,7 @@ end
         @test tot.c.setting == :none
         @test isnothing(tot.c.formula)
         @test ismissing(tot.c.value)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "all built-in functions round trip through gettotals" begin
@@ -3523,6 +3652,7 @@ end
         @test tot.mn.setting     == :min
         @test tot.sd.setting     == :stddev
         @test tot.vr.setting     == :var
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "reflects a changed setting" begin
@@ -3542,6 +3672,7 @@ end
         tot = XLSX.gettotals(t)
         @test tot.b.setting == :label
         @test tot.b.value == "Total"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset ":none clears a column back to no setting" begin
@@ -3560,6 +3691,7 @@ end
         @test isnothing(tot.b.formula)
         @test ismissing(tot.b.value)
         @test tot.a.setting == :label   # other column untouched
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "empty again after removetotals!" begin
@@ -3573,6 +3705,7 @@ end
 
         t = XLSX.removetotals!(sh, "T")
         @test isempty(XLSX.gettotals(t))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "survives appendtable! (totals row moved)" begin
@@ -3590,6 +3723,7 @@ end
         @test tot.item.value == "Total"
         @test tot.amount.setting == :sum
         @test occursin("SUBTOTAL(109", tot.amount.formula)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "round trip: save and reopen" begin
@@ -3677,6 +3811,7 @@ end
             @test isequal(by_table, by_name)
             @test isequal(by_name, by_id)
             @test by_table.revenue.setting == :sum
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "stale handle sees post-mutation state" begin
@@ -3686,6 +3821,7 @@ end
 
             XLSX.appendtable!(s1, "T1", (region = ["east"], revenue = [30]))
             @test XLSX.gettotals(t1).revenue.setting == :sum   # stale ref, still correct
+            SAVE_FILES && save_outfile(f)
         end
         @testset "acts on its own sheet, not the first" begin
             f, s1, s2, t1, t2 = _two_sheet_file()
@@ -3698,6 +3834,7 @@ end
             XLSX.deletetable!(t2)
             @test isempty(XLSX.tables(s2))
             @test [t.name for t in XLSX.tables(s1)] == ["T1"]
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "stale Table re-resolves its ref" begin
@@ -3711,6 +3848,7 @@ end
             @test string(XLSX.table(s1, "T1").ref) == "A1:B5"
             @test s1["A4"] == "east"
             @test s1["A5"] == "west"
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "stale handle through Tables.jl interface" begin
@@ -3728,6 +3866,7 @@ end
             @test length(XLSX.gettable(t).data[1]) == 3
             @test length(Tables.rowtable(t)) == 3
             @test size(XLSX.getdata(t), 1) == 3
+            SAVE_FILES && save_outfile(f)
         end
         @testset "addtable! result is directly usable" begin
             f = XLSX.newxlsx("S1")
@@ -3742,6 +3881,7 @@ end
             @test XLSX.removetotals!(t) isa XLSX.Table
 #            XLSX.removetotals!(t)
             @test isempty(XLSX.gettotals(s, "Sales"))
+            SAVE_FILES && save_outfile(f)
         end
     end
     
@@ -3772,6 +3912,7 @@ end
         s = only(XLSX.Charts.getChartSeries(c))
         @test s.name == "Amount"
         @test s.values.data == [30, 20, 50, 35, 60]
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "a table with its header row hidden" begin

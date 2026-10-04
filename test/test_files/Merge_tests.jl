@@ -33,6 +33,7 @@
     @test !XLSX.isMergedCell(f, "Document History!B2")
     @test !XLSX.isMergedCell(s, "C5"; mergedCells=XLSX.getMergedCells(f["Document History"]))
 
+    SAVE_FILES && save_outfile(f)
     f = XLSX.opentemplate(joinpath(data_directory, "testmerge.xlsx"))
     @test XLSX.mergeCells(f, "Sheet1!A1:B2") == 0
     @test f[1]["A1"] == "Tables"
@@ -80,6 +81,7 @@
         @test XLSX.isMergedCell(f[1], "J9"; mergedCells=XLSX.getMergedCells(f["Sheet1"]))
         @test XLSX.getMergedBaseCell(f[1], "J12") == (baseCell=XLSX.CellRef("J1"), baseValue=9)
     end
+    SAVE_FILES && save_outfile("outfile.xlsx")
     isfile("outfile.xlsx") && rm("outfile.xlsx")
 
     f = XLSX.newxlsx()
@@ -232,4 +234,7 @@ end
     @test s2["A1"] == 5
     @test s2["A2"] == "text here now"   # no longer hidden
     @test ismissing(s2["A3"])           # blanked by the merge, not restored
+    SAVE_FILES && save_outfile(f2)
+    SAVE_FILES && save_outfile(g)
+    SAVE_FILES && save_outfile(f)
 end

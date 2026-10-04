@@ -424,6 +424,8 @@
             @test isempty(selections2c)
 
             SAVE_FILES && save_outfile(xf3)
+            SAVE_FILES && save_outfile(xf2)
+            SAVE_FILES && save_outfile(xf)
         finally
             isfile(tmp) && rm(tmp; force=true)
         end

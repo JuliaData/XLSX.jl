@@ -118,6 +118,7 @@ end
         @test XLSX.readxlsx(out)[1]["A1"] == expected
 
         rm.([f, out]; force=true)
+        SAVE_FILES && save_outfile(xf)
     end
 end
 

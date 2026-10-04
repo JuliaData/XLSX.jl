@@ -44,4 +44,6 @@ end
     @test f3["new_name"][5, 5] == "goodbye world"
     @test f3["new_name"][10, 10] == "hello world"
     isfile("saveable.xlsx") && rm("saveable.xlsx")
+    SAVE_FILES && save_outfile(f2)
+    SAVE_FILES && save_outfile(f)
 end

@@ -1075,19 +1075,24 @@ end
         # --- tuple-vector shapes, now accepted via the `#4` fallback branch ---
 
         XLSX.writetable("hint.xlsx", [(:REPORT, cols, colnames)]; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
 
         XLSX.writetable("hint.xlsx", [("REPORT", DataFrames.eachcol(df), colnames)]; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
 
         XLSX.writetable("hint.xlsx", Any[("REPORT", cols, colnames)]; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
 
         XLSX.writetable("hint.xlsx", [(:A, cols, colnames), ("B", cols, colnames)]; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["A", "B"]
 
         # non-string column labels are stringified, matching `writetable!`
         XLSX.writetable("hint.xlsx", [("REPORT", cols, [1, 2])]; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         XLSX.openxlsx("hint.xlsx") do xf
             @test xf[1]["A1"] == "1" && xf[1]["B1"] == "2"
         end
@@ -1099,15 +1104,19 @@ end
         # --- pair forms, both key types ---
 
         XLSX.writetable("hint.xlsx", :REPORT => df; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT"]
 
         XLSX.writetable("hint.xlsx", ["REPORT_A" => df, :REPORT_B => df]; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
 
         XLSX.writetable("hint.xlsx", "REPORT_A" => df, :REPORT_B => df; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
 
         XLSX.writetable("hint.xlsx", split("REPORT_A REPORT_B")[1] => df; overwrite=true)
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A"]
 
         # --- still rejected, with a hint naming the actual problem ---
@@ -1132,6 +1141,7 @@ end
             @test throws_with(() -> XLSX.writetable!(xf[1], :REPORT => df),
                             "name => table", "Symbol")
         end
+        SAVE_FILES && save_outfile("hint.xlsx")
 
         # --- no hint appended where none applies ---
 
@@ -1162,6 +1172,7 @@ end
                       "must be a `(data, columnnames)` tuple")
         # valid form unaffected
         XLSX.writetable("hint.xlsx"; overwrite=true, REPORT_A=(cols, colnames), REPORT_B=(cols, colnames))
+        SAVE_FILES && save_outfile("hint.xlsx")
         @test XLSX.sheetnames(XLSX.readxlsx("hint.xlsx")) == ["REPORT_A", "REPORT_B"]
         
         isfile("hint.xlsx") && rm("hint.xlsx")

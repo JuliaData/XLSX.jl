@@ -2097,6 +2097,7 @@
             end
             XLSX.setConditionalFormat(s, "A1:E1", :dataBar)
             XLSX.writexlsx(path, f)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -2183,6 +2184,7 @@
                 @test data[1, 1] == 2
             end
             rm(path; force=true)
+            SAVE_FILES && save_outfile(f)
         end
 
     end
@@ -2238,6 +2240,7 @@
             s["A1"] = 1
             s["A3"] = 3
             @test XLSX._cf_sqref(XLSX.NonContiguousRange(s, "A1,A3")) == "A1 A3"
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "partition" begin
@@ -2280,6 +2283,7 @@
             @test_throws XLSX.XLSXError XLSX.partition(s, "A1:A10", [3, 7]; labels=[:a, :b])
             @test_throws XLSX.XLSXError XLSX.partition(s, "A1:A10", [3, 7]; labels=[:a, :b, :a])
             @test_throws XLSX.XLSXError XLSX.partition(s, "A1:A10", [3, 7]; gte=[true])
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "setConditionalFormat on a non-contiguous range" begin
@@ -2308,6 +2312,8 @@
             rng2 = first(first(XLSX.getConditionalFormats(xf2[1])))
             @test rng2 isa XLSX.NonContiguousRange
             @test XLSX._cf_sqref(rng2) == "A1 A3"
+            SAVE_FILES && save_outfile(xf2)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "setColoredDataBars" begin
@@ -2346,6 +2352,7 @@
             # sqrefs are space-separated
             @test !occursin(r"sqref=\"[^\"]*,", x)
             @test occursin(r"sqref=\"[^\"]* [^\"]*\"", x)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "setColoredDataBars options" begin
@@ -2376,6 +2383,7 @@
             # alternative range argument forms
             @test length(XLSX.setColoredDataBars(s, XLSX.CellRange("A1:A10"); bands=2)) == 2
             @test length(XLSX.setColoredDataBars(s, XLSX.SheetCellRange("Sheet1!A1:A10"); bands=2)) == 2
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "setColoredDataBars errors" begin
@@ -2396,6 +2404,7 @@
             @test_throws XLSX.XLSXError XLSX.setColoredDataBars(s, "D1:D1")          # no numeric values
             @test_throws XLSX.XLSXError XLSX.setColoredDataBars(s, "C1:C3")          # all values equal
             @test_throws XLSX.XLSXError XLSX.setColoredDataBars(s, "A1:A1000")       # outside dimension
+            SAVE_FILES && save_outfile(xf)
         end
         @testset "vector and step-range dispatch" begin
             xf = XLSX.newxlsx()
@@ -2471,6 +2480,16 @@
             s9["C3"] = 1                       # dimension A1:C3; A1..C2 absent
             @test XLSX.setConditionalFormat(s9, [1, 3], :, :dataBar) == 0
             @test sq(s9) == "A1:C1 A3:C3"
+            SAVE_FILES && save_outfile(xf9)
+            SAVE_FILES && save_outfile(xf8)
+            SAVE_FILES && save_outfile(xf7)
+            SAVE_FILES && save_outfile(xf6)
+            SAVE_FILES && save_outfile(xf5)
+            SAVE_FILES && save_outfile(xf4)
+            SAVE_FILES && save_outfile(xf3)
+            SAVE_FILES && save_outfile(xf2)
+            SAVE_FILES && save_outfile(xf1)
+            SAVE_FILES && save_outfile(xf)
 
         end
 
@@ -2486,6 +2505,7 @@
                 @test XLSX.setConditionalFormat(s, [1, 3], :, t; kw...) == 0
                 @test XLSX.setConditionalFormat(s, :, [1, 3], t; kw...) == 0
                 @test XLSX.setConditionalFormat(s, [1, 3], [1, 3], t; kw...) == 0
+                SAVE_FILES && save_outfile(xf)
             end
         end
         @testset "formula anchoring on a non-contiguous range" begin
@@ -2504,6 +2524,7 @@
                 "xl/worksheets/sheet1.xml", String)
             @test occursin("C5", x)
             @test occursin(r"sqref=\"C5:C9 A1:A3\"", x)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "_check_cf_range errors" begin
@@ -2530,6 +2551,8 @@
             cells = [XLSX.CellRef(i, 1) for i in 1:2:1200]
             big = XLSX.NonContiguousRange(s2.name, XLSX.NCArea[c for c in cells])
             @test_throws XLSX.XLSXError XLSX.setCfDataBar(s2, big; allkws=Dict{Symbol,Any}())
+            SAVE_FILES && save_outfile(xf2)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "defined names resolve to one rule" begin
@@ -2549,6 +2572,7 @@
             # named and literal spellings produce the same sqref, one block each
             @test count("sqref=\"A1 A3\"", x) == 1   # both rules join one block
             @test count("<cfRule ", x) == 2
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "single-cell sqref round-trips" begin
@@ -2562,6 +2586,8 @@
             xf2 = XLSX.opentemplate(f)
             rng = first(first(XLSX.getConditionalFormats(xf2[1])))
             @test XLSX._cf_sqref(rng) == "A1:A1"
+            SAVE_FILES && save_outfile(xf2)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "setColoredDataBars CellRef form" begin
@@ -2571,6 +2597,7 @@
             p = XLSX.setColoredDataBars(s, XLSX.CellRef("A1"); bands=1)
             @test XLSX._band_colors(["green", "red"], 1) == ["FF008000"]
             @test length(p) == 1
+            SAVE_FILES && save_outfile(xf)
         end
         @testset "invalid keyword arguments" begin
             xf = XLSX.newxlsx()
@@ -2591,6 +2618,7 @@
                 (:dataBar, ()))
                 @test_throws XLSX.XLSXError XLSX.setConditionalFormat(s, "A1:C5", t; kw..., notAKeyword="x")
             end
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "colorScale numeric bounds and mid_col default" begin
@@ -2622,6 +2650,7 @@
             @test occursin("<cfvo type=\"num\" val=\"6\"/>", x)
             @test occursin("<cfvo type=\"num\" val=\"10\"/>", x)
             @test occursin("rgb=\"FFFCFCFF\"", x)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "cellIs default value averages the cells of a non-contiguous range" begin
@@ -2642,6 +2671,7 @@
             @test any(x -> parse(Float64, x) ≈ 106 / 3, fmls)         # (2 + 100 + 4) / 3; text ignored
             @test !any(x -> occursin(r"\[|;;", x), fmls)              # never a printed array
             rm(f)
+            SAVE_FILES && save_outfile(xf)
         end
 
     end
@@ -2677,6 +2707,8 @@
         # clear=false layers instead
         XLSX.setColoredDataBars(s2, "A1:A20"; bands=5, clear=false)
         @test length(XLSX.getConditionalFormats(s2)) == 2 * length(p)
+        SAVE_FILES && save_outfile(xf2)
+        SAVE_FILES && save_outfile(xf)
     end
     @testset "coverage: clearConditionalFormats with a string range" begin
         xf = XLSX.newxlsx()
@@ -2686,5 +2718,6 @@
         @test !isempty(XLSX.getConditionalFormats(ws))
         XLSX.clearConditionalFormats(ws, "A1:A5")
         @test isempty(XLSX.getConditionalFormats(ws))
+        SAVE_FILES && save_outfile(xf)
     end
 end

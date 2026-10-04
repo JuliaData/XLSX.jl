@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 - Fix [#462](https://github.com/JuliaData/XLSX.jl/issues/462)(Read-performance regression vs v0.10.4 on large worksheets)
+- Numeric cell values are now parsed with [Parsers.jl](https://github.com/JuliaData/Parsers.jl) (new dependency, v3), giving results identical to `Base.parse`
 - Modest tidy-up of Charts docs
 
 ## [v0.13.0](https://github.com/JuliaData/XLSX.jl/tree/v0.13.0) - 2026-09-02

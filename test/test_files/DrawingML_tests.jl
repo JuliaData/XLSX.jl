@@ -278,6 +278,7 @@
         @test ln_bare !== nothing
         @test isnothing(ln_bare.width)
     end
+    SAVE_FILES && save_outfile(f)
 end
 
 # =============================================================================
@@ -716,6 +717,7 @@ const _NSDECL = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main
         @test isnothing(XLSX.first_element_with_tag(
             XLSX.first_element_with_tag(rpr, "rPr"), "solidFill"))
         @test XLSX.Charts.default_run_props(XLSX.Charts.getChartTitleTextProps(h)).fill.fgcolor.rgb == "C00000"
+        SAVE_FILES && save_outfile(xf)
     end
     @testset "formatting cascade" begin
         f = XLSX.readxlsx(joinpath(data_directory, "chartex_formatted.xlsx"))
