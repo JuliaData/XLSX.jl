@@ -32,7 +32,7 @@ for (ver_label, env_path) in VERSIONS
     println("="^60)
 
     println("Instantiating environment…")
-    run(`julia --project=$env_path -e "using Pkg; Pkg.instantiate()"`)
+    run(`julia --project=$env_path -e "using Pkg; Pkg.resolve(); Pkg.instantiate()"`)
 
     cmd = `julia --project=$env_path --threads=8
                  $(joinpath(ROOT, "bench_worker.jl"))
