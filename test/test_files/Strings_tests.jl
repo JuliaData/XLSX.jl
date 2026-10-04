@@ -369,6 +369,37 @@ end
             ft = XLSX.getFont(s, "A1").font
             @test ft["name"]["val"] == "Arial" && ft["sz"]["val"] == "14"
             @test haskey(ft, "i") && haskey(ft, "b")
+
+            # A colour naming a face without its own foreground resolves through
+            # inheritance, or to no colour at all, rather than throwing.
+            _sst(ref) = XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, ref).value) + 1]
+            s["F1"] = styled"{(foreground=highlight):x} y"          # highlight inherits emphasis (blue)
+            @test s["F1"] == "x y"
+            @test occursin("<color rgb=\"FF195EB3\"/>", _sst("F1"))
+            s["F2"] = styled"{(foreground=bold):x} y"               # bold has no colour
+            @test s["F2"] == "x y"
+            @test !occursin("<color", _sst("F2"))
+            StyledStrings.addface!(:XLSXInhOnly => StyledStrings.Face(inherit = [:red]))
+            s["F3"] = styled"{(foreground=XLSXInhOnly):x} y"
+            @test s["F3"] == "x y"
+            @test occursin("<color rgb=\"FFA51C2C\"/>", _sst("F3"))
+
+            # Faces whose foregrounds name each other give no colour rather than a
+            # stack overflow, while a long but finite chain still resolves.
+            StyledStrings.addface!(:XLSXCycA => StyledStrings.Face(foreground = :XLSXCycB))
+            StyledStrings.addface!(:XLSXCycB => StyledStrings.Face(foreground = :XLSXCycA))
+            s["F4"] = styled"{XLSXCycA:x} y"
+            @test s["F4"] == "x y"
+            @test !occursin("<color", _sst("F4"))
+            s["F5"] = styled"{(foreground=XLSXCycA):x} y"
+            @test s["F5"] == "x y"
+            @test !occursin("<color", _sst("F5"))
+            for i in 1:4
+                StyledStrings.addface!(Symbol("XLSXChain$i") => StyledStrings.Face(foreground = Symbol("XLSXChain$(i+1)")))
+            end
+            StyledStrings.addface!(:XLSXChain5 => StyledStrings.Face(foreground = :red))
+            s["F6"] = styled"{XLSXChain1:x} y"
+            @test occursin("<color rgb=\"FFA51C2C\"/>", _sst("F6"))
             SAVE_FILES && save_outfile(f)
         end
     end
