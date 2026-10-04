@@ -55,7 +55,7 @@ end
 
 # Converts column number to a column name. See also XLSX.decode_column_number.
 function encode_column_number(column_number::Integer) :: String
-    if column_number <= 0 && column_number > EXCEL_MAX_COLS
+    if column_number <= 0 || column_number > EXCEL_MAX_COLS
         throw(XLSXError("Column number should be in the range from 1 to $EXCEL_MAX_COLS."))
     end
 
@@ -395,12 +395,6 @@ function cell_offset(from::CellRef, to::CellRef) # return tuple (row_offset, col
     return offset
 end
 
-function relative_column_position(column_number::Integer, rng::ColumnRange)
-    column_number ∉ rng && throw(XLSXError("Column $column_number is outside range $rng."))
-    return column_number - rng.start + 1
-end
-
-@inline relative_column_position(ref::CellRef, rng::ColumnRange) = relative_column_position(column_number(ref), rng)
 
 const RGX_COLUMN_RANGE = r"^[A-Z]?[A-Z]?[A-Z]:[A-Z]?[A-Z]?[A-Z]$"
 const RGX_COLUMN_RANGE_START = r"^[A-Z]+"
@@ -442,7 +436,7 @@ end
 function is_valid_row_range(r::AbstractString) :: Bool
     if occursin(RGX_SINGLE_ROW, r)
         row_number = parse(Int, r)
-        if row_number <= 0 && row_number > EXCEL_MAX_ROWS
+        if row_number <= 0 || row_number > EXCEL_MAX_ROWS
             throw(XLSXError("Row number should be in the range from 1 to $EXCEL_MAX_ROWS."))
         end
         return true

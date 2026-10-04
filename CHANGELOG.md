@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Fix [#462](https://github.com/JuliaData/XLSX.jl/issues/462)(Read-performance regression vs v0.10.4 on large worksheets)
 - Numeric cell values are now parsed with [Parsers.jl](https://github.com/JuliaData/Parsers.jl) (new dependency, v3), giving results identical to `Base.parse`
+- Fix `Tables.getcolumn(row, i)` on `eachtablerow` rows, which threw a `MethodError` for every integer index
+- Column numbers and row ranges outside Excel's limits are now rejected (e.g. `CellRef(1, 20000)` no longer gives `]OF1`)
+- An invalid reference passed to `setdata!` with a vector now raises `XLSXError` rather than `UndefVarError`
 - Modest tidy-up of Charts docs
 
 ## [v0.13.0](https://github.com/JuliaData/XLSX.jl/tree/v0.13.0) - 2026-09-02

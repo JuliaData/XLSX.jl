@@ -46,16 +46,6 @@ function get_relationship_target_by_id(prefix::String, wb::Workbook, Id::String)
     throw(XLSXError("Relationship Id=$(Id) not found"))
 end
 
-function get_relationship_id_by_target(wb::Workbook, target::String)::String
-    for r in wb.relationships
-        if r.Type == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet"
-            if endswith(target, r.Target)
-                return r.Id
-            end
-        end
-    end
-    throw(XLSXError("Target=$(target) not found"))
-end
 
 function get_relationship_target_by_type(prefix::String, wb::Workbook, _type_::String)::String
     for r in wb.relationships

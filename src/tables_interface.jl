@@ -7,7 +7,10 @@ Tables.rows(itr::TableRowIterator) = itr
 Tables.schema(itr::TableRowIterator) = Tables.Schema(itr.index.column_labels, fill(Any, length(itr.index.column_labels)))
 Tables.columnnames(tr::TableRow) = tr.index.column_labels
 Tables.getcolumn(tr::TableRow, nm::Symbol) = getdata(tr, nm)
-Tables.getcolumn(tr::TableRow, i::Integer) = getdata(tr, i)
+# `::Int` is needed: an `::Integer` method alone is ambiguous with Tables.jl's
+# `getcolumn(x, ::Int)`. Other integer types are converted to `Int`.
+Tables.getcolumn(tr::TableRow, i::Int) = getdata(tr, i)
+Tables.getcolumn(tr::TableRow, i::Integer) = getdata(tr, Int(i))
 
 _as_vector(y::AbstractVector) = y
 _as_vector(y) = collect(y)

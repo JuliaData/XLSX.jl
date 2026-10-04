@@ -80,8 +80,9 @@ function ordinal_sheet_number(wb::Workbook, name::String)
             return i
         end
     end
-    throw(XLSXError("worksheet $(ws.name) not found in workbook"))
+    throw(XLSXError("worksheet $name not found in workbook"))
 end
+
 function Base.axes(ws::Worksheet, d)
     dim = get_dimension(ws)
     if d == 1

@@ -7,8 +7,6 @@
 @inline column_number(c::Cell) = column_number(c.ref)
 @inline relative_cell_position(c::Cell, rng::CellRange) = relative_cell_position(c.ref, rng)
 @inline relative_cell_position(c::EmptyCell, rng::CellRange) = relative_cell_position(c.ref, rng)
-@inline relative_column_position(c::Cell, rng::ColumnRange) = relative_column_position(c.ref, rng)
-@inline relative_column_position(c::EmptyCell, rng::ColumnRange) = relative_column_position(c.ref, rng)
 
 Base.:(==)(c1::Cell, c2::Cell) = c1.ref == c2.ref && c1.datatype == c2.datatype && c1.style == c2.style && c1.value == c2.value && c1.meta == c2.meta && c1.formula == c2.formula
 Base.hash(c::Cell, h::UInt) = hash(c.formula, hash(c.meta, hash(c.value, hash(c.style, hash(c.datatype, hash(c.ref, h))))))
@@ -174,12 +172,6 @@ function _rewrite_node(io::IOBuffer, node::XML.LazyNode, pfx::String)
         write(io, '\n', '<', '/', pfx, tag, '>')
     end
     return nothing
-end
-
-function _rewrite_node(node::XML.LazyNode, pfx::Union{String,Nothing})::String
-    io = IOBuffer()
-    _rewrite_node(io, node, something(pfx, ""))
-    return String(take!(io))
 end
 
 function _build_si_xml(si_node::XML.LazyNode, pfx::String)::String
