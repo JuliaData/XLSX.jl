@@ -155,9 +155,10 @@ sheets and every workbook in `test/data`. Two environment variables extend it:
 ### Versions compared
 
 - `v0.10` — EzXML.jl based implementation
-- `v0.11` — First XML.jl based implementation using XML.jl v0.3. It rejects
-  macro-enabled workbooks, so the `xl_*` fixtures (`.xlsm`) are skipped and
-  show as `N/A` for it
+- `v0.11` — First XML.jl based implementation using XML.jl v0.3. Pinned to its last
+  patch, 0.11.11: 0.11.0 has a threading race in its style cache (fails
+  intermittently with `--threads=8`) and rejects `.xlsm`, so it can't run the
+  `xl_*` fixtures
 - `v0.12` — Updated XLSX.jl implementation adopting XML.jl v0.4
 - `v0.13` — Adds native Excel chart support
 - `master` — upstream `master` on GitHub
