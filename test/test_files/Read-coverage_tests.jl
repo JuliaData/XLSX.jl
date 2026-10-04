@@ -22,6 +22,23 @@ end
 
 @testset "read.jl coverage" begin
 
+    @testset "Worksheet ranges across cache modes" begin
+        for filename in ("simple.xlsx", "strict.xlsx", "NoDim.xlsx")
+            bytes = read(joinpath(data_directory, filename))
+            writable = XLSX.openxlsx(IOBuffer(bytes); mode = "rw")
+            expected = writable[1][:]
+            range = "A1:" * XLSX.encode_column_number(size(expected, 2)) * string(size(expected, 1))
+            for openfile in (XLSX.readxlsx,
+                             io -> XLSX.openxlsx(io; enable_cache = true),
+                             io -> XLSX.openxlsx(io; enable_cache = false))
+                xf = openfile(IOBuffer(bytes))
+                @test XLSX.sheetnames(xf) == XLSX.sheetnames(writable)
+                @test isequal(xf[1][range], expected)
+                @test isequal(xf[1][range], expected)
+            end
+        end
+    end
+
 
 # ===========================================================================
 # Namespace resolution

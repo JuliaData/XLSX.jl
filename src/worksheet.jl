@@ -171,22 +171,28 @@ end
 
 @inline isdate1904(ws::Worksheet) = isdate1904(get_workbook(ws))
 
-# Returns the dimension of this worksheet as a CellRange.
-# If the dimension is unknown, computes a dimension from cells in cache.
-# If the cache is empty or is not being used, return (but don't set) A1:A1.
-function get_dimension(ws::Worksheet)::Union{Nothing,CellRange}
+# Returns the recorded dimension, or derives it from worksheet rows if absent.
+# Display can pass allow_load=false to keep an unread sheet lazy. Empty sheets
+# use an A1:A1 fallback without persisting it as their dimension.
+function get_dimension(ws::Worksheet; allow_load::Bool = true)::Union{Nothing,CellRange}
     !isnothing(ws.dimension) && return ws.dimension
-    if isnothing(ws.cache) || isempty(ws.cache) || !ws.cache.is_full
-        return CellRange(CellRef(1, 1), CellRef(1, 1))  # best-effort answer for display purposes; NOT persisted
-    else
-        row_extr = extrema(keys(ws.cache.cells))
-        row_min = first(row_extr)
-        row_max = last(row_extr)
-        col_extr = [extrema(y) for y in [keys(x) for x in values(ws.cache.cells)] if !isempty(y)]
-        col_min = minimum([x for x in first.(col_extr)])
-        col_max = maximum([x for x in last.(col_extr)])
-        set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
+    if (!allow_load && (isnothing(ws.cache) || !ws.cache.is_full)) ||
+       is_chartsheet(get_workbook(ws), ws.name)
+        return CellRange(CellRef(1, 1), CellRef(1, 1))
     end
+
+    row_min = col_min = typemax(Int)
+    row_max = col_max = 0
+    for row in eachrow(ws)
+        row_min = min(row_min, row.row)
+        row_max = max(row_max, row.row)
+        for col in keys(row.rowcells)
+            col_min = min(col_min, col)
+            col_max = max(col_max, col)
+        end
+    end
+    col_max == 0 && return CellRange(CellRef(1, 1), CellRef(1, 1))
+    set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
     return ws.dimension
 end
 
@@ -516,7 +522,7 @@ function Base.show(io::IO, ws::Worksheet)
         @printf(io, "Chartsheet: [\"%s\"] %s", ws.name, hidden_string)
         return
     end
-    rg = get_dimension(ws)
+    rg = get_dimension(ws; allow_load = false)
     if rg !== nothing
         nrow, ncol = size(rg)
         @printf(io, "%d×%d %s: [\"%s\"](%s) %s", nrow, ncol, typeof(ws), ws.name, rg, hidden_string)

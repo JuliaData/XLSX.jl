@@ -1120,10 +1120,10 @@
 
     @testset "v0.12 API still works, deprecated" begin
         c = XLSX.getChart(XLSX.readxlsx(joinpath(data_directory, "chart_basic.xlsx"))["Data"], "chart1")
-        @test (@test_deprecated c.title) == XLSX.Charts.getChartTitle(c)
-        @test (@test_deprecated c.charttypes) == XLSX.Charts.getChartTypes(c)
-        @test (@test_deprecated c.series) == XLSX.Charts.getChartSeries(c)
-        @test (@test_deprecated c.series[1].values.data) == [10.0, 20.0, 15.0, 5.0]
+        @test (@test_deprecated r"deprecated"i c.title) == XLSX.Charts.getChartTitle(c)
+        @test (@test_deprecated r"deprecated"i c.charttypes) == XLSX.Charts.getChartTypes(c)
+        @test (@test_deprecated r"deprecated"i c.series) == XLSX.Charts.getChartSeries(c)
+        @test (@test_deprecated r"deprecated"i c.series[1].values.data) == [10.0, 20.0, 15.0, 5.0]
         @test (@test_deprecated XLSX.chartType(c)) === XLSX.Charts.getChartType(c)
         @test (@test_deprecated XLSX.chartSchema(c)) === XLSX.Charts.getChartSchema(c)
     end

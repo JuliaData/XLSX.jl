@@ -4,9 +4,9 @@ options selected, as follows:
 
 - `mode="rw"`: every sheet's data fully, eagerly, parallel-cached at open.
 
-- `mode="r"`, plain `openxlsx`/`readxlsx`: every sheet's structural XML decompressed/stripped 
-    at open (cheap, scales with total file size); each sheet's actual row data lazily cache-filled only on 
-    first access to that sheet. Any sheets from which cell data are never accessed do not get cached.
+- `mode="r"`, plain `openxlsx`/`readxlsx`: every sheet's XML decompressed at open;
+    each sheet's row data lazily cache-filled on first access, then its stored XML stripped.
+    Any sheets from which cell data are never accessed do not get cached.
 
 - `readtable`/`readtransposedtable`: only the one target worksheet's XML is ever
     decompressed at all — structural processing for every other sheet is skipped entirely.

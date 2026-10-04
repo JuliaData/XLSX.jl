@@ -182,6 +182,77 @@ include(joinpath(files_directory, "XML_tests.jl"))
 end
 
 @testset "No Dimension" begin
+    @testset "Read-only range discovery" begin
+        bytes = read(joinpath(data_directory, "NoDim.xlsx"))
+        expected = XLSX.openxlsx(IOBuffer(bytes); mode = "rw")[1]["A1:K116"]
+        factories = (XLSX.readxlsx,
+                     io -> XLSX.openxlsx(io; enable_cache = true),
+                     io -> XLSX.openxlsx(io; enable_cache = false))
+        cellvalues(ws, cells) = map(c -> XLSX.getdata(ws, c), cells)
+        ranges = (
+            (ws -> ws[:], expected),
+            (ws -> ws[:, :], expected),
+            (ws -> XLSX.getdata(ws), expected),
+            (ws -> ws[1:2, :], expected[1:2, :]),
+            (ws -> ws[:, 1:2], expected[:, 1:2]),
+            (ws -> ws[[1, 2], :], expected[1:2, :]),
+            (ws -> ws[:, [1, 2]], expected[:, 1:2]),
+            (ws -> ws["1:2"], expected[1:2, :]),
+            (ws -> ws["A:B"], expected[:, 1:2]),
+            (ws -> cellvalues(ws, XLSX.getcellrange(ws, :)), expected),
+            (ws -> cellvalues(ws, XLSX.getcell(ws, :)), expected),
+            (ws -> cellvalues(ws, XLSX.getcell(ws, 1:2, :)), expected[1:2, :]),
+            (ws -> cellvalues(ws, XLSX.getcell(ws, :, 1:2)), expected[:, 1:2]),
+            (ws -> cellvalues(ws, XLSX.getcellrange(ws, "1:2")), expected[1:2, :]),
+            (ws -> cellvalues(ws, XLSX.getcellrange(ws, "A:B")), expected[:, 1:2]),
+        )
+        for openfile in factories
+            for (readrange, reference) in ranges
+                ws = openfile(IOBuffer(bytes))[1]
+                @test isequal(readrange(ws), reference)
+                @test isequal(readrange(ws), reference)
+            end
+            ws = openfile(IOBuffer(bytes))[1]
+            @test axes(ws, 1) == 1:116
+            @test axes(ws, 2) == 1:11
+            @test XLSX.get_dimension(ws) == XLSX.CellRange("A1:K116")
+            !XLSX.is_cache_enabled(ws) && @test ws.cache === nothing
+
+            ws = openfile(IOBuffer(bytes))[1]
+            sprint(show, ws)
+            @test ws.cache === nothing
+            @test ws.dimension === nothing
+
+            ws = openfile(IOBuffer(read(joinpath(data_directory, "simple.xlsx"))))[1]
+            @test XLSX.get_dimension(ws) == XLSX.CellRange("A1:B3")
+            @test ws.cache === nothing
+        end
+
+        sparse = Matrix{Any}(missing, 5, 3)
+        sparse[1, 1] = 11
+        sparse[5, 3] = 22
+        sheets = (
+            ("<sheetData/>", "A1:A1", fill(missing, 1, 1)),
+            ("<sheetData><row r=\"7\" ht=\"18\" customHeight=\"1\"/></sheetData>", "A1:A1", fill(missing, 1, 1)),
+            ("<sheetData><row r=\"3\"><c r=\"C3\"><v>11</v></c></row><row r=\"7\"><c r=\"E7\"><v>22</v></c></row></sheetData>", "C3:E7", sparse),
+        )
+        for (sheetdata, dimension, reference) in sheets
+            path = patch_xlsx_entry(joinpath(src_data_directory, "blank.xlsx"), "xl/worksheets/sheet1.xml",
+                _ -> "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" * sheetdata * "</worksheet>")
+            try
+                for openfile in factories
+                    ws = openfile(IOBuffer(read(path)))[1]
+                    @test isequal(ws[:], reference)
+                    @test isequal(ws[:], reference)
+                    @test XLSX.get_dimension(ws) == XLSX.CellRange(dimension)
+                    !XLSX.is_cache_enabled(ws) && @test ws.cache === nothing
+                end
+            finally
+                rm(path)
+            end
+        end
+    end
+
     noDim = XLSX.openxlsx(joinpath(data_directory, "NoDim.xlsx"), mode="rw")
     Dim = XLSX.readxlsx(joinpath(data_directory, "customXml.xlsx"))
     @test noDim[1].dimension == Dim[1].dimension
