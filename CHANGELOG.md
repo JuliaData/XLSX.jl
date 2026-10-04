@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Fix [#462](https://github.com/JuliaData/XLSX.jl/issues/462)(Read-performance regression vs v0.10.4 on large worksheets)
+- Modest tidy-up of Charts docs
+
 ## [v0.13.0](https://github.com/JuliaData/XLSX.jl/tree/v0.13.0) - 2026-09-02
 
 Chart support, read-only in v0.12, now covers formatting and creation, in a new
