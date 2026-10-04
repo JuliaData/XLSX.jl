@@ -164,6 +164,7 @@
         @test byval("accent1", [:lumMod => 75000])                              == "104862"
         @test byval("tx1",     [:lumMod => 65000, :lumOff => 35000])            == "595959"
         @test byval("tx1",     [:lumMod => 15000, :lumOff => 85000])            == "D9D9D9"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "every colour argument takes every colour form" begin

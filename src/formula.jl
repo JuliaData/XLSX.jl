@@ -152,7 +152,6 @@ function build_reference_index(ws::Worksheet)
     return refs
 end
 
-formula(f::ReferencedFormula)::Formula = Formula(f.formula, nothing, nothing, f.unhandled) 
 
 function get_referenced_formula(ws::Worksheet, cellref::CellRef; refs::Union{Nothing,Dict{Int,ReferencedFormula}}=nothing)
     # find the actual formula a cell's FormulaReference refers to

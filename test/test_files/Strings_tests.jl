@@ -1,11 +1,11 @@
-# Rewrite a single entry of an xlsx zip into a temp file. Used to inject XML that
+# Rewrite a single entry of an xlsx zip into a new file in the working directory. Used to inject XML that
 # Excel itself never produces (inlineStr cells), so the `_rewrite_node` path in
 # cell.jl actually gets exercised.
 function patch_xlsx_entry(src::AbstractString, entry::AbstractString, patch::Function)
     r = ZipReader(read(src))
     names = zip_names(r)
     entry in names || error("no `$entry` in $src")
-    dst = tempname() * ".xlsx"
+    dst = "patched_" * basename(src)
     ZipWriter(dst) do w
         for n in names
             bytes = zip_readentry(r, n)
@@ -110,14 +110,16 @@ end
         xf = XLSX.openxlsx(f, mode="rw")
         @test xf[1]["A1"] == expected          # read decodes correctly (passes pre-fix)
 
-        out = tempname() * ".xlsx"
+        out = "strings_inline_escape_out.xlsx"
         XLSX.writexlsx(out, xf, overwrite=true)
 
         sst = check_sst(out)                   # throws pre-fix
         @test !occursin(r"&(?!amp;|lt;|gt;|apos;|quot;|#)", sst)
         @test XLSX.readxlsx(out)[1]["A1"] == expected
 
-        rm.([f, out]; force=true)
+        SAVE_FILES && save_outfile(xf)
+        isfile(f) && rm(f)
+        isfile(out) && rm(out)
     end
 end
 

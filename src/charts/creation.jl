@@ -278,7 +278,6 @@ function _series_ref(c::AbstractChart, ref)
     return _resolve_ref(c.package, sheet, ref)
 end
 
-_chart_num(v) = v isa Dates.Date || v isa Dates.DateTime || v isa Dates.Time
 
 _chart_numeric(v) = v isa Real || v isa Dates.Date || v isa Dates.DateTime || v isa Dates.Time
 

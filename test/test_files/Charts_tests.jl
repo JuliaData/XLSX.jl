@@ -314,8 +314,9 @@
         # survives a round trip
         f = "regionmap_rt.xlsx"
         XLSX.writexlsx(f, XLSX.openxlsx(joinpath(data_directory, "chartex_regionmap.xlsx"); mode="rw"); overwrite=true)
+        SAVE_FILES && save_outfile(f)
         @test only(XLSX.getCharts(XLSX.readxlsx(f))) isa XLSX.Charts.ChartEx
-        rm(f; force=true)
+        isfile(f) && rm(f)
     end
     @testset "external reference" begin  # chart_external.xlsx
         f = XLSX.readxlsx(joinpath(data_directory, "chart_external.xlsx"))
@@ -386,8 +387,7 @@
         f = XLSX.openxlsx(original; mode="rw")
         before = XLSX.Charts.getChartData(XLSX.Charts.getCharts(f)[1])
 
-        tmp = joinpath(tempdir(), "chart_basic_roundtrip.xlsx")
-        isfile(tmp) && rm(tmp; force=true)
+        tmp = "chart_basic_roundtrip.xlsx"
         XLSX.writexlsx(tmp, f; overwrite=true)
 
         part = "xl/charts/chart1.xml"
@@ -407,7 +407,7 @@
         @test after.data == before.data
 
         SAVE_FILES && save_outfile(tmp)
-        rm(tmp; force=true)
+        isfile(tmp) && rm(tmp)
     end
 
     @testset "chart_range" begin
@@ -959,7 +959,7 @@
         @test XLSX.Charts.getSeriesLine(d, 1).value == cols_before.value
         @test XLSX.Charts.getChartSeriesCount(d) == 1
         SAVE_FILES && save_outfile(yf)
-        rm(f; force=true)
+        isfile(f) && rm(f)
     end
     @testset "a failed addChartEx leaves no chartsheet behind" begin
         xf = XLSX.newxlsx("data")
@@ -967,6 +967,7 @@
         @test_throws XLSX.XLSXError XLSX.Charts.addChartEx(xf, :waterfall, "Nowhere!B2:B6")  # no such sheet
         @test XLSX.sheetnames(xf) == ["data"]
         @test isempty(XLSX.Charts.getCharts(xf))
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "chart values compare by content" begin
@@ -1020,6 +1021,7 @@
         XLSX.Charts.setSeriesFill(c, 1, "red")
         @test XLSX.Charts.getSeriesShapeProps(c, 1) != before
         isfile(path) && rm(path)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "chart_extras.xlsx: elements with no other fixture" begin
@@ -1105,6 +1107,7 @@
         @test !isnothing(gl)                                         # still there
         @test isnothing(gl.fill) && isnothing(gl.line)               # but unformatted
         isfile(path) && rm(path)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "XLSX-level chart names" begin

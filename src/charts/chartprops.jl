@@ -1308,7 +1308,6 @@ function _point_node(parent::Union{Nothing,XML.Node}, tag::AbstractString, point
     return _idx_child(parent, tag, point - 1)
 end
 
-_dpt_node(ser::XML.Node, point::Integer)  = _point_node(ser, "dPt", point)
 _dlbl_node(ser::XML.Node, point::Integer) = _point_node(first_element_with_tag(ser, "dLbls"), "dLbl", point)
 
 _group_axids(n::XML.Node) =
@@ -2312,8 +2311,6 @@ function setAxisNumberFormatLinked(c::Chart, ax::ChartAxis, linked::Bool)
 end
 
 # ── Group setters ─────────────────────────────────────────────────────────────
-
-_group_axids(el) = [parse(Int, _attr(k, "val")) for k in XML.children(el) if localname(k) == "axId"]
 
 function _group_path(c::Chart, root::XML.Node, g::ChartGroup)
     tag = String(g.kind)

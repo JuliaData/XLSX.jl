@@ -2,9 +2,7 @@
 
     sheetname = "New Sheet"
     filename = "test_file.xlsx"
-    if isfile(filename)
-        rm(filename)
-    end
+    isfile(filename) && rm(filename)
 
     data = [
         1 "a" Date(2018, 1, 1);

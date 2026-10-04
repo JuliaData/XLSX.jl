@@ -1079,7 +1079,6 @@ end
 _el(pfx, tag, kids...; attrs...) = XML.Element(prefixed_tag(pfx[NS_A], tag), kids...; attrs...)
 #_el(pfx, tag; kw...) = XML.Element(prefixed_tag(pfx[NS_A], tag); kw...)
 
-_with(node, kids) = isempty(kids) ? node : _with_children(node, kids)
 
 _emu(points) = round(Int, points * EMU_PER_POINT)
 

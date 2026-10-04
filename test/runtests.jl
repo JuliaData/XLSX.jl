@@ -16,7 +16,7 @@ using Colors
 # has stricter rules, rejects. By creating the output of every testset as a 
 # file explicitly, it is possible to confirm that this never happens in practice 
 # by manually opening each output file.
-# If TRUE, approx 220 files are created in `outdir`.
+# If TRUE, approx 600 files are created in `outdir`.
 # This flag should be reserved for local use and **never** left as TRUE for CI.
 const SAVE_FILES = false
 
@@ -58,7 +58,10 @@ const outfile_counter = Ref(0)
 function save_outfile(xf::XLSX.XLSXFile)
     outfile_counter[] += 1
     label = sanitize_filename(current_testset_label())
-    fname = "outfile_$(lpad(outfile_counter[], 3, '0'))_$(label).xlsx"
+    # Excel won't open a macro-enabled workbook saved with an `.xlsx` extension
+    src_ext = xf.source isa AbstractString ? lowercase(splitext(xf.source)[2]) : ""
+    ext = (src_ext in (".xlsm", ".xltm") || xf.template_type == XLSX.XLTMTemplate) ? ".xlsm" : ".xlsx"
+    fname = "outfile_$(lpad(outfile_counter[], 3, '0'))_$(label)$(ext)"
     XLSX.writexlsx(joinpath(outdir, fname), xf)
 end
 
@@ -142,7 +145,9 @@ include(joinpath(files_directory, "Copy-Add_tests.jl"))
 include(joinpath(files_directory, "DrawingML_tests.jl"))
 include(joinpath(files_directory, "Defined-names_tests.jl"))
 include(joinpath(files_directory, "Differential_tests.jl"))
+include(joinpath(files_directory, "Dispatch-coverage_tests.jl"))
 include(joinpath(files_directory, "Edit_tests.jl"))
+include(joinpath(files_directory, "Error-branches_tests.jl"))
 include(joinpath(files_directory, "Errors_tests.jl"))
 include(joinpath(files_directory, "Excel_tables_tests.jl"))
 include(joinpath(files_directory, "FileIO_tests.jl"))

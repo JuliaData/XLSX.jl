@@ -142,13 +142,6 @@ function styles_cell_xf_numFmtId(wb::Workbook, index::Integer)::Int
     end
     return parse(Int, el["numFmtId"])
 end
-function styles_cell_xf_numFmtId(allXfNodes::Vector{XML.Node}, index::Integer)::Int
-    el = styles_cell_xf(allXfNodes, index)
-    if !haskey(el, "numFmtId")
-        return 0
-    end
-    return parse(Int, el["numFmtId"])
-end
 
 # Defines a custom number format to render numbers, dates or text.
 # Returns the index to be used as the `numFmtId` in a cellXf definition.

@@ -2,7 +2,7 @@
     f = XLSX.open_xlsx_template(joinpath(data_directory, "general.xlsx"))
     filename_copy = "general_copy.xlsx"
 
-    XLSX.writexlsx(filename_copy, f)
+    XLSX.writexlsx(filename_copy, f; overwrite=true)
     SAVE_FILES && save_outfile(filename_copy)
     @test isfile(filename_copy)
 
@@ -44,4 +44,6 @@ end
     @test f3["new_name"][5, 5] == "goodbye world"
     @test f3["new_name"][10, 10] == "hello world"
     isfile("saveable.xlsx") && rm("saveable.xlsx")
+    SAVE_FILES && save_outfile(f2)
+    SAVE_FILES && save_outfile(f)
 end

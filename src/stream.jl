@@ -55,25 +55,6 @@ The iterator element is a SheetRow.
 end
 
 
-# Collect all row LazyNodes from a worksheet's sheetData element.
-function _collect_row_nodes(doc::XML.LazyNode)
-    root = xml_root_element(doc)
-    localname(root) != "worksheet" && throw(XLSXError("Expecting to find a worksheet node. Found a $(localname(root))."))
-
-    # Find sheetData
-    sheetdata = nothing
-    for child in XML.children(root)
-        if localname(child) == "sheetData"
-            sheetdata = child
-            break
-        end
-    end
-    sheetdata === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
-
-    # Collect row nodes
-    return XML.LazyNode[child for child in XML.children(sheetdata) if localname(child) == "row"]
-end
-
 function _read_row_attrs(row::XML.LazyNode, wsname::String)
     current_row = nothing
     current_row_ht = nothing

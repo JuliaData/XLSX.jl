@@ -107,7 +107,7 @@ if Pkg.pkgversion(FileIO) > v"1.19.0"
             SAVE_FILES && save_outfile("file.xlsx")
             output = load("file.xlsx", "Sheet1") |> DataFrames.DataFrame
             @test input == output
-            rm("file.xlsx")
+            isfile("file.xlsx") && rm("file.xlsx")
 
             # Test for saving DataFrame to XLSX with sheetname keyword
             input = (Day = ["Nov. 27", "Nov. 28", "Nov. 29"], Highest = [78, 79, 75]) |> DataFrames.DataFrame
@@ -115,7 +115,7 @@ if Pkg.pkgversion(FileIO) > v"1.19.0"
             SAVE_FILES && save_outfile("file.xlsx")
             output = load("file.xlsx", "SheetName") |> DataFrames.DataFrame
             @test input == output
-            rm("file.xlsx")
+            isfile("file.xlsx") && rm("file.xlsx")
 
             df, names = get_cols(load(filename, "Sheet1"; column_labels=good_colnames))
             @test names == good_colnames

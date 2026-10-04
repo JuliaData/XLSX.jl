@@ -105,6 +105,7 @@
         @test mf[1]["A1"] == "hello"
         isfile("mytest.xlsm") && rm("mytest.xlsm")
 
+        SAVE_FILES && save_outfile(mf)
         mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xltm"); mode="rW")
         @test mf[1]["A1"] == "hello"
         @test mf.template_type == XLSX.XLTMTemplate
@@ -121,6 +122,7 @@
             @test mf[1]["A1"] == "hello"
             @test mf.template_type == XLSX.XLTMTemplate
         end
+        SAVE_FILES && save_outfile(joinpath(data_directory, "macro-enabled2.xltm"))
         @test isfile(joinpath(data_directory, "macro-enabled2.xlsm"))
         SAVE_FILES && save_outfile(joinpath(data_directory, "macro-enabled2.xlsm"))
         mf = XLSX.openxlsx(joinpath(data_directory, "macro-enabled2.xlsm"); mode="WR")
@@ -139,6 +141,7 @@
             xf2 = XLSX.openxlsx("UTF-16_test.xlsx"; mode="rw")
             @test xf1[1]["E3"] == xf2[1]["E3"]
             @test xf1[1]["R99"] == xf2[1]["R99"]
+            SAVE_FILES && save_outfile(xf2)
         catch e
             @test false
         end
@@ -354,13 +357,14 @@ end
 
     @testset "plain worksheets: rename + add updates HeadingPairs and TitlesOfParts" begin
         src = joinpath(data_directory, "Book1.xlsx")
-        p = tempname() * ".xlsx"
-        cp(src, p)
+        p = "testfiles_plain_worksheets_rename_add.xlsx"
+        cp(src, p; force=true)
  
         XLSX.openxlsx(p; mode="rw") do xf
             XLSX.renamesheet!(xf["Sheet1"], "Renamed")
             XLSX.addsheet!(xf, "Added")
         end
+        SAVE_FILES && save_outfile(p)
 
         app = String(zip_readentry(ZipReader(read(p)), "docProps/app.xml"))
 
@@ -376,18 +380,19 @@ end
         @test ws_idx !== nothing
         @test pairs[ws_idx][2] == 3
 
-        rm(p; force=true)
+        isfile(p) && rm(p)
     end
 
     @testset "chartsheet workbook: Worksheets/Charts categories stay separate and correctly counted" begin
         src = joinpath(data_directory, "Chartsheet.xlsx")
-        p = tempname() * ".xlsx"
-        cp(src, p)
+        p = "testfiles_chartsheet_workbook_worksheets.xlsx"
+        cp(src, p; force=true)
 
         XLSX.openxlsx(p; mode="rw") do xf
             XLSX.renamesheet!(xf["Sheet1"], "RenamedData")
             XLSX.addsheet!(xf, "ExtraData")
         end
+        SAVE_FILES && save_outfile(p)
 
         app = String(zip_readentry(ZipReader(read(p)), "docProps/app.xml"))
         pairs  = parse_heading_pairs(app)
@@ -414,7 +419,7 @@ end
             @test issetequal(XLSX.sheetnames(xf2), ["RenamedData", "ExtraData", "Chart1"])
         end
 
-        rm(p; force=true)
+        isfile(p) && rm(p)
     end
 
 end

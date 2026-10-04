@@ -216,7 +216,6 @@ function isInDim(ws::Worksheet, dim::CellRange, row, col)
     return true
 end
 
-_xpath(parts...) = join(["/$SPREADSHEET_NAMESPACE_XPATH_ARG:$p" for p in parts], "")
 
 # Merges a boolean/flag font tag (e.g. "b", "i", "strike").
 # Returns nothing (present, no attributes) if kept/set, or missing to omit.

@@ -85,6 +85,7 @@
 
     XLSX.writexlsx("mytest.xlsx", f, overwrite=true)
     SAVE_FILES && save_outfile("mytest.xlsx")
+    SAVE_FILES && save_outfile(f2)
     f2 = XLSX.readxlsx("mytest.xlsx")
     @test XLSX.get_dimension(f2[1])==XLSX.CellRange("A1:R1001")
 

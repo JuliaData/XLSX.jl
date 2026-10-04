@@ -87,6 +87,7 @@ end
 
         xf.namespace["xl/sharedStrings.xml"] = nothing
         @test XLSX.get_sst_prefix(sh) == ""
+        SAVE_FILES && save_outfile(xf)
     end
 
 
@@ -123,6 +124,7 @@ end
     @testset "is_strict_ooxml - ordinary transitional file" begin
         xf = XLSX.newxlsx()
         @test XLSX.is_strict_ooxml(xf) == false
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "_strict_to_transitional_node! - remaps and drops conformance" begin
@@ -152,6 +154,7 @@ end
 
         @test xf.data[f] isa XLSX.XML.Node
         @test XLSX.get_attr(XLSX.xml_root_element(xf.data[f]), "xmlns") == _TRANS_MAIN
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "convert_strict_to_transitional! - worksheet String substitution (pass 3)" begin
@@ -166,6 +169,7 @@ end
         @test occursin(_TRANS_MAIN, data)
         @test !occursin("purl.oclc.org", data)
         @test !occursin("conformance", data)
+        SAVE_FILES && save_outfile(xf)
     end
 
 
@@ -191,6 +195,7 @@ end
         @test xf.template_type == XLSX.XLTXTemplate
         _, def2 = _find_child(root, "Default", "Extension", "xml")
         @test XLSX.get_attr(def2, "ContentType") == _CT_SHEET
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "ensure_workbook_is_xlsx! - unknown workbook content type errors" begin
@@ -201,6 +206,7 @@ end
         ovr["ContentType"] = "application/vnd.example.not-a-workbook+xml"
 
         @test_throws XLSX.XLSXError XLSX.ensure_workbook_is_xlsx!(xf)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "ensure_workbook_is_xlsx! - no content type at all errors" begin
@@ -213,12 +219,14 @@ end
         isnothing(j) || deleteat!(root.children, j)
 
         @test_throws XLSX.XLSXError XLSX.ensure_workbook_is_xlsx!(xf)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "check_minimum_requirements - missing mandatory part errors" begin
         xf = XLSX.newxlsx()
         delete!(xf.files, "xl/_rels/workbook.xml.rels")
         @test_throws XLSX.XLSXError XLSX.check_minimum_requirements(xf)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "parse_workbook! - root element is not <workbook>" begin
@@ -273,6 +281,7 @@ end
         xf = XLSX.newxlsx()
         _set_date1904!(xf, "maybe")
         @test_throws XLSX.XLSXError XLSX.parse_workbook!(xf)
+        SAVE_FILES && save_outfile(xf)
     end
 
 
@@ -349,8 +358,8 @@ end
 
     @testset "readtable - columns argument is not a valid column range" begin
         outfile = "read_badrange.xlsx"
-        isfile(outfile) && rm(outfile)
-        XLSX.writetable(outfile, [[1, 2], [3, 4]], ["a", "b"])
+        XLSX.writetable(outfile, [[1, 2], [3, 4]], ["a", "b"]; overwrite=true)
+        SAVE_FILES && save_outfile(outfile)
 
         @test_throws XLSX.XLSXError XLSX.readtable(outfile, 1, "not a range")
         @test_throws XLSX.XLSXError XLSX.readtable(outfile, 1, "A1:B2")  # cell range, not columns
@@ -429,11 +438,13 @@ end
             @test !isempty(collect(XLSX.eachrow(xf[1])))
         end
         # "rw" writes back on close, so use a copy
-        copy_path = joinpath(mktempdir(), "general.xlsx")
-        cp(file, copy_path)
+        copy_path = "general_copy.xlsx"
+        cp(file, copy_path; force=true)
         XLSX.openxlsx(copy_path; mode = "rw") do xf
             @test isempty(xf.sheet_stubs)
         end
+        SAVE_FILES && save_outfile(copy_path)
+        isfile(copy_path) && rm(copy_path)
     end
 
     @testset "reading the stub-swapped sheet afterwards" begin
@@ -572,7 +583,7 @@ end
 
 
 # `_parse_cell_float` must give exactly what `parse(Float64, s)` gives, bit for bit,
-# and throw exactly where it throws (#462: an exact fast path for plain decimals).
+# and throw exactly where it throws (#462: cell floats are parsed with Parsers.jl).
 @testset "cell value float parsing" begin
     same_as_base(s) = begin
         b = try parse(Float64, s) catch e; typeof(e) end
@@ -587,23 +598,26 @@ end
                   "0.000000000000000000001", "1.50000000000000000000", "0.30000000000000004",
                   "1.7976931348623157E+308", "2.2250738585072014E-308", "4.9E-324", "1E+400", "1E-400",
                   "45000.5", "-123.456", "12345678901234.5", "1234567890123.45",
+                  # 16-25 significant digits, subnormals, overflow and halfway cases
+                  "12345.678901234567", "0.1000000000000000055511151231257827", "1234567890123456789012345",
+                  "2.2250738585072011E-308", "2.4703282292062327E-324", "2.4703282292062328E-324",
+                  "1.7976931348623158E+308", "1.7976931348623159E+308", "1E+309", "9007199254740992.5",
+                  "9007199254740994.9999999999999999", "8.98846567431158E+307", "1E+2147483648",
                   # not plain decimals: both must agree (Base parses some, rejects others)
                   "", "-", ".", "-.", "1e", "1E+", "1e-", "E5", "abc", "1.2.3", " 1.5", "1.5 ",
-                  "+1.5", "1_0", "0x10", "Inf", "-Inf", "NaN", "1,5", "1d5", "--1", "1e5.5"]
+                  "+1.5", "1_0", "0x10", "0x1p3", "Inf", "-Inf", "NaN", "nan", "Infinity", "1,5", "1d5",
+                  "--1", "1e5.5", "	2
+", "１"]
             ok = same_as_base(s)
             ok || println("float parse differs from Base for ", repr(s))
             @test ok
         end
-        @test XLSX._fast_decimal("-0") === -0.0
-        @test XLSX._fast_decimal("1E+22") === 1.0e22
-        @test XLSX._fast_decimal("1E23") === nothing          # outside the exact range
-        @test XLSX._fast_decimal("1234567890123456") === nothing   # 16 digits
-        @test XLSX._fast_decimal("123456789012345") === 1.23456789012345e14
+        @test XLSX._parse_cell_float("-0") === -0.0
+        @test XLSX._parse_cell_float(SubString("<v>12345.678901234567</v>", 4, 21)) === 12345.678901234567
     end
 
     @testset "random values in the forms Excel writes" begin
         rng = Random.MersenneTwister(462)
-        nfast = 0
         nbad = 0
         for _ in 1:300_000
             x = (2rand(rng) - 1) * 10.0^rand(rng, -30:30)
@@ -612,13 +626,11 @@ end
                       uppercase(string(round(x; sigdigits = k))),
                       string(round(x; digits = rand(rng, 0:6))),
                       string(rand(rng, -10^9:10^9)))
-                XLSX._fast_decimal(s) === nothing || (nfast += 1)
                 same_as_base(s) || (nbad += 1; nbad <= 5 && println("float parse differs from Base for ", repr(s)))
             end
         end
         @test nbad == 0
-        @test nfast > 500_000
-        # extremes of the exponent range: all fall back to Base
+        # extremes of the exponent range
         @test all(same_as_base(string((2rand(rng) - 1) * 10.0^rand(rng, -307:308))) for _ in 1:20_000)
     end
 
@@ -644,4 +656,27 @@ end
         @test nbad == 0
         @test nvals > 1000
     end
+end
+
+# General-format cells and SST indices use `Parsers.tryparse(Int64, v)`, which must give
+# exactly what `tryparse(Int64, v)` gives.
+@testset "cell value integer parsing" begin
+    for s in ["0", "-0", "+5", "00012", "42", "-42", "9223372036854775807", "9223372036854775808",
+              "-9223372036854775808", "-9223372036854775809", "99999999999999999999", "1.0", "1e3",
+              "1E3", "12345.678901234567", "", "-", "+", " 12 ", "	7
+", "_1", "1_0", "0x1F", "0b101",
+              "0o17", "1,0", "١٢", "abc"]
+        ok = isequal(XLSX.Parsers.tryparse(Int64, s), tryparse(Int64, s))
+        ok || println("integer parse differs from Base for ", repr(s))
+        @test ok
+        w = "<v>" * s * "</v>"
+        @test isequal(XLSX.Parsers.tryparse(Int64, SubString(w, 4, prevind(w, ncodeunits(w) - 3))), tryparse(Int64, s))
+    end
+    rng = Random.MersenneTwister(462)
+    nbad = 0
+    for _ in 1:200_000
+        s = string(rand(rng, (rand(rng, -10^6:10^6), rand(rng, Int64), rand(rng, Int128), (2rand(rng) - 1) * 10.0^rand(rng, -5:20))))
+        isequal(XLSX.Parsers.tryparse(Int64, s), tryparse(Int64, s)) || (nbad += 1)
+    end
+    @test nbad == 0
 end

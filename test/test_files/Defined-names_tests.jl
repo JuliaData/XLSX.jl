@@ -111,7 +111,6 @@
     @test f["single"] == "NAME"
     @test f["range"] == Any["name1"; "name2"; "name3";;] # A 2D Array, size (3, 1)
     @test f["NonContig"] == [["name1"; "name2"; "name3";;], [100; 200; 300;;]] # NonContiguousRanges return a vector of matrices
-    isfile("mytest.xlsx") && rm("mytest.xlsx")
 
     @test XLSX.readdata(joinpath(data_directory, "general.xlsx"), "SINGLE_CELL") == "single cell A2"
     @test XLSX.readdata(joinpath(data_directory, "general.xlsx"), "RANGE_B4C5") == Any["range B4:C5" "range B4:C5"; "range B4:C5" "range B4:C5"]
@@ -136,7 +135,6 @@
     f = XLSX.readxlsx("mytest.xlsx")
     @test s["MyCell"] == true
     @test s["YourCells"] == Any[false false; false false]
-    isfile("mytest.xlsx") && rm("mytest.xlsx")
 
     @test_throws XLSX.XLSXError XLSX.addDefinedName(f, "A1", "Sheet1!B1")
     @test_throws XLSX.XLSXError XLSX.addDefinedName(f, "A1:A3", "Sheet1!B2:B3")
@@ -238,6 +236,7 @@
             next_target = first(dnames(f))
             XLSX.deleteDefinedName(f, lowercase(next_target))
             @test next_target ∉ dnames(f)
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "scopes are independent" begin
@@ -254,6 +253,7 @@
             @test "LOCAL_INT" ∉ dnames(ws)
             @test "LOCAL_INT" ∈ dnames(f)
             @test "LOCAL_INT" ∈ dnames(ws2)
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "errors" begin
@@ -270,6 +270,7 @@
             @test_throws XLSX.XLSXError XLSX.deleteDefinedName(ws, wb_only)
             ws_only = first(setdiff(dnames(ws), dnames(f)))
             @test_throws XLSX.XLSXError XLSX.deleteDefinedName(f, ws_only)
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "vector of names" begin
@@ -284,6 +285,7 @@
             @test isnothing(XLSX.deleteDefinedName(f, String[]))
             @test isnothing(XLSX.deleteDefinedName(f, XLSX.DefinedName[]))
             @test length(dnames(f)) == n
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "defined-name convenience methods" begin
@@ -297,6 +299,7 @@
             @test "wbInt" in [d.name for d in XLSX.getDefinedNames(xf)]
             XLSX.deleteDefinedName(ws, ["wsInt", "wsRange"])          # vector form
             @test isempty(XLSX.getDefinedNames(ws))
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "validation precedes deletion" begin
@@ -311,6 +314,7 @@
             @test_throws XLSX.XLSXError XLSX.deleteDefinedName(f, [good, good])
             @test_throws XLSX.XLSXError XLSX.deleteDefinedName(f, [good, lowercase(good)])
             @test dnames(f) == before
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "DefinedName vectors compose per scope" begin
@@ -331,6 +335,8 @@
             @test_throws XLSX.XLSXError XLSX.deleteDefinedName(g, XLSX.getDefinedNames(gws))
             @test_throws XLSX.XLSXError XLSX.deleteDefinedName(gws, XLSX.getAllDefinedNames(g))
             @test XLSX.getAllDefinedNames(g) == before
+            SAVE_FILES && save_outfile(g)
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "clearing one scope" begin
@@ -345,6 +351,7 @@
             XLSX.deleteDefinedName(f, XLSX.getDefinedNames(f))
             @test isempty(dnames(f))
             @test !isempty(dnames(f["named_ranges_2"]))
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "deleteAllDefinedNames crosses scopes" begin
@@ -368,6 +375,7 @@
 
             g = XLSX.readxlsx(IOBuffer(bytes))
             @test isempty(XLSX.getAllDefinedNames(g))
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "deletions survive a save" begin
@@ -461,6 +469,7 @@
         nc = only(filter(dn -> dn.name == "NC_REF", XLSX.getDefinedNames(f)))
         @test nc.absolute isa Vector{Bool}
         @test length(nc.absolute) == length(nc.value.rng)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "DefinedName vector show" begin
@@ -492,7 +501,9 @@
         out = sprint(show, MIME"text/plain"(), XLSX.getDefinedNames(f))
         @test !occursin(long, out)
         @test occursin("…", out)
+        SAVE_FILES && save_outfile(f)
     end
+    SAVE_FILES && save_outfile(ff)
 end
 @testset "system defined names" begin
 
@@ -513,6 +524,7 @@ end
         # values survive too, not just the flag
         @test Dict(dn.name => string(dn.value) for dn in after) ==
             Dict(dn.name => string(dn.value) for dn in before)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "hidden from the user-facing accessors" begin
@@ -538,6 +550,7 @@ end
 
         XLSX.deleteDefinedName(f, "_xlchart.v1.0"; force=true)
         @test !XLSX.is_workbook_defined_name(f, "_xlchart.v1.0")
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "the delete-everything idiom spares system names" begin
@@ -553,6 +566,7 @@ end
 
         XLSX.deleteAllDefinedNames(f; force=true)
         @test isempty(XLSX.getAllDefinedNames(f; include_system=true))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "the guard is all-or-nothing" begin
@@ -560,6 +574,7 @@ end
         XLSX.addDefinedName(f, "MY_NAME", "Data!A1:A5")
         @test_throws XLSX.XLSXError XLSX.deleteDefinedName(f, ["MY_NAME", "_xlchart.v1.0"])
         @test XLSX.is_workbook_defined_name(f, "MY_NAME")   # validation precedes deletion
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "hidden survives a sheet rename" begin
@@ -569,6 +584,7 @@ end
         @test length(dns) == 9
         @test all(dn -> dn.hidden, dns)
         @test all(dn -> startswith(string(dn.value), "Renamed!"), dns)
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "_xlnm built-ins are system names" begin
@@ -609,6 +625,7 @@ end
         @test_throws XLSX.XLSXError XLSX.addDefinedName(f["Data"], "_xlnm.Print_Area", "A1:B2")
         err = @test_throws XLSX.XLSXError XLSX.addDefinedName(f, "_xlchart.v1.99", "Data!A1:A5")
         @test occursin("reserved", err.value.msg)
+        SAVE_FILES && save_outfile(f)
 
     end
 
@@ -623,6 +640,7 @@ end
         @test pa.scope == "Mock-up"          # localSheetId round-tripped
         @test string(pa.value) == "'Mock-up'!A1:K116"
         isfile("mytest.xlsx") && rm("mytest.xlsx")
+        SAVE_FILES && save_outfile(f)
     end
     @testset "copysheet! clones chart defined names" begin
         f = XLSX.opentemplate(joinpath(data_directory, "chart_ex.xlsx"))
@@ -645,5 +663,6 @@ end
             filter(dn -> dn.name in added, after))
         @test all(dn -> startswith(string(dn.value), "Data!"),
             filter(dn -> dn.name ∉ added, after))
+        SAVE_FILES && save_outfile(f)
     end
 end

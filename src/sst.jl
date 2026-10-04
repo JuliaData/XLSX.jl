@@ -6,15 +6,6 @@ SharedStringTable() = SharedStringTable(Vector{String}(), Vector{String}(), Dict
 @inline Base.length(sst::SharedStringTable) = length(sst.shared_strings)
 @inline Base.isempty(sst::SharedStringTable) = isempty(sst.shared_strings)
 
-# Checks if string is inside shared string table.
-# Returns `nothing` if it's not in the shared string table.
-# Returns the index of the string in the shared string table. The index is 0-based.
-function get_shared_string_index(sst::SharedStringTable, str::String)# :: Union{Nothing, Int}
-    !sst.is_loaded && throw(XLSXError("Can't query shared string table because it's not loaded into memory."))
-
-    #using a Dict is much more efficient than the findfirst approach especially on large datasets
-    return get(sst.index, str, nothing)
-end
 function create_new_sst(wb::Workbook, sst::SharedStringTable)
     if !sst.is_loaded
         sst.is_loaded = true

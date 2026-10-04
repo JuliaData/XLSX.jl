@@ -1802,7 +1802,7 @@ end
         # `distinct=true` gives every row its own custom numFmt (K distinct cell
         # styles); `distinct=false` gives every row the same custom numFmt (1 style).
         function build_styled_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_styles_caching_issue_426.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1811,6 +1811,7 @@ end
                 XLSX.setFormat(sh, i, 1; format=fmt)
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -1827,7 +1828,7 @@ end
                     end
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
         @testset "cellXfs/numFmt caches behave like caches" begin
@@ -1848,7 +1849,7 @@ end
                     @test length(cache1) >= K
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
 
@@ -1858,7 +1859,7 @@ end
             # used once <numFmts> already exists (e.g. via conditional formatting).
             # Both must keep wb.numFmt_cache correct — this reproduces the
             # "numFmtId ... not found" bug from testing the original patch.
-            path = tempname() * ".xlsx"
+            path = "styles_regression_numfmt_cache_stays_in.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             sh["A1"] = 1.5
@@ -1880,8 +1881,9 @@ end
                     @test length(XLSX.getConditionalFormats(xf[1])) == 1
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "cellXfs/numFmt caches are built exactly once regardless of K" begin
@@ -1898,7 +1900,7 @@ end
                     @test nodes_a === nodes_b   # same object: never rebuilt mid-loop
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
     end
@@ -1908,7 +1910,7 @@ end
         # `distinct=true` gives every row its own font/border/fill (K distinct
         # style attributes); `distinct=false` gives every row the same attribute.
         function build_font_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_font_border_fill_caching.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1921,11 +1923,12 @@ end
                 end
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
         function build_border_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_font_border_fill_caching_2.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1934,11 +1937,12 @@ end
                 XLSX.setBorder(sh, i, 1; allsides=["style"=>"thin", "color"=>col])
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
         function build_fill_workbook(K::Int; distinct::Bool)
-            path = tempname() * ".xlsx"
+            path = "styles_font_border_fill_caching_3.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             for i in 1:K
@@ -1947,6 +1951,7 @@ end
                 XLSX.setFill(sh, i, 1; pattern="solid", fgColor=col)
             end
             XLSX.writexlsx(path, f; overwrite=true)
+            SAVE_FILES && save_outfile(f)
             return path
         end
 
@@ -1964,7 +1969,7 @@ end
                     end
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
         @testset "fonts/borders/fills caches behave like caches" begin
@@ -1995,7 +2000,7 @@ end
                     @test length(nodes1) >= K
                 end
             finally
-                rm(fpath; force=true); rm(bpath; force=true); rm(gpath; force=true)
+                isfile(fpath) && rm(fpath); isfile(bpath) && rm(bpath); isfile(gpath) && rm(gpath)
             end
         end
 
@@ -2003,7 +2008,7 @@ end
             # Mirrors the numFmt_cache regression test: force-build the cache,
             # then write a *new* distinct font — the addition must go through the
             # push!-sync path in styles_add_cell_attribute, not just a fresh build.
-            path = tempname() * ".xlsx"
+            path = "styles_regression_style_table_cache.xlsx"
             f = XLSX.newxlsx()
             sh = f[1]
             sh["A1"] = 1.5
@@ -2022,8 +2027,9 @@ end
                     @test parse(Int, XLSX.getFont(sh2, 2, 1).font["sz"]["val"]) == 16
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "reading distinct fonts scales ~linearly, not quadratically" begin
@@ -2041,7 +2047,7 @@ end
                 try
                     push!(mediantime, time_read(path))
                 finally
-                    rm(path; force=true)
+                    isfile(path) && rm(path)
                 end
             end
 
@@ -2071,7 +2077,7 @@ end
                     @test nodes_a === nodes_b   # same object: never rebuilt mid-loop
                 end
             finally
-                rm(path; force=true)
+                isfile(path) && rm(path)
             end
         end
     end
@@ -2097,6 +2103,7 @@ not -1. Multi-cell ranges keep returning -1.
             # single-cell non-contiguous range (process_ncranges)
             nc = XLSX.NonContiguousRange(s.name, Union{XLSX.CellRef,XLSX.CellRange}[XLSX.CellRef("A1")])
             @test XLSX.setFormat(s, nc; format="#,##0") == 3
+            SAVE_FILES && save_outfile(XLSX.get_xlsxfile(s))
         end
 
         @testset "multi-cell ranges still return -1" begin
@@ -2110,6 +2117,7 @@ not -1. Multi-cell ranges keep returning -1.
             # ... but each cell did get the format
             @test XLSX.getFormat(s, "A1").numFmtId == 3
             @test XLSX.getFormat(s, "B1").numFmtId == 3
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "other setters agree with the CellRef form" begin
@@ -2121,6 +2129,7 @@ not -1. Multi-cell ranges keep returning -1.
                 XLSX.setAlignment(s, XLSX.CellRef("A1"); horizontal="right")
             @test XLSX.setBorder(s, "A1:A1"; allsides=["style" => "thin"]) ==
                 XLSX.setBorder(s, XLSX.CellRef("A1"); allsides=["style" => "thin"])
+            SAVE_FILES && save_outfile(XLSX.get_xlsxfile(s))
         end
 
         @testset "empty cell in a single-cell range still throws" begin
@@ -2131,6 +2140,7 @@ not -1. Multi-cell ranges keep returning -1.
             @test_throws XLSX.XLSXError XLSX.setFormat(s, "B1:B1"; format="#,##0")
             # a multi-cell range skips empties silently
             @test XLSX.setFormat(s, "A1:C1"; format="#,##0") == -1
+            SAVE_FILES && save_outfile(f)
         end
 
     end
@@ -2185,6 +2195,7 @@ writing a number into a cell carrying a date/time format.
             @test fmtid(s, XLSX.CellRef("A1")) == id
             s["A1"] = 42.5
             @test fmtid(s, XLSX.CellRef("A1")) == id
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "date/time formats overridden by numbers" begin
@@ -2229,6 +2240,7 @@ writing a number into a cell carrying a date/time format.
             @test fmtid(s, XLSX.CellRef("A1")) == id
             @test XLSX.getFont(s, "A1").font == font_before.font
             @test XLSX.getFill(s, "A1").fill == fill_before.fill
+            SAVE_FILES && save_outfile(f)
         end
 
         @testset "round trip through file" begin

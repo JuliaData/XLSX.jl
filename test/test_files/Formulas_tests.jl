@@ -25,8 +25,8 @@
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("A11")) == XLSX.ReferencedFormula("=A10/\$D11", 1, "A11:C11", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C11")) == XLSX.FormulaReference(1, nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D11")) == XLSX.Formula("=sum(A1:C10)", nothing, nothing, nothing)
-        isfile("formulas.xlsx") && rm("formulas.xlsx")
 
+        SAVE_FILES && save_outfile(f)
         f = XLSX.newxlsx("mySheet")
         s = f["mySheet"]
         s[1:12, 1] = [x for x in 1:12]
@@ -69,6 +69,7 @@
         @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("L12")) == XLSX.Formula("=mySheet!L\$1+mySheet!L12", nothing, nothing, nothing)
         isfile("formulas.xlsx") && rm("formulas.xlsx")
 
+        SAVE_FILES && save_outfile(f)
         f = XLSX.newxlsx("mySheet")
         s = f[1]
         s[1:10, 1:10] = rand(10, 10)
@@ -89,6 +90,7 @@
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("A10")) == XLSX.ReferencedFormula("=\$A\$1+6", 4, "A10:J10", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B10")) == XLSX.FormulaReference(4, nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("G10")) == XLSX.FormulaReference(4, nothing)
+        SAVE_FILES && save_outfile(f)
     end
     @testset "dynamic array" begin
         f = XLSX.openxlsx(joinpath(data_directory, "Unique.xlsx"), mode="rw")
@@ -117,6 +119,7 @@
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D1")) == XLSX.Formula("=_xlfn.SORT(B1:B10,,-1)", "array", "D1:D1", nothing)
         isfile("formulas.xlsx") && rm("formulas.xlsx")
 
+        SAVE_FILES && save_outfile(f)
         f = XLSX.newxlsx("mySheet")
         s = f[1]
         s[1:5, 1] = [x for x in 3:3:15]
@@ -133,6 +136,7 @@
         @test XLSX.getFormula(s, "D1") == "=OFFSET(A2:A5, -1, 0)"
         @test XLSX.getFormula(s, "E1") == "=CHOOSE(1,A1:A2,A3:A4)"
         @test XLSX.getFormula(s, "G1") == "=INDEX(A1:A5,F1:F2)"
+        SAVE_FILES && save_outfile(f)
     end
     @testset "getFormula" begin
         f = XLSX.newxlsx()
@@ -152,6 +156,7 @@
         @test XLSX.getFormula(s, "D1") == "=INT(B1:B10/100)+1"
         @test XLSX.getFormula(s, "E1") == "=_xlfn.GROUPBY(_xlfn.ANCHORARRAY(D1),B1:B10,_xleta.sum)"
         @test XLSX.getFormula(s, "H1") == "=frequency(_xlfn.ANCHORARRAY(D1),G1:G6)"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "spillranges" begin
@@ -200,10 +205,12 @@
         s = f[1]
         @test XLSX.getFormula(s, "A1") == "=[1]Sheet1!\$A\$1"
         @test occursin("linked-2.xlsx]", XLSX.getFormula(s, "A1"; get_external_refs=true))
+        SAVE_FILES && save_outfile(f)
         f = XLSX.openxlsx(joinpath(data_directory, "linked-2.xlsx"), mode="rw")
         s = f[1]
         @test XLSX.getFormula(s, "B1") == "=[1]Sheet1!\$B\$1"
         @test occursin("linked-1.xlsx]", XLSX.getFormula(s, "B1"; get_external_refs=true))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "ReferencedFormulae" begin
@@ -263,6 +270,7 @@
         @test XLSX.get_formula_from_cache(s2, XLSX.CellRef("B2")) == XLSX.ReferencedFormula("SECOND(NOW())", 3, "B2:C5", Dict("ca" => "1"))
         @test XLSX.getcell(s2, "C1") == XLSX.Cell(XLSX.get_workbook(f), XLSX.CellRef("C1"), "", "", "54", "", true)
         @test XLSX.get_formula_from_cache(s2, XLSX.CellRef("C1")) == XLSX.Formula("SECOND(NOW())", nothing, nothing, Dict("ca" => "1"))
+        SAVE_FILES && save_outfile(f2)
 
     end
     isfile("mytest.xlsx") && rm("mytest.xlsx")

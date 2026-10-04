@@ -1066,7 +1066,7 @@ function setdata!(ws::Worksheet, ref_str::AbstractString, value::AbstractVector,
     elseif is_valid_cellname(ref_str)
         setdata!(ws, CellRef(ref_str), value, dim)
     else
-        throw(XLSXError("Invalid cell reference or range: $ref_or_rng"))
+        throw(XLSXError("Invalid cell reference or range: $ref_str"))
     end
 end
 
