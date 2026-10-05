@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v0.13.1](https://github.com/JuliaData/XLSX.jl/tree/v0.13.1) - 2026-09-05
+
 - Fix [#462](https://github.com/JuliaData/XLSX.jl/issues/462) (Read-performance regression vs v0.10.4 on large worksheets)
 - Fix [#472](https://github.com/JuliaData/XLSX.jl/issues/472) (Worksheets with CRLF line endings were corrupted when split, and precompilation failed, with XML.jl versions that normalise line endings)
 - Numeric cell values are now parsed with [Parsers.jl](https://github.com/JuliaData/Parsers.jl) (new dependency, v3), giving results identical to `Base.parse`
