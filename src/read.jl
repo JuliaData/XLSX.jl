@@ -1109,9 +1109,11 @@ function splitNode(xml_str::String, skipnode::String)
         "<$(target_tag) $(attr_str)/>"
     end
 
+    # Slice the string the offsets index: XML.jl may hold a line-ending-normalised copy (#472).
     start, stop = _element_span(target_lazy)
-    stripped_xml = string(SubString(xml_str, firstindex(xml_str), prevind(xml_str, start)),
-                          replacement, SubString(xml_str, stop))
+    src = target_lazy.data
+    stripped_xml = string(SubString(src, firstindex(src), prevind(src, start)),
+                          replacement, SubString(src, stop))
     return stripped_xml, ""
 end
 

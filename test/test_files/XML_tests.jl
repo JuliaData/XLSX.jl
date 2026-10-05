@@ -208,6 +208,27 @@ end
         @test XLSX.splitNode(ws("<dimension ref=\"A1\"/>"), "sheetData")[1] == ws("<dimension ref=\"A1\"/>")
     end
 
+    # XML.jl may normalise CRLF to LF (XML 1.0 §2.11) and hand back offsets into that
+    # shorter copy, so the result is compared modulo line endings (#472).
+    @testset "CRLF line endings" begin
+        lf(s) = replace(s, "\r\n" => "\n")
+        crlf(body) = replace(ws(body), "\n" => "\r\n")
+        cases = [
+            "plain"      => ("<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData>\n$rows\n</sheetData>\n<pageMargins left=\"0.7\"/>",
+                             "<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData/>\n<pageMargins left=\"0.7\"/>"),
+            "attributes" => ("<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData foo=\"1\">\n$rows</sheetData>\n<pageMargins left=\"0.7\"/>",
+                             "<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData foo=\"1\"/>\n<pageMargins left=\"0.7\"/>"),
+        ]
+        for (name, (body, expected)) in cases
+            xml = crlf(body)
+            @test _splitnode_agree(xml)
+            out = XLSX.splitNode(xml, "sheetData")[1]
+            lf(out) == ws(expected) || println("splitNode CRLF case failed: $name")
+            @test lf(out) == ws(expected)
+            @test XML.parse(out, XML.Node) isa XML.Node
+        end
+    end
+
     @testset "_element_span" begin
         xml = ws("<sheetPr codeName=\"é\"/><sheetData>$rows</sheetData><pageMargins left=\"0.7\"/>")
         c = XML.Cursor(xml)
