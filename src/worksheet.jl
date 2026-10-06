@@ -176,14 +176,29 @@ end
 # use an A1:A1 fallback without persisting it as their dimension.
 function get_dimension(ws::Worksheet; allow_load::Bool = true)::Union{Nothing,CellRange}
     !isnothing(ws.dimension) && return ws.dimension
+    fallback = CellRange(CellRef(1, 1), CellRef(1, 1))
     if (!allow_load && (isnothing(ws.cache) || !ws.cache.is_full)) ||
        is_chartsheet(get_workbook(ws), ws.name)
-        return CellRange(CellRef(1, 1), CellRef(1, 1))
+        return fallback
     end
 
+    if is_cache_enabled(ws)
+        # The first cache fill records the bounds of a sheet without a dimension.
+        eachrow(ws)
+        isnothing(ws.dimension) && _set_dimension_from_cache!(ws)
+    else
+        # Uncached: read only the row and cell references.
+        rng = _scan_dimension(ws)
+        isnothing(rng) || set_dimension!(ws, rng)
+    end
+    return something(ws.dimension, fallback)
+end
+
+# Derives the dimension from a cache that was filled without recording it.
+function _set_dimension_from_cache!(ws::Worksheet)
     row_min = col_min = typemax(Int)
     row_max = col_max = 0
-    for row in eachrow(ws)
+    for row in ws.cache
         row_min = min(row_min, row.row)
         row_max = max(row_max, row.row)
         for col in keys(row.rowcells)
@@ -191,9 +206,8 @@ function get_dimension(ws::Worksheet; allow_load::Bool = true)::Union{Nothing,Ce
             col_max = max(col_max, col)
         end
     end
-    col_max == 0 && return CellRange(CellRef(1, 1), CellRef(1, 1))
+    col_max == 0 && return nothing
     set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
-    return ws.dimension
 end
 
 function set_dimension!(ws::Worksheet, rng::CellRange)
@@ -355,19 +369,51 @@ getdata(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Vect
 getdata(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = [getdata(ws, a, b) for a in row, b in col]
 getdata(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}) = [getdata(ws, a, b) for a in row, b in col]
 getdata(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = getdata(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
-getdata(ws::Worksheet) = getdata(ws, get_dimension(ws))
-getdata(ws::Worksheet, ::Colon, ::Colon) = getdata(ws)
-function getdata(ws::Worksheet, ::Colon)
-    dim = get_dimension(ws)
-    getdata(ws, dim)
+function getdata(ws::Worksheet)
+    found = _read_unknown_dimension(ws, nothing, nothing)
+    isnothing(found) || return _data_from_cells(ws, found...)
+    getdata(ws, get_dimension(ws))
 end
+getdata(ws::Worksheet, ::Colon, ::Colon) = getdata(ws)
+getdata(ws::Worksheet, ::Colon) = getdata(ws)
 function getdata(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon)
+    found = _read_unknown_dimension(ws, first(row):last(row), nothing)
+    isnothing(found) || return _data_from_cells(ws, found...)
     dim = get_dimension(ws)
     getdata(ws, CellRange(CellRef(first(row), dim.start.column_number), CellRef(last(row), dim.stop.column_number)))
 end
 function getdata(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}})
+    found = _read_unknown_dimension(ws, nothing, first(col):last(col))
+    isnothing(found) || return _data_from_cells(ws, found...)
     dim = get_dimension(ws)
     getdata(ws, CellRange(CellRef(dim.start.row_number, first(col)), CellRef(dim.stop.row_number, last(col))))
+end
+
+# Data matrix for `rng` from the cells returned by `_read_unknown_dimension`.
+function _data_from_cells(ws::Worksheet, rng::CellRange, cells::Vector{Cell})::Array{Any,2}
+    result = Array{Any,2}(undef, size(rng))
+    fill!(result, missing)
+    for cell in cells
+        (cell.ref ∈ rng && !isempty(cell)) || continue
+        (r, c) = relative_cell_position(cell.ref, rng)
+        result[r, c] = getdata(ws, cell)
+    end
+    return result
+end
+
+# Cell matrix for `rng` from the cells returned by `_read_unknown_dimension`.
+function _cellrange_from_cells(rng::CellRange, cells::Vector{Cell})::Array{AbstractCell,2}
+    result = Array{Any,2}(undef, size(rng))
+    for ref in rng
+        (r, c) = relative_cell_position(ref, rng)
+        result[r, c] = EmptyCell(ref)
+    end
+    for cell in cells
+        cell.ref ∈ rng || continue
+        (r, c) = relative_cell_position(cell.ref, rng)
+        result[r, c] = cell
+    end
+    return result
 end
 function getdata(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, ::Colon)
     dim = get_dimension(ws)
@@ -445,12 +491,16 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
     return result
 end
 function getdata(ws::Worksheet, rng::ColumnRange)::Array{Any,2}
+    found = _read_unknown_dimension(ws, nothing, rng.start:rng.stop)
+    isnothing(found) || return _data_from_cells(ws, found...)
     dim = get_dimension(ws)
     start = CellRef(dim.start.row_number, rng.start)
     stop = CellRef(dim.stop.row_number, rng.stop)
     return getdata(ws, CellRange(start, stop))
 end
 function getdata(ws::Worksheet, rng::RowRange)::Array{Any,2}
+    found = _read_unknown_dimension(ws, rng.start:rng.stop, nothing)
+    isnothing(found) || return _data_from_cells(ws, found...)
     dim = get_dimension(ws)
     start = CellRef(rng.start, dim.start.column_number,)
     stop = CellRef(rng.stop, dim.stop.column_number)
@@ -607,14 +657,20 @@ getcell(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{
 getcell(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}) = getcellrange(ws, row, col)
 getcell(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = getcellrange(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
 function getcell(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon)
+    found = _read_unknown_dimension(ws, first(row):last(row), nothing)
+    isnothing(found) || return _cellrange_from_cells(found...)
     dim = get_dimension(ws)
     getcellrange(ws, CellRange(CellRef(first(row), dim.start.column_number), CellRef(last(row), dim.stop.column_number)))
 end
 function getcell(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}})
+    found = _read_unknown_dimension(ws, nothing, first(col):last(col))
+    isnothing(found) || return _cellrange_from_cells(found...)
     dim = get_dimension(ws)
     getcellrange(ws, CellRange(CellRef(dim.start.row_number, first(col)), CellRef(dim.stop.row_number, last(col))))
 end
 function getcell(ws::Worksheet, ::Colon)
+    found = _read_unknown_dimension(ws, nothing, nothing)
+    isnothing(found) || return _cellrange_from_cells(found...)
     getcellrange(ws, get_dimension(ws))
 end
 
@@ -716,15 +772,19 @@ getcellrange(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::U
 getcellrange(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = getcell(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
 getcellrange(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon) = getcell(ws, row, :)
 getcellrange(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}) = getcell(ws, :, col)
-getcellrange(ws::Worksheet, ::Colon) = getcellrange(ws, get_dimension(ws))
+getcellrange(ws::Worksheet, ::Colon) = getcell(ws, :)
 
 function getcellrange(ws::Worksheet, rng::ColumnRange)::Array{AbstractCell,2}
+    found = _read_unknown_dimension(ws, nothing, rng.start:rng.stop)
+    isnothing(found) || return _cellrange_from_cells(found...)
     dim = get_dimension(ws)
     start = CellRef(dim.start.row_number, rng.start)
     stop = CellRef(dim.stop.row_number, rng.stop)
     return getcellrange(ws, CellRange(start, stop))
 end
 function getcellrange(ws::Worksheet, rng::RowRange)::Array{AbstractCell,2}
+    found = _read_unknown_dimension(ws, rng.start:rng.stop, nothing)
+    isnothing(found) || return _cellrange_from_cells(found...)
     dim = get_dimension(ws)
     start = CellRef(rng.start, dim.start.column_number,)
     stop = CellRef(rng.stop, dim.stop.column_number)

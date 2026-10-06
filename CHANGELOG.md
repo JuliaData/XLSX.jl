@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Faster reads of worksheets that have no `<dimension>` element. [#470](https://github.com/JuliaData/XLSX.jl/pull/470) found the missing dimension with an extra pass that built every cell; it is now recorded during the sheet's first read, so uncached `ws[:]` on a 20,000-row sheet takes 99 ms instead of 266 ms. Sheets with a dimension are unaffected
+
 ## [v0.13.1](https://github.com/JuliaData/XLSX.jl/tree/v0.13.1) - 2026-09-05
 
 - Fix [#462](https://github.com/JuliaData/XLSX.jl/issues/462) (Read-performance regression vs v0.10.4 on large worksheets)

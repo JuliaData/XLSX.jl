@@ -113,8 +113,20 @@ function Base.iterate(itr::SheetRowStreamIterator)
     _, sst_count = get_rowcells!(rowcells, rownode, ws, sst_pfx, local_formulas, load_formulas)
     itr.sheet.sst_count += sst_count
     _merge_local_formulas!(get_workbook(ws), local_formulas)
-    state = SheetRowStreamIteratorState(row_iter, row_state, rowcells, local_formulas, 1)
+    state = SheetRowStreamIteratorState(row_iter, row_state, rowcells, local_formulas, 1,
+                                        isnothing(ws.dimension), typemax(Int), 0, typemax(Int), 0)
+    state.track && _track_row_bounds!(state, current_row, rowcells)
     return SheetRow(ws, current_row, current_row_ht, rowcells), state
+end
+
+@inline function _track_row_bounds!(state::SheetRowStreamIteratorState, row::Int, rowcells::Dict{Int,Cell})
+    state.row_min = min(state.row_min, row)
+    state.row_max = max(state.row_max, row)
+    for col in keys(rowcells)
+        state.col_min = min(state.col_min, col)
+        state.col_max = max(state.col_max, col)
+    end
+    nothing
 end
 
 function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIteratorState)
@@ -123,13 +135,20 @@ function Base.iterate(itr::SheetRowStreamIterator, state::SheetRowStreamIterator
     empty!(state.rowcells)
 
     found = _find_next_row(state.row_iter, iterate(state.row_iter, state.row_state))
-    isnothing(found) && return nothing
+    if isnothing(found)
+        # A completed pass has seen every row: record the bounds if still unknown.
+        if state.track && state.col_max > 0 && isnothing(ws.dimension)
+            set_dimension!(ws, CellRange(CellRef(state.row_min, state.col_min), CellRef(state.row_max, state.col_max)))
+        end
+        return nothing
+    end
     rownode, state.row_state = found
 
     load_formulas = get_xlsxfile(ws).load_formulas
     current_row, current_row_ht = _read_row_attrs(rownode, ws.name)
     _, sst_count = get_rowcells!(state.rowcells, rownode, ws, sst_pfx, state.local_formulas, load_formulas)
     itr.sheet.sst_count += sst_count
+    state.track && _track_row_bounds!(state, current_row, state.rowcells)
 
     state.rows_since_merge += 1
     if state.rows_since_merge >= 500
@@ -377,6 +396,12 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
     sst_total = 0
     rowcells  = Dict{Int,Cell}()
     row_num   = nothing
+
+    # Derive the sheet bounds from the rows as they are pushed, but only for a
+    # sheet with no recorded dimension.
+    track = isnothing(ws.dimension)
+    row_min = col_min = typemax(Int)
+    row_max = col_max = 0
     row_ht    = nothing
     unhandled = _EMPTY_ROW_ATTRS
 
@@ -441,6 +466,12 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
                 sr = SheetRow(ws, row_num, row_ht, rowcells)
                 !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
                 push_sheetrow!(ws.cache, sr)
+                if track
+                    row_min = min(row_min, row_num); row_max = max(row_max, row_num)
+                    for col in keys(rowcells)
+                        col_min = min(col_min, col); col_max = max(col_max, col)
+                    end
+                end
                 rowcells  = Dict{Int,Cell}()
                 sizehint!(rowcells, expected_cols)
                 unhandled = _EMPTY_ROW_ATTRS
@@ -487,6 +518,16 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
         sr = SheetRow(ws, row_num, row_ht, rowcells)
         !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
         push_sheetrow!(ws.cache, sr)
+        if track
+            row_min = min(row_min, row_num); row_max = max(row_max, row_num)
+            for col in keys(rowcells)
+                col_min = min(col_min, col); col_max = max(col_max, col)
+            end
+        end
+    end
+
+    if track && col_max > 0 && isnothing(ws.dimension)
+        set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
     end
 
     ws.sst_count = sst_total
@@ -561,4 +602,97 @@ function match_rows(ws::Worksheet, rows_to_match::Vector{Int})::Vector{SheetRow}
     end
 
     return matched_rows
+end
+
+# Column number from the letters of a cell reference such as "AB12".
+@inline function _ref_column_number(ref::AbstractString)::Int
+    n = 0
+    for b in codeunits(ref)
+        UInt8('A') <= b <= UInt8('Z') || break
+        n = n * 26 + (b - UInt8('A') + 1)
+    end
+    n == 0 && throw(XLSXError("Invalid cell reference `$ref`."))
+    return n
+end
+
+# Bounds of the cells in a worksheet.xml file, read from the `r` attributes of
+# `<row>` and `<c>` alone (no cells are materialised). Like the row iterator,
+# rows without cells count towards the row bounds. Returns `nothing` for a sheet
+# with no cells.
+function _scan_dimension(ws::Worksheet)::Union{Nothing,CellRange}
+    row_min = col_min = typemax(Int)
+    row_max = col_max = 0
+    c = XML.Cursor(_open_sheetdata(ws))
+    while XML.next!(c) !== nothing
+        d = XML.depth(c)
+        d == 1 && continue
+        if d == 2 && XML.nodetype(c) == XML.Element && localname(c) == "row"
+            r_val = XML.get(c, "r", nothing)
+            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
+            row = parse(Int, r_val)
+            row_min = min(row_min, row); row_max = max(row_max, row)
+        elseif d == 3 && XML.nodetype(c) == XML.Element && localname(c) == "c"
+            col = _ref_column_number(XML.get(c, "r", ""))
+            col_min = min(col_min, col); col_max = max(col_max, col)
+            XML.skip_element!(c)
+        else
+            XML.skip_element!(c)
+        end
+    end
+    col_max == 0 && return nothing
+    return CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max))
+end
+
+# Single streaming pass over an uncached worksheet whose dimension is unknown.
+# Materialises the cells in `rows` × `cols` (`nothing` = unrestricted) and reads
+# only the `r` attribute of the rest, so the sheet bounds come from the same pass.
+# Records the dimension, then returns the target range (unrestricted sides taken
+# from the dimension) and the materialised cells. Returns `nothing` when the
+# dimension is already known or the cache is in use, so callers keep their usual path.
+function _read_unknown_dimension(ws::Worksheet,
+                                 rows::Union{Nothing,AbstractUnitRange{<:Integer}},
+                                 cols::Union{Nothing,AbstractUnitRange{<:Integer}})
+    (isnothing(ws.dimension) && !is_cache_enabled(ws)) || return nothing
+    is_chartsheet(get_workbook(ws), ws.name) && return nothing
+
+    sst_pfx = get_sst_prefix(ws)
+    local_formulas = Dict{SheetCellRef,AbstractFormula}()
+    load_formulas = get_xlsxfile(ws).load_formulas
+    cells = Cell[]
+    row_min = col_min = typemax(Int)
+    row_max = col_max = 0
+    in_rows = false
+
+    c = XML.Cursor(_open_sheetdata(ws))
+    while XML.next!(c) !== nothing
+        d = XML.depth(c)
+        d == 1 && continue
+        if d == 2 && XML.nodetype(c) == XML.Element && localname(c) == "row"
+            r_val = XML.get(c, "r", nothing)
+            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
+            row = parse(Int, r_val)
+            row_min = min(row_min, row); row_max = max(row_max, row)
+            in_rows = isnothing(rows) || row in rows
+        elseif d == 3 && XML.nodetype(c) == XML.Element && localname(c) == "c"
+            col = _ref_column_number(XML.get(c, "r", ""))
+            col_min = min(col_min, col); col_max = max(col_max, col)
+            if in_rows && (isnothing(cols) || col in cols)
+                cell = Cell(XML.LazyNode(c), ws, sst_pfx, local_formulas, load_formulas)
+                cell isa Cell && push!(cells, cell)
+            end
+            XML.skip_element!(c)
+        else
+            XML.skip_element!(c)
+        end
+    end
+
+    _merge_local_formulas!(get_workbook(ws), local_formulas)
+    col_max > 0 && set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
+
+    dim = something(ws.dimension, CellRange(CellRef(1, 1), CellRef(1, 1)))  # empty sheet: A1:A1, not recorded
+    top    = isnothing(rows) ? dim.start.row_number    : first(rows)
+    bottom = isnothing(rows) ? dim.stop.row_number     : last(rows)
+    left   = isnothing(cols) ? dim.start.column_number : first(cols)
+    right  = isnothing(cols) ? dim.stop.column_number  : last(cols)
+    return CellRange(CellRef(top, left), CellRef(bottom, right)), cells
 end

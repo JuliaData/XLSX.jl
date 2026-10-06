@@ -210,6 +210,7 @@ end
             for (readrange, reference) in ranges
                 ws = openfile(IOBuffer(bytes))[1]
                 @test isequal(readrange(ws), reference)
+                @test ws.dimension == XLSX.CellRange("A1:K116") # recorded by the first read
                 @test isequal(readrange(ws), reference)
             end
             ws = openfile(IOBuffer(bytes))[1]
@@ -228,24 +229,66 @@ end
             @test ws.cache === nothing
         end
 
+        # An uncached row iterator records the dimension only when it runs to the end.
+        ws = XLSX.openxlsx(IOBuffer(bytes); enable_cache = false)[1]
+        for _ in XLSX.eachrow(ws) end
+        @test ws.dimension == XLSX.CellRange("A1:K116")
+        ws = XLSX.openxlsx(IOBuffer(bytes); enable_cache = false)[1]
+        for _ in XLSX.eachrow(ws)
+            break
+        end
+        @test ws.dimension === nothing
+
+        # A recorded dimension is never recomputed.
+        for enable_cache in (true, false)
+            ws = XLSX.openxlsx(joinpath(data_directory, "simple.xlsx"); enable_cache)[1]
+            dimension = ws.dimension
+            ws[:]; ws[1:2, :]; ws[:, 2]; axes(ws, 2)
+            for _ in XLSX.eachrow(ws) end
+            @test ws.dimension === dimension
+        end
+
         sparse = Matrix{Any}(missing, 5, 3)
         sparse[1, 1] = 11
         sparse[5, 3] = 22
+        styled = Matrix{Any}(missing, 3, 3)
+        styled[1, 1] = 11
+        inline = Matrix{Any}(missing, 2, 2)
+        inline[1, 1] = "hi"
+        inline[2, 2] = 5
+        emptyrow = Matrix{Any}(missing, 4, 1)
+        emptyrow[1, 1] = 1
         sheets = (
             ("<sheetData/>", "A1:A1", fill(missing, 1, 1)),
             ("<sheetData><row r=\"7\" ht=\"18\" customHeight=\"1\"/></sheetData>", "A1:A1", fill(missing, 1, 1)),
             ("<sheetData><row r=\"3\"><c r=\"C3\"><v>11</v></c></row><row r=\"7\"><c r=\"E7\"><v>22</v></c></row></sheetData>", "C3:E7", sparse),
+            # a formatting-only cell extends the dimension
+            ("<sheetData><row r=\"2\"><c r=\"B2\"><v>11</v></c></row><row r=\"4\"><c r=\"D4\" s=\"0\"/></row></sheetData>", "B2:D4", styled),
+            ("<sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>hi</t></is></c></row><row r=\"2\"><c r=\"B2\"><v>5</v></c></row></sheetData>", "A1:B2", inline),
+            # a row without cells still extends the rows
+            ("<sheetData><row r=\"2\"><c r=\"B2\"><v>1</v></c></row><row r=\"5\" ht=\"18\" customHeight=\"1\"/></sheetData>", "B2:B5", emptyrow),
         )
         for (sheetdata, dimension, reference) in sheets
             path = patch_xlsx_entry(joinpath(src_data_directory, "blank.xlsx"), "xl/worksheets/sheet1.xml",
                 _ -> "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" * sheetdata * "</worksheet>")
             try
+                rng = XLSX.CellRange(dimension)
+                top, left = rng.start.row_number, rng.start.column_number
                 for openfile in factories
                     ws = openfile(IOBuffer(read(path)))[1]
                     @test isequal(ws[:], reference)
                     @test isequal(ws[:], reference)
-                    @test XLSX.get_dimension(ws) == XLSX.CellRange(dimension)
+                    @test XLSX.get_dimension(ws) == rng
                     !XLSX.is_cache_enabled(ws) && @test ws.cache === nothing
+
+                    # partial reads take the other extent from the sheet
+                    ws = openfile(IOBuffer(read(path)))[1]
+                    @test isequal(ws[top:top, :], reference[1:1, :])
+                    ws = openfile(IOBuffer(read(path)))[1]
+                    @test isequal(ws[:, left], reference[:, 1:1])
+                    ws = openfile(IOBuffer(read(path)))[1]
+                    @test axes(ws, 1) == rng.start.row_number:rng.stop.row_number
+                    @test axes(ws, 2) == rng.start.column_number:rng.stop.column_number
                 end
             finally
                 rm(path)

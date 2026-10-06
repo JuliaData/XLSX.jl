@@ -384,6 +384,13 @@ mutable struct SheetRowStreamIteratorState{I,S}
     rowcells::Dict{Int,Cell}
     local_formulas::Dict{SheetCellRef,AbstractFormula}
     rows_since_merge::Int
+    # Sheet bounds seen so far, tracked only when the worksheet had no dimension
+    # at the start of iteration. Set as the dimension when iteration completes.
+    track::Bool
+    row_min::Int
+    row_max::Int
+    col_min::Int
+    col_max::Int
 end
 
 mutable struct WorksheetCacheIteratorState
