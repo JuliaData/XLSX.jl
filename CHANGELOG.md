@@ -6,12 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-- Faster reads of worksheets that have no `<dimension>` element. [#470](https://github.com/JuliaData/XLSX.jl/pull/470) found the missing dimension with an extra pass that built every cell; it is now recorded during the sheet's first read, so uncached `ws[:]` on a 20,000-row sheet takes 99 ms instead of 266 ms. Sheets with a dimension are unaffected
-
-## [v0.13.1](https://github.com/JuliaData/XLSX.jl/tree/v0.13.1) - 2026-09-05
+## [v0.13.1](https://github.com/JuliaData/XLSX.jl/tree/v0.13.1) - 2026-09-06
 
 - Fix [#462](https://github.com/JuliaData/XLSX.jl/issues/462) (Read-performance regression vs v0.10.4 on large worksheets)
 - Fix [#472](https://github.com/JuliaData/XLSX.jl/issues/472) (Worksheets with CRLF line endings were corrupted when split, and precompilation failed, with XML.jl versions that normalise line endings)
+- Faster reads of worksheets that have no `<dimension>` element. [#470](https://github.com/JuliaData/XLSX.jl/pull/470) found the missing dimension with an extra pass that built every cell; it is now recorded during the sheet's first read, so uncached `ws[:]` on a 20,000-row sheet takes 99 ms instead of 266 ms. Sheets with a dimension are unaffected
 - Numeric cell values are now parsed with [Parsers.jl](https://github.com/JuliaData/Parsers.jl) (new dependency, v3), giving results identical to `Base.parse`
 - Fix `Tables.getcolumn(row, i)` on `eachtablerow` rows, which threw a `MethodError` for every integer index
 - Column numbers and row ranges outside Excel's limits are now rejected (e.g. `CellRef(1, 20000)` no longer gives `]OF1`)
