@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [v0.13.2](https://github.com/JuliaData/XLSX.jl/tree/v0.13.2) - 2026-10-17
+
+This release is largely a bug fixing release. There are a lot of small changes, mainly addressing edge cases. Some of these introduce minor behaviour changes. There is quite a long list under the fold.
+
 <details>
 <summary>Consolidated maintainability and bug fixing changes</summary>
 
@@ -13,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Behavior change:** defined names holding a formula (or any expression that is not a reference or constant) are now read with a leading `=`, as Excel's Name Manager shows them, e.g. `"=COUNTA(Sheet1!\$A:\$A)"`. A plain string is a text constant and is written quoted; it was written unquoted, so Excel read it as a formula, and a constant read from a file was written back as a reference to a name. Pass a string starting with `=` to `addDefinedName` to define a name by a formula
 - **Behavior change:** a negative number in a date-formatted cell is read as the number, rather than throwing and failing the read of the whole sheet
 - Shifted cell references in shared formulas are correct: `getFormula` on a shared-formula cell could return `=A2+A20` for `=A1+A10` shifted one row, and shifted function names such as `LOG10` and `ATAN2` as if they were references
+- `addImage` no longer empties a writable `IOBuffer` passed as the image. The buffer's contents and position are left as they were
+- `openxlsx(io; mode="rw") do … end` and `savexlsx` on a workbook opened from an `IO` now replace the `IO`'s content with the saved workbook. They previously threw an `ArgumentError` from ZipArchives, because the workbook was written after the bytes already read. An `IO` that can't be overwritten, such as a read-only `IOBuffer`, gives an `XLSXError`
 - Renaming a sheet no longer rewrites references to other sheets whose names contain it (renaming `Sheet1` turned `MySheet1!A1` into `MyData!A1` and lost that sheet's formulas). Deleting a sheet likewise no longer deletes or breaks formulas on such sheets, no longer throws when the deleted sheet has a shared formula, and replaces references to a sheet whose name contains characters such as `(` with `#REF!`
 - Hidden and very hidden sheets stay hidden when the workbook is saved
 - Writing a cell above or left of the sheet's range that is also below or right of it now extends the recorded dimension on every side, so `ws[:]` and the written `<dimension>` include it
@@ -56,11 +62,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `copysheet!` gives the copy its own cells. The copy shared the original's cell cache, so a value, format, row height or formula set on either sheet also appeared in the other, and a formula set on the copy left the original with a cell that `getFormula` couldn't read
 - `getdata` (and `ws[range]`) over a range of a writable sheet whose rows were written out of order could return wrong values, or write outside its result and corrupt memory, crashing Julia later in the garbage collector. The written rows are now sorted before the range is read
 - `setUniformFont`, `setUniformBorder`, `setUniformFill`, `setUniformAlignment` and `setUniformFormat` given a whole row or column as `(ws, row, :)` or `(ws, :, col)` now apply one attribute to every cell, as the other target forms do. They previously applied the per-cell setter (`setFont` etc.), so cells that started with different formatting kept their differences
-
-</details>
-
-- `addImage` no longer empties a writable `IOBuffer` passed as the image. The buffer's contents and position are left as they were
-- `openxlsx(io; mode="rw") do … end` and `savexlsx` on a workbook opened from an `IO` now replace the `IO`'s content with the saved workbook. They previously threw an `ArgumentError` from ZipArchives, because the workbook was written after the bytes already read. An `IO` that can't be overwritten, such as a read-only `IOBuffer`, gives an `XLSXError`
 - Chart titles, axis titles and data labels set from a `RichTextString` keep each run's formatting (bold, italic, underline, strikethrough, superscript/subscript, size, font and color), with newlines handled as for plain strings. Previously this threw an `ArgumentError`. `addChart(...; title = rt)` keeps the run formatting on top of the new title's own
 - On Julia 1.11+, the same chart text setters and `addChart`'s `title` keyword accept a StyledStrings `styled"…"` string, converted to a `RichTextString` as for cells (in the StyledStrings extension)
 - `setChartTitleText` and `setAxisTitleText` accept a `CellRef` or `SheetCellRef`, binding the title to that cell (`c:tx/c:strRef`, with the cell's text cached). `addChart`'s `title` keyword accepts the same. A bound title has one style, so a typed title's formatting is moved into `c:txPr` and a rich-text cell lends the formatting its runs share; per-run formatting can't be kept, as Excel's file format doesn't allow it
@@ -84,10 +85,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `setLabelTextProp(c::ChartEx, …)` accepts Excel's field names `:font`, `:color`, `:underline` and `:strikethrough`, as the other text-property setters do; it threw an error
 - The text-property setters check `:under`, `:strike` and `:caps` values against the DrawingML vocabularies, and throw on any other word rather than writing a file Excel refuses to open. `:under` and `:strike` also take a `Bool`, and Excel's names `:single`/`:double` (and `:none` for `:strike`)
 - Chart setter docstrings state the values each argument and keyword accepts. The color values, line keywords and text-property fields are each listed in full once — at `setSeriesFill`, `setSeriesLine` and `setChartTitleTextProp` — and the `ChartEx` single-property line setters and `addSeries(c::ChartEx, …)` have docstrings. The Charts API page gains a Conventions section
-- The documentation and docstrings spell "color" throughout
 - Cell formatting (`setFont`, `setFill`, `setBorder`, their `Uniform` forms and `setOutsideBorder`), conditional formats (color scales, data bars, `setColoredDataBars` and the `font`/`fill`/`border` keywords) and `RichTextRun` colors accept every color form charts do: a hex or Colors.jl name as a String or Symbol, a Colors.jl `Colorant`, or a theme color (`"accent1"`, `:tx1` or a `SchemeColor`). A theme color is written as `<color theme="N" tint="t"/>`, so it follows the workbook's theme. Outside charts, a `SchemeColor` can be lightened or darkened (`lumMod`, or `lumMod` with `lumOff` adding to 100, as Excel's own palette does); other transforms throw. Existing String arguments behave as before. A new "Specifying colors" section in the formatting guide covers all of this
 - `SchemeColor` is now defined in `XLSX` (and is `public` there), and is the same type as `XLSX.Charts.SchemeColor`
 - A `RichTextRun` with an invalid `:color` now throws when it is created, not when it is written
+
+</details>
 
 ## [v0.13.1](https://github.com/JuliaData/XLSX.jl/tree/v0.13.1) - 2026-10-07
 
