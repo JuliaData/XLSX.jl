@@ -371,12 +371,12 @@ function _parse_excel_datetime_raw(v::AbstractString)
     isempty(v) && throw(XLSXError("Cannot convert an empty string into a datetime value."))
     if occursin('.', v) || v == "0"
         time_value = _parse_cell_float(v)
-        time_value >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $time_value"))
+        #time_value >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $time_value"))
         datatype = time_value < 1.0 ? CT_TIME : CT_DATETIME
         return reinterpret(UInt64, time_value), datatype
     else
         date_value = parse(Int64, v)
-        date_value >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $date_value"))
+        #date_value >= 0 || throw(XLSXError("Cannot have a datetime value < 0. Got $date_value"))
         return reinterpret(UInt64, date_value), CT_DATE
     end
 end
