@@ -962,6 +962,9 @@ struct Effective{T}
     value::Union{Nothing,T}
     site::Union{Nothing,FormatSite}
     chain::Vector{FormatSite}
+    # Inner constructor only: the default `Effective(value, ...)` cannot bind `T`
+    # when `value` is `nothing`, which Aqua reports as an unbound type parameter.
+    Effective{T}(value, site, chain) where {T} = new{T}(value, site, chain)
 end
 
 """

@@ -794,11 +794,29 @@ end
               Dict("cell" => XLSX.SheetCellRef("T!B2"), "nc" => XLSX.NonContiguousRange("T!A1,T!B2"))
         SAVE_FILES && save_outfile(f)
     end
-    @testset "deletesheet! drops other sheets' names that refer to it" begin
+    @testset "deletesheet! sets names that refer to it to #REF!" begin
         f = XLSX.newxlsx("S1"); s2 = XLSX.addsheet!(f, "S2")
         XLSX.addDefinedName(s2, "pt", XLSX.SheetCellRef("S1!A1"))
+        XLSX.addDefinedName(f, "wb", "S1!A1:B2")
+        XLSX.addDefinedName(f, "keep", "S2!A1")
+        XLSX.addDefinedName(f[1], "own", "A1")
+        # addDefinedName refuses _xlchart names, so add one directly
+        wb = XLSX.get_workbook(f)
+        wb.workbook_names["_xlchart.v1.0"] = XLSX.DefinedNameValue(XLSX.SheetCellRange("S1!A1:A3"), true, true)
         XLSX.deletesheet!(f, "S1")
-        @test isempty(XLSX.getDefinedNames(s2))
+        @test only(XLSX.getDefinedNames(s2)).value == "=#REF!"
+        @test Dict(dn.name => dn.value for dn in XLSX.getDefinedNames(f)) ==
+              Dict("wb" => "=#REF!", "keep" => XLSX.SheetCellRef("S2!A1"))
+        @test !haskey(wb.workbook_names, "_xlchart.v1.0")
+        @test !any(k -> last(k) == "own", keys(wb.worksheet_names))
+
+        mktempdir() do dir
+            p = joinpath(dir, "deleted.xlsx")
+            XLSX.writexlsx(p, f)
+            g = XLSX.readxlsx(p)
+            @test only(XLSX.getDefinedNames(g[1])).value == "=#REF!"
+            @test Dict(dn.name => dn.value for dn in XLSX.getDefinedNames(g))["wb"] == "=#REF!"
+        end
         SAVE_FILES && save_outfile(f)
     end
     @testset "quoteit" begin

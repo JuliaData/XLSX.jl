@@ -1847,8 +1847,11 @@ Delete the given worksheet, the worksheet with the given name or the worksheet w
 !!! note "Caution"
 
     Cells in the other sheets that have references to the deleted sheet will fail when the sheet is deleted.
-    The formulae are updated to contain a `#Ref!` error in place of each sheetcell reference.
-    
+    The formulae are updated to contain a `#REF!` error in place of each sheetcell reference.
+
+    Defined names that refer to the deleted sheet are kept with the value `"=#REF!"`, as in
+    Excel. Names scoped to the deleted sheet are removed with it.
+
 
 See also [`addsheet!`](@ref), [`renamesheet!`](@ref), [`copysheet!`](@ref)
 
@@ -1954,18 +1957,25 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     deleteat!(wb.relationships, r)
     deleteat!(wb.sheets, s)
 
-    # Defined names. Excel drops a chartEx chart's _xlchart names along with the
-    # sheet; note their values first, so the charts can be emptied to match.
+    # Defined names. As in Excel, a name that refers to the deleted sheet is kept
+    # as #REF!, except a chartEx chart's _xlchart names, which Excel drops along
+    # with the sheet; note their values first, so the charts can be emptied to match.
     dead_xlchart = Dict{String,String}()
-    for k in [k for (k, v) in wb.workbook_names if v.value isa DefinedNameRangeTypes && v.value.sheet == name]
-        startswith(k, "_xlchart.") && (dead_xlchart[k] = string(wb.workbook_names[k].value))
-        delete!(wb.workbook_names, k)
+    for (k, v) in collect(wb.workbook_names)
+        v.value isa DefinedNameRangeTypes && v.value.sheet == name || continue
+        if startswith(k, "_xlchart.")
+            dead_xlchart[k] = string(v.value)
+            delete!(wb.workbook_names, k)
+        else
+            wb.workbook_names[k] = DefinedNameValue("=#REF!", false, v.hidden)
+        end
     end
-    # The sheet's own names, and names on other sheets that refer to it, which
-    # would otherwise be left pointing at a sheet that no longer exists.
+    # The sheet's own names go with it; names on other sheets that refer to it become #REF!.
     for (k, v) in collect(wb.worksheet_names)
-        if first(k) == sId || (v.value isa DefinedNameRangeTypes && v.value.sheet == name)
+        if first(k) == sId
             delete!(wb.worksheet_names, k)
+        elseif v.value isa DefinedNameRangeTypes && v.value.sheet == name
+            wb.worksheet_names[k] = DefinedNameValue("=#REF!", false, v.hidden)
         end
     end
 

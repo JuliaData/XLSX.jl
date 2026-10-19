@@ -31,7 +31,7 @@ This release is largely a bug fixing release. There are a lot of small changes, 
 - `setConditionalFormat(…, :notContainsText / :beginsWith / :endsWith; …)` makes the rule named; all three made a `containsText` rule. A text rule's `value` may contain `"`, and a cell reference is used as one, as documented
 - Overwriting the first cell of a shared formula at least three columns wide and two rows high no longer throws a `KeyError`, and leaves the other cells' cached values unchanged
 - `copysheet!` points the copy's sheet-scoped defined names at the copy (a non-contiguous one threw), and gives formulas set on the copy shared-formula ids of their own
-- `deletesheet!` removes other sheets' defined names that refer to the deleted sheet
+- **Behavior change:** `deletesheet!` keeps defined names that refer to the deleted sheet with the value `"=#REF!"`, as Excel does. Workbook-scoped ones were deleted, and ones scoped to other sheets were left pointing at a sheet that no longer exists
 - `setFormula` no longer throws for a two-argument `IF` or an `OFFSET` whose size is not a literal number; a `GROUPBY` or `PIVOTBY` call inside a longer formula keeps the rest of the formula; `raw` and `spill` apply to every cell of a range
 - Worksheet parts not named `sheetN.xml` (e.g. `Sheet1.xml`, as some tools write) can be read and written
 - A single-run `RichTextString` with no attributes, `:under => true` or a fractional `:size` can be written to a cell; `setFont` takes a fractional `size`. `getRichTextString` reads fractional sizes and `<b val="0"/>` / `<u val="none"/>` as off, and `setFont` no longer turns an explicit `<b val="0"/>` into bold

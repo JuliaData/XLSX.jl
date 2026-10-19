@@ -821,6 +821,8 @@ XLSX.setConditionalFormat(s, "A2:A11", :iconSet;
 ```
 
 """
+function setConditionalFormat end
+
 # The text rules share one setter, which takes the rule as its `operator`. With
 # `:containsText` the `operator` keyword chooses the rule (default `containsText`);
 # `:notContainsText`, `:beginsWith` and `:endsWith` are that operator, so one given
