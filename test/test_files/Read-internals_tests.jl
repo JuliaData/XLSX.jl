@@ -619,7 +619,7 @@ end
     @testset "negative number in a date-formatted cell" begin
         f = XLSX.newxlsx(); s = f[1]
         st = Int(XLSX.get_num_style_index(s, 14).id)
-        @test XLSX.process_tv(f.workbook, "", "-1", st) == (XLSX.CT_INT, reinterpret(UInt64, -1))
+        @test XLSX.process_tv(f.workbook, "", "-1", st) == (XLSX.CT_INT, reinterpret(UInt64, Int64(-1)))
         @test XLSX.process_tv(f.workbook, "", "-1.5", st)[1] == XLSX.CT_FLOAT
     end
     @testset "a datetime that rounds up to midnight" begin
