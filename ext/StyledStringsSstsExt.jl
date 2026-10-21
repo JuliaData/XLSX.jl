@@ -7,7 +7,7 @@ module StyledStringsSstsExt
     import XLSX: Charts
 
     import StyledStrings: StyledStrings, AnnotatedString
-    import StyledStrings: load_customisations!, getface, Face, FACES, SimpleColor
+    import StyledStrings: load_customisations!, getface, Face, FACES, SimpleColor, eachregion
 
     @static if VERSION < v"1.14-"
         import StyledStrings: HTML_BASIC_COLORS
@@ -49,7 +49,7 @@ Converts an `AnnotatedString` to a vector of `RichTextRun`s.
         runs = RichTextRun[]
         load_customisations!()
         dflt = getface()
-        for (str, styles) in Base.eachregion(s)
+        for (str, styles) in eachregion(s)
             isempty(str) && continue
             push!(runs, RichTextRun(String(str), collect(_ss_style(getface(styles), dflt))))
         end
