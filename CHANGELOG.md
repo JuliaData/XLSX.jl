@@ -89,6 +89,7 @@ This release is largely a bug fixing release. There are a lot of small changes, 
 - `SchemeColor` is now defined in `XLSX` (and is `public` there), and is the same type as `XLSX.Charts.SchemeColor`
 - A `RichTextRun` with an invalid `:color` now throws when it is created, not when it is written
 - Unblock XML fix for #479 by updating Base.eachregion to StyledStrings.eachregion.
+- The test suite no longer depends on Distributions.jl
 
 </details>
 

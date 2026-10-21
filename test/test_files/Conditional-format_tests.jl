@@ -1309,8 +1309,7 @@
     @testset "aboveAverage" begin
         f = XLSX.newxlsx()
         s = f[1]
-        d = Dist.Normal()
-        columns = [rand(d, 1000), rand(d, 1000), rand(d, 1000)]
+        columns = [Random.randn(1000), Random.randn(1000), Random.randn(1000)]
         XLSX.writetable!(s, columns, ["normal1", "normal2", "normal3"])
         @test XLSX.setConditionalFormat(s, "A2:A1001,C1:C1000", :aboveAverage) == 0
         @test XLSX.setConditionalFormat(s, [2, 3, 19], 1:3, :aboveAverage) == 0 # Vectors may be non-contiguous

@@ -3,7 +3,6 @@ import Tables
 using Test, Dates, XML
 using OrderedCollections: OrderedDict
 import DataFrames, Random
-import Distributions as Dist
 import CSV
 using StyledStrings
 using ZipArchives
