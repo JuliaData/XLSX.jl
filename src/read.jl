@@ -1047,20 +1047,16 @@ into the pkgimage.
 """
 @inline max_threads() = Threads.nthreads()
 
-function strip_bom_and_lf!(bytes::Vector{UInt8})
+function strip_bom_and_lf(s::String)::String
     # Issue 243 - Need to remove BOM characters that precede the XML declaration.
-    # Note: If an Excel file containing a BOM is opened in Excel itself and 
-    # subsequently saved, Excel will strip the BOM out. This means the test for 
-    # this issue will stop testing the fix if the file "BOM - issue243.xlsx" is 
+    # Note: If an Excel file containing a BOM is opened in Excel itself and
+    # subsequently saved, Excel will strip the BOM out. This means the test for
+    # this issue will stop testing the fix if the file "BOM - issue243.xlsx" is
     # opened in Excel because the offending BOM will have been removed.
-    length(bytes) < 3 && return
-    if bytes[1] == 0xEF && bytes[2] == 0xBB && bytes[3] == 0xBF
-        if length(bytes) > 3 && bytes[4] == 0x0A
-            deleteat!(bytes, 1:4)
-        else
-            deleteat!(bytes, 1:3)
-        end
-    end
+    # Returns `s` itself when there is no BOM; copies only when there is one.
+    startswith(s, '\ufeff') || return s
+    k = (ncodeunits(s) > 3 && codeunit(s, 4) == 0x0a) ? 4 : 3
+    return String(SubString(s, k + 1))
 end
 
 # XML.jl reads `xml_str` in place, whatever its line ends, and `XML.splicetext` splices
@@ -1242,6 +1238,32 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
     wait(consumer)
 end
 
+# Decompress an XML part straight into a String. `String(take!(buf))` takes over
+# the buffer's memory instead of copying it (#482).
+function _readentry_string(zip_io::ZipArchives.ZipReader, filename::String)::String
+    i = ZipArchives.zip_findlast_entry(zip_io, filename)
+    isnothing(i) && throw(ArgumentError("entry with name $(repr(filename)) not found"))
+    n = Int(ZipArchives.zip_uncompressed_size(zip_io, i))
+    buf = IOBuffer(; sizehint = n)
+    chunk = Vector{UInt8}(undef, clamp(n, 1, 1 << 16))
+    crc = UInt32(0)
+    io = ZipArchives.zip_openentry(zip_io, i)
+    try
+        while !eof(io)
+            nr = readbytes!(io, chunk)
+            position(buf) + nr <= n || throw(ArgumentError("`$filename` is longer than the zip directory says"))
+            block = view(chunk, 1:nr)
+            crc = ZipArchives.zip_crc32(block, crc)
+            write(buf, block)
+        end
+    finally
+        close(io)
+    end
+    position(buf) == n || throw(ArgumentError("`$filename` is shorter than the zip directory says"))
+    crc == ZipArchives.zip_stored_crc32(zip_io, i) || throw(ArgumentError("CRC mismatch in `$filename`"))
+    return String(take!(buf))
+end
+
 # `split_sheets=false` (readtable's value rows, src/valuerows.jl) keeps a worksheet whole:
 # no `<sheetData>` stub is made, as nothing will use it.
 function process_file(zip_io::ZipArchives.ZipReader, filename::String, split_sheets::Bool=true)
@@ -1251,10 +1273,8 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String, split_she
     bin  = nothing
 
     try
-        bytes = ZipArchives.zip_readentry(zip_io, filename)
         if !is_binary_path(filename) && (endswith(filename, ".xml") || endswith(filename, ".rels"))
-            strip_bom_and_lf!(bytes)
-            xml_str = String(bytes)
+            xml_str = strip_bom_and_lf(_readentry_string(zip_io, filename))
             if filename == "xl/sharedStrings.xml"
                 node = XML.Element("sst")  # placeholder; SST is loaded via sst_load!
                 raw  = xml_str
@@ -1265,7 +1285,7 @@ function process_file(zip_io::ZipArchives.ZipReader, filename::String, split_she
                 node = parse(xml_str, XML.Node)
             end
         else
-            bin = bytes
+            bin = ZipArchives.zip_readentry(zip_io, filename)
         end
     catch err
         err isa InterruptException && rethrow()

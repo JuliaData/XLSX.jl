@@ -317,20 +317,22 @@ Opening a file in `write` mode with `XLSX.openxlsx` will open a new (blank) Exce
 ```julia
 XLSX.openxlsx("my_new_file.xlsx", mode="w") do xf
     sheet = xf[1]
-    XLSX.renamesheet!(sheet, "new_sheet")
+    XLSX.renamesheet!(sheet, "new_sheet") # Default sheet name is `Sheet1`
     sheet["A1"] = "this"
     sheet["A2"] = "is a"
     sheet["A3"] = "new file"
     sheet["A4"] = 100
 
-    # will add a row from "A5" to "E5"
-    sheet["A5"] = collect(1:5) # equivalent to `sheet["A5", dim=2] = collect(1:4)`
-
-    # will add a column from "B1" to "B4"
-    sheet["B1", dim=1] = collect(1:4)
-
-    # will add a matrix from "A7" to "C9"
-    sheet["A7:C9"] = [ 1 2 3 ; 4 5 6 ; 7 8 9 ]
+    # Vectors and matricies fill from the anchor cell
+    sheet["A5"] = collect(1:5) # Fills a row `A5:E5` - equivalent to `sheet["A5", dim=2] = collect(1:4)`
+    sheet["A6"] = ["this", "fills", "across", "five", "cells"] # Fills `A6:E6`
+    sheet["B1", dim=1] = collect(1:4)  # will fill a column from `B1:B4`
+    sheet["C1"] = ["this"; "fills"; "a"; "column";;] # a 4x1 matrix fills a column `D1:D4`
+    sheet["A7"] = [ 1 2 3 ; 4 5 6 ; 7 8 9 ] # will add a 3x3 matrix from `A7:C9`
+    
+    # Or name a 1D range explicitly to fill from a vector - the number of values must match the number of cells
+    sheet["D1:D4"] = ["this", "fills", "a", "column"] # Also fills a column from `D1:D4`
+    sheet["A10:C10"] = [1, 2, 3] # This fills a row from `A10:C10`
 end
 ```
 
@@ -368,6 +370,11 @@ labels = [ "column_1", "column_2"]
 XLSX.openxlsx(filename, mode="w") do xf
     sheet = xf[1]
     XLSX.writetable!(sheet, columns, labels, anchor_cell=XLSX.CellRef("B2"))
+
+    # write the same data to a new sheet
+    newsheet = addsheet!(xf, "my_new_sheet")
+    XLSX.writetable!(newsheet, columns, labels, anchor_cell=XLSX.CellRef("B2"))
+
 end
 
 # read data back
@@ -381,6 +388,16 @@ XLSX.openxlsx(filename) do xf
     @test sheet["C3"] == "a"
     @test sheet["C4"] == "b"
     @test sheet["C5"] == "c"
+
+    newsheet = xf["my_new_sheet"]
+    @test newsheet["B2"] == "column_1"
+    @test newsheet["C2"] == "column_2"
+    @test newsheet["B3"] == 1
+    @test newsheet["B4"] == 2
+    @test newsheet["B5"] == 3
+    @test newsheet["C3"] == "a"
+    @test newsheet["C4"] == "b"
+    @test newsheet["C5"] == "c"
 end
 ```
 

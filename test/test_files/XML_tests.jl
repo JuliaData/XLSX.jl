@@ -192,10 +192,8 @@ end
             zip = try ZipArchives.ZipReader(read(joinpath(dir, file))) catch; continue end
             for name in ZipArchives.zip_names(zip)
                 occursin(r"xl/worksheets/sheet\d*\.xml", name) || continue
-                bytes = ZipArchives.zip_readentry(zip, name)
-                XLSX.strip_bom_and_lf!(bytes)
                 nsheets += 1
-                ok = _splitnode_agree(String(bytes))
+                ok = _splitnode_agree(XLSX.strip_bom_and_lf(XLSX._readentry_string(zip, name)))
                 ok || println("splitNode differs from the reference: $file $name")
                 @test ok
             end

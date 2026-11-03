@@ -50,9 +50,7 @@ The iterator element is a SheetRow.
         zip_io = ZipArchives.ZipReader(FileArray(abspath(xf.source)))
     end
 
-    bytes = ZipArchives.zip_readentry(zip_io, filename)
-    strip_bom_and_lf!(bytes)
-    return parse(String(bytes), XML.LazyNode)
+    return parse(strip_bom_and_lf(_readentry_string(zip_io, filename)), XML.LazyNode)
 
 end
 

@@ -24,7 +24,7 @@ FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 
 [sources]
-XML = {rev = "read-string-in-place", url = "https://github.com/JuliaData/XML.jl"}  # XML.jl#194; back to "main" once merged
+XML = {rev = "main", url = "https://github.com/JuliaData/XML.jl"}
 
 [extensions]
 FileIOExt = "FileIO"

@@ -143,6 +143,53 @@ end
         @test_throws XLSX.XLSXError XLSX.process_file(reader, "absent.xml")
     end
 
+    # ===========================================================================
+    # XML parts are read straight into a String (#482)
+    # ===========================================================================
+
+    @testset "_readentry_string matches zip_readentry" begin
+        for file in ("Bom - issue243.xlsx", "general.xlsx", "chart_kinds.xlsx", "issue62_71.xlsx")
+            zip = XLSX.ZipArchives.ZipReader(read(joinpath(data_directory, file)))
+            for name in XLSX.ZipArchives.zip_names(zip)
+                (endswith(name, ".xml") || endswith(name, ".rels")) || continue
+                @test XLSX._readentry_string(zip, name) == String(XLSX.ZipArchives.zip_readentry(zip, name))
+            end
+            @test_throws ArgumentError XLSX._readentry_string(zip, "absent.xml")
+        end
+    end
+
+    @testset "_readentry_string checks the CRC" begin
+        io = IOBuffer()
+        XLSX.ZipArchives.ZipWriter(io) do w
+            XLSX.ZipArchives.zip_newfile(w, "part.xml")  # stored, so the bytes appear as written
+            write(w, "<thing>payload</thing>")
+        end
+        bytes = take!(io)
+        r = findfirst(codeunits("payload"), bytes)
+        bytes[first(r)] = UInt8('P')
+        reader = XLSX.ZipArchives.ZipReader(bytes)
+        @test_throws ArgumentError XLSX._readentry_string(reader, "part.xml")
+        @test_throws XLSX.XLSXError XLSX.process_file(reader, "part.xml")
+    end
+
+    @testset "_readentry_string does not copy the part" begin
+        zip = XLSX.ZipArchives.ZipReader(read(joinpath(data_directory, "Bom - issue243.xlsx")))
+        name = "xl/worksheets/sheet1.xml"
+        n = XLSX.ZipArchives.zip_uncompressed_size(zip, XLSX.ZipArchives.zip_findlast_entry(zip, name))
+        @test n > 1_000_000
+        XLSX._readentry_string(zip, name)
+        @test (@allocated XLSX._readentry_string(zip, name)) < 1.5 * n
+    end
+
+    @testset "strip_bom_and_lf" begin
+        s = "<?xml version=\"1.0\"?><a/>"
+        @test XLSX.strip_bom_and_lf(s) === s
+        @test XLSX.strip_bom_and_lf("\ufeff" * s) == s
+        @test XLSX.strip_bom_and_lf("\ufeff\n" * s) == s
+        @test XLSX.strip_bom_and_lf("\ufeff") == ""
+        @test XLSX.strip_bom_and_lf("") == ""
+    end
+
     @testset "FileArray" begin
         p = joinpath(data_directory, "general.xlsx")
         fa = XLSX.FileArray(p)
