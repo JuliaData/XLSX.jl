@@ -15,9 +15,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 XML = "72c71f33-b9b6-44de-8c94-c961784809e2"
 ZipArchives = "49080126-0e18-4c2a-b176-c102e4b3760c"
 
-[sources]
-XML = {rev = "main", url = "https://github.com/JuliaData/XML.jl"}
-
 [compat]
 Aqua = "0.8"
 Colors = "0.12, 0.13"
@@ -27,6 +24,6 @@ OrderedCollections = "1, 2"
 Pkg = "1"
 StyledStrings = "1.0.3"
 Tables = "1"
-XML = "0.4.6"
+XML = "0.4.7"
 ZipArchives = "2.5"
 julia = "1.10"

@@ -23,9 +23,6 @@ ZipArchives = "49080126-0e18-4c2a-b176-c102e4b3760c"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 
-[sources]
-XML = {rev = "main", url = "https://github.com/JuliaData/XML.jl"}
-
 [extensions]
 FileIOExt = "FileIO"
 StyledStringsSstsExt = "StyledStrings"
@@ -43,6 +40,6 @@ StyledStrings = "1.0.3"
 Tables = "1"
 UUIDs = "1.8"
 Unicode = "1.10"
-XML = "0.4.6"
+XML = "0.4.7"
 ZipArchives = "2.5"
 julia = "1.10"
