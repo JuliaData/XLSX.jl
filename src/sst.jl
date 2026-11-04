@@ -1,10 +1,36 @@
 
-SharedStringTable() = SharedStringTable(Vector{String}(), Vector{String}(), Dict{String, Int64}(), false)
+SharedStringTable() = SharedStringTable(Vector{String}(), Dict{Int64, String}(), Dict{String, Int64}(), Dict{String, Int64}(), false)
 
 @inline get_sst(wb::Workbook) = wb.sst
 @inline get_sst(xl::XLSXFile) = get_sst(get_workbook(xl))
-@inline Base.length(sst::SharedStringTable) = length(sst.shared_strings)
-@inline Base.isempty(sst::SharedStringTable) = isempty(sst.shared_strings)
+@inline Base.length(sst::SharedStringTable) = length(sst.unformatted)
+@inline Base.isempty(sst::SharedStringTable) = isempty(sst.unformatted)
+
+# Whether the string at 0-based `index` has rich text runs or other markup kept as raw XML.
+@inline is_rich_sst(sst::SharedStringTable, index::Integer) = haskey(sst.rich, index)
+
+# Write the `<si>` of a plain string.
+function write_plain_si(io::IO, text::AbstractString, pfx_colon::AbstractString)
+    # Keep any whitespace other than single spaces, not just what `needs_preserve` covers.
+    preserve = needs_preserve(text) || any(c -> isspace(c) && c != ' ', text)
+    write(io, "<", pfx_colon, "si><", pfx_colon, preserve ? "t xml:space=\"preserve\">" : "t>",
+        XML.escape(text), "</", pfx_colon, "t></", pfx_colon, "si>")
+    return nothing
+end
+
+"""
+    sst_formatted_string(sst::SharedStringTable, index::Integer, pfx_colon="") -> String
+
+The `<si>` XML of the string at 0-based `index`: the raw XML of a rich string, or the
+XML rebuilt from the text of a plain one.
+"""
+function sst_formatted_string(sst::SharedStringTable, index::Integer, pfx_colon::AbstractString="")
+    raw = get(sst.rich, index, nothing)
+    raw === nothing || return raw
+    io = IOBuffer()
+    write_plain_si(io, sst.unformatted[index+1], pfx_colon)
+    return String(take!(io))
+end
 
 function create_new_sst(wb::Workbook, sst::SharedStringTable)
     if !sst.is_loaded
@@ -27,14 +53,33 @@ function create_new_sst(wb::Workbook, sst::SharedStringTable)
     end
 end
 
-function add_to_sst!(ss::SharedStringTable, si_xml::String)::Int64
-    isempty(ss.index) && init_sst_index(ss)
-    ind = get(ss.index, si_xml, nothing)
+@inline function _ensure_sst_index(ss::SharedStringTable)
+    isempty(ss.index) && isempty(ss.rich_index) && !isempty(ss) && init_sst_index(ss)
+end
+
+# Adds a plain string. Returns its 0-based index.
+function add_plain_to_sst!(ss::SharedStringTable, text::String)::Int64
+    _ensure_sst_index(ss)
+    ind = get(ss.index, text, nothing)
     ind !== nothing && return ind
-    new_idx = length(ss.shared_strings)
-    push!(ss.shared_strings, si_xml)
-    push!(ss.unformatted, unformatted_text(xml_root_element(parse(si_xml, XML.LazyNode))))
-    ss.index[si_xml] = new_idx
+    new_idx = length(ss)
+    push!(ss.unformatted, text)
+    ss.index[text] = new_idx
+    return new_idx
+end
+
+# Adds a string given as `<si>` XML, kept as text alone when it is plain. Returns its 0-based index.
+function add_to_sst!(ss::SharedStringTable, si_xml::String)::Int64
+    si = xml_root_element(parse(si_xml, XML.LazyNode))
+    text = _si_plain_text(si)
+    text === nothing || return add_plain_to_sst!(ss, text)
+    _ensure_sst_index(ss)
+    ind = get(ss.rich_index, si_xml, nothing)
+    ind !== nothing && return ind
+    new_idx = length(ss)
+    push!(ss.unformatted, unformatted_text(si))
+    ss.rich[new_idx] = si_xml
+    ss.rich_index[si_xml] = new_idx
     return new_idx
 end
 
@@ -46,16 +91,20 @@ function add_formatted_string!(wb::Workbook, sst::SharedStringTable, str::String
 end
 function add_formatted_string!(wb::Workbook, str_formatted::String)::Int64
     isempty(str_formatted) && throw(XLSXError("Can't add empty string to Shared String Table."))
-    sst = get_sst(wb)
-    
     lock(wb.sst_lock) do
-        if has_sst(wb) && !sst.is_loaded
-            sst_load!(wb)
-        elseif !sst.is_loaded
-            create_new_sst(wb, sst)
-        end
-        add_to_sst!(sst, str_formatted)
+        add_to_sst!(_loaded_sst(wb), str_formatted)
     end
+end
+
+# The workbook's Shared String Table, loaded or created. Call it holding `wb.sst_lock`.
+function _loaded_sst(wb::Workbook)::SharedStringTable
+    sst = get_sst(wb)
+    if has_sst(wb) && !sst.is_loaded
+        sst_load!(wb)
+    elseif !sst.is_loaded
+        create_new_sst(wb, sst)
+    end
+    return sst
 end
 
 # check if a string needs xml:space="preserve". Any leading or trailing whitespace counts,
@@ -65,31 +114,77 @@ needs_preserve(s::AbstractString) =
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
 function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int
-    escaped = XML.escape(str_unformatted)
-    # pfx is stable for the lifetime of the workbook — could be cached on wb
-    pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
-    pfx_colon = pfx == "" ? "" : "$(pfx):"
-
-    str_formatted = if needs_preserve(str_unformatted)
-        "<$(pfx_colon)si>\n  <$(pfx_colon)t xml:space=\"preserve\">$(escaped)</$(pfx_colon)t>\n</$(pfx_colon)si>"
-    else
-        "<$(pfx_colon)si>\n  <$(pfx_colon)t>$(escaped)</$(pfx_colon)t>\n</$(pfx_colon)si>"
+    text = String(str_unformatted)
+    lock(wb.sst_lock) do
+        add_plain_to_sst!(_loaded_sst(wb), text)
     end
-
-    return add_formatted_string!(wb, str_formatted)
 end
 
-function _si_unformatted(child::XML.LazyNode)::String
-    # Fast path: find first <t> child and try is_simple_value on it
-    for t_node in XML.eachchildnode(child)
-        XML.nodetype(t_node) == XML.Element || continue
-        localname(t_node) == "t" || continue
-        sv = XML.is_simple_value(t_node)
-        isnothing(sv) || return String(sv)
-        break  # <t> exists but isn't simple — fall through
+# The text of an `<si>` that holds a single `<t>` of plain text and nothing else but
+# whitespace, or `nothing` for any other `<si>` (rich text runs, phonetic hints).
+function _si_plain_text(si::XML.LazyNode)::Union{Nothing,String}
+    _is_simple_plain_si(XML.sourcetext(si)) && return _first_t_text(si)
+    t = nothing
+    for ch in XML.eachchildnode(si)
+        nt = XML.nodetype(ch)
+        if nt === XML.Element
+            (t === nothing && localname(ch) == "t") || return nothing
+            t = ch
+        elseif nt === XML.Text
+            v = XML.value(ch)
+            (isnothing(v) || all(isspace, v)) || return nothing
+        elseif nt !== XML.Comment
+            return nothing
+        end
     end
-    # Fallback for rich text / phonetic hints / complex structure
-    unformatted_text(child)
+    t === nothing && return nothing
+    return _t_text(t)
+end
+
+# Fast check, on the bytes alone, for the common `<si><t>text</t></si>`: exactly four
+# `<` (the `<si>`, `<t…>`, `</t>` and `</si>` tags), the second tag a `t`, the third a
+# closing one. Comments, CDATA, `<t/>` and any other element all fail it.
+function _is_simple_plain_si(raw::AbstractString)::Bool
+    cu = codeunits(raw)
+    lt = UInt8('<')
+    count(==(lt), cu) == 4 || return false
+    i2 = findnext(==(lt), cu, 2)
+    i3 = findnext(==(lt), cu, i2 + 1)
+    (i3 < length(cu) && cu[i3+1] == UInt8('/')) || return false
+    # the name of the second tag, after any prefix, is `t`
+    j = i2 + 1
+    while j <= length(cu) && !(cu[j] in (UInt8('>'), UInt8('/'), UInt8(' '), UInt8('\t'), UInt8('\n'), UInt8('\r')))
+        j += 1
+    end
+    name_end = j - 1
+    return name_end >= i2 + 1 && cu[name_end] == UInt8('t') && (name_end == i2 + 1 || cu[name_end-1] == UInt8(':'))
+end
+
+# The text of the first `<t>` child of an `<si>` that passed `_is_simple_plain_si`.
+function _first_t_text(si::XML.LazyNode)::String
+    for ch in XML.eachchildnode(si)
+        XML.nodetype(ch) === XML.Element && return something(_t_text(ch), "")
+    end
+    return ""
+end
+
+# The text of a `<t>`, or `nothing` if it holds anything but text.
+function _t_text(t::XML.LazyNode)::Union{Nothing,String}
+    # Fast path: no attributes and a single text child.
+    sv = XML.is_simple_value(t)
+    isnothing(sv) || return String(sv)
+    # `xml:space="preserve"`, empty `<t/>`, or text split around entities or CDATA.
+    io = IOBuffer()
+    for ch in XML.eachchildnode(t)
+        nt = XML.nodetype(ch)
+        if nt === XML.Text || nt === XML.CData
+            v = XML.value(ch)
+            isnothing(v) || write(io, v)
+        elseif nt !== XML.Comment
+            return nothing
+        end
+    end
+    return String(take!(io))
 end
 
 function sst_load!(workbook::Workbook)
@@ -104,16 +199,16 @@ function sst_load!(workbook::Workbook)
     end
 
     doc = open_internal_file_stream(xlsxfile, "xl/sharedStrings.xml")
-    empty!(sst.shared_strings)
     empty!(sst.unformatted)
+    empty!(sst.rich)
+    empty!(sst.index)
+    empty!(sst.rich_index)
 
     sst_root = xml_root_element(doc)
 
     uc = XML.get(sst_root, "uniqueCount", nothing)
     if !isnothing(uc)
-        n = parse(Int, uc)
-        sizehint!(sst.shared_strings, n)
-        sizehint!(sst.unformatted, n)
+        sizehint!(sst.unformatted, parse(Int, uc))
     end
 
     c = XML.Cursor(sst_root)
@@ -124,8 +219,12 @@ function sst_load!(workbook::Workbook)
         localname(c) == "si" || (XML.skip_element!(c); continue)
         child = XML.LazyNode(c)
         XML.skip_element!(c)
-        push!(sst.shared_strings, String(XML.sourcetext(child)))
-        push!(sst.unformatted, _si_unformatted(child))
+        text = _si_plain_text(child)
+        if text === nothing
+            sst.rich[length(sst.unformatted)] = String(XML.sourcetext(child))
+            text = unformatted_text(child)
+        end
+        push!(sst.unformatted, text)
     end
 
     sst.is_loaded = true
@@ -186,8 +285,12 @@ end
 # init the index table
 function init_sst_index(sst::SharedStringTable)
     empty!(sst.index)
-    for i in 1:length(sst.shared_strings)
-       sst.index[sst.shared_strings[i]] = i - 1
+    empty!(sst.rich_index)
+    for (i, raw) in sst.rich
+        sst.rich_index[raw] = i
+    end
+    for i in eachindex(sst.unformatted)
+        is_rich_sst(sst, i - 1) || (sst.index[sst.unformatted[i]] = i - 1)
     end
 end
 
@@ -549,7 +652,8 @@ function getRichTextString(s::Worksheet, c::CellRef)::Union{RichTextString, Noth
     cell isa EmptyCell && return nothing
     cell.datatype == CT_STRING || return nothing
     sst_load!(get_workbook(s))
-    uss = get_sst(get_workbook(s)).shared_strings[reinterpret(Int64, cell.value)+1]
+    uss = get(get_sst(get_workbook(s)).rich, reinterpret(Int64, cell.value), nothing)
+    uss === nothing && return nothing # plain string
     return getRichTextString(get_workbook(s), uss)
 end
 
