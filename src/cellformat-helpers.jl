@@ -1122,7 +1122,8 @@ function _strip_run_props!(ws::Worksheet, cell::Cell, tags::Set{String}) :: Unio
     wb=get_workbook(ws)
     index=reinterpret(Int64,cell.value)
     sst=get_sst(wb)
-    str_formatted=sst.shared_strings[index+1]
+    str_formatted = get(sst.rich, index, nothing)
+    str_formatted === nothing && return nothing # plain string
 
     isnothing(findfirst("<r>", str_formatted)) && return nothing # no <r> elements to manage
 
@@ -1200,9 +1201,6 @@ function _strip_run_props!(ws::Worksheet, cell::Cell, tags::Set{String}) :: Unio
         write(new_r, "</si>")
 
         str_formatted = String(take!(new_r))
-
-        ind = get(sst.index, str_formatted, nothing)
-        ind !== nothing && return ind
 
         new_index = add_formatted_string!(wb, sst, str_formatted)
     end

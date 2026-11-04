@@ -651,10 +651,14 @@ end
 SheetRowStreamIterator(ws::Worksheet) = SheetRowStreamIterator(ws, nothing)
 
 #------------------------------------------------------------------------------ sharedStrings
+# A `<si>` that holds a single plain `<t>` is kept as its text alone, and its XML is
+# rebuilt when the table is written. The raw XML is kept only for the others (rich
+# text runs, phonetic hints), keyed by their 0-based index.
 mutable struct SharedStringTable
-    shared_strings::Vector{String}
     unformatted::Vector{String}
-    index::Dict{String, Int64} # for search optimisation. Tuple of indices to handle hash collisions.
+    rich::Dict{Int64, String}       # 0-based index => raw `<si>` XML
+    index::Dict{String, Int64}      # plain text => 0-based index
+    rich_index::Dict{String, Int64} # raw `<si>` XML => 0-based index
     is_loaded::Bool
 end
 

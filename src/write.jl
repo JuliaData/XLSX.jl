@@ -165,8 +165,13 @@ function generate_sst_xml_string(wb::Workbook)::String
 
     print(buff, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><$(pfx_c)sst count="$sst_total" uniqueCount="$(length(sst))" xmlns$(c_pfx)="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n""")
 
-    for s in sst.shared_strings
-        print(buff, s)
+    for i in eachindex(sst.unformatted)
+        raw = get(sst.rich, i - 1, nothing)
+        if raw === nothing
+            write_plain_si(buff, sst.unformatted[i], pfx_c)
+        else
+            print(buff, raw)
+        end
     end
 
     print(buff, "</$(pfx_c)sst>")

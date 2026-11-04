@@ -259,7 +259,7 @@ end
         cell = XLSX.getcell(sh, "A1")
         cell.value = reinterpret(UInt64, Int64(XLSX.add_formatted_string!(wb, si)))
         XLSX.setFont(sh, "A1"; bold=true)
-        s = XLSX.get_sst(wb).shared_strings[reinterpret(Int64, XLSX.getcell(sh, "A1").value) + 1]
+        s = XLSX.sst_formatted_string(XLSX.get_sst(wb), reinterpret(Int64, XLSX.getcell(sh, "A1").value))
         @test occursin("charset", s) && occursin("outline", s) && occursin("<i", s)
         @test !occursin("<b/>", s)
         SAVE_FILES && save_outfile(xf)
@@ -286,14 +286,14 @@ end
             @test s["A6"] == "this is orange text"
             @test s["A7"] == "deleted and more too, aswell. And now unbolded!"
             @test s["A8"] == "Hello computer - do you have any rhymes for me"
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A1").value)+1] == "<si><r><rPr><color rgb=\"FFE5A509\"/></rPr><t>hello</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF195EB3\"/></rPr><t>there</t></r></si>"
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A2").value)+1] == "<si><r><t xml:space=\"preserve\">The </t></r><r><rPr><b/><i/></rPr><t xml:space=\"preserve\">quick </t></r><r><rPr><b/><i/><color rgb=\"FFCD853F\"/></rPr><t>brown</t></r><r><rPr><b/><i/></rPr><t xml:space=\"preserve\"> fox</t></r><r><rPr><b/></rPr><t xml:space=\"preserve\"> jumps over the </t></r><r><rPr><b/><color rgb=\"FFFFC000\"/></rPr><t>lazy</t></r><r><rPr><b/></rPr><t xml:space=\"preserve\"> dog</t></r></si>"
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A3").value)+1] == "<si><r><t xml:space=\"preserve\">In terms of color, we have named faces for the 16 standard terminal colors:\n </t></r><r><rPr><color rgb=\"FF1C1A23\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFA51C2C\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF25A268\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFE5A509\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF195EB3\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF803D9B\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF0097A7\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFDDDCD9\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\">\n </t></r><r><rPr><color rgb=\"FF76757A\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFED333B\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF33D079\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFF6D22C\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF3583E4\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFBF60CA\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF26C6DA\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFF6F5F4\"/></rPr><t>■</t></r></si>"
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A4").value)+1] == "<si><r><t xml:space=\"preserve\">\nThe basic font-style attributes are </t></r><r><rPr><b/></rPr><t>bold</t></r><r><t xml:space=\"preserve\">, </t></r><r><t>light</t></r><r><t xml:space=\"preserve\">, </t></r><r><rPr><i/></rPr><t>italic</t></r><r><t xml:space=\"preserve\">,\n </t></r><r><rPr><u/></rPr><t>underline</t></r><r><t xml:space=\"preserve\">, and </t></r><r><rPr><strike/></rPr><t>strikethrough</t></r></si>"
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A5").value)+1] == "<si><r><rPr><b/><color rgb=\"FFA51C2C\"/><sz val=\"24\"/></rPr><t>Hello</t></r><r><rPr><color rgb=\"FFA51C2C\"/></rPr><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFA51C2C\"/></rPr><t>Tim!</t></r></si>"
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A6").value)+1] == "<si>\n  <t>this is orange text</t>\n</si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A1").value)) == "<si><r><rPr><color rgb=\"FFE5A509\"/></rPr><t>hello</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF195EB3\"/></rPr><t>there</t></r></si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A2").value)) == "<si><r><t xml:space=\"preserve\">The </t></r><r><rPr><b/><i/></rPr><t xml:space=\"preserve\">quick </t></r><r><rPr><b/><i/><color rgb=\"FFCD853F\"/></rPr><t>brown</t></r><r><rPr><b/><i/></rPr><t xml:space=\"preserve\"> fox</t></r><r><rPr><b/></rPr><t xml:space=\"preserve\"> jumps over the </t></r><r><rPr><b/><color rgb=\"FFFFC000\"/></rPr><t>lazy</t></r><r><rPr><b/></rPr><t xml:space=\"preserve\"> dog</t></r></si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A3").value)) == "<si><r><t xml:space=\"preserve\">In terms of color, we have named faces for the 16 standard terminal colors:\n </t></r><r><rPr><color rgb=\"FF1C1A23\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFA51C2C\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF25A268\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFE5A509\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF195EB3\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF803D9B\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF0097A7\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFDDDCD9\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\">\n </t></r><r><rPr><color rgb=\"FF76757A\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFED333B\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF33D079\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFF6D22C\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF3583E4\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFBF60CA\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FF26C6DA\"/></rPr><t>■</t></r><r><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFF6F5F4\"/></rPr><t>■</t></r></si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A4").value)) == "<si><r><t xml:space=\"preserve\">\nThe basic font-style attributes are </t></r><r><rPr><b/></rPr><t>bold</t></r><r><t xml:space=\"preserve\">, </t></r><r><t>light</t></r><r><t xml:space=\"preserve\">, </t></r><r><rPr><i/></rPr><t>italic</t></r><r><t xml:space=\"preserve\">,\n </t></r><r><rPr><u/></rPr><t>underline</t></r><r><t xml:space=\"preserve\">, and </t></r><r><rPr><strike/></rPr><t>strikethrough</t></r></si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A5").value)) == "<si><r><rPr><b/><color rgb=\"FFA51C2C\"/><sz val=\"24\"/></rPr><t>Hello</t></r><r><rPr><color rgb=\"FFA51C2C\"/></rPr><t xml:space=\"preserve\"> </t></r><r><rPr><color rgb=\"FFA51C2C\"/></rPr><t>Tim!</t></r></si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A6").value)) == "<si><t>this is orange text</t></si>"
             @test XLSX.getFont(s, "A6").font == Dict("name" => Dict("val" => "Calibri"), "sz" => Dict("val" => "12"), "color" => Dict("rgb" => "FFFF7700"))
-            @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A7").value)+1] == "<si><r><rPr><b/><i/><u/></rPr><t xml:space=\"preserve\">deleted </t></r><r><rPr><b/><i/><strike/><u/></rPr><t xml:space=\"preserve\">and more </t></r><r><rPr><b/><i/><strike/><sz val=\"30\"/><u/></rPr><t>too</t></r><r><rPr><b/><i/><u/></rPr><t>, aswell</t></r><r><t>. And now unbolded!</t></r></si>"
+            @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A7").value)) == "<si><r><rPr><b/><i/><u/></rPr><t xml:space=\"preserve\">deleted </t></r><r><rPr><b/><i/><strike/><u/></rPr><t xml:space=\"preserve\">and more </t></r><r><rPr><b/><i/><strike/><sz val=\"30\"/><u/></rPr><t>too</t></r><r><rPr><b/><i/><u/></rPr><t>, aswell</t></r><r><t>. And now unbolded!</t></r></si>"
             SAVE_FILES && save_outfile(f)
         end
         @testset "styledStrings - defaults and edge cases" begin
@@ -329,8 +329,7 @@ end
             s["C1"] = styled"plain {bold:bold} plain"
             c1 = XLSX.getRichTextString(s, "C1")
             @test all(r -> !_hasatt(r, :size), c1.runs)
-            @test !occursin("<sz", XLSX.get_workbook(s).sst.shared_strings[
-                Int(XLSX.getcell(s, "C1").value) + 1])
+            @test !occursin("<sz", XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "C1").value)))
 
             # A non-default height is still emitted. The trailing unstyled text
             # keeps this a rich text string rather than collapsing to a cell font.
@@ -380,7 +379,7 @@ end
             @test s["D2"] == "a & b c & d e & f"
             XLSX.setFont(s, "D2"; italic = true)
             @test s["D2"] == "a & b c & d e & f"
-            raw = XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "D2").value) + 1]
+            raw = XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "D2").value))
             @test !occursin("&amp;amp;", raw)          # not double-escaped
             @test count("&amp;", raw) == 3             # all three ampersands escaped
             @test !occursin(" & ", raw)                # none left bare
@@ -412,7 +411,7 @@ end
 
             # A colour naming a face without its own foreground resolves through
             # inheritance, or to no colour at all, rather than throwing.
-            _sst(ref) = XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, ref).value) + 1]
+            _sst(ref) = XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, ref).value))
             s["F1"] = styled"{(foreground=highlight):x} y"          # highlight inherits emphasis (blue)
             @test s["F1"] == "x y"
             @test occursin("<color rgb=\"FF195EB3\"/>", _sst("F1"))
@@ -470,9 +469,9 @@ end
         @test s["A1"] == "Hello Kitty Hello"
         @test s["A2"] == "Hello Kitty"
         @test s["A3"] == "single run"
-        @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A1").value)+1] == "<si><r><rPr><vertAlign val=\"subscript\"/></rPr><t>Hello</t></r><r><rPr><b/><color rgb=\"FF008000\"/><sz val=\"14\"/><u/></rPr><t xml:space=\"preserve\"> Kitty </t></r><r><rPr><color rgb=\"FF008000\"/><sz val=\"14\"/><u/></rPr><t>Hello</t></r></si>"
-        @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A2").value)+1] == "<si><r><rPr><rFont val=\"Times New Roman\"/><color rgb=\"FFFF0000\"/><sz val=\"18\"/></rPr><t>Hell</t></r><r><rPr><rFont val=\"Arial\"/><color rgb=\"FF008000\"/><sz val=\"24\"/><vertAlign val=\"superscript\"/></rPr><t>o</t></r><r><rPr><rFont val=\"Consolas\"/><color rgb=\"FF0000FF\"/><sz val=\"12\"/></rPr><t xml:space=\"preserve\"> Kitt</t></r><r><rPr><color rgb=\"FF008000\"/><sz val=\"14\"/><vertAlign val=\"subscript\"/></rPr><t>y</t></r></si>"
-        @test XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, "A3").value)+1] == "<si>\n  <t>single run</t>\n</si>"
+        @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A1").value)) == "<si><r><rPr><vertAlign val=\"subscript\"/></rPr><t>Hello</t></r><r><rPr><b/><color rgb=\"FF008000\"/><sz val=\"14\"/><u/></rPr><t xml:space=\"preserve\"> Kitty </t></r><r><rPr><color rgb=\"FF008000\"/><sz val=\"14\"/><u/></rPr><t>Hello</t></r></si>"
+        @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A2").value)) == "<si><r><rPr><rFont val=\"Times New Roman\"/><color rgb=\"FFFF0000\"/><sz val=\"18\"/></rPr><t>Hell</t></r><r><rPr><rFont val=\"Arial\"/><color rgb=\"FF008000\"/><sz val=\"24\"/><vertAlign val=\"superscript\"/></rPr><t>o</t></r><r><rPr><rFont val=\"Consolas\"/><color rgb=\"FF0000FF\"/><sz val=\"12\"/></rPr><t xml:space=\"preserve\"> Kitt</t></r><r><rPr><color rgb=\"FF008000\"/><sz val=\"14\"/><vertAlign val=\"subscript\"/></rPr><t>y</t></r></si>"
+        @test XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, "A3").value)) == "<si><t>single run</t></si>"
         @test XLSX.getFont(s, "A3").font == Dict("name" => Dict("val" => "Calibri"), "sz" => Dict("val" => "14"), "color" => Dict("rgb" => "FF008000"), "vertAlign" => Dict("val" => "subscript"))
 
         rts_expected_result = "RichTextString: \"Hello Kitty\" \n" *
@@ -530,7 +529,7 @@ end
     @testset "rich text: every color form" begin
         xf = XLSX.newxlsx()
         s = xf[1]
-        sst(ref) = XLSX.get_workbook(s).sst.shared_strings[Int(XLSX.getcell(s, ref).value)+1]
+        sst(ref) = XLSX.sst_formatted_string(XLSX.get_workbook(s).sst, Int(XLSX.getcell(s, ref).value))
 
         runs = [XLSX.RichTextRun("a", [:color => :coral]),
                 XLSX.RichTextRun("b", [:color => colorant"seagreen"]),
@@ -663,11 +662,13 @@ end
         @test [XLSX.readxlsx(p)[1][i, 1] for i in 1:4] == expected
         xf = XLSX.openxlsx(p; mode = "rw")
         @test [xf[1][i, 1] for i in 1:4] == expected
-        raw = XLSX.get_sst(xf.workbook).shared_strings
-        # the raw XML is the part's own bytes, its line ends included (XML.jl#194)
-        @test raw[2] == "<si><t xml:space=\"preserve\">line1$(eol)line2</t></si>"
-        @test raw[4] == "<si><t>漢字</t><rPh sb=\"0\" eb=\"2\"><t>かんじ</t></rPh></si>"
-        # written back unchanged, and read the same again
+        tbl = XLSX.get_sst(xf.workbook)
+        # plain strings keep only their text; the others keep their raw XML,
+        # the part's own bytes, its line ends included (XML.jl#194)
+        @test sort(collect(keys(tbl.rich))) == [2, 3]
+        @test tbl.unformatted[2] == "line1\nline2"
+        @test tbl.rich[3] == "<si><t>漢字</t><rPh sb=\"0\" eb=\"2\"><t>かんじ</t></rPh></si>"
+        # written back, and read the same again
         out = "sst_eol_out.xlsx"
         XLSX.writexlsx(out, xf; overwrite = true)
         @test [XLSX.readxlsx(out)[1][i, 1] for i in 1:4] == expected
@@ -675,4 +676,52 @@ end
         rm(p); rm(out)
     end
     rm(src)
+end
+
+# A plain `<si>` keeps only its text and is rebuilt on write; the raw XML is kept
+# for the others (#482).
+@testset "plain shared strings rebuilt on write" begin
+    f = XLSX.newxlsx(); s = f[1]
+    for i in 1:6; s[i, 1] = "s$i"; end
+    src = "sst_plain_src.xlsx"
+    XLSX.writexlsx(src, f; overwrite = true)
+    p = patch_xlsx_entry(src, "xl/sharedStrings.xml", _ -> """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">
+        <si><t>plain</t></si>
+        <si><t xml:space="preserve">a\tb</t></si>
+        <si>
+          <!-- c --><t xml:space="preserve"> x &amp; y </t>
+        </si>
+        <si><t/></si>
+        <si><r><t>ri</t></r><r><rPr><b/></rPr><t>ch</t></r></si>
+        <si><t>漢字</t><rPh sb="0" eb="2"><t>かんじ</t></rPh></si>
+        </sst>""")
+    expected = ["plain", "a\tb", " x & y ", "", "rich", "漢字"]
+    xf = XLSX.openxlsx(p; mode = "rw")
+    tbl = XLSX.get_sst(xf.workbook)
+    @test tbl.unformatted == expected
+    @test sort(collect(keys(tbl.rich))) == [4, 5]
+    @test XLSX.sst_formatted_string(tbl, 1) == "<si><t xml:space=\"preserve\">a\tb</t></si>"
+    @test XLSX.sst_formatted_string(tbl, 2) == "<si><t xml:space=\"preserve\"> x &amp; y </t></si>"
+    @test XLSX.sst_formatted_string(tbl, 3) == "<si><t></t></si>"
+    @test isnothing(XLSX.getRichTextString(xf[1], "A1"))
+    @test XLSX.getRichTextString(xf[1], "A5").text == "rich"
+    # a string already in the table is found again, whichever way it was written
+    xf[1]["B1"] = "plain"
+    xf[1]["B2"] = " x & y "
+    @test length(tbl) == 6
+    @test XLSX.getcell(xf[1], "B1").value == XLSX.getcell(xf[1], "A1").value
+    @test XLSX.getcell(xf[1], "B2").value == XLSX.getcell(xf[1], "A3").value
+    @test XLSX.add_formatted_string!(xf.workbook, "<si>\n  <t>plain</t>\n</si>") == 0
+    @test XLSX.add_formatted_string!(xf.workbook, tbl.rich[4]) == 4
+    @test length(tbl) == 6
+    out = "sst_plain_out.xlsx"
+    XLSX.writexlsx(out, xf; overwrite = true)
+    xf2 = XLSX.readxlsx(out)
+    @test [xf2[1][i, 1] for i in 1:3] == expected[1:3]
+    @test [xf2[1][i, 1] for i in 5:6] == expected[5:6]
+    @test XLSX.get_sst(xf2.workbook).unformatted == expected
+    @test XLSX.getRichTextString(xf2[1], "A5").text == "rich"
+    SAVE_FILES && save_outfile(out)
+    rm(p); rm(out); rm(src)
 end
