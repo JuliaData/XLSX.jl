@@ -32,9 +32,10 @@ Base.size(s::FileArray) = (s.len,)
 function Base.getindex(s::FileArray, i::Int)::UInt8
     copyto!(zeros(UInt8, 1), Int64(1), s, Int64(i), Int64(1))[1]
 end
-function Base.view(s::FileArray, inds::UnitRange{Int64})::FileArray
+# Any integer range, so that a view is a FileArray on 32-bit too, where `a:b` is Int32.
+function Base.view(s::FileArray, inds::UnitRange{<:Integer})::FileArray
     checkbounds(s, inds)
-    FileArray(s.filename, s.offset + first(inds) - Int64(1), length(inds))
+    FileArray(s.filename, s.offset + Int64(first(inds)) - Int64(1), Int64(length(inds)))
 end
 
 # Cache the block starting at position `pos` (0-based), twice the size of the last one.
