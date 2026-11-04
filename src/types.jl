@@ -1065,8 +1065,11 @@ struct XLSXError <: Exception
 end
 Base.showerror(io::IO, e::XLSXError) = print(io, "XLSXError: ",e.msg)
 
-struct FileArray <: AbstractVector{UInt8}
-    filename::String
-    offset::Int64
-    len::Int64
+mutable struct FileArray <: AbstractVector{UInt8}
+    const filename::String
+    const offset::Int64
+    const len::Int64
+    const lock::ReentrantLock
+    block_start::Int64      # position in this array of `block[1]`; -1 while nothing is cached
+    const block::Vector{UInt8}
 end

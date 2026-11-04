@@ -84,6 +84,10 @@ end
              """<r><t xml:space="preserve"> &lt;then&gt; </t></r>""" *
              """<r><rPr><i/></rPr><t>three</t></r>""",
              "one & two <then> three"),
+            # A CR written as a reference must be written back as one, or a reader
+            # normalises it to LF (#482); likewise a LF in an attribute value.
+            ("<t>a&#13;&#10;b</t>",          "a\r\nb"),
+            ("""<r><rPr><rFont val="A&#10;B"/></rPr><t>x&#13;y</t></r>""", "x\ry"),
         ]
 
         for (inner, expected) in cases
@@ -598,4 +602,77 @@ end
     a = XLSX.RichTextRun("x", [:bold => true, :size => 12, :italic => true, :name => "Arial", :color => "red", :under => true, :strike => true, :vertAlign => "subscript"])
     b = XLSX.RichTextRun("x", [:vertAlign => "subscript", :strike => true, :under => true, :color => "red", :name => "Arial", :italic => true, :size => 12, :bold => true])
     @test a == b && hash(a) == hash(b)
+end
+
+# A reader normalises a CR in text to LF, and CR, LF and tab in an attribute value to a
+# space, unless they are written as character references (#482).
+@testset "CR, LF and tab survive a round trip" begin
+    vals = ["a\r\nb", "a\rb", "a\nb", "\r", "x\ty"]
+    f = XLSX.newxlsx(); s = f[1]
+    for (i, v) in enumerate(vals)
+        s[i, 1] = v
+        s[i, 2] = XLSX.RichTextString(XLSX.RichTextRun(v, [:bold => true]), XLSX.RichTextRun("!"))
+    end
+    s["D1"] = "a\r\nb"; s["E1"] = "c\td"; s["D2"] = 1; s["E2"] = 2
+    XLSX.addtable!(s, "D1:E2"; name = "T")
+    XLSX.setFormula(s, "C1", "=1+\r\n2")
+    out = "cr_round_trip.xlsx"
+    XLSX.writexlsx(out, f; overwrite = true)
+
+    sst = check_sst(out)
+    @test occursin("a&#13;\nb", sst) && !occursin("\r", sst)
+    zip = ZipReader(read(out))
+    tbl = String(zip_readentry(zip, only(filter(n -> occursin(r"^xl/tables/", n), zip_names(zip)))))
+    @test occursin("name=\"a&#13;&#10;b\"", tbl) && occursin("name=\"c&#9;d\"", tbl)
+    # Excel refuses these two, so they are written differently:
+    # a run of only "\r" keeps xml:space, and a formula's line breaks become LF
+    @test occursin("<t xml:space=\"preserve\">&#13;</t>", sst)
+    sheet = String(zip_readentry(zip, "xl/worksheets/sheet1.xml"))
+    @test occursin("1+\n2", sheet) && !occursin("&#13;", sheet)
+    @test XLSX.getFormula(s, "C1") == "=1+\n2"
+
+    for xf in (XLSX.readxlsx(out), XLSX.openxlsx(out; mode = "rw"))
+        s2 = xf[1]
+        @test [s2[i, 1] for i in eachindex(vals)] == vals
+        @test [s2[i, 2] for i in eachindex(vals)] == vals .* "!"
+        @test XLSX.getRichTextString(s2, "B1").runs[1] == XLSX.RichTextRun("a\r\nb", [:bold => true])
+        @test XLSX.table(s2, "T").columns == ["a\r\nb", "c\td"]
+        xf.is_writable && @test XLSX.getFormula(s2, "C1") == "=1+\n2"
+    end
+    SAVE_FILES && save_outfile(f)
+    isfile(out) && rm(out)
+end
+
+# A shared string table with CR line ends reads as the same table with LF ones (#482).
+@testset "shared strings with CR line ends" begin
+    f = XLSX.newxlsx(); s = f[1]
+    for i in 1:4; s[i, 1] = "s$i"; end
+    src = "sst_eol_src.xlsx"
+    XLSX.writexlsx(src, f; overwrite = true)
+    sst(eol) = replace("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="4" uniqueCount="4">
+        <si><t>plain</t></si>
+        <si><t xml:space="preserve">line1
+        line2</t></si>
+        <si><r><rPr><b/></rPr><t>bold</t></r><r><t xml:space="preserve"> rest</t></r></si>
+        <si><t>漢字</t><rPh sb="0" eb="2"><t>かんじ</t></rPh></si>
+        </sst>""", "\n" => eol)
+    expected = ["plain", "line1\nline2", "bold rest", "漢字"]
+    for eol in ("\n", "\r\n", "\r")
+        p = patch_xlsx_entry(src, "xl/sharedStrings.xml", _ -> sst(eol))
+        @test [XLSX.readxlsx(p)[1][i, 1] for i in 1:4] == expected
+        xf = XLSX.openxlsx(p; mode = "rw")
+        @test [xf[1][i, 1] for i in 1:4] == expected
+        raw = XLSX.get_sst(xf.workbook).shared_strings
+        # the raw XML is the part's own bytes, its line ends included (XML.jl#194)
+        @test raw[2] == "<si><t xml:space=\"preserve\">line1$(eol)line2</t></si>"
+        @test raw[4] == "<si><t>漢字</t><rPh sb=\"0\" eb=\"2\"><t>かんじ</t></rPh></si>"
+        # written back unchanged, and read the same again
+        out = "sst_eol_out.xlsx"
+        XLSX.writexlsx(out, xf; overwrite = true)
+        @test [XLSX.readxlsx(out)[1][i, 1] for i in 1:4] == expected
+        SAVE_FILES && save_outfile(out)
+        rm(p); rm(out)
+    end
+    rm(src)
 end

@@ -136,30 +136,21 @@ function _rewrite_node(io::IOBuffer, node::XML.LazyNode, pfx::String)
     write(io, '<', pfx, tag)
     for (k, v) in XML.eachattribute(node)
         # `eachattribute` returns entity-decoded values: re-escape on write.
-        write(io, ' ', k, '=', '"', XML.escape(v), '"')
+        write(io, ' ', k, '=', '"', XML.escape(v; attribute = true), '"')
     end
 
     first_child = iterate(XML.eachchildnode(node))
 
     if isnothing(first_child)
-        txt = XML.value(node)
-        if txt isa AbstractString && !isempty(txt)
-            write(io, '>', XML.escape(txt), '<', '/', pfx, tag, '>')
-        else
-            write(io, '/', '>')
-        end
+        # An element's own `XML.value` is `nothing`: its text, if any, is a child
+        write(io, '/', '>')
     elseif tag == "t"
         write(io, '>')
         for child in XML.eachchildnode(node)
-            # Both accessors return decoded text (CData content is literal text),
+            # `value` returns decoded text (CData content is literal text),
             # so escape before writing it back as character data.
-            sv = XML.is_simple_value(child)
-            if !isnothing(sv)
-                write(io, XML.escape(sv))
-            else
-                v = XML.value(child)
-                !isnothing(v) && write(io, XML.escape(v))
-            end
+            v = XML.value(child)
+            !isnothing(v) && write(io, XML.escape(v))
         end
         write(io, '<', '/', pfx, tag, '>')
     else

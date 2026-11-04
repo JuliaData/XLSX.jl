@@ -25,11 +25,11 @@ julia> f = XLSX.newxlsx();
 
 julia> ws = f[1];
 
-julia> ws["A1"] = "Region"; ws["B1"] = "2024";
+julia> ws["A1"] = ["Region", "2024"];
 
-julia> ws["A2:A5"] = reshape(["North", "South", "East", "West"], 4, 1);
+julia> ws["A2:A5"] = ["North", "South", "East", "West"];
 
-julia> ws["B2:B5"] = reshape([10.0, 20.0, 15.0, 5.0], 4, 1);
+julia> ws["B2:B5"] = [10.0, 20.0, 15.0, 5.0];
 
 julia> c = addChart(ws, :column; anchor = "D2:K17", title = "Revenue");
 

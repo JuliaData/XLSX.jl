@@ -2,7 +2,7 @@ using BenchmarkTools
 using Printf
 
 const ROOT        = @__DIR__
-const RESULTS_DIR = joinpath(ROOT, "results")
+const RESULTS_DIR = get(ENV, "BENCH_RESULTS", joinpath(ROOT, "results"))  # as in run_benchmarks.jl
 
 VERSIONS = [
     ("v0.10", joinpath(ROOT, "envs", "v0_10")),
@@ -48,12 +48,14 @@ println("RESULTS COMPARISON")
 println("="^60)
 
 let
-    ver_labels = first.(VERSIONS)
+    # Only the versions, and the ratios, this results directory has
+    ver_labels = filter(v -> haskey(all_results, v), first.(VERSIONS))
     # (column label, numerator, denominator)
     ratios = [("v0.11/v0.10", "v0.11", "v0.10"), ("v0.12/v0.10", "v0.12", "v0.10"),
               ("v0.13/v0.10", "v0.13", "v0.10"), ("v0.13/v0.12", "v0.13", "v0.12"),
               ("dev/v0.10", "dev", "v0.10"), ("dev/v0.12", "dev", "v0.12"), ("dev/v0.13", "dev", "v0.13"),
               ("dev/master", "dev", "master")]
+    filter!(r -> haskey(all_results, r[2]) && haskey(all_results, r[3]), ratios)
 
     header = @sprintf("%-30s", "fixture / benchmark")
     for v in ver_labels

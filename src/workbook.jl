@@ -626,21 +626,26 @@ end
     update_defined_names_renamed_sheet!(wb, old_name, new_name)
 
 Rewrite every defined name value that refers to `old_name` so that it refers to
-`new_name` instead. Constant-valued defined names are left alone. Must be called
-*before* `ws.name` is reassigned, while `old_name` is still current.
+`new_name` instead, whether it is a range or a formula (a string starting `=`).
+Constant-valued defined names are left alone. Must be called *before* `ws.name`
+is reassigned, while `old_name` is still current.
 """
 function update_defined_names_renamed_sheet!(wb::Workbook, old_name::String, new_name::String)
-    for k in collect(keys(wb.workbook_names))
-        dn = wb.workbook_names[k]
-        dn.value isa DefinedNameRangeTypes || continue
-        dn.value.sheet == old_name || continue
-        wb.workbook_names[k] = DefinedNameValue(rename_sheet(dn.value, new_name), dn.isabs, dn.hidden)
-    end
-    for k in collect(keys(wb.worksheet_names))
-        dn = wb.worksheet_names[k]
-        dn.value isa DefinedNameRangeTypes || continue
-        dn.value.sheet == old_name || continue
-        wb.worksheet_names[k] = DefinedNameValue(rename_sheet(dn.value, new_name), dn.isabs, dn.hidden)
+    repoint = _renamed_sheet_ref(old_name, new_name)
+    renamed(dn) =
+        if dn.value isa DefinedNameRangeTypes
+            dn.value.sheet == old_name || return nothing
+            DefinedNameValue(rename_sheet(dn.value, new_name), dn.isabs, dn.hidden)
+        elseif dn.value isa String && startswith(dn.value, '=')
+            v = replace(dn.value, repoint)
+            v == dn.value && return nothing
+            DefinedNameValue(v, dn.isabs, dn.hidden)
+        else
+            nothing
+        end
+    for names in (wb.workbook_names, wb.worksheet_names), k in collect(keys(names))
+        dn = renamed(names[k])
+        isnothing(dn) || (names[k] = dn)
     end
     return nothing
 end

@@ -187,7 +187,7 @@ function add_node_formula!(io, f::Formula, pfx)
     # Write unhandled attributes
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
-            write(io, " ", k, "=\"", XML.escape(v), "\"")
+            write(io, " ", k, "=\"", XML.escape(v; attribute = true), "\"")
         end
     end
     
@@ -199,7 +199,7 @@ function add_node_formula!(io, f::FormulaReference, pfx)
     
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
-            write(io, " ", k, "=\"", XML.escape(v), "\"")
+            write(io, " ", k, "=\"", XML.escape(v; attribute = true), "\"")
         end
     end
     
@@ -213,7 +213,7 @@ function add_node_formula!(io, f::ReferencedFormula, pfx)
     
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
-            write(io, " ", k, "=\"", XML.escape(v), "\"")
+            write(io, " ", k, "=\"", XML.escape(v; attribute = true), "\"")
         end
     end
     
@@ -595,7 +595,7 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
     end
 
     for (attribute, value) in unhandled_attributes
-        write(row_node, " ", attribute, "=\"", XML.escape(value), "\"")
+        write(row_node, " ", attribute, "=\"", XML.escape(value; attribute = true), "\"")
     end
 
     write(row_node, ">\n")
@@ -1364,7 +1364,7 @@ rename!(ws::Worksheet, name::AbstractString) = renamesheet!(ws, name)
 
 Rename a `Worksheet` to `name`.
 
-See also [`addsheet!`](@ref), [`copysheet!`](@ref), [`deletesheet!`](@ref)
+See also [`addsheet!`](@ref), [`copysheet!`](@ref), [`deletesheet!`](@ref), [`movesheet!`](@ref)
 
 """
 function renamesheet!(ws::Worksheet, name::AbstractString)
@@ -1405,7 +1405,8 @@ function renamesheet!(ws::Worksheet, name::AbstractString)
     end
 
     update_formulas_renamed_sheet!(get_workbook(ws), ws.name, name)
-    update_defined_names_renamed_sheet!(get_workbook(ws), ws.name, name)   # <-- add
+    update_defined_names_renamed_sheet!(get_workbook(ws), ws.name, name)
+    update_sheet_xml_formulas_renamed_sheet!(get_workbook(ws), ws.name, name)
 
     # updates the new name in the worksheet instance
     ws.name = name
@@ -1422,7 +1423,7 @@ const SHEET_TEMPLATE_XML_DATA = read(joinpath(@__DIR__, "data", "sheet_template.
 Create a new worksheet named `name`.
 If `name` is not provided, a unique name is created.
 
-See also [`renamesheet!`](@ref), [`copysheet!`](@ref), [`deletesheet!`](@ref)
+See also [`renamesheet!`](@ref), [`copysheet!`](@ref), [`deletesheet!`](@ref), [`movesheet!`](@ref)
 
 """
 addsheet!(xl::XLSXFile, name::AbstractString="")::Worksheet = addsheet!(get_workbook(xl), name)::Worksheet
@@ -1462,7 +1463,7 @@ See also [`XLSX.openxlsx`](@ref) and [`XLSX.opentemplate`](@ref).
     especially those with complex features. However, cell formats, conditional formats 
     and worksheet defined names should all copy OK. Please report any issues.
 
-See also [`addsheet!`](@ref), [`renamesheet!`](@ref), [`deletesheet!`](@ref) 
+See also [`addsheet!`](@ref), [`renamesheet!`](@ref), [`deletesheet!`](@ref), [`movesheet!`](@ref)
 
 # Examples
 ```julia
@@ -1642,13 +1643,23 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
         ensure_drawing_element!(xl, get_xml_data(xl, new_sheet_path), new_sheet_path, rid)
     end
 
+    # As in Excel, the copy's references to the original sheet are repointed at the
+    # copy, in defined names, cell formulas, conditional formats and data validations;
+    # references to other sheets are kept as they are.
+    repoint = _renamed_sheet_ref(ws.name, new_ws.name)
+    _repoint_sheet_xml_formulas!(new_ws, repoint)
+
     # copy defined names from the original worksheet to the new worksheet
-    # References to the original sheet are repointed at the copy; others are kept as they are.
     ws_keys = [x for x in keys(wb.worksheet_names) if first(x) == ws.sheetId]
     for k in ws_keys
         dnv = wb.worksheet_names[k]
-        val = dnv.value isa DefinedNameRangeTypes && dnv.value.sheet == ws.name ?
-              rename_sheet(dnv.value, new_ws.name) : dnv.value
+        val = if dnv.value isa DefinedNameRangeTypes && dnv.value.sheet == ws.name
+            rename_sheet(dnv.value, new_ws.name)
+        elseif dnv.value isa String && startswith(dnv.value, '=')
+            replace(dnv.value, repoint)
+        else
+            dnv.value
+        end
         wb.worksheet_names[(new_ws.sheetId, last(k))] = DefinedNameValue(val, copy(dnv.isabs), dnv.hidden)
     end
 
@@ -1656,7 +1667,9 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
     f_keys = [x for x in keys(wb.formulas) if x.sheet == ws.name]
     for k in f_keys
         newkey = SheetCellRef(new_ws.name, k.cellref)
-        wb.formulas[newkey] = copy(wb.formulas[k])
+        f = copy(wb.formulas[k])
+        f isa ExplicitFormula && (f.formula = replace(f.formula, repoint))
+        wb.formulas[newkey] = f
     end
     new_ws.next_formula_id = ws.next_formula_id   # the copied shared formulas keep their ids
 
@@ -1853,7 +1866,7 @@ Delete the given worksheet, the worksheet with the given name or the worksheet w
     Excel. Names scoped to the deleted sheet are removed with it.
 
 
-See also [`addsheet!`](@ref), [`renamesheet!`](@ref), [`copysheet!`](@ref)
+See also [`addsheet!`](@ref), [`renamesheet!`](@ref), [`copysheet!`](@ref), [`movesheet!`](@ref)
 
 # Examples
 
@@ -1960,8 +1973,18 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     # Defined names. As in Excel, a name that refers to the deleted sheet is kept
     # as #REF!, except a chartEx chart's _xlchart names, which Excel drops along
     # with the sheet; note their values first, so the charts can be emptied to match.
+    # A name defined by a formula keeps the formula, with its references to the
+    # deleted sheet made #REF!; `nothing` if it has none.
+    missing_ref = _missing_sheet_ref(name)
+    function dead_formula_value(v)
+        v.value isa String && startswith(v.value, '=') || return nothing
+        s = replace(v.value, missing_ref)
+        return s == v.value ? nothing : DefinedNameValue(s, v.isabs, v.hidden)
+    end
     dead_xlchart = Dict{String,String}()
     for (k, v) in collect(wb.workbook_names)
+        dv = dead_formula_value(v)
+        isnothing(dv) || (wb.workbook_names[k] = dv; continue)
         v.value isa DefinedNameRangeTypes && v.value.sheet == name || continue
         if startswith(k, "_xlchart.")
             dead_xlchart[k] = string(v.value)
@@ -1976,6 +1999,9 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
             delete!(wb.worksheet_names, k)
         elseif v.value isa DefinedNameRangeTypes && v.value.sheet == name
             wb.worksheet_names[k] = DefinedNameValue("=#REF!", false, v.hidden)
+        else
+            dv = dead_formula_value(v)
+            isnothing(dv) || (wb.worksheet_names[k] = dv)
         end
     end
 
@@ -2029,7 +2055,109 @@ function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
 
     invalidate_chart_refs!(xf, name, dead_xlchart)
     update_formulas_missing_sheet!(wb, name)
+    update_sheet_xml_formulas_missing_sheet!(wb, name)
     _shift_book_views!(xf, pos, length(wb.sheets))
+    update_workbook_xml!(xf)
+    return xf
+end
+
+# Keep bookViews' activeTab and firstSheet on the same sheet after the sheets
+# are reordered from `old` to `new`. Both are 0-based positions in <sheets>.
+function _remap_book_views!(xf::XLSXFile, old::Vector{Worksheet}, new::Vector{Worksheet})
+    wbdoc = xmlroot(xf, "xl/workbook.xml")
+    i, j  = get_idces(wbdoc, "workbook", "bookViews")
+    isnothing(j) && return nothing
+    for c in XML.children(wbdoc[i][j])
+        localname(c) == "workbookView" || continue
+        a = XML.attributes(c)
+        isnothing(a) && continue
+        for key in ("activeTab", "firstSheet")
+            haskey(a, key) || continue
+            t = parse(Int, a[key]) + 1
+            1 <= t <= length(old) || continue
+            c[key] = string(findfirst(s -> s === old[t], new) - 1)
+        end
+    end
+    return nothing
+end
+
+_sheet_to_move(wb::Workbook, s::AbstractString) = getsheet(wb, String(s))
+_sheet_to_move(::Workbook, s::Bool) =
+    throw(XLSXError("A sheet must be given as a name, a position or a Worksheet, not `$s`."))
+function _sheet_to_move(wb::Workbook, s::Integer)
+    1 <= s <= sheetcount(wb) ||
+        throw(XLSXError("$(get_xlsxfile(wb).source) has no sheet $s: it has $(sheetcount(wb)) sheet(s)."))
+    return getsheet(wb, Int(s))
+end
+function _sheet_to_move(wb::Workbook, s::Worksheet)
+    any(w -> w === s, wb.sheets) || throw(XLSXError("Worksheet `$(s.name)` is not in this workbook."))
+    return s
+end
+
+"""
+    movesheet!(ws::Worksheet; before=nothing, after=nothing) -> ::XLSXFile
+    movesheet!(wb::Workbook, sheet; before=nothing, after=nothing) -> ::XLSXFile
+    movesheet!(xf::XLSXFile, sheet; before=nothing, after=nothing) -> ::XLSXFile
+
+Move a sheet to a new place in the workbook's tab order, immediately `before` or
+`after` another sheet. Give exactly one of `before` or `after`.
+
+The sheet to move and the sheet to place it next to may each be given as a
+`Worksheet`, a sheet name or a 1-based tab position (as before the move). To move
+a sheet to the start use `before=1`, and to the end use `after=sheetcount(xf)`.
+
+Nothing in the workbook needs to be rewritten: formulas, charts and defined names
+refer to sheets by name, and names scoped to a sheet stay with that sheet. The
+active tab stays on the same sheet.
+
+!!! note "Caution"
+
+    As in Excel, a 3D reference such as `=SUM(Jan:Mar!A1)` covers whichever sheets
+    lie between `Jan` and `Mar` in tab order, so moving a sheet into or out of that
+    span changes the result.
+
+See also [`addsheet!`](@ref), [`renamesheet!`](@ref), [`copysheet!`](@ref), [`deletesheet!`](@ref)
+
+# Examples
+
+```julia
+julia> xf = XLSX.newxlsx("A"); XLSX.addsheet!(xf, "B"); XLSX.addsheet!(xf, "C");
+
+julia> XLSX.movesheet!(xf, "C"; before="A");
+
+julia> XLSX.sheetnames(xf)
+3-element Vector{String}:
+ "C"
+ "A"
+ "B"
+
+julia> XLSX.movesheet!(xf[1]; after=XLSX.sheetcount(xf));
+
+julia> XLSX.sheetnames(xf)
+3-element Vector{String}:
+ "A"
+ "B"
+ "C"
+```
+
+"""
+movesheet!(ws::Worksheet; kw...) = movesheet!(get_workbook(ws), ws; kw...)
+movesheet!(xf::XLSXFile, sheet; kw...) = movesheet!(get_workbook(xf), sheet; kw...)
+function movesheet!(wb::Workbook, sheet; before=nothing, after=nothing)::XLSXFile
+    isnothing(before) == isnothing(after) &&
+        throw(XLSXError("Give exactly one of `before` or `after` to say where to move the sheet."))
+    xf = get_xlsxfile(wb)
+    _require_writable(xf, "move a sheet")
+    ws     = _sheet_to_move(wb, sheet)
+    target = _sheet_to_move(wb, something(before, after))
+    ws === target && return xf
+
+    old_order = copy(wb.sheets)
+    deleteat!(wb.sheets, findfirst(w -> w === ws, wb.sheets))
+    t = findfirst(w -> w === target, wb.sheets)
+    insert!(wb.sheets, isnothing(before) ? t + 1 : t, ws)
+
+    _remap_book_views!(xf, old_order, wb.sheets)
     update_workbook_xml!(xf)
     return xf
 end

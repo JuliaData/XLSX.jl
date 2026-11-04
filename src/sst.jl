@@ -58,8 +58,10 @@ function add_formatted_string!(wb::Workbook, str_formatted::String)::Int64
     end
 end
 
-# check if unformatted shared string needs xml:space="preserve"
-needs_preserve(s::AbstractString) = startswith(s, ' ') || endswith(s, ' ') || contains(s, '\n')  || contains(s, "  ")
+# check if a string needs xml:space="preserve". Any leading or trailing whitespace counts,
+# not just spaces: Excel refuses a rich text run of only "\r" written without it.
+needs_preserve(s::AbstractString) =
+    !isempty(s) && (isspace(first(s)) || isspace(last(s))) || contains(s, '\n') || contains(s, "  ")
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
 function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int
@@ -106,7 +108,6 @@ function sst_load!(workbook::Workbook)
     empty!(sst.unformatted)
 
     sst_root = xml_root_element(doc)
-    xml_str = sst_root.data   # underlying string for zero-copy slice
 
     uc = XML.get(sst_root, "uniqueCount", nothing)
     if !isnothing(uc)
@@ -122,10 +123,8 @@ function sst_load!(workbook::Workbook)
         XML.nodetype(c) == XML.Element || continue
         localname(c) == "si" || (XML.skip_element!(c); continue)
         child = XML.LazyNode(c)
-        si_start = c.token.offset + 1
         XML.skip_element!(c)
-        si_end = c.st.state.pos
-        push!(sst.shared_strings, xml_str[si_start:si_end-1])
+        push!(sst.shared_strings, String(XML.sourcetext(child)))
         push!(sst.unformatted, _si_unformatted(child))
     end
 
@@ -261,15 +260,9 @@ function richTextRunToXML!(io::IO, run::RichTextRun, pfx)
         end
     end
 
-    needs_preserve =
-        startswith(run.text, " ") ||
-        endswith(run.text, " ") ||
-        contains(run.text, '\n') ||
-        contains(run.text, "  ")
-
     escaped = XML.escape(run.text)
 
-    if needs_preserve
+    if needs_preserve(run.text)
         write(io, "<$(pfx)t xml:space=\"preserve\">", escaped, "</$(pfx)t>")
     else
         write(io, "<$(pfx)t>", escaped, "</$(pfx)t>")

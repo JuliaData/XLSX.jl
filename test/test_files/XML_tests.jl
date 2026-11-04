@@ -40,10 +40,41 @@ end
     @test xf["QMJ Factors"]["H833"] ≈ -0.0686846616503713
 end
 
+# XML.jl reads a String in place whatever its line ends (XML.jl#194). XLSX.jl relies on it
+# not to copy, at each read, every part saved by Excel, whose XML declaration ends with
+# CR LF (#482).
+@testset "no copy for line ends" begin
+    decl = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+    body = "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" *
+           "<dimension ref=\"A1:A100000\"/><sheetData>" *
+           repeat("<row r=\"1\"><c r=\"A1\"><v>1</v></c></row>\n", 100_000) * "</sheetData></worksheet>"
+    lazy(x) = XML.parse(x, XML.LazyNode)
+    nsprefix(x) = XLSX._get_ns_prefix_from_string(x)
+    for doc in ("$decl\r\n$body", replace("$decl\n$body", "\n" => "\r\n"))
+        lazy(doc); nsprefix(doc)
+        @test (@allocated lazy(doc)) < sizeof(doc) ÷ 100
+        @test (@allocated nsprefix(doc)) < sizeof(doc) ÷ 100
+        # the stub is a new String, but it is the only copy
+        XLSX.splitNode(doc, "sheetData")
+        @test (@allocated XLSX.splitNode(doc, "sheetData")) < sizeof(doc) ÷ 100
+    end
+
+    # A streamed read drops a leading BOM and line feed, as the other reads do (#243)
+    path = joinpath(data_directory, "Bom - issue243.xlsx")
+    rows(cache) = XLSX.openxlsx(path; enable_cache = cache) do xf
+        s = xf["QMJ Factors"]
+        (count(_ -> true, XLSX.eachrow(s)), s["H833"])
+    end
+    @test rows(false) == rows(true)
+end
+
 @testset "escape" begin
 
     @test XML.escape("hello&world<'") == "hello&amp;world&lt;&apos;"
     @test XML.unescape("hello&amp;world&lt;&apos;") == "hello&world<'"
+    # XLSX.jl relies on these to write CR, LF and tab so that they read back unchanged (#482)
+    @test XML.escape("a\r\nb") == "a&#13;\nb"
+    @test XML.escape("x\ty\n"; attribute = true) == "x&#9;y&#10;"
 
     esc_filename = "output_table_escape_test.xlsx"
 
@@ -107,8 +138,9 @@ end
 
 end
 
-# The `splicetext`-based `splitNode` that preceded the raw-scanner version (#462),
-# kept here as the reference the faster one must match exactly.
+# The `splicetext`-based `splitNode` that preceded the raw-scanner version (#462), kept
+# here as the reference the real one must match exactly. Both splice the bytes they are
+# given, CRs included (#482).
 function _splitnode_reference(xml_str::String, skipnode::String)
     c = XML.Cursor(xml_str)
     XML.next!(c)
@@ -134,7 +166,7 @@ function _splitnode_reference(xml_str::String, skipnode::String)
     replacement = if isnothing(attrs) || isempty(attrs)
         "<$(target_tag)/>"
     else
-        "<$(target_tag) $(join(("$(k)=\"$(v)\"" for (k,v) in attrs), " "))/>"
+        "<$(target_tag) $(join(("$(k)=\"$(XML.escape(v; attribute = true))\"" for (k,v) in attrs), " "))/>"
     end
     return XML.splicetext(target_lazy, replacement), ""
 end
@@ -144,12 +176,13 @@ function _splitnode_agree(xml_str::String)
     expected = try _splitnode_reference(xml_str, "sheetData") catch e; e end
     actual   = try XLSX.splitNode(xml_str, "sheetData") catch e; e end
     expected isa Exception && return actual isa Exception && typeof(actual) == typeof(expected)
-    return actual == expected
+    actual isa Exception && return false
+    return actual[1] isa String && actual == expected
 end
 
 @testset "splitNode" begin
 
-    @testset "matches the splicetext reference on every worksheet" begin
+    @testset "matches the reference on every worksheet" begin
         dirs = [data_directory]
         fixtures = get(ENV, "XLSX_DIFF_FIXTURES", "")
         isempty(fixtures) || push!(dirs, fixtures)
@@ -159,10 +192,8 @@ end
             zip = try ZipArchives.ZipReader(read(joinpath(dir, file))) catch; continue end
             for name in ZipArchives.zip_names(zip)
                 occursin(r"xl/worksheets/sheet\d*\.xml", name) || continue
-                bytes = ZipArchives.zip_readentry(zip, name)
-                XLSX.strip_bom_and_lf!(bytes)
                 nsheets += 1
-                ok = _splitnode_agree(String(bytes))
+                ok = _splitnode_agree(XLSX.strip_bom_and_lf(XLSX._readentry_string(zip, name)))
                 ok || println("splitNode differs from the reference: $file $name")
                 @test ok
             end
@@ -195,6 +226,11 @@ end
             "only the root"       => "<worksheet/>",
             "no elements"         => "<?xml version=\"1.0\"?>",
         ]
+        # Each case again with CR LF, then a lone CR, between every pair of tags
+        for (name, xml) in copy(cases)
+            push!(cases, "$name, CR LF" => replace(xml, "><" => ">\r\n<"),
+                         "$name, CR"    => replace(xml, "><" => ">\r<"))
+        end
         for (name, xml) in cases
             ok = _splitnode_agree(xml)
             ok || println("splitNode differs from the reference: $name")
@@ -206,40 +242,46 @@ end
         @test XLSX.splitNode(ws("<sheetPr codeName=\"é\"/><sheetData>$rows</sheetData><!--ü-->"), "sheetData")[1] ==
               ws("<sheetPr codeName=\"é\"/><sheetData/><!--ü-->")
         @test XLSX.splitNode(ws("<dimension ref=\"A1\"/>"), "sheetData")[1] == ws("<dimension ref=\"A1\"/>")
+        # An attribute value is written back escaped, so the stub stays well-formed
+        stub = XLSX.splitNode(ws("<sheetData bar=\"a&amp;b&#10;c\">$rows</sheetData>"), "sheetData")[1]
+        @test stub == ws("<sheetData bar=\"a&amp;b&#10;c\"/>")
+        sd = XLSX.xml_root_element(XML.parse(stub, XML.Node))[1]
+        @test XML.attributes(sd)["bar"] == "a&b\nc"
     end
 
-    # XML.jl may normalise CRLF to LF (XML 1.0 §2.11) and hand back offsets into that
-    # shorter copy, so the result is compared modulo line endings (#472).
-    @testset "CRLF line endings" begin
-        lf(s) = replace(s, "\r\n" => "\n")
-        crlf(body) = replace(ws(body), "\n" => "\r\n")
+    # The stub keeps the bytes it was given, CRs included (#482)
+    @testset "CR line endings" begin
         cases = [
             "plain"      => ("<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData>\n$rows\n</sheetData>\n<pageMargins left=\"0.7\"/>",
                              "<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData/>\n<pageMargins left=\"0.7\"/>"),
             "attributes" => ("<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData foo=\"1\">\n$rows</sheetData>\n<pageMargins left=\"0.7\"/>",
                              "<sheetFormatPr defaultRowHeight=\"15\"/>\n<sheetData foo=\"1\"/>\n<pageMargins left=\"0.7\"/>"),
         ]
-        for (name, (body, expected)) in cases
-            xml = crlf(body)
+        for eol in ("\r\n", "\r"), (name, (body, expected)) in cases
+            xml = replace(ws(body), "\n" => eol)
             @test _splitnode_agree(xml)
             out = XLSX.splitNode(xml, "sheetData")[1]
-            lf(out) == ws(expected) || println("splitNode CRLF case failed: $name")
-            @test lf(out) == ws(expected)
+            out == replace(ws(expected), "\n" => eol) || println("splitNode CR case failed: $name, $(repr(eol))")
+            @test out == replace(ws(expected), "\n" => eol)
             @test XML.parse(out, XML.Node) isa XML.Node
         end
+        # The #482 shape: one CR LF, after the declaration, in a large sheet
+        big = replace(ws("<sheetData>" * repeat(rows, 20_000) * "</sheetData><pageMargins left=\"0.7\"/>"), "?>\n" => "?>\r\n")
+        @test XLSX.splitNode(big, "sheetData")[1] == replace(ws("<sheetData/><pageMargins left=\"0.7\"/>"), "?>\n" => "?>\r\n")
     end
 
-    @testset "_element_span" begin
-        xml = ws("<sheetPr codeName=\"é\"/><sheetData>$rows</sheetData><pageMargins left=\"0.7\"/>")
-        c = XML.Cursor(xml)
-        while XML.next!(c) !== nothing
-            XML.nodetype(c) == XML.Element && XLSX.localname(c) == "sheetData" && break
+    @testset "uses no XML.jl internals" begin
+        # XML.jl v0.5 removes `_skip_element_raw` and may change any internal field;
+        # `sourceview`, briefly on its `main`, was removed before any release (XML.jl#194)
+        for (root, _, files) in walkdir(dirname(pathof(XLSX))), f in files
+            endswith(f, ".jl") || continue
+            text = read(joinpath(root, f), String)
+            for pat in (r"XMLTokenizer", r"\.token\.offset", r"\.st\.state", r"sourceview")
+                hit = occursin(pat, text)
+                hit && println("XML.jl internal $(pat.pattern) used in $f")
+                @test !hit
+            end
         end
-        n = XML.LazyNode(c)
-        start, stop = XLSX._element_span(n)
-        @test SubString(xml, start, prevind(xml, stop)) == XML.sourcetext(n)
-        @test xml[start:start+10] == "<sheetData>"
-        @test xml[prevind(xml, stop, 12):prevind(xml, stop)] == "</sheetData>"
     end
 end
 

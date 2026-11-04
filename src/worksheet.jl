@@ -41,6 +41,8 @@ const WORKSHEET_ORDER = String[
     "extLst"
 ]
 
+Base.size(ws::Worksheet) = size(get_dimension(ws))
+
 function insert_index(root::XML.Node, target::String, order::Vector{String})
     # index of target in canonical order
     target_idx = findfirst(==(target), order)

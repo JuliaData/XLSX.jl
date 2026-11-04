@@ -1442,7 +1442,7 @@ function build_table_xml(id::Int, name::String, display_name::String, ref::CellR
     buf = IOBuffer()
     print(buf, """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
     print(buf, """<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" """)
-    print(buf, """id="$(id)" name="$(XML.escape(name))" displayName="$(XML.escape(display_name))" ref="$(ref)\"""")
+    print(buf, """id="$(id)" name="$(XML.escape(name; attribute = true))" displayName="$(XML.escape(display_name; attribute = true))" ref="$(ref)\"""")
     # in build_table_xml:
     if has_totals_row
         print(buf, """ totalsRowShown="1" totalsRowCount="1\"""")
@@ -1457,7 +1457,7 @@ function build_table_xml(id::Int, name::String, display_name::String, ref::CellR
 
     print(buf, """<tableColumns count="$(length(columns))">""")
     for (i, col_name) in enumerate(columns)
-        print(buf, """<tableColumn id="$(i)" name="$(XML.escape(col_name))"/>""")
+        print(buf, """<tableColumn id="$(i)" name="$(XML.escape(col_name; attribute = true))"/>""")
     end
     print(buf, "</tableColumns>")
 

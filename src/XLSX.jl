@@ -59,8 +59,9 @@ export
     readxlsx, openxlsx, opentemplate, newxlsx,
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet,
-    addsheet!, renamesheet!, copysheet!, deletesheet!,
+    addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
     addImage,
+    addComment, deleteComment,
     # Cells & data
     CellRef, SheetCellRef, row_number, column_number, eachtablerow,
     readdata, getdata, gettable, readtable, readto,
@@ -87,6 +88,7 @@ export
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
+           getComment, getComments,
            Workbook, XLSXError, SchemeColor,
            CellErrorType, XL_NULL, XL_DIV0, XL_VALUE, XL_REF, 
            XL_NAME, XL_NUM, XL_NA, XL_SPILL
@@ -136,6 +138,7 @@ include("conditionalformats/iconset.jl")
 include("conditionalformats/databar.jl")
 include("conditionalformats/clear.jl")
 include("images.jl")
+include("comments.jl")
 include("write.jl")
 include("fileArray.jl")
 

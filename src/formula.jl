@@ -296,13 +296,16 @@ function shift_excel_references(formula::AbstractString, offset::Tuple{Integer,I
     return _map_formula_code(code -> replace(code, RGX_SHIFT_REF => shift_one), formula)
 end
 
+# The replacement pair that turns a reference to a cell or range on the deleted sheet
+# `name` into #REF! (the whole of it). Case-insensitive, as Excel compares sheet names.
+_missing_sheet_ref(name::String) =
+    Regex(_formula_sheet_ref_pattern(quoteit(name) * "!") *
+          raw"\$?[A-Z]{1,3}\$?[1-9][0-9]*(?::\$?[A-Z]{1,3}\$?[1-9][0-9]*)?", "i") => "#REF!"
+
 # Replace formula references to a sheet that has been deleted with #REF errors
 function update_formulas_missing_sheet!(wb::Workbook, name::String)
     xf = get_xlsxfile(wb)
-
-    # A reference to a cell or range on the deleted sheet: the whole of it becomes #REF!.
-    ref_pattern = Regex(_formula_sheet_ref_pattern(quoteit(name) * "!") *
-                        raw"\$?[A-Z]{1,3}\$?[1-9][0-9]*(?::\$?[A-Z]{1,3}\$?[1-9][0-9]*)?")
+    repoint = _missing_sheet_ref(name)
 
     error_formula_ids = Set{Int}()
     formulas_to_delete = Set{SheetCellRef}()
@@ -319,7 +322,7 @@ function update_formulas_missing_sheet!(wb::Workbook, name::String)
 
         # Formula referring to the deleted sheet
         old_formula = f.formula
-        f.formula = replace(f.formula, ref_pattern => "#REF!")
+        f.formula = replace(f.formula, repoint)
         if old_formula != f.formula
             cell = getcell(xf, ref)
             cell.datatype = CT_ERROR
@@ -352,14 +355,18 @@ end
 # reference: not inside a longer name (`MyData!`) nor after an external workbook's `[1]`.
 _formula_sheet_ref_pattern(prefix::AbstractString) = "(?<![\\w.'\\]])\\Q" * prefix * "\\E"
 
+# The replacement pair that repoints a formula's references from `old_name` to `new_name`.
+# Excel compares sheet names case-insensitively, so `SHEET1!A1` refers to `Sheet1`.
+_renamed_sheet_ref(old_name::String, new_name::String) =
+    Regex(_formula_sheet_ref_pattern(quoteit(old_name) * "!"), "i") => quoteit(new_name) * "!"
+
 # Update formula references to a sheet that has been renamed with new names
 function update_formulas_renamed_sheet!(wb::Workbook, old_name::String, new_name::String)
-    old_ref = Regex(_formula_sheet_ref_pattern(quoteit(old_name) * "!"))
-    new_prefix = quoteit(new_name) * "!"
+    repoint = _renamed_sheet_ref(old_name, new_name)
 
     formulas_to_move = Pair{SheetCellRef,AbstractFormula}[]
     for (ref, f) in wb.formulas
-        f isa ExplicitFormula && (f.formula = replace(f.formula, old_ref => new_prefix))
+        f isa ExplicitFormula && (f.formula = replace(f.formula, repoint))
         ref.sheet == old_name && push!(formulas_to_move, ref => f)
     end
 
@@ -368,6 +375,60 @@ function update_formulas_renamed_sheet!(wb::Workbook, old_name::String, new_name
         wb.formulas[SheetCellRef(new_name, ref.cellref)] = f
     end
 
+    return nothing
+end
+
+# Formulas held in worksheet XML rather than in cells: conditional formats
+# (`<formula>`, and `<xm:f>` in their x14 counterparts under `<extLst>`) and data
+# validations (`<formula1>`, `<formula2>`, and `<xm:f>` in x14 validations).
+const SHEET_XML_FORMULA_ELEMENTS = ("formula", "formula1", "formula2", "f")
+const SHEET_XML_FORMULA_CONTAINERS = ("conditionalFormatting", "dataValidations", "extLst")
+
+function _rewrite_sheet_xml_formulas!(repoint, node::XML.Node)
+    for child in XML.eachelement(node)
+        if localname(child) in SHEET_XML_FORMULA_ELEMENTS
+            s = XML.is_simple_value(child)
+            isnothing(s) && continue
+            t = replace(s, repoint)
+            t == s || (child[end] = XML.Text(t))
+        else
+            _rewrite_sheet_xml_formulas!(repoint, child)
+        end
+    end
+    return nothing
+end
+
+# Apply `repoint` (a `pattern => replacement` pair) to the formulas of one
+# worksheet's conditional formats and data validations. Cell formulas are not
+# touched here: they live in `wb.formulas`.
+function _repoint_sheet_xml_formulas!(ws::Worksheet, repoint)
+    ws_el = xml_root_element(get_worksheet_xml_document(ws))
+    for c in XML.eachelement(ws_el)
+        localname(c) in SHEET_XML_FORMULA_CONTAINERS && _rewrite_sheet_xml_formulas!(repoint, c)
+    end
+    return nothing
+end
+
+# Update references to a renamed sheet in every worksheet's conditional formats
+# and data validations (see `update_formulas_renamed_sheet!` for cell formulas).
+function update_sheet_xml_formulas_renamed_sheet!(wb::Workbook, old_name::String, new_name::String)
+    repoint = _renamed_sheet_ref(old_name, new_name)
+    for ws in wb.sheets
+        is_chartsheet(wb, ws.name) || _repoint_sheet_xml_formulas!(ws, repoint)
+    end
+    return nothing
+end
+
+# Replace references to a deleted sheet with #REF! in every remaining worksheet's
+# conditional formats and data validations (see `update_formulas_missing_sheet!`).
+# `deletesheet!` also runs on read-only files, which can't be saved: leave their
+# sheet XML alone, as parsing it would break their lazy per-sheet reading.
+function update_sheet_xml_formulas_missing_sheet!(wb::Workbook, name::String)
+    is_writable(get_xlsxfile(wb)) || return nothing
+    repoint = _missing_sheet_ref(name)
+    for ws in wb.sheets
+        is_chartsheet(wb, ws.name) || _repoint_sheet_xml_formulas!(ws, repoint)
+    end
     return nothing
 end
 
@@ -739,6 +800,8 @@ Formulae must be valid Excel formulae and written in US english with comma
 separators. Cell references may be absolute or relative references in either 
 the row or the column or both (e.g. `\$A\$2`). No validation of the specified 
 formula is made by `XLSX.jl` and formulae are usually stored verbatim, as given.
+The exception is line breaks: Excel refuses a formula containing a carriage return,
+so `"\\r\\n"` and `"\\r"` are stored as `"\\n"` (as Excel itself does for Alt+Enter).
 
 Non-contiguous ranges are not supported by `setFormula`. Set the formula in 
 each cell or contiguous range separately.
@@ -876,6 +939,10 @@ setFormula(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw.
 setFormula(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon(setFormula, ws, nothing, col; kw...)
 setFormula(ws::Worksheet, ::Colon, ::Colon; kw...) = setFormula(ws, :; kw...)
 setFormula(ws::Worksheet, ::Colon; kw...) = process_colon(setFormula, ws, nothing, nothing; kw...)
+# Excel won't open a file with a carriage return in a formula (`&#13;` in `<f>`):
+# a line break in a formula is a bare LF, as Alt+Enter writes it.
+_formula_line_ends(f::AbstractString) = occursin('\r', f) ? replace(f, "\r\n" => "\n", '\r' => '\n') : f
+
 # Non-contiguous ranges, and vectors or step ranges of rows or columns, aren't supported:
 # each would need its own handling, since the cellformat-helpers functions can't process
 # setFormula's keywords.
@@ -884,6 +951,8 @@ function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Boo
     xf = get_xlsxfile(ws)
 
     _require_writable(xf, "set formula")
+
+    val = _formula_line_ends(val)
 
     is_array = is_array_formula(val)
 
@@ -938,6 +1007,8 @@ function setFormula(ws::Worksheet, cellref::CellRef; val::AbstractString, raw::B
     xf = get_xlsxfile(ws)
 
     _require_writable(xf, "set formula")
+
+    val = _formula_line_ends(val)
 
     c = getcell(ws, cellref)
 

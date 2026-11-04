@@ -25,13 +25,15 @@ released versions v0.10–v0.13, upstream `master` on GitHub, and the working tr
    - `envs/dev` is the checkout `bench/` sits in (`[sources] XLSX = {path = "../../.."}`):
      whatever branch you have checked out, including uncommitted changes. It works
      only when `bench/` is inside a clone of XLSX.jl. In a standalone folder, point its
-     `path` at a checkout, or use `envs/master`.
+     `path` at a checkout, or use `envs/master`. A dependency's `[sources]` isn't
+     inherited, so when the repository's `Project.toml` takes XML.jl from a branch,
+     `envs/dev` must name the same source (currently XML.jl#194, `read-string-in-place`).
    - `envs/master` is upstream `master` on GitHub
      (`[sources] XLSX = {url = "https://github.com/JuliaData/XLSX.jl", rev = "master"}`),
      fetched when the environment is instantiated. It works anywhere.
 
-   Both need Julia 1.11 or later for `[sources]`. The `v0_*` environments pin
-   registered releases.
+   Those using `[sources]` need Julia 1.11 or later. The `v0_*` environments each pin the
+   last registered patch of their minor release (see [Versions compared](#versions-compared)).
 
 2. If using a standalone folder, copy the benchmark scripts from the XLSX.jl repo into it:
 
@@ -85,6 +87,14 @@ released versions v0.10–v0.13, upstream `master` on GitHub, and the working tr
    This script calls `bench_worker.jl` once per version, activating the right
    environment each time. A version whose results file already exists is skipped.
 
+   Results from different machines can't be compared. To compare versions afresh,
+   give the runs a directory of their own, for `report.jl` too:
+
+        BENCH_RESULTS=results/<name> julia --project=. run_benchmarks.jl v0.13 master dev
+        BENCH_RESULTS=results/<name> julia --project=. report.jl
+
+   `report.jl` shows only the versions, and ratios, that directory has.
+
 7. Report results:
 
         julia --project=. report.jl
@@ -93,7 +103,7 @@ released versions v0.10–v0.13, upstream `master` on GitHub, and the working tr
 
 `quick.jl` runs a short subset — `open`, `readtable`, `readtable_subset` and
 `readtable_gaps` on `medium`, `large` and the `xl_*` fixtures — for `envs/dev` against
-v0.12.0 and v0.10.4, and prints every earlier quick run alongside, so successive
+v0.12 and v0.10, and prints every earlier quick run alongside, so successive
 changes can be compared:
 
     julia --project=. quick.jl stage1
@@ -187,12 +197,14 @@ sheets and every workbook in `test/data`. Two environment variables extend it:
 
 ### Versions compared
 
-- `v0.10` — EzXML.jl based implementation
-- `v0.11` — First XML.jl based implementation using XML.jl v0.3. Pinned to its last
-  patch, 0.11.11: 0.11.0 has a threading race in its style cache (fails
-  intermittently with `--threads=8`) and rejects `.xlsm`, so it can't run the
-  `xl_*` fixtures
-- `v0.12` — Updated XLSX.jl implementation adopting XML.jl v0.4
-- `v0.13` — Adds native Excel chart support
+Each release line is pinned to its last patch (exact `[compat]` in its `Project.toml`);
+bump the pin when a new patch is registered.
+
+- `v0.10` (0.10.4) — EzXML.jl based implementation
+- `v0.11` (0.11.11) — First XML.jl based implementation using XML.jl v0.3. 0.11.0 has a
+  threading race in its style cache (fails intermittently with `--threads=8`) and
+  rejects `.xlsm`, so it can't run the `xl_*` fixtures
+- `v0.12` (0.12.4) — Updated XLSX.jl implementation adopting XML.jl v0.4
+- `v0.13` (0.13.2) — Adds native Excel chart support
 - `master` — upstream `master` on GitHub
 - `dev` — the working tree

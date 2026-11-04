@@ -1,9 +1,9 @@
 # quick.jl
-# A short benchmark for checking each stage of the #462 work: `open`, `readtable`,
-# `readtable_subset` and (on xl_gaps) `readtable_gaps` on a few fixtures, for the
-# working tree (envs/dev) against v0.12.0 and v0.10.4. Short time budgets, so expect
+# A short benchmark for checking successive changes to the working tree: `open`,
+# `readtable`, `readtable_subset` and (on xl_gaps) `readtable_gaps` on a few fixtures,
+# for envs/dev against v0.12 (0.12.4) and v0.10 (0.10.4). Short time budgets, so expect
 # a few percent of noise. v0.10.4 reads xl_gaps differently (it drops absent rows),
-# so compare `readtable_gaps` with v0.12.0 only.
+# so compare `readtable_gaps` with v0.12 only.
 #
 # Usage: julia --project=. quick.jl [label]
 #   label   tag for this run's dev results (default "dev"); earlier runs are kept in

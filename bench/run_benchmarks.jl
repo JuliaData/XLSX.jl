@@ -6,7 +6,9 @@ using Pkg
 
 const ROOT         = @__DIR__
 const FIXTURES_DIR = joinpath(ROOT, "fixtures")
-const RESULTS_DIR  = joinpath(ROOT, "results")
+# BENCH_RESULTS: another results directory, for a set of runs that must not mix with
+# earlier ones (from another machine, say)
+const RESULTS_DIR  = get(ENV, "BENCH_RESULTS", joinpath(ROOT, "results"))
 mkpath(RESULTS_DIR)
 
 VERSIONS = [
@@ -32,9 +34,10 @@ for (ver_label, env_path) in VERSIONS
     println("="^60)
 
     println("Instantiating environment…")
-    # `master` tracks a git branch: resolve/instantiate would keep the commit pinned
-    # in its Manifest, so update it to the current upstream tip instead.
-    pkg_cmd = ver_label == "master" ? "Pkg.update(\"XLSX\")" : "Pkg.resolve()"
+    # `master`, and XML.jl in `dev`, track a git branch: resolve/instantiate would keep the
+    # commit pinned in the Manifest, so update to the current upstream tip instead.
+    pkg_cmd = ver_label == "master" ? "Pkg.update(\"XLSX\")" :
+              ver_label == "dev"    ? "Pkg.update(\"XML\")"  : "Pkg.resolve()"
     run(`julia --project=$env_path -e "using Pkg; $pkg_cmd; Pkg.instantiate()"`)
 
     cmd = `julia --project=$env_path --threads=8

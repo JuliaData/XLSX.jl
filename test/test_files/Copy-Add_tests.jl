@@ -1,4 +1,22 @@
 @testset "add/copy sheet!" begin
+    # The text of every `name` element (e.g. "formula", "formula1") in a worksheet's XML.
+    function _sheet_xml_texts(ws, name)
+        out = String[]
+        walk(node) = for c in XLSX.XML.eachelement(node)
+            XLSX.localname(c) == name ? push!(out, XLSX.XML.simple_value(c)) : walk(c)
+        end
+        walk(XLSX.xml_root_element(XLSX.get_worksheet_xml_document(ws)))
+        return out
+    end
+    # Add a list data validation on `sqref` with `formula1`; there is no API for one.
+    function _add_list_validation!(ws, sqref, formula1)
+        root = XLSX.xml_root_element(XLSX.get_worksheet_xml_document(ws))
+        dv = XLSX.XML.Element("dataValidations"; count="1")
+        push!(dv, XLSX.XML.Element("dataValidation", XLSX.XML.Element("formula1", XLSX.XML.Text(formula1));
+            type="list", sqref))
+        insert!(root.children, XLSX.insert_index(root, "dataValidations", XLSX.WORKSHEET_ORDER) + 1, dv)
+    end
+
     # Chart references to a deleted sheet, invalidated as Excel does it.
 
     function _chart_elements(node, name)
@@ -77,6 +95,37 @@
     end
 
     @testset "copysheet!" begin
+        @testset "the copy's references to the original sheet are repointed at the copy" begin
+            xf = XLSX.newxlsx()
+            s = xf[1]
+            s[1:3, 1:4] = reshape(collect(1:12), 3, 4)
+            XLSX.addsheet!(xf, "Other")
+            XLSX.setFormula(s, "E1", "=Sheet1!A1+Other!A1")
+            XLSX.setConditionalFormat(s, "B1:B3", :expression; formula="AND(Sheet1!\$M\$2>0, Other!\$A\$1>0, C1=\"abc\")")
+            _add_list_validation!(s, "D1", "Sheet1!\$A\$1:\$A\$3")
+            XLSX.addDefinedName(s, "tot", "=SUM(Sheet1!\$A:\$A)")
+
+            c = XLSX.copysheet!(s, "Copy")
+            wb = XLSX.get_workbook(xf)
+            # string literals are kept as written; the rest of a CF formula is uppercased
+            @test _sheet_xml_texts(s, "formula") == ["(AND(SHEET1!\$M\$2>0, OTHER!\$A\$1>0, C1=\"abc\"))"]
+            for (ws, sh) in ((s, "Sheet1"), (c, "Copy"))
+                @test XLSX.getFormula(ws, "E1") == "=$(sh)!A1+Other!A1"
+                @test _sheet_xml_texts(ws, "formula1") == ["$(sh)!\$A\$1:\$A\$3"]
+                @test XLSX.get_defined_name_value(ws, "tot") == "=SUM($(sh)!\$A:\$A)"
+            end
+            @test _sheet_xml_texts(c, "formula") == ["(AND(Copy!\$M\$2>0, OTHER!\$A\$1>0, C1=\"abc\"))"]
+
+            path = "copy_repoint.xlsx"
+            XLSX.writexlsx(path, xf; overwrite=true)
+            SAVE_FILES && save_outfile(path)
+            xf2 = XLSX.openxlsx(path; mode="rw")
+            @test XLSX.getFormula(xf2["Copy"], "E1") == "=Copy!A1+Other!A1"
+            @test _sheet_xml_texts(xf2["Copy"], "formula") == ["(AND(Copy!\$M\$2>0, OTHER!\$A\$1>0, C1=\"abc\"))"]
+            @test _sheet_xml_texts(xf2["Copy"], "formula1") == ["Copy!\$A\$1:\$A\$3"]
+            isfile(path) && rm(path)
+        end
+
         @testset "values, defined names, borders and conditional formats are copied" begin
 
             f = XLSX.newxlsx()
@@ -329,6 +378,30 @@
     end
 
     @testset "deletesheet!" begin
+        @testset "conditional format, data validation and defined name formulas lose references to the deleted sheet" begin
+            xf = XLSX.newxlsx()
+            s = xf[1]
+            s[1:3, 1:4] = reshape(collect(1:12), 3, 4)
+            XLSX.addsheet!(xf, "Gone")
+            XLSX.addsheet!(xf, "MyGone")
+            XLSX.setConditionalFormat(s, "B1:B3", :expression; formula="AND(Gone!\$A\$1>0, MyGone!A1>0)")
+            _add_list_validation!(s, "D1", "Gone!\$A\$1:\$A\$3")
+            XLSX.addDefinedName(xf, "twice", "=Gone!\$A\$1*2")
+            XLSX.addDefinedName(s, "local", "=SUM(Gone!A1:A3, Sheet1!A1)")
+
+            XLSX.deletesheet!(xf, "Gone")
+            @test _sheet_xml_texts(s, "formula") == ["(AND(#REF!>0, MYGONE!A1>0))"]
+            @test _sheet_xml_texts(s, "formula1") == ["#REF!"]
+            @test XLSX.get_defined_name_value(XLSX.get_workbook(xf), "twice") == "=#REF!*2"
+            @test XLSX.get_defined_name_value(s, "local") == "=SUM(#REF!, Sheet1!A1)"
+            SAVE_FILES && save_outfile(xf)
+
+            # a read-only file can still delete a sheet, and read the rest lazily afterwards
+            ro = XLSX.readxlsx(joinpath(data_directory, "general.xlsx"))
+            XLSX.deletesheet!(ro, "table2")
+            @test size(ro["table"][:]) == (12, 8)
+        end
+
         @testset "deleting sheets, and formulas that referred to them" begin
 
             new_filename = "template_with_new_sheet.xlsx"
@@ -624,6 +697,37 @@
             c = only(XLSX.Charts.getCharts(xf))
             @test all(r -> startswith(string(r.values), "Sales!"), XLSX.Charts.getChartRanges(c))
             SAVE_FILES && save_outfile(xf)
+            isfile(path) && rm(path)
+        end
+
+        @testset "renaming a sheet repoints conditional format, data validation and defined name formulas" begin
+            xf = XLSX.newxlsx()
+            s = xf[1]
+            s[1:3, 1:4] = reshape(collect(1:12), 3, 4)
+            XLSX.setConditionalFormat(s, "B1:B3", :expression; formula="Sheet1!\$M\$2>0")
+            XLSX.addsheet!(xf, "Other")
+            other = xf["Other"]
+            other[1:3, 1] = [1, 2, 3]
+            XLSX.setConditionalFormat(other, "A1:A3", :expression; formula="AND(Sheet1!\$M\$3>0, MySheet1!A1>0)")
+            XLSX.addDefinedName(xf, "total", "=SUM(Sheet1!\$A:\$A)")
+
+            _add_list_validation!(other, "B1", "Sheet1!\$A\$1:\$A\$3")
+
+            XLSX.renamesheet!(s, "My Data")
+
+            formulas(ws) = _sheet_xml_texts(ws, "formula")
+            formula1(ws) = _sheet_xml_texts(ws, "formula1")
+            @test formulas(s) == ["('My Data'!\$M\$2>0)"]
+            @test formulas(other) == ["(AND('My Data'!\$M\$3>0, MYSHEET1!A1>0))"]   # `MySheet1!` is another sheet
+            @test formula1(other) == ["'My Data'!\$A\$1:\$A\$3"]
+            @test XLSX.get_defined_name_value(XLSX.get_workbook(xf), "total") == "=SUM('My Data'!\$A:\$A)"
+
+            path = "cf_rename.xlsx"
+            XLSX.writexlsx(path, xf; overwrite=true)
+            SAVE_FILES && save_outfile(path)
+            xf2 = XLSX.readxlsx(path)
+            @test formulas(xf2["Other"]) == ["(AND('My Data'!\$M\$3>0, MYSHEET1!A1>0))"]
+            @test formula1(xf2["Other"]) == ["'My Data'!\$A\$1:\$A\$3"]
             isfile(path) && rm(path)
         end
 
@@ -934,4 +1038,121 @@ end
     ids = [f.id for (k, f) in f.workbook.formulas if k.sheet == "C" && f isa XLSX.ReferencedFormula]
     @test allunique(ids)
     SAVE_FILES && save_outfile(f)
+end
+
+@testset "movesheet!" begin
+    function abc()
+        xf = XLSX.newxlsx("A")
+        XLSX.addsheet!(xf, "B")
+        XLSX.addsheet!(xf, "C")
+        for n in ("A", "B", "C")
+            xf[n]["A1"] = n
+        end
+        return xf
+    end
+    book_view(x, key) = parse(Int, XLSX.XML.attributes(first(XLSX.elements_with_tag(first(XLSX.elements_with_tag(
+        XLSX.xml_root_element(XLSX.xmlroot(x, "xl/workbook.xml")), "bookViews")), "workbookView")))[key])
+
+    @testset "before and after, by name, position and Worksheet" begin
+        xf = abc()
+        @test XLSX.movesheet!(xf, "C"; before="A") === xf
+        @test XLSX.sheetnames(xf) == ["C", "A", "B"]
+        XLSX.movesheet!(xf, 1; after=3)
+        @test XLSX.sheetnames(xf) == ["A", "B", "C"]
+        XLSX.movesheet!(xf["A"]; after=xf["B"])
+        @test XLSX.sheetnames(xf) == ["B", "A", "C"]
+        XLSX.movesheet!(XLSX.get_workbook(xf), "C"; before=1)
+        @test XLSX.sheetnames(xf) == ["C", "B", "A"]
+        XLSX.movesheet!(xf, "C"; after=XLSX.sheetcount(xf))
+        @test XLSX.sheetnames(xf) == ["B", "A", "C"]
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "no-op moves" begin
+        xf = abc()
+        XLSX.movesheet!(xf, "B"; before="B")
+        XLSX.movesheet!(xf, "B"; before="C")
+        XLSX.movesheet!(xf, "B"; after="A")
+        XLSX.movesheet!(xf, "A"; before=1)
+        @test XLSX.sheetnames(xf) == ["A", "B", "C"]
+    end
+
+    @testset "errors" begin
+        xf = abc()
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A")
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; before="B", after="C")
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "nosuchsheet"; before="A")
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; after="nosuchsheet")
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; after=4)
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; after=0)
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; after=big(2)^70)
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; before=true)
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, true; before="C")
+        @test_throws XLSX.XLSXError XLSX.movesheet!(xf, "A"; after=abc()["B"])  # another workbook's sheet
+        @test XLSX.sheetnames(xf) == ["A", "B", "C"]
+
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        ro = XLSX.readxlsx(seekstart(io))
+        @test_throws XLSX.XLSXError XLSX.movesheet!(ro, "C"; before="A")
+    end
+
+    @testset "round trip keeps cells and sheet-scoped names with their sheets" begin
+        xf = abc()
+        XLSX.addDefinedName(xf["A"], "onA", "A1")
+        XLSX.addDefinedName(xf["C"], "onC", "A1")
+        XLSX.movesheet!(xf, "A"; after="C")
+        @test XLSX.sheetnames(xf) == ["B", "C", "A"]
+
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        g = XLSX.readxlsx(seekstart(io))
+        @test XLSX.sheetnames(g) == ["B", "C", "A"]
+        for n in ("A", "B", "C")
+            @test g[n]["A1"] == n
+        end
+        @test XLSX.is_worksheet_defined_name(g["A"], "onA")
+        @test XLSX.is_worksheet_defined_name(g["C"], "onC")
+        @test !XLSX.is_worksheet_defined_name(g["B"], "onA")
+        @test !XLSX.is_worksheet_defined_name(g["C"], "onA")
+        @test XLSX.get_defined_name_value(g["A"], "onA") == XLSX.SheetCellRef("A!A1")
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "active tab and first sheet stay on the same sheet" begin
+        xf = abc()
+        XLSX.xmlroot(xf, "xl/workbook.xml")
+        wv = first(XLSX.elements_with_tag(first(XLSX.elements_with_tag(
+            XLSX.xml_root_element(XLSX.xmlroot(xf, "xl/workbook.xml")), "bookViews")), "workbookView"))
+        wv["activeTab"] = "1"                                                  # B is active
+        wv["firstSheet"] = "2"                                                 # C is first shown
+        XLSX.movesheet!(xf, "B"; before="A")                                   # B, A, C
+        @test book_view(xf, "activeTab") == 0
+        @test book_view(xf, "firstSheet") == 2
+        XLSX.movesheet!(xf, "C"; before=1)                                     # C, B, A
+        @test book_view(xf, "activeTab") == 1
+        @test book_view(xf, "firstSheet") == 0
+
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        g = XLSX.opentemplate(seekstart(io))
+        @test book_view(g, "activeTab") == 1
+        SAVE_FILES && save_outfile(io)
+    end
+
+    @testset "chartsheet workbook" begin
+        p = "testfiles_movesheet_chartsheet.xlsx"
+        cp(joinpath(data_directory, "Chartsheet.xlsx"), p; force=true)
+        names = XLSX.openxlsx(p; mode="rw") do xf
+            ch = only(filter(n -> XLSX.is_chartsheet(XLSX.get_workbook(xf), n), XLSX.sheetnames(xf)))
+            XLSX.movesheet!(xf, ch; before=1)
+            XLSX.sheetnames(xf)
+        end
+        XLSX.openxlsx(p) do xf2
+            @test XLSX.sheetnames(xf2) == names
+            @test XLSX.is_chartsheet(XLSX.get_workbook(xf2), names[1])
+        end
+        SAVE_FILES && save_outfile(p)
+        isfile(p) && rm(p)
+    end
 end
