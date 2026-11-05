@@ -1,0 +1,442 @@
+@testset "Inserting and deleting rows and columns" begin
+    # A 10x4 block: A1:D10 holds 1..40, by column.
+    function fresh()
+        xf = XLSX.newxlsx("Data")
+        s = xf["Data"]
+        s[1:10, 1:4] = reshape(1:40, 10, 4)
+        XLSX.addsheet!(xf, "Other")
+        return xf, s
+    end
+    sheet_root(xf, n=1) = XLSX.xml_root_element(xf.data["xl/worksheets/sheet$n.xml"])
+    element(xf, tag, n=1) = XLSX.first_element_with_tag(sheet_root(xf, n), tag)
+    function roundtrip(xf)
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        return XLSX.readxlsx(IOBuffer(take!(io)))
+    end
+    function roundtrip_bytes(xf)
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        return take!(io)
+    end
+    entry(bytes, name) = XLSX.ZipArchives.zip_readentry(XLSX.ZipArchives.ZipReader(bytes), name, String)
+    formula(s, ref) = XLSX.getFormula(s, ref)
+
+    @testset "cells move" begin
+        xf, s = fresh()
+        XLSX.setRowHeight(s, 7; height=30)
+        XLSX.setRowHidden(s, 8)
+        @test isnothing(XLSX.insertRows(s, 5; count=2))
+        @test s[4, 1] == 4 && ismissing(s[5, 1]) && ismissing(s[6, 1]) && s[7, 1] == 5 && s[12, 1] == 10
+        @test s[7, 4] == 35
+        @test XLSX.getcell(s, 7, 1).ref == XLSX.CellRef("A7")
+        @test XLSX.get_dimension(s) == XLSX.CellRange("A1:D12")
+        @test s.cache.row_ht[9] ≈ 30.2109375 && XLSX.isRowHidden(s, 10)     # row attributes moved too
+
+        XLSX.deleteRows(s, 5:6)
+        @test [s[r, 1] for r in 1:10] == collect(1:10)
+        @test XLSX.get_dimension(s) == XLSX.CellRange("A1:D10")
+
+        XLSX.deleteRows(s, "2:3,9")
+        @test [s[r, 1] for r in 1:7] == [1, 4, 5, 6, 7, 8, 10]
+
+        XLSX.insertColumns(s, "B")
+        @test s[1, 1] == 1 && ismissing(s[1, 2]) && s[1, 3] == 11 && s[1, 5] == 31
+        XLSX.deleteColumns(s, [2, 4])
+        @test [s[1, c] for c in 1:3] == [1, 11, 31]
+        @test XLSX.get_dimension(s) == XLSX.CellRange("A1:C7")
+
+        XLSX.insertRows(xf, "Data!1")
+        @test s[2, 1] == 1
+        XLSX.deleteColumns(xf, "Data!A")
+        @test s[2, 1] == 11
+
+        r = roundtrip(xf)["Data"]
+        @test r[2, 1] == 11 && r[8, 2] == 40
+        @test XLSX.get_dimension(r) == XLSX.CellRange("A2:B8")
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "deleting everything" begin
+        xf, s = fresh()
+        XLSX.deleteRows(s, 1:10)
+        @test isempty(s.cache)
+        @test XLSX.get_dimension(s) == XLSX.CellRange("A1:A1")
+        @test s.sst_count == 0
+        r = roundtrip(xf)["Data"]
+        @test ismissing(r[1, 1])
+    end
+
+    @testset "shared strings are counted" begin
+        xf = XLSX.newxlsx("Data")
+        s = xf["Data"]
+        s["A1"] = ["a" "b"; "c" "d"]
+        @test s.sst_count == 4
+        XLSX.deleteRows(s, 1)
+        @test s.sst_count == 2
+        XLSX.deleteColumns(s, 1)
+        @test s.sst_count == 1
+        @test roundtrip(xf)["Data"][1, 1] == "d"
+    end
+
+    @testset "formulas" begin
+        xf, s = fresh()
+        XLSX.setFormula(s, "F1", "=SUM(A1:A10)")
+        XLSX.setFormula(s, "F2", "=A5*2")
+        XLSX.setFormula(s, "F3", "=\$A\$5+A\$4")
+        o = xf["Other"]
+        XLSX.setFormula(o, "A1", "=Data!A5+A5")
+        XLSX.setFormula(o, "A2", "=SUM(Data!B:B)")
+
+        XLSX.insertRows(s, 3)
+        @test formula(s, "F1") == "=SUM(A1:A11)"
+        @test formula(s, "F2") == "=A6*2"
+        @test formula(s, "F4") == "=\$A\$6+A\$5"            # F3 moved down with its row
+        @test formula(o, "A1") == "=Data!A6+A5"             # only references to Data move
+        @test formula(o, "A2") == "=SUM(Data!B:B)"
+
+        XLSX.deleteRows(s, 6)                                # the old row 5
+        @test formula(s, "F2") == "=#REF!*2"
+        @test formula(o, "A1") == "=Data!#REF!+A5"
+        @test formula(s, "F1") == "=SUM(A1:A10)"
+
+        XLSX.deleteColumns(s, "A")
+        @test formula(s, "E1") == "=SUM(#REF!)"              # the formula moved left too
+        @test XLSX.getcell(s, "F1") isa XLSX.EmptyCell
+
+        r = roundtrip(xf)
+        @test XLSX.getFormula(r["Data"], "E1") == "=SUM(#REF!)"
+        @test XLSX.getFormula(r["Other"], "A1") == "=Data!#REF!+A5"
+    end
+
+    @testset "formulas on a deleted row go" begin
+        xf, s = fresh()
+        XLSX.setFormula(s, "F5", "=A1")
+        XLSX.deleteRows(s, 5)
+        @test !haskey(XLSX.get_workbook(xf).formulas, XLSX.SheetCellRef("Data!F5"))
+        @test ismissing(s["F5"]) || !XLSX.getcell(s, "F5").formula
+    end
+
+    @testset "shared formulas" begin
+        xf, s = fresh()
+        XLSX.setFormula(s, "F1:F10", "=A1*2")               # a shared formula
+        fs = XLSX.get_workbook(xf).formulas
+        @test any(f -> f isa XLSX.ReferencedFormula, values(fs))
+        XLSX.insertRows(s, 4)
+        @test !any(f -> f isa Union{XLSX.ReferencedFormula,XLSX.FormulaReference}, values(fs))
+        @test formula(s, "F1") == "=A1*2"
+        @test formula(s, "F3") == "=A3*2"
+        @test ismissing(s["F4"])
+        @test formula(s, "F5") == "=A5*2"                   # the old F4: =A4*2, moved with A4
+        @test formula(s, "F11") == "=A11*2"
+
+        # a block of formulas on another sheet, referring to the edited one (one per
+        # cell: see below for a shared one)
+        xf, s = fresh()
+        o = xf["Other"]
+        XLSX.setFormula(o, "A1:A5", "=Data!A1+1")
+        XLSX.deleteRows(s, 2)
+        @test formula(o, "A1") == "=Data!A1+1"
+        @test formula(o, "A2") == "=Data!#REF!+1"
+        @test formula(o, "A3") == "=Data!A2+1"
+
+        # one that doesn't refer to the edited sheet stays shared
+        xf, s = fresh()
+        o = xf["Other"]
+        XLSX.setFormula(o, "A1:A5", "=B1+1")
+        XLSX.insertRows(s, 2)
+        @test any(f -> f isa XLSX.ReferencedFormula, values(XLSX.get_workbook(xf).formulas))
+    end
+
+    @testset "shared formulas the edit moves alike stay shared" begin
+        shared(xf) = [(k, f) for (k, f) in XLSX.get_workbook(xf).formulas if f isa XLSX.ReferencedFormula]
+
+        # a block below the insert: moves whole, master and all
+        xf, s = fresh()
+        XLSX.setFormula(s, "F5:F10", "=A5*2")
+        XLSX.insertRows(s, 2; count=2)
+        k, f = only(shared(xf))
+        @test k == XLSX.SheetCellRef("Data!F7") && f.ref == "F7:F12" && f.formula == "=A7*2"
+        @test formula(s, "F7") == "=A7*2" && formula(s, "F12") == "=A12*2"
+        r = roundtrip(xf)["Data"]
+        @test XLSX.getFormula(r, "F12") == "=A12*2"
+
+        # a block above the insert, referring only above it: unchanged
+        xf, s = fresh()
+        XLSX.setFormula(s, "F1:F3", "=A1+\$B\$2")
+        XLSX.insertRows(s, 8)
+        k, f = only(shared(xf))
+        @test k == XLSX.SheetCellRef("Data!F1") && f.ref == "F1:F3" && f.formula == "=A1+\$B\$2"
+
+        # an absolute reference the insert moves: still the same for every cell
+        xf, s = fresh()
+        XLSX.setFormula(s, "F1:F3", "=A1+\$B\$9")
+        XLSX.insertRows(s, 5)
+        @test only(shared(xf))[2].formula == "=A1+\$B\$10"
+        @test formula(s, "F3") == "=A3+\$B\$10"
+
+        # references across the edited row: the block moves whole, but its cells don't
+        # all come out as the moved master gives them, so it is expanded
+        xf, s = fresh()
+        XLSX.setFormula(s, "F5:F10", "=A4")
+        XLSX.insertRows(s, 5)
+        @test isempty(shared(xf))
+        @test formula(s, "F6") == "=A4" && formula(s, "F7") == "=A6" && formula(s, "F11") == "=A10"
+
+        # a delete inside the block changes its shape: expanded
+        xf, s = fresh()
+        XLSX.setFormula(s, "F1:F10", "=A1*2")
+        XLSX.deleteRows(s, 4)
+        @test isempty(shared(xf))
+        @test formula(s, "F4") == "=A4*2" && formula(s, "F9") == "=A9*2"
+
+        # on another sheet, referring to the edited one alike. `setFormula` writes a
+        # formula referring to another sheet into each cell, so share it by hand, as
+        # Excel writes it.
+        xf, s = fresh()
+        o = xf["Other"]
+        o["A1:A5"] = 0
+        fs = XLSX.get_workbook(xf).formulas
+        id = XLSX.new_ReferencedFormula_Id(o)
+        fs[XLSX.SheetCellRef("Other!A1")] = XLSX.ReferencedFormula("=Data!A10+1", id, "A1:A5", nothing)
+        for r in 2:5
+            fs[XLSX.SheetCellRef("Other!A$r")] = XLSX.FormulaReference(id, nothing)
+        end
+        foreach(r -> XLSX.getcell(o, r, 1).formula = true, 1:5)
+        @test formula(o, "A3") == "=Data!A12+1"
+        XLSX.insertRows(s, 2)
+        k, f = only(shared(xf))
+        @test k == XLSX.SheetCellRef("Other!A1") && f.ref == "A1:A5" && f.formula == "=Data!A11+1"
+        @test formula(o, "A3") == "=Data!A13+1"
+    end
+
+    @testset "merged cells" begin
+        xf, s = fresh()
+        XLSX.mergeCells(s, "B2:C4")
+        XLSX.mergeCells(s, "A7:B7")
+        XLSX.mergeCells(s, "A9:A10")
+        XLSX.insertRows(s, 3)
+        @test sort(string.(XLSX.getMergedCells(s))) == ["A10:A11", "A8:B8", "B2:C5"]
+        XLSX.deleteRows(s, 8)                               # all of A8:B8
+        XLSX.deleteRows(s, 10)                               # half of A9:A10 (was A10:A11), leaving one cell
+        @test string.(XLSX.getMergedCells(s)) == ["B2:C5"]
+        XLSX.deleteColumns(s, "B:C")
+        @test isnothing(XLSX.getMergedCells(s)) || isempty(XLSX.getMergedCells(s))
+        @test isnothing(element(xf, "mergeCells"))
+    end
+
+    @testset "conditional formats and data validations" begin
+        xf, s = fresh()
+        XLSX.setConditionalFormat(s, "B2:B9", :cellIs; operator="greaterThan", value="\$A\$5")
+        XLSX.addDataValidation(s, "C3:C8"; type=:whole, formula1="\$A\$5", formula2=100)
+        XLSX.addDataValidation(s, "D9"; type=:list, values=["a", "b"])
+        o = xf["Other"]
+        XLSX.addDataValidation(o, "A1"; type=:list, formula1="Data!\$A\$1:\$A\$10")
+
+        XLSX.insertRows(s, 4; count=2)
+        cf = only(XLSX.getConditionalFormats(s))
+        @test string(first(cf)) == "B2:B11"
+        cfr = only(c for c in XLSX.xml_elements(element(xf, "conditionalFormatting")) if XLSX.localname(c) == "cfRule")
+        @test XML.simple_value(only(XLSX.xml_elements(cfr))) == "\$A\$7"
+        dvs = XLSX.getDataValidations(s)
+        @test Set(d.range for d in dvs) == Set([XLSX.CellRange("C3:C10"), XLSX.CellRange("D11:D11")])
+        @test only(d for d in dvs if d.range == XLSX.CellRange("C3:C10")).formula1 == "\$A\$7"
+        @test only(XLSX.getDataValidations(o)).formula1 == "Data!\$A\$1:\$A\$12"
+
+        XLSX.deleteRows(s, 11)
+        @test [d.range for d in XLSX.getDataValidations(s)] == [XLSX.CellRange("C3:C10")]
+        XLSX.deleteRows(s, 2:12)
+        @test isempty(XLSX.getDataValidations(s))
+        @test isempty(XLSX.getConditionalFormats(s))
+        @test isnothing(element(xf, "dataValidations"))
+        @test only(XLSX.getDataValidations(o)).formula1 == "Data!\$A\$1:\$A\$1"
+    end
+
+    @testset "x14 data validations" begin
+        xf, s = fresh()
+        root = sheet_root(xf)
+        ext = XML.parse("""<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:dataValidations count="2" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main"><x14:dataValidation type="list"><x14:formula1><xm:f>Other!\$A\$1:\$A\$3</xm:f></x14:formula1><xm:sqref>B2:B5</xm:sqref></x14:dataValidation><x14:dataValidation type="list"><x14:formula1><xm:f>Data!\$D\$1:\$D\$9</xm:f></x14:formula1><xm:sqref>C7</xm:sqref></x14:dataValidation></x14:dataValidations></ext></extLst>""", XML.Node)
+        push!(root.children, XLSX.xml_root_element(ext))
+        XLSX.update_worksheets_xml!(xf)
+        XLSX.deleteRows(s, 7)
+        dvs = XLSX.getDataValidations(s)
+        @test [string(d.range) for d in dvs] == ["B2:B5"]
+        XLSX.insertRows(s, 1)
+        dvs = XLSX.getDataValidations(s)
+        @test [string(d.range) for d in dvs] == ["B3:B6"]
+        x14 = XLSX.first_element_with_tag(XLSX.first_element_with_tag(element(xf, "extLst"), "ext"), "dataValidations")
+        @test x14["count"] == "1"
+        XLSX.deleteRows(s, 3:6)
+        @test isempty(XLSX.getDataValidations(s))
+        @test isnothing(XLSX.first_element_with_tag(XLSX.first_element_with_tag(element(xf, "extLst"), "ext"), "dataValidations"))
+    end
+
+    @testset "hyperlinks" begin
+        xf, s = fresh()
+        XLSX.addHyperlink(s, "B3"; url="https://example.com")
+        XLSX.addHyperlink(s, "B6"; location="Other!A1")
+        XLSX.insertRows(s, 2)
+        @test sort([string(h.ref) for h in XLSX.getHyperlinks(s)]) == ["B4", "B7"]
+        XLSX.deleteRows(s, 4)
+        h = only(XLSX.getHyperlinks(s))
+        @test string(h.ref) == "B6" && h.location == "Other!A1"
+        rels = entry(roundtrip_bytes(xf), "xl/worksheets/_rels/sheet1.xml.rels")
+        @test !occursin("example.com", rels)                 # the deleted link's relationship went too
+    end
+
+    @testset "AutoFilter" begin
+        xf, s = fresh()
+        XLSX.setAutoFilter(s, "A1:D10")
+        af = element(xf, "autoFilter")
+        fc = XML.Element("filterColumn"; colId="2")
+        push!(af, fc)
+        XLSX.update_worksheets_xml!(xf)
+        XLSX.insertColumns(s, "B")
+        @test XLSX.getAutoFilter(s) == XLSX.CellRange("A1:E10")
+        @test only(XLSX.xml_elements(element(xf, "autoFilter")))["colId"] == "3"   # was column C, now D
+        @test XLSX.get_workbook(xf).worksheet_names[(s.sheetId, "_xlnm._FilterDatabase")].value == XLSX.SheetCellRange("Data!A1:E10")
+        XLSX.deleteColumns(s, "D")
+        @test isempty(XLSX.xml_elements(element(xf, "autoFilter")))               # its column went
+        XLSX.deleteRows(s, 4)
+        @test XLSX.getAutoFilter(s) == XLSX.CellRange("A1:D9")
+        XLSX.deleteColumns(s, "A:D")
+        @test isnothing(XLSX.getAutoFilter(s))
+        @test !haskey(XLSX.get_workbook(xf).worksheet_names, (s.sheetId, "_xlnm._FilterDatabase"))
+    end
+
+    @testset "defined names" begin
+        xf, s = fresh()
+        XLSX.addDefinedName(xf, "Cell", "Data!B5")
+        XLSX.addDefinedName(xf, "Block", "Data!B2:C9")
+        XLSX.addDefinedName(xf, "Parts", "Data!A1,Data!B5:B6")
+        XLSX.addDefinedName(xf, "Calc", "=SUM(Data!A1:A10)*2")
+        XLSX.addDefinedName(xf, "Elsewhere", "Other!A5")
+        XLSX.addDefinedName(s, "Local", "B5")
+        XLSX.setPrintArea(s, "A1:D10")
+        XLSX.setPrintTitles(s; rows=1:2)
+        names = XLSX.get_workbook(xf).workbook_names
+        local_names = XLSX.get_workbook(xf).worksheet_names
+
+        XLSX.insertRows(s, 2)
+        @test names["Cell"].value == XLSX.SheetCellRef("Data!B6")
+        @test names["Block"].value == XLSX.SheetCellRange("Data!B3:C10")
+        @test string(names["Parts"].value) == "Data!A1,Data!B6:B7"
+        @test names["Calc"].value == "=SUM(Data!A1:A11)*2"
+        @test names["Elsewhere"].value == XLSX.SheetCellRef("Other!A5")
+        @test local_names[(s.sheetId, "Local")].value == XLSX.SheetCellRef("Data!B6")
+        @test XLSX.getPrintArea(s) == XLSX.CellRange("A1:D11")
+        @test XLSX.getPrintTitles(s) == (rows=1:3, cols=nothing)   # the insert was inside the titles
+
+        XLSX.deleteRows(s, 6)
+        @test names["Cell"].value == "=#REF!"
+        @test string(names["Parts"].value) == "Data!A1,Data!B6"
+        XLSX.deleteRows(s, 1)
+        @test string(names["Parts"].value) == "Data!B5"
+        w = entry(roundtrip_bytes(xf), "xl/workbook.xml")
+        @test occursin("<definedName name=\"Cell\">#REF!</definedName>", w)
+        @test occursin("<definedName name=\"Block\">Data!\$B\$2:\$C\$8</definedName>", w)
+    end
+
+    @testset "panes, selection and column widths" begin
+        xf, s = fresh()
+        XLSX.freezePanes(s, "C3")                          # two rows and two columns frozen
+        XLSX.setColumnWidth(s, "C:D"; width=20)
+        XLSX.insertRows(s, 1)
+        pane = XLSX.first_element_with_tag(XLSX.first_element_with_tag(element(xf, "sheetViews"), "sheetView"), "pane")
+        @test pane["ySplit"] == "3" && pane["topLeftCell"] == "C4"
+        XLSX.insertColumns(s, "E")                          # right of the frozen columns: no change to them
+        pane = XLSX.first_element_with_tag(XLSX.first_element_with_tag(element(xf, "sheetViews"), "sheetView"), "pane")
+        @test pane["xSplit"] == "2"
+        spans() = [(c["min"], c["max"]) for c in XLSX.xml_elements(element(xf, "cols"))]
+        @test spans() == [("3", "4")]                       # column E is new: the wide span is unmoved
+        XLSX.insertColumns(s, "D")                          # inside the wide span: it grows
+        @test spans() == [("3", "5")]
+        XLSX.insertColumns(s, "A")                          # before it: it moves
+        @test spans() == [("4", "6")]
+        XLSX.deleteColumns(s, "D:F")
+        @test isnothing(element(xf, "cols"))
+    end
+
+    @testset "deleting the frozen rows and columns" begin
+        pane(xf) = XLSX.first_element_with_tag(XLSX.first_element_with_tag(element(xf, "sheetViews"), "sheetView"), "pane")
+        xf, s = fresh()
+        XLSX.freezePanes(s; nrows=2, ncols=1)
+        XLSX.deleteRows(s, 1:3)                              # all the frozen rows, and one more
+        p = pane(xf)
+        @test p["xSplit"] == "1" && !haskey(p, "ySplit")     # only the column stays frozen
+        @test p["state"] == "frozen" && p["topLeftCell"] == "B1"
+        XLSX.deleteColumns(s, "A")
+        @test isnothing(pane(xf))                            # nothing frozen: no pane
+        r = roundtrip(xf)["Data"]
+        @test r[1, 1] == 14
+
+        xf, s = fresh()
+        XLSX.freezePanes(s; nrows=3)
+        XLSX.deleteRows(s, 2)
+        @test pane(xf)["ySplit"] == "2"
+        XLSX.insertRows(s, 1; count=2)
+        @test pane(xf)["ySplit"] == "4" && pane(xf)["topLeftCell"] == "A5"
+    end
+
+    @testset "page breaks" begin
+        xf, s = fresh()
+        root = sheet_root(xf)
+        brks = XML.Element("rowBreaks"; count="2", manualBreakCount="2")
+        push!(brks, XML.Element("brk"; id="3", max="16383", man="1"))
+        push!(brks, XML.Element("brk"; id="8", max="16383", man="1"))
+        insert!(root.children, XLSX.insert_index(root, "rowBreaks", XLSX.WORKSHEET_ORDER) + 1, brks)
+        XLSX.update_worksheets_xml!(xf)
+        XLSX.insertRows(s, 5; count=2)
+        @test [b["id"] for b in XLSX.xml_elements(element(xf, "rowBreaks"))] == ["3", "10"]
+        XLSX.deleteRows(s, 3)
+        b = element(xf, "rowBreaks")
+        @test [x["id"] for x in XLSX.xml_elements(b)] == ["9"] && b["count"] == "1"
+    end
+
+    @testset "charts on other sheets" begin
+        xf, s = fresh()
+        c = XLSX.Charts.addChart(xf, :line; sheetname="Trend")
+        XLSX.Charts.addSeries(c, "Data!A1:A10")
+        XLSX.insertRows(s, 3; count=2)
+        chart = only(XLSX.parts_with_content_type(xf, XLSX.MIME_CHART))
+        fs = String[]
+        XLSX._rewrite_chart_formulas!(x -> (push!(fs, x); x), XLSX.xml_root_element(XLSX.get_xml_data(xf, chart)))
+        @test any(==("Data!\$A\$1:\$A\$12"), fs)
+        @test !any(occursin("A\$10", f) for f in fs)
+    end
+
+    @testset "limits and refusals" begin
+        xf, s = fresh()
+        s[XLSX.EXCEL_MAX_ROWS - 1, 1] = "near the end"
+        @test_throws XLSX.XLSXError XLSX.insertRows(s, 1; count=2)       # would push it off
+        XLSX.insertRows(s, 1)                                              # one row still fits
+        @test s[XLSX.EXCEL_MAX_ROWS, 1] == "near the end"
+        @test_throws XLSX.XLSXError XLSX.insertRows(s, 1; count=0)
+        @test_throws XLSX.XLSXError XLSX.insertRows(s, 0)
+        @test_throws XLSX.XLSXError XLSX.insertRows(s, "3:4")             # a single row
+        @test_throws XLSX.XLSXError XLSX.deleteRows(s, "B:C")
+        @test_throws XLSX.XLSXError XLSX.insertColumns(s, XLSX.EXCEL_MAX_COLS + 1)
+
+        xf, s = fresh()
+        XLSX.addtable!(s, "A1:D10")
+        @test_throws XLSX.XLSXError XLSX.insertRows(s, 2)
+        xf, s = fresh()
+        XLSX.addComment(s, "A1", "hi")
+        @test_throws XLSX.XLSXError XLSX.deleteRows(s, 2)
+        xf, s = fresh()
+        c = XLSX.Charts.addChart(s, :line; anchor="F2:M18")
+        XLSX.Charts.addSeries(c, "Data!A1:A10")
+        @test_throws XLSX.XLSXError XLSX.insertColumns(s, 1)
+        @test s[1, 1] == 1                                                 # untouched
+
+        xf, s = fresh()
+        r = roundtrip(xf)["Data"]
+        @test_throws XLSX.XLSXError XLSX.insertRows(r, 1)                 # read-only
+
+        xf = XLSX.newxlsx("data")
+        xf["data"]["A1:A2"] = [1, 2]
+        c = XLSX.Charts.addChart(xf, :line; sheetname="Trend")
+        XLSX.Charts.addSeries(c, "data!A1:A2")
+        @test_throws XLSX.XLSXError XLSX.insertRows(xf["Trend"], 1)
+    end
+end

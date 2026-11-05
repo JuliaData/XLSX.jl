@@ -80,6 +80,7 @@ export
     setColumnWidth, setRowHeight,
     setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     setAutoFilter, removeAutoFilter,
+    insertRows, deleteRows, insertColumns, deleteColumns,
     setSheetVisibility, setTabColor, removeTabColor,
     protectSheet, unprotectSheet, setCellProtection,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
@@ -164,6 +165,7 @@ include("save.jl")
 include("setdata.jl")
 include("writetable.jl")
 include("sheetops.jl")
+include("rowcoledit.jl")
 include("fileArray.jl")
 
 # Charts depends on the core and must load after it; the core never refers to Charts.

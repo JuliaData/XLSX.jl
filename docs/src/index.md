@@ -22,6 +22,7 @@ This package follows ECMA-376 to parse and generate XLSX files.
 * Stream the rows of large files with `eachrow` and `eachtablerow`, without loading the whole sheet
 * [Cell formatting](formatting/cellFormatting.md) and [conditional formats](formatting/conditionalFormatting.md)
 * [Formulas](formulae/formulas.md) and defined names
+* [Insert and delete rows and columns](sheets/insertDelete.md), with formulas and everything else that refers to them updated
 * [Data validation](sheets/dataValidation.md), including drop-down lists
 * [AutoFilter](sheets/autoFilter.md) buttons on plain ranges
 * [Sheet visibility, tab colours, protection and page setup](sheets/sheetSettings.md)

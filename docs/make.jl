@@ -19,6 +19,7 @@ makedocs(
         "Using Formulas" => "formulae/formulas.md",
         "Using Excel Tables" => "tables/excelTables.md",
         "Data validation" => "sheets/dataValidation.md",
+        "Inserting and deleting rows and columns" => "sheets/insertDelete.md",
         "Filtering" => "sheets/autoFilter.md",
         "Sheet settings" => "sheets/sheetSettings.md",
         "Links, images, comments and sheet order" => "sheets/imagesAndComments.md",

@@ -58,6 +58,7 @@ julia> Pkg.add("XLSX")
 * Stream the rows of large files with `eachrow` and `eachtablerow`, without loading the whole sheet
 * Cell formatting (fonts, fills, borders, alignment, number formats) and conditional formats
 * Formulas and defined names
+* Insert and delete rows and columns, with formulas and everything else that refers to them updated
 * Data validation, including drop-down lists
 * AutoFilter buttons on plain ranges
 * Sheet visibility (hidden and very hidden), tab colours, sheet protection and page setup for printing

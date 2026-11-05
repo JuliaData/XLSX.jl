@@ -50,3 +50,12 @@ XLSX.setAutoFilter
 XLSX.getAutoFilter
 XLSX.removeAutoFilter
 ```
+
+## Inserting and deleting rows and columns
+
+```@docs
+XLSX.insertRows
+XLSX.deleteRows
+XLSX.insertColumns
+XLSX.deleteColumns
+```

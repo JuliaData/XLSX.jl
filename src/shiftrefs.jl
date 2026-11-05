@@ -159,6 +159,16 @@ const _RX_FORMULA_TOKEN = Regex(
     "|(?<ext>(?<br>\\[(?:[^\\[\\]]|(?&br))*\\])(?:$_RX_SHEET(?::$_RX_SHEET)?!$_RX_BODY)?)" *
     "|(?<![\\p{L}\\p{N}_.\\\$])(?:(?<s1>$_RX_SHEET)(?<s2>:$_RX_SHEET)?!)?(?<body>$_RX_BODY)(?![\\p{L}\\p{N}_.(\\[!])")
 
+# Whether `formula`, on sheet `own_sheet` (or `nothing`), refers to a cell of `sheet`.
+function _formula_refers_to(formula::AbstractString, sheet::AbstractString, own_sheet::Union{Nothing,AbstractString})::Bool
+    for m in eachmatch(_RX_FORMULA_TOKEN, String(formula))
+        (isnothing(m[:body]) || !isnothing(m[:s2])) && continue
+        s = isnothing(m[:s1]) ? own_sheet : unquoteit(m[:s1])
+        !isnothing(s) && _same_sheetname(s, sheet) && return true
+    end
+    return false
+end
+
 """
     _shift_formula(formula::AbstractString, e::RowColEdit; own_sheet=nothing) -> String
 
