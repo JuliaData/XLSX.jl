@@ -24,6 +24,7 @@ This package follows ECMA-376 to parse and generate XLSX files.
 * [Formulas](formulae/formulas.md) and defined names
 * [Data validation](sheets/dataValidation.md), including drop-down lists
 * [AutoFilter](sheets/autoFilter.md) buttons on plain ranges
+* [Sheet visibility and tab colours](sheets/sheetSettings.md)
 * Native [Excel Tables](tables/excelTables.md)
 * [Merged cells](formatting/mergedCells.md), [column widths and row heights](formatting/widthAndHeight.md),
   [hidden and grouped rows and columns](formatting/hideAndGroup.md)

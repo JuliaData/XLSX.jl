@@ -72,9 +72,10 @@ function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
     sheetId = parse(Int, a["sheetId"])
     relationship_id = a["r:id"]
     name = a["name"]
-    is_hidden = haskey(a, "state") && a["state"] in ["hidden", "veryHidden"]
+    state = get(a, "state", "visible")
+    visibility = state in ("hidden", "veryHidden") ? Symbol(state) : :visible
 
-    return Worksheet(xf, sheetId, relationship_id, name, nothing, is_hidden)
+    return Worksheet(xf, sheetId, relationship_id, name, nothing, visibility)
 end
 
 function ordinal_sheet_number(wb::Workbook, name::String)
@@ -622,7 +623,7 @@ Base.getindex(ws::Worksheet, r, c) = getdata(ws, r, c)
 Base.getindex(ws::Worksheet, ::Colon) = getdata(ws)
 
 function Base.show(io::IO, ws::Worksheet)
-    hidden_string = ws.is_hidden ? "(hidden)" : ""
+    hidden_string = ws.visibility === :visible ? "" : ws.visibility === :hidden ? "(hidden)" : "(very hidden)"
     if is_chartsheet(get_workbook(ws), ws.name)
         @printf(io, "Chartsheet: [\"%s\"] %s", ws.name, hidden_string)
         return

@@ -80,6 +80,7 @@ export
     setColumnWidth, setRowHeight,
     setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     setAutoFilter, removeAutoFilter,
+    setSheetVisibility, setTabColor, removeTabColor,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
@@ -90,7 +91,7 @@ export
     public getcell, getcellrange, getFormula, getRichTextString,
            getConditionalFormats, getColumnWidth, getRowHeight,
            isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
-           getAutoFilter,
+           getAutoFilter, getSheetVisibility, getTabColor,
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -151,6 +152,7 @@ include("comments.jl")
 include("hyperlinks.jl")
 include("datavalidation.jl")
 include("autofilter.jl")
+include("sheetsettings.jl")
 include("write.jl")
 include("fileArray.jl")
 

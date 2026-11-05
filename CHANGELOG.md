@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `setSheetVisibility` and `getSheetVisibility` to show and hide sheets (`:visible`, `:hidden` or `:veryHidden`), and `setTabColor`, `getTabColor` and `removeTabColor` for tab colours, on worksheets and chartsheets. Hiding the workbook's last visible sheet is an error, and hiding the sheet the workbook opens on makes the first visible sheet the one it opens on
+- `Worksheet`'s internal `is_hidden` field is replaced by `visibility`, which tells hidden and very hidden sheets apart. `ws.is_hidden` still reads and sets it
+
 - Add `setAutoFilter`, `getAutoFilter` and `removeAutoFilter` to add, read and remove the filter buttons on a plain range of a sheet, outside an Excel Table. The hidden `_xlnm._FilterDatabase` name Excel keeps for the filter is written and removed with it, and follows the sheet through `copysheet!`, `renamesheet!` and `deletesheet!`. A filter may not overlap an Excel Table
 - `addtable!`, `writetable!` with `as_table=true`, `appendtable!` and `settotals!` throw an error rather than place or grow a table onto the sheet's AutoFilter, as Excel does not allow the two to overlap
 

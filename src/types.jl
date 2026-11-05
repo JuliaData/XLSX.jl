@@ -629,7 +629,7 @@ mutable struct Worksheet
     relationship_id::String
     name::String
     dimension::Union{Nothing, CellRange}
-    is_hidden::Bool
+    visibility::Symbol   # :visible, :hidden or :veryHidden (see `setSheetVisibility`)
     cache::Union{WorksheetCache, Nothing}
     next_formula_id::Int
     unhandled_attributes::Union{Nothing,Dict{Int,Dict{String,String}}}
@@ -637,8 +637,8 @@ mutable struct Worksheet
     next_cf_priority::Union{Int, Nothing}
     tables_cache::Union{Vector{Table}, Nothing}   # nothing until first access to `tables(ws)`
 
-    function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, is_hidden::Bool)
-        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0, nothing, nothing)
+    function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, visibility::Symbol)
+        return new(package, sheetId, relationship_id, name, dimension, visibility, nothing, 0, nothing, 0, nothing, nothing)
     end
 end
 

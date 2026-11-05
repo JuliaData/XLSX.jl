@@ -60,6 +60,7 @@ julia> Pkg.add("XLSX")
 * Formulas and defined names
 * Data validation, including drop-down lists
 * AutoFilter buttons on plain ranges
+* Sheet visibility (hidden and very hidden) and tab colours
 * Native Excel Tables
 * Merged cells, column widths, row heights, hidden and grouped rows and columns, and freeze/split panes
 * Hyperlinks, images and cell comments

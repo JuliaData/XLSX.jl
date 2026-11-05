@@ -20,6 +20,7 @@ makedocs(
         "Using Excel Tables" => "tables/excelTables.md",
         "Data validation" => "sheets/dataValidation.md",
         "Filtering" => "sheets/autoFilter.md",
+        "Sheet settings" => "sheets/sheetSettings.md",
         "Links, images, comments and sheet order" => "sheets/imagesAndComments.md",
         "Excel Charts" => Any[
             "Overview" => "charts/excelCharts.md",

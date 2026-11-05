@@ -780,21 +780,11 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
     #update sheets
 
     i, j = get_idces(wbdoc, "workbook", "sheets")
-    # The visibility each sheet was read with (`hidden` or `veryHidden`), keyed by r:id.
-    old_states = Dict{String,String}()
-    for n in xml_elements(wbdoc[i][j])
-        a = XML.attributes(n)
-        (isnothing(a) || !haskey(a, "r:id") || !haskey(a, "state")) && continue
-        old_states[a["r:id"]] = a["state"]
-    end
     sheets_element = XML.Element("$(pfx)sheets")
     for s in wb.sheets
         sheet_element = XML.Element("$(pfx)sheet"; name=s.name)
         sheet_element["sheetId"] = string(s.sheetId)
-        if s.is_hidden
-            state = get(old_states, s.relationship_id, "hidden")
-            sheet_element["state"] = state == "visible" ? "hidden" : state
-        end
+        s.visibility === :visible || (sheet_element["state"] = string(s.visibility))
         sheet_element["r:id"] = s.relationship_id
         push!(sheets_element, sheet_element)
     end
@@ -1763,7 +1753,7 @@ function _register_sheet!(wb::Workbook, xdoc::XML.Node, name::AbstractString;
     xf.namespace[xml_filename] = pfx
 
     rId = add_relationship!(wb, xml_filename[4:end], reltype)
-    ws  = Worksheet(xf, sheetId, rId, new_name, dim, false)
+    ws  = Worksheet(xf, sheetId, rId, new_name, dim, :visible)
     push!(wb.sheets, ws)
 
     register_content_type!(xf, "[Content_Types].xml";

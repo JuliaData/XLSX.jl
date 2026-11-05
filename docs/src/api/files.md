@@ -52,6 +52,16 @@ XLSX.getHyperlinks
 XLSX.deleteHyperlink
 ```
 
+## Sheet visibility and tab colour
+
+```@docs
+XLSX.setSheetVisibility
+XLSX.getSheetVisibility
+XLSX.setTabColor
+XLSX.getTabColor
+XLSX.removeTabColor
+```
+
 ## Errors
 
 ```@docs
