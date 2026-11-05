@@ -53,6 +53,26 @@ julia> XLSX.getFormula(sheet, "F2")
 A merged range, conditional format, data validation, hyperlink or AutoFilter
 whose cells are all deleted goes too.
 
+## Tables on the sheet
+
+An [Excel Table](../tables/excelTables.md) grows to take in rows or columns
+inserted inside it, and shrinks as they are deleted from it. Rows or columns
+inserted at its first row or column move it instead, and ones inserted just after
+it leave it as it is, as in Excel.
+
+Columns inserted inside a table become table columns, named `Column1`,
+`Column2`, ... in its header row; rename them by writing new headers. Deleting a
+table column deletes its references: `=SUM(Sales[Amount])` becomes `=SUM(#REF!)`
+in every formula, defined name, conditional format, data validation and chart.
+A table all of whose rows or columns are deleted is deleted, and references to it
+become `#REF!` too.
+
+Some deletions are refused, because a table can't be left without them:
+
+- its header row, without the rest of the table;
+- its totals row: remove it with [`XLSX.removetotals!`](@ref) first;
+- all its data rows: a table keeps at least one.
+
 ## Images, charts and comments
 
 Images, charts and shapes move with the cells they sit over, according to their
@@ -82,4 +102,3 @@ the comment in Excel first.
   because its cells refer across the inserted rows, or rows inside its block are
   deleted, is stored as a separate formula in each of its cells afterwards. The
   formulas are the same; the file may be a little larger.
-- Sheets with Excel Tables can't be edited this way yet.

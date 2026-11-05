@@ -486,7 +486,42 @@ function addtable!(sheet::Worksheet, ref::CellRange;
     _require_writable(xf, "add a table")
     wb = get_workbook(sheet)
 
-    # --- name uniqueness: Excel compares table names case-insensitively ---
+    name = _new_table_name(wb, sheet, name)
+    display_name = name
+    !_is_valid_table_display_name(display_name) &&
+        throw(XLSXError("Table displayName `$display_name` is not a valid identifier (must start with a letter or underscore, contain only letters, digits, underscores, or periods thereafter, and no spaces)."))
+    _is_cell_address_like(display_name) &&
+        throw(XLSXError("Table name `$display_name` is a cell address (such as `T1` or `R1C1`), which Excel does not allow."))
+
+    ref.stop.row_number == ref.start.row_number &&
+        throw(XLSXError("Table `ref` must span at least two rows (a header row plus at least one data row) — Excel does not support header-only tables. Got `$ref`."))
+
+    columns = _table_header_columns(sheet, ref)
+    has_totals_row && _check_totals_row_empty(sheet, ref, name, columns)
+
+    _check_table_overlap(sheet, ref, name)
+
+    style_info = isnothing(style) ? nothing : TableStyleInfo(style, false, false, true, false)
+
+    id = next_table_id!(wb)
+    table_doc  = build_table_xml(id, name, display_name, ref, columns, has_totals_row, style_info)
+    table_path = new_table_filename(xf)
+    xf.data[table_path]  = table_doc
+    xf.files[table_path] = true
+    add_override!(xf, "/$table_path", MIME_TABLE)
+
+    _attach_table_part!(xf, sheet, table_path)
+
+    sheet.tables_cache = nothing
+    return table(sheet, name)
+end
+
+addtable!(sheet::Worksheet, ref::AbstractString; kw...) = addtable!(sheet, CellRange(ref); kw...)
+
+# A name for a new table: `name`, checked unused (Excel compares table names
+# ignoring case, and they share a namespace with defined names), or for `""` the
+# first free `TableN`.
+function _new_table_name(wb::Workbook, sheet::Worksheet, name::AbstractString)::String
     existing_names = Set{String}()
     for ws in wb.sheets
         is_chartsheet(wb, ws.name) && continue
@@ -510,16 +545,12 @@ function addtable!(sheet::Worksheet, ref::CellRange;
             throw(XLSXError("Table name `$name` collides with an existing defined name."))
     end
 
-    display_name = name
-    !_is_valid_table_display_name(display_name) &&
-        throw(XLSXError("Table displayName `$display_name` is not a valid identifier (must start with a letter or underscore, contain only letters, digits, underscores, or periods thereafter, and no spaces)."))
-    _is_cell_address_like(display_name) &&
-        throw(XLSXError("Table name `$display_name` is a cell address (such as `T1` or `R1C1`), which Excel does not allow."))
+    return name
+end
 
-    ref.stop.row_number == ref.start.row_number &&
-        throw(XLSXError("Table `ref` must span at least two rows (a header row plus at least one data row) — Excel does not support header-only tables. Got `$ref`."))
-
-    # --- derive column names from the header row (unchanged) ---
+# The column names of a new table, from the header row of `ref`: each must be
+# given, and unique ignoring case, as in Excel.
+function _table_header_columns(sheet::Worksheet, ref::CellRange)::Vector{String}
     header_row = ref.start.row_number
     columns = String[]
     for c in column_number(ref.start):column_number(ref.stop)
@@ -531,36 +562,33 @@ function addtable!(sheet::Worksheet, ref::CellRange;
     length(unique(uppercase.(columns))) != length(columns) &&   # case-insensitive, as in Excel
         throw(XLSXError("Table header row contains duplicate column names."))
 
-    # --- totals row: last row of `ref`, when requested, which must be empty —
-    # as `settotals!` requires. Excel refuses a file whose totals row holds a
-    # plain value, and content there is most often a data row (e.g. written by
-    # `writetable!`) that the caller forgot to exclude from `ref`.
-    if has_totals_row
-        totals_row_num = ref.stop.row_number
-        nonempty_cols = String[]
-        for c in column_number(ref.start):column_number(ref.stop)
-            v = getdata(sheet, CellRef(totals_row_num, c))
-            (!ismissing(v) && v != "") && push!(nonempty_cols, columns[c - column_number(ref.start) + 1])
-        end
-        isempty(nonempty_cols) ||
-            throw(XLSXError("Table `$name`: cannot mark the last row of `ref` (row $totals_row_num) as the " *
-                  "totals row, because it already has content in column(s) $(join(nonempty_cols, ", ")). " *
-                  "If that row is table data (e.g. written by `writetable!`), exclude it from `ref` " *
-                  "or pass `has_totals_row=false`; otherwise clear it first, then use `settotals!` " *
-                  "to set totals."))
+    return columns
+end
+
+# The last row of `ref`, about to be a totals row, must be empty, as `settotals!`
+# requires. Excel refuses a file whose totals row holds a plain value, and content
+# there is most often a data row (e.g. written by `writetable!`) that the caller
+# forgot to exclude from `ref`.
+function _check_totals_row_empty(sheet::Worksheet, ref::CellRange, name::AbstractString, columns::Vector{String})
+    totals_row_num = ref.stop.row_number
+    nonempty_cols = String[]
+    for c in column_number(ref.start):column_number(ref.stop)
+        v = getdata(sheet, CellRef(totals_row_num, c))
+        (!ismissing(v) && v != "") && push!(nonempty_cols, columns[c - column_number(ref.start) + 1])
     end
+    isempty(nonempty_cols) ||
+        throw(XLSXError("Table `$name`: cannot mark the last row of `ref` (row $totals_row_num) as the " *
+              "totals row, because it already has content in column(s) $(join(nonempty_cols, ", ")). " *
+              "If that row is table data (e.g. written by `writetable!`), exclude it from `ref` " *
+              "or pass `has_totals_row=false`; otherwise clear it first, then use `settotals!` " *
+              "to set totals."))
+    return nothing
+end
 
-    _check_table_overlap(sheet, ref, name)
-
-    style_info = isnothing(style) ? nothing : TableStyleInfo(style, false, false, true, false)
-
-    id = next_table_id!(wb)
-    table_doc  = build_table_xml(id, name, display_name, ref, columns, has_totals_row, style_info)
-    table_path = new_table_filename(xf)
-    xf.data[table_path]  = table_doc
-    xf.files[table_path] = true
-    add_override!(xf, "/$table_path", MIME_TABLE)
-
+# Link a new table part at `table_path` to `sheet`: a relationship, and a
+# `<tablePart>` in the sheet's `<tableParts>`.
+function _attach_table_part!(xf::XLSXFile, sheet::Worksheet, table_path::String)
+    wb = get_workbook(sheet)
     sheet_path = get_relationship_target_by_id("xl", wb, sheet.relationship_id)
     sheet_dir, _ = rsplit(sheet_path, "/"; limit=2)
     rels_path, rels_root = get_or_create_worksheet_rels!(xf, sheet_path)
@@ -592,11 +620,8 @@ function addtable!(sheet::Worksheet, ref::CellRange;
         tp_container["count"] = string(length(XML.children(tp_container)))
     end
 
-    sheet.tables_cache = nothing
-    return table(sheet, name)
+    return nothing
 end
-
-addtable!(sheet::Worksheet, ref::AbstractString; kw...) = addtable!(sheet, CellRange(ref); kw...)
 
 # Excel drops ("repairs") a table that overlaps a merged range or another table,
 # so refuse to create one. Nor may a table overlap the sheet's AutoFilter.

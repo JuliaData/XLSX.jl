@@ -530,6 +530,135 @@
         @test tc["ref"] == "B3"
     end
 
+    # A table `Sales`, A1:D10, with headers A to D and numbers below.
+    function tfresh(; totals=false)
+        xf = XLSX.newxlsx("Data")
+        s = xf["Data"]
+        s["A1"] = ["A" "B" "C" "D"]
+        s[2:10, 1:4] = reshape(1:36, 9, 4)
+        XLSX.addsheet!(xf, "Other")
+        XLSX.addtable!(s, totals ? "A1:D11" : "A1:D10"; name="Sales", has_totals_row=totals)
+        return xf, s
+    end
+    tbl(s) = XLSX.table(s, "Sales")
+    table_root(xf, s) = XLSX.xml_root_element(XLSX.get_xml_data(xf, XLSX._table_part_path(s, "Sales")))
+    table_filter(xf, s) = XLSX.first_element_with_tag(table_root(xf, s), "autoFilter")
+
+    @testset "tables: rows" begin
+        xf, s = tfresh()
+        XLSX.insertRows(s, 5; count=2)                     # inside: it grows
+        @test tbl(s).ref == XLSX.CellRange("A1:D12")
+        @test table_filter(xf, s)["ref"] == "A1:D12"
+        XLSX.insertRows(s, 1)                              # at its header: it moves
+        @test tbl(s).ref == XLSX.CellRange("A2:D13")
+        XLSX.insertRows(s, 14)                             # just after it: unchanged
+        @test tbl(s).ref == XLSX.CellRange("A2:D13")
+        XLSX.deleteRows(s, 4:5)                            # some data rows: it shrinks
+        @test tbl(s).ref == XLSX.CellRange("A2:D11")
+        @test_throws XLSX.XLSXError XLSX.deleteRows(s, 2)  # its header row
+        @test_throws XLSX.XLSXError XLSX.deleteRows(s, 3:11)   # all its data rows
+        @test tbl(s).ref == XLSX.CellRange("A2:D11") && s[2, 1] == "A"   # nothing changed
+        r = roundtrip(xf)["Data"]
+        @test XLSX.table(r, "Sales").ref == XLSX.CellRange("A2:D11")
+        @test isequal(XLSX.gettable(XLSX.table(r, "Sales")).data[1][1:4], [1, missing, missing, 4])   # with the inserted rows
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "tables: totals row" begin
+        xf, s = tfresh(; totals=true)
+        XLSX.settotals!(s, "Sales", "B" => :sum)
+        XLSX.insertRows(s, 11)                             # at the totals row: a data row before it
+        t = tbl(s)
+        @test t.ref == XLSX.CellRange("A1:D12") && t.has_totals_row
+        @test table_filter(xf, s)["ref"] == "A1:D11"
+        @test_throws XLSX.XLSXError XLSX.deleteRows(s, 12)   # the totals row
+        XLSX.removetotals!(s, "Sales")
+        XLSX.deleteRows(s, 12)
+        @test tbl(s).ref == XLSX.CellRange("A1:D11")
+    end
+
+    @testset "tables: deleted whole" begin
+        xf, s = tfresh()
+        o = xf["Other"]
+        XLSX.setFormula(o, "A1", "=SUM(Sales[B])")
+        XLSX.setFormula(o, "A2", "=SUM(Data!A1:A10)")
+        XLSX.deleteRows(s, 1:10)
+        @test isempty(XLSX.tables(s))
+        @test formula(o, "A1") == "=SUM(#REF!)"
+        @test formula(o, "A2") == "=SUM(Data!#REF!)"
+        r = roundtrip(xf)
+        @test isempty(XLSX.tables(r["Data"]))
+
+        xf, s = tfresh()
+        XLSX.deleteColumns(s, "A:D")
+        @test isempty(XLSX.tables(s))
+    end
+
+    @testset "tables: columns" begin
+        xf, s = tfresh()
+        o = xf["Other"]
+        XLSX.setFormula(o, "A1", "=SUM(Sales[B])")
+        XLSX.setFormula(o, "A2", "=SUM(Sales[C])+Sales[[#Totals],[D]]")
+        XLSX.setFormula(o, "A3", "=SUM(Sales[[B]:[C]])")
+        XLSX.setFormula(o, "A4", "=\"Sales[B]\"&COUNT(Sales[#Data])")
+        root = table_root(xf, s)
+        i = findfirst(c -> XLSX.localname(c) == "autoFilter", root.children)
+        root.children[i] = XML.Element("autoFilter", XML.Element("filterColumn"; colId="2"),   # on column C
+                                       XML.Element("filterColumn"; colId="1"); ref="A1:D10")   # on column B
+
+        XLSX.insertColumns(s, "C"; count=2)                  # inside: new table columns
+        t = tbl(s)
+        @test t.ref == XLSX.CellRange("A1:F10")
+        @test t.columns == ["A", "B", "Column1", "Column2", "C", "D"]
+        @test s["C1"] == "Column1" && s["D1"] == "Column2"   # their headers
+        @test sort([fc["colId"] for fc in XLSX.xml_elements(table_filter(xf, s))]) == ["1", "4"]
+        cols = XLSX.first_element_with_tag(table_root(xf, s), "tableColumns")
+        @test cols["count"] == "6"
+        @test length(unique(c["id"] for c in XLSX.xml_elements(cols))) == 6
+
+        XLSX.insertColumns(s, "A")                           # at its first column: it moves
+        @test tbl(s).ref == XLSX.CellRange("B1:G10")
+        XLSX.insertColumns(s, "H")                           # just after it: unchanged
+        @test tbl(s).ref == XLSX.CellRange("B1:G10")
+
+        XLSX.deleteColumns(s, "C")                           # table column B
+        t = tbl(s)
+        @test t.columns == ["A", "Column1", "Column2", "C", "D"]
+        @test t.ref == XLSX.CellRange("B1:F10")
+        @test [fc["colId"] for fc in XLSX.xml_elements(table_filter(xf, s))] == ["3"]   # B's filter went
+        @test formula(o, "A1") == "=SUM(#REF!)"
+        @test formula(o, "A2") == "=SUM(Sales[C])+Sales[[#Totals],[D]]"
+        @test formula(o, "A3") == "=SUM(#REF!)"
+        @test formula(o, "A4") == "=\"Sales[B]\"&COUNT(Sales[#Data])"   # a string, and the whole data
+        r = roundtrip(xf)
+        @test XLSX.table(r["Data"], "Sales").columns == ["A", "Column1", "Column2", "C", "D"]
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "tables: formulas in them" begin
+        xf, s = tfresh()
+        cols = XLSX.first_element_with_tag(table_root(xf, s), "tableColumns")
+        cols.children[end] = XML.Element("tableColumn", XML.Element("calculatedColumnFormula", XML.Text("Other!\$A\$5*2")); id="4", name="D")
+        o = xf["Other"]
+        XLSX.insertRows(o, 1)                                # a table on another sheet refers to it
+        d = last(XLSX.xml_elements(XLSX.first_element_with_tag(table_root(xf, s), "tableColumns")))
+        @test XML.simple_value(only(XLSX.xml_elements(d))) == "Other!\$A\$6*2"
+    end
+
+    @testset "structured references" begin
+        dead = Dict{String,Union{Nothing,Set{String}}}("SALES" => Set(["B"]), "GONE" => nothing)
+        k(f) = XLSX._kill_structured_refs(f, dead)
+        @test k("=SUM(Sales[B])") == "=SUM(#REF!)"
+        @test k("=SUM(sales[b])") == "=SUM(#REF!)"                       # names ignore case
+        @test k("=Sales[[#This Row],[B]]+Sales[[#This Row],[C]]") == "=#REF!+Sales[[#This Row],[C]]"
+        @test k("=SUM(Sales[[A]:[B]])") == "=SUM(#REF!)"
+        @test k("=Sales[@B]") == "=#REF!"
+        @test k("=Sales[C]+Gone[X]+Gone[#All]") == "=Sales[C]+#REF!+#REF!"
+        @test k("=Sales['[B']]") == "=Sales['[B']]"                      # a column named [B]
+        @test k("=Other[B]+\"Sales[B]\"") == "=Other[B]+\"Sales[B]\""
+        @test XLSX._structured_ref_columns("[[#Headers],[It''s],['#No]]") == ["It's", "#No"]
+    end
+
     @testset "limits and refusals" begin
         xf, s = fresh()
         s[XLSX.EXCEL_MAX_ROWS - 1, 1] = "near the end"
@@ -542,9 +671,6 @@
         @test_throws XLSX.XLSXError XLSX.deleteRows(s, "B:C")
         @test_throws XLSX.XLSXError XLSX.insertColumns(s, XLSX.EXCEL_MAX_COLS + 1)
 
-        xf, s = fresh()
-        XLSX.addtable!(s, "A1:D10")
-        @test_throws XLSX.XLSXError XLSX.insertRows(s, 2)
 
         xf, s = fresh()
         r = roundtrip(xf)["Data"]

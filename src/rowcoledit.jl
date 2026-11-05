@@ -16,15 +16,14 @@ Insert `count` empty rows before row `at`, as Excel's *Insert Sheet Rows* does.
 Rows from `at` down move down, and everything that refers to them follows: formulas
 anywhere in the workbook, merged cells, conditional formats, data validations,
 hyperlinks, the AutoFilter, panes, defined names (including the print area and
-titles), chart series, and the images, charts and comments on the sheet. A range
-that spans row `at` grows to include the new rows.
+titles), chart series, and the Excel Tables, images, charts and comments on the
+sheet. A range that spans row `at` grows to include the new rows.
 
 `at` is a row number or a string naming one (`"5"`). The new rows are empty and
 unformatted. Inserting rows that would push data past the last row Excel allows
 is an error, as in Excel.
 
-The file must be open for writing (`mode="rw"`). Sheets with Excel Tables can't be
-edited this way yet.
+The file must be open for writing (`mode="rw"`).
 
 # Examples
 ```julia
@@ -64,14 +63,14 @@ Delete rows, as Excel's *Delete Sheet Rows* does. Rows below move up, and
 everything that refers to them follows, as for [`insertRows`](@ref). A reference
 to a deleted cell becomes `#REF!`; a range that loses some of its rows shrinks,
 and one that loses all of them goes too (a merged range, a conditional format, a
-data validation, a hyperlink, the AutoFilter), or becomes `#REF!` in a formula or
-defined name.
+data validation, a hyperlink, the AutoFilter, an Excel Table), or becomes `#REF!`
+in a formula or defined name. Deleting a table's header row, its totals row or
+all its data rows, without the rest of it, is an error.
 
 `rows` is a row number, a range or vector of row numbers, or a string naming
 rows (`"3:5"`, `"3:5,9"`), cells (whose rows are used) or a defined name.
 
-The file must be open for writing (`mode="rw"`). Sheets with Excel Tables can't be
-edited this way yet.
+The file must be open for writing (`mode="rw"`).
 
 # Examples
 ```julia
@@ -138,13 +137,16 @@ function _edit!(ws::Worksheet, e::RowColEdit)
     _require_writable(ws, what)
     _require_worksheet(ws, what)
     _require_cache(ws, what)
-    _check_editable(ws, what)
     isnothing(ws.cache) && eachrow(ws)
     e.count > 0 && _check_room(ws, e)
-    dead_comments = _comments_deleted_by(ws, e)   # refuses a threaded one before anything changes
+    # Refuse what can't be done before anything changes.
+    dead_comments = _comments_deleted_by(ws, e)
+    table_plan = _plan_table_edits(ws, e)
 
     xf = get_xlsxfile(ws)
     wb = get_workbook(ws)
+    dead_tables = Dict{String,Union{Nothing,Set{String}}}()   # tables, or their columns, deleted
+    _delete_tables!(table_plan, dead_tables)
     foreach(r -> deleteComment(ws, r), dead_comments)
     _shift_comments!(ws, e)
     _shift_drawing!(xf, _sheet_path(ws), e)
@@ -152,6 +154,7 @@ function _edit!(ws::Worksheet, e::RowColEdit)
     _shift_cells!(ws, e)
     _shift_cell_formulas!(wb, e)
     _shift_sheet_xml!(ws, e)
+    _move_tables!(ws, table_plan, e, dead_tables)
     for s in wb.sheets   # formulas in conditional formats and data validations, on every sheet
         is_chartsheet(wb, s.name) && continue
         _repoint_sheet_xml_formulas!(s, r"(?s)\A.+\z" => (t -> _shift_formula(t, e; own_sheet=s.name)))
@@ -160,17 +163,12 @@ function _edit!(ws::Worksheet, e::RowColEdit)
     for mime in (MIME_CHART, MIME_CHARTEX), path in parts_with_content_type(xf, mime)
         _rewrite_chart_formulas!(s -> _shift_formula(s, e), xml_root_element(get_xml_data(xf, path)))
     end
+    _rewrite_table_formulas!((f, own) -> _shift_formula(f, e; own_sheet=own), xf)
+    _kill_structured_refs!(xf, dead_tables)
 
     _set_dimension_from_cache!(ws)
     isempty(ws.cache) && set_dimension!(ws, CellRange("A1:A1"))
     update_worksheets_xml!(xf)
-    return nothing
-end
-
-# Parts these edits don't move yet.
-function _check_editable(ws::Worksheet, what::String)
-    isempty(tables(ws)) ||
-        throw(XLSXError("Cannot $what on sheet `$(ws.name)`: it has Excel Tables, which this doesn't move yet."))
     return nothing
 end
 

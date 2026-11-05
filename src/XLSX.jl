@@ -167,6 +167,7 @@ include("writetable.jl")
 include("sheetops.jl")
 include("rowcoledit.jl")
 include("shiftobjects.jl")
+include("shifttables.jl")
 include("fileArray.jl")
 
 # Charts depends on the core and must load after it; the core never refers to Charts.
