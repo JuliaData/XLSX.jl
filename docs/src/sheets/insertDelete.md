@@ -29,6 +29,7 @@ naming rows (`"3:5,9"`), columns (`"B:C"`), cells or a defined name.
   frozen panes and page breaks.
 - Defined names, including the print area and print titles.
 - The ranges plotted by charts.
+- Images, charts and comments on the sheet (see below).
 
 A range that spans the place where rows are inserted grows to include them:
 `=SUM(A1:A10)` becomes `=SUM(A1:A11)` when a row is inserted at row 5. Inserting
@@ -52,6 +53,22 @@ julia> XLSX.getFormula(sheet, "F2")
 A merged range, conditional format, data validation, hyperlink or AutoFilter
 whose cells are all deleted goes too.
 
+## Images, charts and comments
+
+Images, charts and shapes move with the cells they sit over, according to their
+*Properties* in Excel's *Format* pane:
+
+- *Move and size with cells* (the default): rows or columns inserted under the
+  object stretch it, and ones deleted under it shrink it. If all of them are
+  deleted, the object shrinks to nothing but stays in the file, as in Excel.
+- *Move but don't size with cells*: the object moves, keeping its size.
+- *Don't move or size with cells*: the object stays where it is.
+
+A comment moves with its cell, and its box with it. A comment on a deleted cell
+is deleted. A threaded comment (Excel 365) also moves with its cell, but deleting
+the cell it is on is refused, as XLSX.jl can't change threaded comments: delete
+the comment in Excel first.
+
 ## Limits
 
 - The new rows and columns are empty and unformatted. (Excel gives them the
@@ -65,5 +82,4 @@ whose cells are all deleted goes too.
   because its cells refer across the inserted rows, or rows inside its block are
   deleted, is stored as a separate formula in each of its cells afterwards. The
   formulas are the same; the file may be a little larger.
-- Sheets with Excel Tables, images, charts or comments can't be edited this way
-  yet.
+- Sheets with Excel Tables can't be edited this way yet.

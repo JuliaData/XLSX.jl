@@ -16,14 +16,15 @@ Insert `count` empty rows before row `at`, as Excel's *Insert Sheet Rows* does.
 Rows from `at` down move down, and everything that refers to them follows: formulas
 anywhere in the workbook, merged cells, conditional formats, data validations,
 hyperlinks, the AutoFilter, panes, defined names (including the print area and
-titles) and chart series. A range that spans row `at` grows to include the new rows.
+titles), chart series, and the images, charts and comments on the sheet. A range
+that spans row `at` grows to include the new rows.
 
 `at` is a row number or a string naming one (`"5"`). The new rows are empty and
 unformatted. Inserting rows that would push data past the last row Excel allows
 is an error, as in Excel.
 
-The file must be open for writing (`mode="rw"`). Sheets with Excel Tables, images,
-charts or comments can't be edited this way yet.
+The file must be open for writing (`mode="rw"`). Sheets with Excel Tables can't be
+edited this way yet.
 
 # Examples
 ```julia
@@ -69,8 +70,8 @@ defined name.
 `rows` is a row number, a range or vector of row numbers, or a string naming
 rows (`"3:5"`, `"3:5,9"`), cells (whose rows are used) or a defined name.
 
-The file must be open for writing (`mode="rw"`). Sheets with Excel Tables, images,
-charts or comments can't be edited this way yet.
+The file must be open for writing (`mode="rw"`). Sheets with Excel Tables can't be
+edited this way yet.
 
 # Examples
 ```julia
@@ -140,9 +141,13 @@ function _edit!(ws::Worksheet, e::RowColEdit)
     _check_editable(ws, what)
     isnothing(ws.cache) && eachrow(ws)
     e.count > 0 && _check_room(ws, e)
+    dead_comments = _comments_deleted_by(ws, e)   # refuses a threaded one before anything changes
 
     xf = get_xlsxfile(ws)
     wb = get_workbook(ws)
+    foreach(r -> deleteComment(ws, r), dead_comments)
+    _shift_comments!(ws, e)
+    _shift_drawing!(xf, _sheet_path(ws), e)
     _expand_shared_formulas!(wb, e)
     _shift_cells!(ws, e)
     _shift_cell_formulas!(wb, e)
@@ -166,9 +171,6 @@ end
 function _check_editable(ws::Worksheet, what::String)
     isempty(tables(ws)) ||
         throw(XLSXError("Cannot $what on sheet `$(ws.name)`: it has Excel Tables, which this doesn't move yet."))
-    names = ("drawing", "legacyDrawing")
-    isempty(_sheet_top_elements(get_xlsxfile(ws), _sheet_path(ws), names)) ||
-        throw(XLSXError("Cannot $what on sheet `$(ws.name)`: it has images, charts or comments, which this doesn't move yet."))
     return nothing
 end
 

@@ -405,6 +405,131 @@
         @test !any(occursin("A\$10", f) for f in fs)
     end
 
+    # The drawing's anchors, as (from row, from col, to row, to col) 0-based, with offsets.
+    function anchors(xf, n=1)
+        path = XLSX._drawing_path_for_sheet(xf, "xl/worksheets/sheet$n.xml")
+        out = []
+        for a in XLSX.xml_elements(XLSX.xml_root_element(XLSX.get_xml_data(xf, path)))
+            m(tag) = (el = XLSX.first_element_with_tag(a, tag); isnothing(el) ? nothing :
+                      Tuple(parse(Int, XML.simple_value(XLSX.first_element_with_tag(el, t))) for t in ("row", "rowOff", "col", "colOff")))
+            push!(out, (XLSX.localname(a), get(a, "editAs", ""), m("from"), m("to")))
+        end
+        return out
+    end
+    data_dir = joinpath(dirname(pathof(XLSX)), "..", "test", "data")
+
+    @testset "images and charts" begin
+        xf, s = fresh()
+        XLSX.addImage(s, "B3:D6", joinpath(data_dir, "track_start.png"))   # two-cell anchor, rows 2:5, cols 1:3 (0-based)
+        c = XLSX.Charts.addChart(s, :line; anchor="F2:M18")
+        XLSX.Charts.addSeries(c, "Data!A1:A10")
+        a0 = anchors(xf)
+        @test length(a0) == 2
+        img0, chart0 = a0
+
+        XLSX.insertRows(s, 4; count=2)                     # inside both: they stretch
+        img, chart = anchors(xf)
+        @test img[3][1] == img0[3][1] && img[4][1] == img0[4][1] + 2
+        @test chart[3][1] == chart0[3][1] && chart[4][1] == chart0[4][1] + 2
+
+        XLSX.insertRows(s, 1)                              # above both: they move
+        img, chart = anchors(xf)
+        @test img[3][1] == img0[3][1] + 1 && img[4][1] == img0[4][1] + 3
+
+        XLSX.insertColumns(s, "E")                         # right of the image, inside the chart
+        img, chart = anchors(xf)
+        @test img[3][3] == img0[3][3] && img[4][3] == img0[4][3]
+        @test chart[3][3] == chart0[3][3] + 1 && chart[4][3] == chart0[4][3] + 1
+
+        XLSX.deleteRows(s, 1:3)                            # the image's first row goes
+        img, _ = anchors(xf)
+        @test img[3][1] == 0 && img[3][2] == 0             # its top is now the top of what was below
+
+        # every row of the image deleted: it shrinks to nothing, but stays
+        xf, s = fresh()
+        XLSX.addImage(s, "B3:D6", joinpath(data_dir, "track_start.png"))
+        XLSX.deleteRows(s, 3:7)
+        img = only(anchors(xf))
+        @test img[3][1] == img[4][1] == 2 && img[3][2] == img[4][2] == 0
+        @test length(XLSX.getImages(s)) == 1
+        r = roundtrip(xf)
+        @test length(XLSX.getImages(r["Data"])) == 1
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "how anchors move" begin
+        xf, s = fresh()
+        XLSX.addImage(s, "B3:D6", joinpath(data_dir, "track_start.png"))
+        XLSX.addImage(s, "F3:H6", joinpath(data_dir, "track_start.png"))
+        XLSX.addImage(s, "J3:L6", joinpath(data_dir, "track_start.png"))
+        path = XLSX._drawing_path_for_sheet(xf, "xl/worksheets/sheet1.xml")
+        as = XLSX.xml_elements(XLSX.xml_root_element(XLSX.get_xml_data(xf, path)))
+        as[2]["editAs"] = "oneCell"                        # move but don't size
+        as[3]["editAs"] = "absolute"                       # don't move or size
+        before = anchors(xf)
+        XLSX.insertRows(s, 4; count=3)                     # inside all three
+        twocell, onecell, absolute = anchors(xf)
+        @test twocell[4][1] - twocell[3][1] == before[1][4][1] - before[1][3][1] + 3   # stretched
+        @test onecell[3] == before[2][3] && onecell[4] == before[2][4]                 # its top didn't move, so nor did it
+        @test absolute == before[3]
+        XLSX.insertRows(s, 1)                              # above all three
+        twocell, onecell, absolute = anchors(xf)
+        @test onecell[3][1] == before[2][3][1] + 1 && onecell[4][1] == before[2][4][1] + 1   # moved, same size
+        @test absolute == before[3]
+    end
+
+    @testset "comments" begin
+        xf, s = fresh()
+        XLSX.addComment(s, "B3", "on B3")
+        XLSX.addComment(s, "C8", "on C8")
+        XLSX.addComment(s, "D5", "on D5")
+        XLSX.insertRows(s, 4; count=2)
+        @test Set((string(c.ref), c.text) for c in XLSX.getComments(s)) ==
+              Set([("B3", "on B3"), ("C10", "on C8"), ("D7", "on D5")])
+
+        vml_path = XLSX._legacy_vml_path(xf, "xl/worksheets/sheet1.xml")
+        vml = XLSX._vml_string(xf, vml_path)
+        rows = sort([parse(Int, m[1]) for m in eachmatch(r"<x:Row>(\d+)</x:Row>", vml)])
+        @test rows == [2, 6, 9]                           # 0-based: B3, D7, C10
+
+        XLSX.deleteRows(s, 7)                              # the comment on D7 goes, box and all
+        @test isnothing(XLSX.getComment(s, "D7"))
+        @test length(XLSX.getComments(s)) == 2
+        vml = XLSX._vml_string(xf, vml_path)
+        @test count(r"<v:shape\b", vml) == 2
+        @test XLSX.getComment(s, "C9").text == "on C8"
+
+        XLSX.insertColumns(s, "A")
+        @test Set(string(c.ref) for c in XLSX.getComments(s)) == Set(["C3", "D9"])
+        vml = XLSX._vml_string(xf, vml_path)
+        @test sort([parse(Int, m[1]) for m in eachmatch(r"<x:Column>(\d+)</x:Column>", vml)]) == [2, 3]
+
+        r = roundtrip(xf)["Data"]
+        @test XLSX.getComment(r, "D9").text == "on C8"
+
+        XLSX.deleteRows(s, 1:20)                           # the last comments go: so do their parts
+        @test isempty(XLSX.getComments(s))
+        @test isnothing(element(xf, "legacyDrawing"))
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "threaded comments" begin
+        xf, s = fresh()
+        XLSX.addComment(s, "B3", "legacy")
+        # A threaded comment as Excel 365 writes it, by hand.
+        path = "xl/threadedComments/threadedComment1.xml"
+        xf.data[path] = XML.parse("""<ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments"><threadedComment ref="B3" dT="2026-01-01T00:00:00.00" personId="{00000000-0000-0000-0000-000000000001}" id="{00000000-0000-0000-0000-000000000002}"><text>threaded</text></threadedComment></ThreadedComments>""", XML.Node)
+        xf.files[path] = true
+        XLSX.add_part_rel!(xf, "xl/worksheets/sheet1.xml", path, XLSX.REL_THREADED_COMMENT)
+        XLSX.insertRows(s, 1)
+        tc = only(XLSX.elements_with_tag(XLSX.xml_root_element(xf.data[path]), "threadedComment"))
+        @test tc["ref"] == "B4"
+        @test_throws XLSX.XLSXError XLSX.deleteRows(s, 4)  # can't delete a threaded comment
+        @test tc["ref"] == "B4" && s[5, 1] == 4           # nothing changed
+        XLSX.deleteRows(s, 2)                              # other rows are fine
+        @test tc["ref"] == "B3"
+    end
+
     @testset "limits and refusals" begin
         xf, s = fresh()
         s[XLSX.EXCEL_MAX_ROWS - 1, 1] = "near the end"
@@ -420,14 +545,6 @@
         xf, s = fresh()
         XLSX.addtable!(s, "A1:D10")
         @test_throws XLSX.XLSXError XLSX.insertRows(s, 2)
-        xf, s = fresh()
-        XLSX.addComment(s, "A1", "hi")
-        @test_throws XLSX.XLSXError XLSX.deleteRows(s, 2)
-        xf, s = fresh()
-        c = XLSX.Charts.addChart(s, :line; anchor="F2:M18")
-        XLSX.Charts.addSeries(c, "Data!A1:A10")
-        @test_throws XLSX.XLSXError XLSX.insertColumns(s, 1)
-        @test s[1, 1] == 1                                                 # untouched
 
         xf, s = fresh()
         r = roundtrip(xf)["Data"]
