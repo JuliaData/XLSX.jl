@@ -25,7 +25,7 @@ This package follows ECMA-376 to parse and generate XLSX files.
 * Native [Excel Tables](tables/excelTables.md)
 * [Merged cells](formatting/mergedCells.md), [column widths and row heights](formatting/widthAndHeight.md)
   and [freeze/split panes](formatting/freezeAndSplitPanes.md)
-* [Images and cell comments](sheets/imagesAndComments.md)
+* [Hyperlinks, images and cell comments](sheets/imagesAndComments.md)
 * Native [Excel charts](charts/excelCharts.md): read, format and create (experimental)
 * [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) integration (see the [FileIO Tutorial](tutorial/FileIOtutorial.md))
 

@@ -60,7 +60,7 @@ julia> Pkg.add("XLSX")
 * Formulas and defined names
 * Native Excel Tables
 * Merged cells, column widths, row heights and freeze/split panes
-* Images and cell comments
+* Hyperlinks, images and cell comments
 * Native Excel charts: read, format and create (experimental)
 * [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) integration
 

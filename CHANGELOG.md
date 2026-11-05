@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `addHyperlink`, `getHyperlink`, `getHyperlinks` and `deleteHyperlink` to add, read and delete cell hyperlinks: to a web page, email address or file (`url`), or to a place in the workbook (`location`). An empty cell given a link takes its display text and a blue, underlined font, as in Excel. Links can be read from a file opened only for reading, with or without the cell cache
+- `copysheet!` gives the copy's hyperlinks to web pages and files relationships of their own. The copy kept the original's relationship ids, which pointed at relationships the copy didn't have
+
 - Docs: a *Chart subtypes* section in *Creating charts* maps each of Excel's chart subtypes to the kind or `addSeries` keywords that create it, and the *Limitations* list of kinds that can't be created is completed
 - Docs: the *Migration Guide* covers v0.12 and v0.13, including every behaviour change in the v0.13 patch releases
 - Docs: the README and home page list the package's features and give a quick start

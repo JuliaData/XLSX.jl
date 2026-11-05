@@ -46,6 +46,10 @@ XLSX.addComment
 XLSX.getComment
 XLSX.getComments
 XLSX.deleteComment
+XLSX.addHyperlink
+XLSX.getHyperlink
+XLSX.getHyperlinks
+XLSX.deleteHyperlink
 ```
 
 ## Errors

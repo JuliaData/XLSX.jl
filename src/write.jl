@@ -1648,6 +1648,9 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
         ensure_drawing_element!(xl, get_xml_data(xl, new_sheet_path), new_sheet_path, rid)
     end
 
+    # The copy's <hyperlinks> came with the original's r:ids; give it relationships of its own.
+    _copy_hyperlink_rels!(xl, sheet_path, get_relationship_target_by_id("xl", wb, new_ws.relationship_id))
+
     # As in Excel, the copy's references to the original sheet are repointed at the
     # copy, in defined names, cell formulas, conditional formats and data validations;
     # references to other sheets are kept as they are.

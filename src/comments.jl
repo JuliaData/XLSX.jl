@@ -222,10 +222,13 @@ end
 # Lookup helpers
 # ===========================================================================
 
-function _comment_cellref(ref::AbstractString)::CellRef
+_comment_cellref(ref::AbstractString)::CellRef = _single_cellref(ref, "Comments")
+
+# A reference to one cell, for things (`what`) that attach to a single cell only.
+function _single_cellref(ref::AbstractString, what::AbstractString)::CellRef
     is_valid_cellname(ref) && return CellRef(ref)
     is_valid_cellrange(ref) &&
-        throw(XLSXError("Comments attach to a single cell, not a range: `$ref`."))
+        throw(XLSXError("$what attach to a single cell, not a range: `$ref`."))
     throw(XLSXError("Invalid cell reference: `$ref`."))
 end
 

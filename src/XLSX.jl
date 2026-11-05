@@ -62,6 +62,7 @@ export
     addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
     addImage,
     addComment, deleteComment,
+    addHyperlink, deleteHyperlink,
     # Cells & data
     CellRef, SheetCellRef, row_number, column_number, eachtablerow,
     readdata, getdata, gettable, readtable, readto,
@@ -89,6 +90,7 @@ export
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
            getComment, getComments,
+           getHyperlink, getHyperlinks,
            Workbook, XLSXError, SchemeColor,
            CellErrorType, XL_NULL, XL_DIV0, XL_VALUE, XL_REF, 
            XL_NAME, XL_NUM, XL_NA, XL_SPILL
@@ -139,6 +141,7 @@ include("conditionalformats/databar.jl")
 include("conditionalformats/clear.jl")
 include("images.jl")
 include("comments.jl")
+include("hyperlinks.jl")
 include("write.jl")
 include("fileArray.jl")
 
