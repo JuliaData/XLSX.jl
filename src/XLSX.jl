@@ -120,6 +120,7 @@ include("xmlutil.jl")
 include("xlsx-colors.jl") # must load before sst.jl and cellformat-helpers.jl
 include("formula.jl")
 include("cellref.jl")
+include("shiftrefs.jl")
 include("sst.jl")
 include("stream.jl")
 include("valuerows.jl")
