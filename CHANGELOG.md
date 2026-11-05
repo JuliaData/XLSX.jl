@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Internal: the `readtable` and `eachtablerow` methods share one keyword list rather than repeating it, and `mergeCells`/`removeMergedCells` and `setColumnWidth`/`setRowHeight` define their shared address methods once. No change in behaviour, except that an unknown keyword to `readtable` or `eachtablerow` is reported against the internal function the keywords are passed to
+
 - Internal: `write.jl` is split into `save.jl` (writing the package), `setdata.jl` (writing cells), `writetable.jl` and `sheetops.jl` (adding, renaming, copying, deleting and moving sheets), and the Excel Tables half of `table.jl` moves to `exceltables.jl`. `copysheet!` and `deletesheet!` are broken into steps, and repeated code in the cell format setters, range handling, conditional format data bars and the sheet cache fill is shared. No change in behaviour
 - `bench/maintainability.jl` counts duplication in code only: it leaves out docstrings, the bodies of `const` tables, lines of nothing but literals, and `include` lines, which it counted as duplicated because blanking their literals made unrelated ones look alike
 

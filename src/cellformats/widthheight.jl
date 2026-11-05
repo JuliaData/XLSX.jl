@@ -42,35 +42,41 @@ it can work on empty cells.
 ```julia
 julia> XLSX.setColumnWidth(xf, "Sheet1!A2"; width = 50)
 
-julia> XLSX.seColumnWidth(sh, "F1:F5"; width = 0)
+julia> XLSX.setColumnWidth(sh, "F1:F5"; width = 0)
 
 julia> XLSX.setColumnWidth(sh, "I"; width = 24.37)
  
 ```
 """
 function setColumnWidth end
-setColumnWidth(ws::Worksheet, ref::SheetCellRef; kw...) = do_sheet_names_match(ws, ref) && setColumnWidth(ws, ref.cellref; kw...)
-setColumnWidth(ws::Worksheet, rng::SheetCellRange; kw...) = do_sheet_names_match(ws, rng) && setColumnWidth(ws, rng.rng; kw...)
-setColumnWidth(ws::Worksheet, rng::SheetColumnRange; kw...) = do_sheet_names_match(ws, rng) && setColumnWidth(ws, rng.colrng; kw...)
-setColumnWidth(ws::Worksheet, rng::SheetRowRange; kw...) = do_sheet_names_match(ws, rng) && setColumnWidth(ws, rng.rowrng; kw...)
-setColumnWidth(ws::Worksheet, colrng::ColumnRange; kw...)::Int = process_columnranges(setColumnWidth, ws, colrng; kw...)
-setColumnWidth(ws::Worksheet, rowrng::RowRange; kw...)::Int = process_rowranges(setColumnWidth, ws, rowrng; kw...)
-setColumnWidth(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges(setColumnWidth, ws, ncrng; kw...)
-setColumnWidth(ws::Worksheet, ref_or_rng::AbstractString; kw...)::Int = process_ranges(setColumnWidth, ws, ref_or_rng; kw...)
-setColumnWidth(xl::XLSXFile, sheetcell::String; kw...)::Int = process_sheetcell(setColumnWidth, xl, sheetcell; kw...)
+# The address methods setColumnWidth and setRowHeight share. Each also takes a
+# bare column (or row) number, range or vector, below.
+for f in (:setColumnWidth, :setRowHeight)
+    @eval begin
+        $f(ws::Worksheet, ref::SheetCellRef; kw...) = do_sheet_names_match(ws, ref) && $f(ws, ref.cellref; kw...)
+        $f(ws::Worksheet, rng::SheetCellRange; kw...) = do_sheet_names_match(ws, rng) && $f(ws, rng.rng; kw...)
+        $f(ws::Worksheet, rng::SheetColumnRange; kw...) = do_sheet_names_match(ws, rng) && $f(ws, rng.colrng; kw...)
+        $f(ws::Worksheet, rng::SheetRowRange; kw...) = do_sheet_names_match(ws, rng) && $f(ws, rng.rowrng; kw...)
+        $f(ws::Worksheet, colrng::ColumnRange; kw...)::Int = process_columnranges($f, ws, colrng; kw...)
+        $f(ws::Worksheet, rowrng::RowRange; kw...)::Int = process_rowranges($f, ws, rowrng; kw...)
+        $f(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges($f, ws, ncrng; kw...)
+        $f(ws::Worksheet, ref_or_rng::AbstractString; kw...)::Int = process_ranges($f, ws, ref_or_rng; kw...)
+        $f(xl::XLSXFile, sheetcell::String; kw...)::Int = process_sheetcell($f, xl, sheetcell; kw...)
+        $f(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw...) = process_colon($f, ws, row, nothing; kw...)
+        $f(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon($f, ws, nothing, col; kw...)
+        $f(ws::Worksheet, ::Colon, ::Colon; kw...) = process_colon($f, ws, nothing, nothing; kw...)
+        $f(ws::Worksheet, ::Colon; kw...) = process_colon($f, ws, nothing, nothing; kw...)
+        $f(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, ::Colon; kw...) = process_veccolon($f, ws, row, nothing; kw...)
+        $f(ws::Worksheet, ::Colon, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_veccolon($f, ws, nothing, col; kw...)
+        $f(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint($f, ws, row, col; kw...)
+        $f(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_vecint($f, ws, row, col; kw...)
+        $f(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint($f, ws, row, col; kw...)
+        $f(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = $f(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))); kw...)
+    end
+end
 setColumnWidth(ws::Worksheet, cr::CellRef; kw...)::Int = setColumnWidth(ws, CellRange(cr, cr); kw...)
-setColumnWidth(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw...) = process_colon(setColumnWidth, ws, row, nothing; kw...)
 setColumnWidth(ws::Worksheet, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon(setColumnWidth, ws, nothing, col; kw...)  # convenience: bare column index/range
-setColumnWidth(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon(setColumnWidth, ws, nothing, col; kw...)
-setColumnWidth(ws::Worksheet, ::Colon, ::Colon; kw...) = process_colon(setColumnWidth, ws, nothing, nothing; kw...)
-setColumnWidth(ws::Worksheet, ::Colon; kw...) = process_colon(setColumnWidth, ws, nothing, nothing; kw...)
-setColumnWidth(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, ::Colon; kw...) = process_veccolon(setColumnWidth, ws, row, nothing; kw...)
 setColumnWidth(ws::Worksheet, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_veccolon(setColumnWidth, ws, nothing, col; kw...)  # convenience: bare column vector/steprange
-setColumnWidth(ws::Worksheet, ::Colon, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_veccolon(setColumnWidth, ws, nothing, col; kw...)
-setColumnWidth(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint(setColumnWidth, ws, row, col; kw...)
-setColumnWidth(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_vecint(setColumnWidth, ws, row, col; kw...)
-setColumnWidth(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint(setColumnWidth, ws, row, col; kw...)
-setColumnWidth(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = setColumnWidth(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))); kw...)
 function setColumnWidth(ws::Worksheet, rng::CellRange; width::Union{Nothing,Real}=nothing)::Int
     _require_writable(ws, "set column widths")
 
@@ -193,28 +199,9 @@ julia> XLSX.setRowHeight(sh, "I"; height = 24.56)
 ```
 """
 function setRowHeight end
-setRowHeight(ws::Worksheet, ref::SheetCellRef; kw...) = do_sheet_names_match(ws, ref) && setRowHeight(ws, ref.cellref; kw...)
-setRowHeight(ws::Worksheet, rng::SheetCellRange; kw...) = do_sheet_names_match(ws, rng) && setRowHeight(ws, rng.rng; kw...)
-setRowHeight(ws::Worksheet, rng::SheetColumnRange; kw...) = do_sheet_names_match(ws, rng) && setRowHeight(ws, rng.colrng; kw...)
-setRowHeight(ws::Worksheet, rng::SheetRowRange; kw...) = do_sheet_names_match(ws, rng) && setRowHeight(ws, rng.rowrng; kw...)
-setRowHeight(ws::Worksheet, colrng::ColumnRange; kw...)::Int = process_columnranges(setRowHeight, ws, colrng; kw...)
-setRowHeight(ws::Worksheet, rowrng::RowRange; kw...)::Int = process_rowranges(setRowHeight, ws, rowrng; kw...)
-setRowHeight(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges(setRowHeight, ws, ncrng; kw...)
-setRowHeight(ws::Worksheet, ref_or_rng::AbstractString; kw...)::Int = process_ranges(setRowHeight, ws, ref_or_rng; kw...)
-setRowHeight(xl::XLSXFile, sheetcell::String; kw...)::Int = process_sheetcell(setRowHeight, xl, sheetcell; kw...)
 setRowHeight(ws::Worksheet, cr::CellRef; kw...)::Int = setRowHeight(ws::Worksheet, CellRange(cr, cr); kw...)
 setRowHeight(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon(setRowHeight, ws, row, nothing; kw...)
-setRowHeight(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw...) = process_colon(setRowHeight, ws, row, nothing; kw...)
-setRowHeight(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon(setRowHeight, ws, nothing, col; kw...)
-setRowHeight(ws::Worksheet, ::Colon, ::Colon; kw...) = process_colon(setRowHeight, ws, nothing, nothing; kw...)
-setRowHeight(ws::Worksheet, ::Colon; kw...) = process_colon(setRowHeight, ws, nothing, nothing; kw...)
 setRowHeight(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_veccolon(setRowHeight, ws, row, nothing; kw...)
-setRowHeight(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, ::Colon; kw...) = process_veccolon(setRowHeight, ws, row, nothing; kw...)
-setRowHeight(ws::Worksheet, ::Colon, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_veccolon(setRowHeight, ws, nothing, col; kw...)
-setRowHeight(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint(setRowHeight, ws, row, col; kw...)
-setRowHeight(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_vecint(setRowHeight, ws, row, col; kw...)
-setRowHeight(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::Union{Vector{Int},StepRange{<:Integer}}; kw...) = process_vecint(setRowHeight, ws, row, col; kw...)
-setRowHeight(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = setRowHeight(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))); kw...)
 function setRowHeight(ws::Worksheet, rng::CellRange; height::Union{Nothing,Real}=nothing)::Int
 
     _require_writable(ws, "set row heights")

@@ -144,21 +144,8 @@ end
 
 See also [`XLSX.gettable`](@ref).
 """
-function eachtablerow(
-    sheet::Worksheet,
-    cols::Union{ColumnRange,AbstractString};
-    first_row::Union{Nothing,Int}=nothing,
-    column_labels=nothing,
-    header::Bool=true,
-    stop_in_empty_row::Bool=true,
-    stop_in_row_function::Union{Nothing,Function}=nothing,
-    keep_empty_rows::Bool=false,
-    normalizenames::Bool=false,
-    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
-)::TableRowIterator
-    return _eachtablerow(sheet, nothing, cols; first_row, column_labels, header, stop_in_empty_row,
-                         stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
-end
+eachtablerow(sheet::Worksheet, cols::Union{ColumnRange,AbstractString}; kw...)::TableRowIterator =
+    _eachtablerow(sheet, nothing, cols; kw...)
 
 # `eachtablerow`, reading rows from `rows`: `nothing` for the worksheet cache (or its
 # stream, with `enable_cache=false`), or a `ValueRowIterator` (readtable, src/valuerows.jl).
@@ -267,40 +254,18 @@ function _detect_column_range(row, columns_ordered::Vector, ci::Int)::ColumnRang
     return ColumnRange(cn_start, column_stop)
 end
 
-function eachtablerow(
-    sheet::Worksheet;
-    first_row::Union{Nothing,Int}=nothing,
-    column_labels=nothing,
-    header::Bool=true,
-    stop_in_empty_row::Bool=true,
-    stop_in_row_function::Union{Nothing,Function}=nothing,
-    keep_empty_rows::Bool=false,
-    normalizenames::Bool=false,
-    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
-)::TableRowIterator
-    return _eachtablerow(sheet, nothing; first_row, column_labels, header, stop_in_empty_row,
-                         stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
-end
+eachtablerow(sheet::Worksheet; kw...)::TableRowIterator = _eachtablerow(sheet, nothing; kw...)
 
 # `eachtablerow` with the column range found from the data, reading rows from `rows`
-# (see the ranged `_eachtablerow`).
+# (see the ranged `_eachtablerow`, which takes the other keywords).
 function _eachtablerow(
     sheet::Worksheet,
     rows::Union{Nothing,ValueRowIterator};
     first_row::Union{Nothing,Int}=nothing,
-    column_labels=nothing,
-    header::Bool=true,
-    stop_in_empty_row::Bool=true,
-    stop_in_row_function::Union{Nothing,Function}=nothing,
     keep_empty_rows::Bool=false,
-    normalizenames::Bool=false,
-    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
+    kw...
 )::TableRowIterator
-    if isnothing(first_row)
-        first_row = 1
-    end
-    # Bundle shared kwargs to avoid repetition in recursive calls
-    shared_kwargs = (; column_labels, header, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
+    first_row = something(first_row, 1)
     itr = isnothing(rows) ? eachrow(sheet) : rows
     next = iterate(itr)
     while next !== nothing
@@ -319,7 +284,7 @@ function _eachtablerow(
         first_row = row_number(r)
         column_range = _detect_column_range(r, columns_ordered, ci)
         narrowed = isnothing(rows) ? nothing : _narrow(rows, column_range)
-        return _eachtablerow(sheet, narrowed, column_range; first_row, shared_kwargs...)
+        return _eachtablerow(sheet, narrowed, column_range; first_row, keep_empty_rows, kw...)
     end
     throw(XLSXError("Couldn't find a table in sheet $(sheet.name)"))
 end
