@@ -78,6 +78,7 @@ export
     setConditionalFormat,
     RichTextString, RichTextRun,
     setColumnWidth, setRowHeight,
+    setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
@@ -87,6 +88,7 @@ export
     eval(Meta.parse("""
     public getcell, getcellrange, getFormula, getRichTextString,
            getConditionalFormats, getColumnWidth, getRowHeight,
+           isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -130,6 +132,7 @@ include("cellformats/alignment.jl")
 include("cellformats/numberformat.jl")
 include("cellformats/uniformstyle.jl")
 include("cellformats/widthheight.jl")
+include("cellformats/rowscols.jl")
 include("cellformats/mergedcells.jl")
 include("panes.jl")
 include("conditional-format-helpers.jl") # must load before conditionalformats/

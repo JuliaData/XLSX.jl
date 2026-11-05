@@ -78,76 +78,9 @@ function setColumnWidth(ws::Worksheet, rng::CellRange; width::Union{Nothing,Real
     isnothing(width) && return 0
     width < 0 && throw(XLSXError("Invalid width: $width. Must be >= 0."))
 
-    wb=get_workbook(ws)
-    padded_width = width + EXCEL_COLUMN_WIDTH_PADDING
-
-    left  = rng.start.column_number
-    right = rng.stop.column_number
-
-    # Find the <cols> block in the worksheet XML, inserting one before <sheetData> if absent
-    sheetdoc = xmlroot(wb, ws.relationship_id)
-    pfx = get_prefix(ws)
-    pfx = pfx == "" ? pfx : pfx * ":"
-
-    i, j = get_idces(sheetdoc, "worksheet", "cols")
-
-    if isnothing(j)
-        k, l = get_idces(sheetdoc, "worksheet", "sheetData")
-        i != k && throw(XLSXError("Unexpected worksheet structure: <cols> parent index does not match <worksheet> index."))
-        insert!(sheetdoc[k].children, l, XML.Element("$(pfx)Cols"))
-        j = l
-    end
-
-    # Existing definitions each span columns min:max. Split any span at the edges of
-    # left:right, so the part inside takes the new width while keeping its other
-    # settings (style, hidden, ...), the parts outside are unchanged, and no two
-    # definitions overlap (Excel repairs a file where they do).
-    width_atts = Dict("width" => string(padded_width), "customWidth" => "1")
-    covered = falses(right - left + 1)
-    col_defs = Dict{String,String}[]
-    for c in xml_elements(sheetdoc[i][j])
-        atts = Dict{String,String}(XML.attributes(c))
-        lo, hi = parse(Int, atts["min"]), parse(Int, get(atts, "max", atts["min"]))
-        for (a, b, inside) in ((lo, min(hi, left - 1), false),
-                               (max(lo, left), min(hi, right), true),
-                               (max(lo, right + 1), hi, false))
-            a <= b || continue
-            d = merge(atts, Dict("min" => string(a), "max" => string(b)))
-            inside && (merge!(d, width_atts); covered[(a:b) .- (left - 1)] .= true)
-            push!(col_defs, d)
-        end
-    end
-
-    # New definitions for the columns in the range that had none
-    k = 1
-    while k <= length(covered)
-        if covered[k]
-            k += 1
-            continue
-        end
-        e = something(findnext(covered, k), length(covered) + 1) - 1
-        push!(col_defs, merge(Dict("min" => string(left + k - 1), "max" => string(left + e - 1)), width_atts))
-        k = e + 1
-    end
-
-    # Rebuild the <cols> node, in column order as the schema requires
-    sort!(col_defs; by = d -> parse(Int, d["min"]))
-    new_cols = unlink(sheetdoc[i][j], ("cols", "col"), pfx)
-    for atts in col_defs
-        new_col = XML.Element("$(pfx)col")
-        for k in ("min", "max")
-            new_col[k] = atts[k]
-        end
-        for (k, v) in atts
-            k in ("min", "max") || (new_col[k] = v)
-        end
-        push!(new_cols, new_col)
-    end
-
-    sheetdoc[i][j] = new_cols
-
-    # Working on worksheet XML directly requires updating the file cache
-    update_worksheets_xml!(get_xlsxfile(ws))
+    # The columns keep their other settings (style, hidden, ...); see `_update_col_defs!`.
+    width_atts = Dict("width" => string(width + EXCEL_COLUMN_WIDTH_PADDING), "customWidth" => "1")
+    _update_col_defs!(d -> merge!(d, width_atts), ws, rng.start.column_number, rng.stop.column_number)
 
     return 0
 end
@@ -242,13 +175,12 @@ function does not attempt to replicate it, but simply adds 0.21 internal units
 to the value specified. The value set is unlikely to match the value seen 
 interactivley in the resultant spreadsheet, but it will be close.
 
-Row height cannot be set for empty rows, which will quietly be skipped.
-A row must have at least one cell containing a value before its height can be set.
+Rows needn't hold any data: an empty row is written with just its height.
 
 You can set a row height to 0.
 
-The function returns a value of 0 unless all rows are empty, in which case 
-it returns a value of -1.
+The function returns a value of 0. The return value is meaningless but required to comply with the
+range dispatch infrastructure, which expects an `Int` return from all `set*` functions.
 
 # Examples:
 ```julia
@@ -285,7 +217,7 @@ setRowHeight(ws::Worksheet, row::Union{Vector{Int},StepRange{<:Integer}}, col::U
 setRowHeight(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = setRowHeight(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))); kw...)
 function setRowHeight(ws::Worksheet, rng::CellRange; height::Union{Nothing,Real}=nothing)::Int
 
-    _require_writable(ws, "get row height")
+    _require_writable(ws, "set row heights")
 
     top = rng.start.row_number
     bottom = rng.stop.row_number
@@ -298,21 +230,10 @@ function setRowHeight(ws::Worksheet, rng::CellRange; height::Union{Nothing,Real}
         return 0
     end
 
-    if isnothing(ws.cache) || !haskey(ws.cache.row_ht, rng.stop.row_number)
-        _ = ws[rng.stop] # Ensure cache filled at least to include the last row in `rng`.
-    end
-
-    first = true
-
+    _row_cache!(ws, "set row heights")
     for r in top:bottom
-        if haskey(ws.cache.row_ht, r) # may still be missing if row is entirely empty.
-            ws.cache.row_ht[r] = padded_height
-            first=false
-        end
-    end
-
-    if first == true
-        return -1
+        _ensure_cache_row!(ws, r)   # an empty row is written with just its height
+        ws.cache.row_ht[r] = padded_height
     end
 
     return 0

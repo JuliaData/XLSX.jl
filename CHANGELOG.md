@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `setColumnHidden`, `setRowHidden`, `isColumnHidden` and `isRowHidden` to hide and show rows and columns, and `groupRows`, `groupColumns`, `ungroupRows`, `ungroupColumns`, `getRowOutlineLevel` and `getColumnOutlineLevel` to group them in an outline, nested up to Excel's seven levels and optionally collapsed. Rows and columns needn't hold data, and can be read from a file opened only for reading
+- `setRowHeight` sets the height of a row with no cells, which is written with just its height. It skipped such rows, returning -1 if every row was empty
+- `copysheet!` copies the attributes of the original's rows: their styles, and whether they are hidden or grouped. The copy's rows had none
+- `setColumnWidth` joins adjacent column definitions left with the same settings
+
 - Add `addDataValidation`, `getDataValidations`, `getDataValidation` and `deleteDataValidation` to add, read and delete data validation: drop-down lists (from `values` or a range), whole and decimal numbers, dates, times, text length and custom formulas, with input and error messages. Validations Excel 2010 wrote in its extended (`x14`) form are read and deleted too, and validations can be read from a file opened only for reading
 - `renamesheet!`, `deletesheet!` and `copysheet!` now update sheet references in Excel 2010 (`x14`) data validations, whose formula is held in an `<xm:f>` inside `<x14:formula1>`. Those references were left unchanged
 

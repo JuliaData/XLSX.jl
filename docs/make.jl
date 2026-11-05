@@ -12,6 +12,7 @@ makedocs(
             "Cell formats" => "formatting/cellFormatting.md",
             "Conditional formats" => "formatting/conditionalFormatting.md",
             "Column width and row height" => "formatting/widthAndHeight.md",
+            "Hiding and grouping" => "formatting/hideAndGroup.md",
             "Merged cells" => "formatting/mergedCells.md",
             "Freeze/split panes" => "formatting/freezeAndSplitPanes.md",
         ],

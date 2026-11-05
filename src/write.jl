@@ -831,12 +831,7 @@ function setdata!(ws::Worksheet, cell::Cell)
     r = row_number(cell)
     c = column_number(cell)
 
-    if !haskey(cache.cells, r)
-        push!(cache.rows_in_cache, r)
-        cache.cells[r] = Dict{Int,Cell}()
-        cache.row_ht[r] = nothing
-        cache.dirty = true
-    end
+    _ensure_cache_row!(ws, r)
     cache.cells[r][c] = cell
     add_cell_to_worksheet_dimension!(ws, cell)
 
@@ -1580,6 +1575,7 @@ function copysheet!(ws::Worksheet, name::AbstractString="")::Worksheet
 
     # insert the copied sheet into the workbook
     new_ws = insertsheet!(wb, xdoc, new_cache, ws.sst_count, pfx, name; dim)
+    new_ws.unhandled_attributes = deepcopy(ws.unhandled_attributes)   # row styles, hidden rows, outline levels
 
     # Copy images if the sheet has a drawing
     sheet_path = get_relationship_target_by_id("xl", wb, ws.relationship_id)

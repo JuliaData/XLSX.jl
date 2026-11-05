@@ -148,7 +148,8 @@
 
         @test_throws XLSX.XLSXError XLSX.setRowHeight(sh, "A1"; height=-1)
         @test XLSX.setRowHeight(sh, "A1") == 0                        # no height: no-op
-        @test XLSX.setRowHeight(sh, "A10"; height=20) == -1           # row has no cells
+        @test XLSX.setRowHeight(sh, "A10"; height=20) == 0            # row has no cells: written with just a height
+        @test sh.cache.row_ht[10] ≈ 20.2109375
         SAVE_FILES && save_outfile(xf)
     end
 end

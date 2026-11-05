@@ -9,6 +9,21 @@ XLSX.getRowHeight
 XLSX.setRowHeight
 ```
 
+## Hiding and grouping rows and columns
+
+```@docs
+XLSX.setColumnHidden
+XLSX.setRowHidden
+XLSX.isColumnHidden
+XLSX.isRowHidden
+XLSX.groupColumns
+XLSX.groupRows
+XLSX.ungroupColumns
+XLSX.ungroupRows
+XLSX.getColumnOutlineLevel
+XLSX.getRowOutlineLevel
+```
+
 ## Merged Cells
 
 ```@docs
