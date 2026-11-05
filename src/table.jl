@@ -1500,6 +1500,8 @@ Excel does not support header-only tables (a single-row `ref` is rejected).
 
 `ref` must not overlap a merged range or another table on the sheet. Excel
 discards such a table when it opens the file, so an error is thrown instead.
+Nor may it overlap the sheet's AutoFilter (see [`setAutoFilter`](@ref)), since a
+table has filter buttons of its own.
 
 If `name` is not given, a unique name is generated (`"Table1"`, `"Table2"`,
 ...). Table names are workbook-scoped and must not collide with another
@@ -1664,7 +1666,7 @@ end
 addtable!(sheet::Worksheet, ref::AbstractString; kw...) = addtable!(sheet, CellRange(ref); kw...)
 
 # Excel drops ("repairs") a table that overlaps a merged range or another table,
-# so refuse to create one.
+# so refuse to create one. Nor may a table overlap the sheet's AutoFilter.
 function _check_table_overlap(sheet::Worksheet, ref::CellRange, name::AbstractString)
     for m in something(getMergedCells(sheet), CellRange[])
         intersects(ref, m) &&
@@ -1674,6 +1676,15 @@ function _check_table_overlap(sheet::Worksheet, ref::CellRange, name::AbstractSt
         intersects(ref, t.ref) &&
             throw(XLSXError("Table `$name` (`$ref`) would overlap table `$(t.name)` (`$(t.ref)`), which Excel does not allow."))
     end
+    _check_table_autofilter(sheet, ref, name)
+    return nothing
+end
+
+# A table has its own filter, so it may not overlap the sheet's (see `setAutoFilter`).
+function _check_table_autofilter(sheet::Worksheet, ref::CellRange, name::AbstractString)
+    af = getAutoFilter(sheet)
+    !isnothing(af) && intersects(ref, af) &&
+        throw(XLSXError("Table `$name` (`$ref`) would overlap the sheet's AutoFilter (`$af`). Remove it first with `removeAutoFilter`."))
     return nothing
 end
 
@@ -1920,6 +1931,7 @@ function _settotals!(t::Table, settings::Pair...)
         new_last_row = old_ref.stop.row_number + 1
         new_last_row > EXCEL_MAX_ROWS &&
             throw(XLSXError("Cannot add a totals row to table `$name`: table already reaches the last worksheet row."))
+        _check_table_autofilter(sheet, CellRange(old_ref.start, CellRef(new_last_row, old_ref.stop.column_number)), name)
 
         for c in column_number(old_ref.start):column_number(old_ref.stop)
             v = getdata(sheet, CellRef(new_last_row, c))
@@ -2239,6 +2251,7 @@ function _appendtable!(t::Table, data; check_empty::Bool=true, kw... )
     new_stop = old_stop + n
     new_stop > EXCEL_MAX_ROWS &&
         throw(XLSXError("Appending $n rows to table `$name` would exceed Excel's row limit."))
+    _check_table_autofilter(sheet, CellRange(t.ref.start, CellRef(new_stop, t.ref.stop.column_number)), name)
 
     # capture totals settings before we overwrite the old totals row
     totals_settings = parse_totals_settings(sheet, t)

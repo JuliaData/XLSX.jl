@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `setAutoFilter`, `getAutoFilter` and `removeAutoFilter` to add, read and remove the filter buttons on a plain range of a sheet, outside an Excel Table. The hidden `_xlnm._FilterDatabase` name Excel keeps for the filter is written and removed with it, and follows the sheet through `copysheet!`, `renamesheet!` and `deletesheet!`. A filter may not overlap an Excel Table
+- `addtable!`, `writetable!` with `as_table=true`, `appendtable!` and `settotals!` throw an error rather than place or grow a table onto the sheet's AutoFilter, as Excel does not allow the two to overlap
+
 - Add `setColumnHidden`, `setRowHidden`, `isColumnHidden` and `isRowHidden` to hide and show rows and columns, and `groupRows`, `groupColumns`, `ungroupRows`, `ungroupColumns`, `getRowOutlineLevel` and `getColumnOutlineLevel` to group them in an outline, nested up to Excel's seven levels and optionally collapsed. Rows and columns needn't hold data, and can be read from a file opened only for reading
 - `setRowHeight` sets the height of a row with no cells, which is written with just its height. It skipped such rows, returning -1 if every row was empty
 - `copysheet!` copies the attributes of the original's rows: their styles, and whether they are hidden or grouped. The copy's rows had none

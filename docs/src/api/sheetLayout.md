@@ -42,3 +42,11 @@ XLSX.splitFreeze
 XLSX.splitPanes
 XLSX.removePanes
 ```
+
+## AutoFilter
+
+```@docs
+XLSX.setAutoFilter
+XLSX.getAutoFilter
+XLSX.removeAutoFilter
+```

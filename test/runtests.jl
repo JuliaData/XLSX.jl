@@ -59,6 +59,7 @@ it so.
 =#
 include(joinpath(files_directory, "helpers.jl"))  # shared helpers first
 include(joinpath(files_directory, "Aqua_tests.jl"))
+include(joinpath(files_directory, "AutoFilter_tests.jl"))
 include(joinpath(files_directory, "Cell-names_tests.jl"))
 include(joinpath(files_directory, "ChartExProps_tests.jl"))
 include(joinpath(files_directory, "ChartImports_tests.jl"))
