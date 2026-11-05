@@ -20,6 +20,8 @@ the package, so the result is what Excel would have produced. That means a kind
 with no template cannot be created at all, rather than being approximated:
 
 - percent-stacked bar and column
+- stacked and percent-stacked line and area
+- filled radar
 - 3-D charts of any kind
 - stock, surface and of-pie charts
 - combo charts — a plot area with more than one group

@@ -510,8 +510,9 @@ Add a series to `c`, plotting `values`. Each reference is a range string
 the chart's own sheet, and a chart on a chartsheet must name one
 (`"Data!B2:B5"`).
 
-`categories` are the category labels, or the X values on a scatter or bubble
-chart; a bubble chart requires them, and `bubble_sizes` too. `name` is literal
+`categories` are the category labels, or the X values (Excel's "Series X
+values", `c:xVal`) on a scatter or bubble chart; a bubble chart requires them,
+and `bubble_sizes` too. `name` is literal
 text for the series name, and `name_ref` a cell to take it from; pass one or
 neither.
 
@@ -522,6 +523,8 @@ To plot a table column, pass gettablerange(t, column) for either `values` or `ca
 takes — or `true` for `:circle`, or `false` for none. Markers on a `:line`
 chart make it `:lineMarkers`. `smooth` (line, lineMarkers and scatter) is a `Bool`:
 `true` curves the line. `line` (scatter) is a `Bool`: `true` joins the points.
+Together they choose Excel's line, radar and scatter subtypes; see
+[Chart subtypes](@ref).
 
 `color` overrides the series' automatic color. It is a color name (`"red"` or
 `:red`), a hex string (`"FF0000"`, `"#FF0000"` or `"80FF0000"` with alpha), a

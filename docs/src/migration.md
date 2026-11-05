@@ -1,5 +1,98 @@
 # Migration Guide
 
+## Behaviour changes in v0.13 patch releases
+
+The v0.13.x patch releases fixed many edge cases. A few of the fixes change
+what existing code sees. Each is listed here with the version that made it.
+
+### Defined names holding a formula read with a leading `=` (v0.13.2)
+
+A defined name whose value is a formula, or any expression that is not a
+reference or a constant, is now read with a leading `=`, as Excel's Name
+Manager shows it. A plain string is a text constant and is written quoted.
+
+```julia
+# Before
+dn = only(filter(d -> d.name == "Total", XLSX.getDefinedNames(xf)))
+dn.value                                                   # "COUNTA(Sheet1!$A:$A)"
+XLSX.addDefinedName(xf, "Total", "COUNTA(Sheet1!$A:$A)")   # was treated as a formula
+
+# After
+dn.value                                                   # "=COUNTA(Sheet1!$A:$A)"
+XLSX.addDefinedName(xf, "Total", "=COUNTA(Sheet1!$A:$A)")  # the `=` makes it a formula
+XLSX.addDefinedName(xf, "Label", "Quarterly")              # a text constant
+```
+
+### `openxlsx` no longer saves after an error (v0.13.2)
+
+`openxlsx(f, source; mode="rw")` (and `mode="w"`) no longer writes `source`
+when the do block throws. A failure part-way through can no longer overwrite
+the original file with a half-edited workbook. Code that relied on a partial
+save must catch the error inside the do block.
+
+### `deletesheet!` keeps defined names as `=#REF!` (v0.13.2)
+
+Defined names that refer to a deleted sheet are kept with the value
+`"=#REF!"`, as Excel keeps them. Workbook-scoped names used to be deleted.
+Delete them yourself with [`XLSX.deleteDefinedName`](@ref) if you don't want them.
+
+### Negative numbers in date-formatted cells (v0.13.2)
+
+A negative number in a date-formatted cell is read as the number. It used to
+throw, and that failed the read of the whole sheet.
+
+### Unknown formatting keywords throw an `XLSXError` (v0.13.2)
+
+An unrecognised keyword to `setFont`, `setFill`, `setAlignment`, `setFormat`,
+`setBorder` or their `setUniform*` versions is an [`XLSX.XLSXError`](@ref)
+naming the valid keywords. It used to be a `MethodError`. Code that caught
+`MethodError` should catch `XLSXError`.
+
+### Literal line ends in text read as LF (v0.13.3)
+
+Text written in a file with a literal CR LF or CR (rather than `&#13;`) now
+reads as LF, as XML 1.0 requires. Excel writes a CR as `_x000D_`, which is
+unaffected, so files written by Excel read as before.
+
+### `copysheet!` points self-references at the copy (v0.13.3)
+
+`copysheet!` points the copy's references to the original sheet at the copy,
+as Excel does. This applies in cell formulas, conditional formats, data
+validations and sheet-scoped defined names holding a formula. For example,
+`=Sheet1!A1` on `Sheet1` becomes `=Copy!A1` on the copy. References to other
+sheets are unchanged.
+
+## Migrating from v0.12 to v0.13
+
+Chart code moved to the `XLSX.Charts` sub-module (`using XLSX, XLSX.Charts`).
+The chart names released in v0.12 are still reachable as `XLSX.getCharts` and
+so on. These changes may need changes to existing code:
+
+- [`getCharts`](@ref XLSX.Charts.getCharts) also returns `chartEx` charts, as a
+  `Vector{AbstractChart}`. Code that assumed every element is a `Chart` should
+  check with `isa`.
+- [`XLSX.getDefinedNames`](@ref) and [`XLSX.getAllDefinedNames`](@ref) exclude
+  the names Excel keeps for itself (hidden names and the `_xlnm.` built-ins).
+  Pass `include_system=true` for the old behaviour. [`XLSX.deleteDefinedName`](@ref)
+  and [`XLSX.deleteAllDefinedNames`](@ref) refuse to delete those names unless
+  `force=true`, and [`XLSX.addDefinedName`](@ref) refuses to create them.
+- [`XLSX.getConditionalFormats`](@ref) returns
+  `Vector{Pair{Union{CellRange,NonContiguousRange},...}}` rather than
+  `Vector{Pair{CellRange,...}}`.
+
+Deprecated, and still working:
+
+| Deprecated | Use instead |
+| --- | --- |
+| `chart.title`, `chart.charttypes`, `chart.series` | `getChartTitle`, `getChartTypes`, `getChartSeries` |
+| `chartType`, `chartSchema` | `getChartType`, `getChartSchema` |
+
+## Migrating from v0.11 to v0.12
+
+There are no changes to the public API. v0.12 requires Julia v1.10 (LTS) or
+later and adds a [FileIO.jl](https://github.com/JuliaIO/FileIO.jl) extension
+(see the FileIO tutorial).
+
 ## Migrating from v0.10 to v0.11
 
 There is only one breaking change in v0.11.0.

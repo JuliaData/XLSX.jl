@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Docs: a *Chart subtypes* section in *Creating charts* maps each of Excel's chart subtypes to the kind or `addSeries` keywords that create it, and the *Limitations* list of kinds that can't be created is completed
+- Docs: the *Migration Guide* covers v0.12 and v0.13, including every behaviour change in the v0.13 patch releases
+- Docs: the README and home page list the package's features and give a quick start
+- Docs: a new *Images, comments and sheet order* guide
+
 ## [v0.13.3](https://github.com/JuliaData/XLSX.jl/tree/v0.13.3) - 2026-11-04
 
 - Requires XML.jl v0.4.7, and reads through its public API only: `XML.splicetext` and `XML.sourcetext` replace the XML.jl internals XLSX.jl read, including `XMLTokenizer._skip_element_raw`, which XML.jl v0.4.7 deprecates and v0.5 removes [#482](https://github.com/JuliaData/XLSX.jl/issues/482)
