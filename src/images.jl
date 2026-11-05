@@ -541,3 +541,124 @@ function _find_blip_rid(node::XML.Node)::Union{Nothing,String}
     end
     return nothing
 end
+
+# ===========================================================================
+# deleteImage — public API
+# ===========================================================================
+
+"""
+    deleteImage(s::Worksheet, ref) -> Int
+    deleteImage(s::Worksheet, image::ImageInfo) -> Int
+
+Delete the images whose top-left corner is in cell `ref` (`"B3"`, or a `CellRef`),
+or the image `image` returned by [`getImages`](@ref). Returns how many were
+deleted: 0 if there were none.
+
+The picture file goes too, unless another image in the workbook shows it. The
+cells under the image are not changed.
+
+The file must be open for writing (`mode="rw"`).
+
+# Examples
+```julia
+julia> XLSX.deleteImage(sheet, "B3")
+1
+
+julia> foreach(img -> XLSX.deleteImage(sheet, img), XLSX.getImages(sheet))   # every image
+```
+
+See also [`addImage`](@ref) and [`getImages`](@ref).
+"""
+function deleteImage end
+function deleteImage(s::Worksheet, ref::AbstractString)
+    is_valid_cellname(ref) || throw(XLSXError("Give the cell an image's top-left corner is in, such as `B3`. Found `$ref`."))
+    return deleteImage(s, CellRef(ref))
+end
+deleteImage(s::Worksheet, ref::CellRef) = _delete_images!(s, img -> img.from == string(ref))
+function deleteImage(s::Worksheet, image::ImageInfo)
+    image.sheet == s.name || throw(XLSXError("The image is on sheet `$(image.sheet)`, not `$(s.name)`."))
+    return _delete_images!(s, img -> img == image)
+end
+
+# Delete the images on `s` for which `pick` (given its ImageInfo) is true.
+function _delete_images!(s::Worksheet, pick::Function)::Int
+    _require_writable(s, "delete an image")
+    _require_worksheet(s, "delete an image")
+    xf = get_xlsxfile(s)
+    sheet_path = _sheet_path(s)
+    drawing_path = _drawing_path_for_sheet(xf, sheet_path)
+    isnothing(drawing_path) && return 0
+    rels_path = _sheet_rels_path(drawing_path)
+    haskey(xf.data, rels_path) || return 0
+    rid_to_media = _rid_to_media(xf.data[rels_path])
+    root = xml_root_element(get_xml_data(xf, drawing_path))
+    gone = String[]   # the images' relationship ids
+    _filter_elements!(root) do a
+        localname(a) == "twoCellAnchor" || return true
+        img = _parse_anchor(a, rid_to_media, s.name)
+        (isnothing(img) || !pick(img)) && return true
+        push!(gone, _find_blip_rid(a))
+        return false
+    end
+    for rid in unique(gone)
+        _drop_drawing_rel!(xf, drawing_path, rid)
+    end
+    _remove_drawing_if_empty!(xf, sheet_path, drawing_path)
+    return length(gone)
+end
+
+# ===========================================================================
+# Removing what a drawing refers to (shared with deleteChart)
+# ===========================================================================
+
+# Whether any element of `node` refers to relationship `rid` (`r:embed`, `r:id`, ...).
+function _refers_to_rel(node::XML.Node, rid::AbstractString)::Bool
+    for (k, v) in something(XML.attributes(node), Dict{String,String}())
+        occursin(':', k) && v == rid && return true
+    end
+    return any(c -> _refers_to_rel(c, rid), xml_elements(node))
+end
+
+# Drop the drawing's relationship `rid` if nothing in the drawing refers to it any
+# more, with the part it points to: a chart part with its own parts, or a picture,
+# unless another part in the workbook shows it.
+function _drop_drawing_rel!(xf::XLSXFile, drawing_path::String, rid::AbstractString)
+    _refers_to_rel(xml_root_element(get_xml_data(xf, drawing_path)), rid) && return nothing
+    rels_path = _sheet_rels_path(drawing_path)
+    haskey(xf.data, rels_path) || return nothing
+    kids = XML.children(xml_root_element(get_xml_data(xf, rels_path)))
+    i = findfirst(n -> XML.nodetype(n) == XML.Element && get_attr(n, "Id") == rid, kids)
+    isnothing(i) && return nothing
+    rel = kids[i]
+    deleteat!(kids, i)
+    get_attr(rel, "TargetMode") == "External" && return nothing
+    target = resolve_relative_target(first(_split_zip_path(drawing_path)), get_attr(rel, "Target"))
+    if get_attr(rel, "Type") == REL_IMAGE
+        _part_is_target(xf, target) || delete!(xf.binary_data, target)
+    else
+        delete_part_and_orphans!(xf, target)
+    end
+    return nothing
+end
+
+# Whether any relationship in the workbook still points to part `path`.
+function _part_is_target(xf::XLSXFile, path::String)::Bool
+    for (rels_path, doc) in xf.data
+        endswith(rels_path, ".rels") && doc isa XML.Node || continue
+        owner_dir = replace(first(_split_zip_path(rels_path)), r"/?_rels$" => "")
+        for n in elements_with_tag(xml_root_element(doc), "Relationship")
+            get_attr(n, "TargetMode") == "External" && continue
+            resolve_relative_target(owner_dir, get_attr(n, "Target")) == path && return true
+        end
+    end
+    return false
+end
+
+# A sheet's drawing with nothing left in it: removed, with its relationship and
+# the sheet's `<drawing>`, as if nothing had ever been added.
+function _remove_drawing_if_empty!(xf::XLSXFile, sheet_path::String, drawing_path::String)
+    isempty(xml_elements(xml_root_element(get_xml_data(xf, drawing_path)))) || return nothing
+    _remove_sheet_part!(xf, sheet_path, REL_DRAWING; target=drawing_path)
+    _remove_sheet_element!(xf, sheet_path, "drawing")
+    return nothing
+end

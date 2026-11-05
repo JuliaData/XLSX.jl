@@ -42,10 +42,13 @@ XLSX.deletesheet!
 XLSX.movesheet!
 XLSX.addImage
 XLSX.getImages
+XLSX.deleteImage
 XLSX.addComment
 XLSX.getComment
 XLSX.getComments
 XLSX.deleteComment
+XLSX.getThreadedComment
+XLSX.getThreadedComments
 XLSX.addHyperlink
 XLSX.getHyperlink
 XLSX.getHyperlinks

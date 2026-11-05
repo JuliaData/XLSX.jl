@@ -96,8 +96,14 @@ julia> XLSX.getImages(sheet)
  (sheet = "Summary", media_name = "image2.png", from = "H2", to = "J9")
 ```
 
-Images can't yet be deleted. They are kept when a workbook is read and saved
-again.
+[`XLSX.deleteImage`](@ref) deletes the images whose top-left corner is in a
+cell, or one image from `getImages`, and returns how many it deleted. The
+picture file goes too, unless another image in the workbook shows it:
+
+```julia
+XLSX.deleteImage(sheet, "B2")                                # 1
+foreach(img -> XLSX.deleteImage(sheet, img), XLSX.getImages(sheet))   # every image
+```
 
 ## Comments
 
@@ -137,12 +143,28 @@ one to remove:
 XLSX.deleteComment(sheet, "B3")   # true
 ```
 
-!!! note "Threaded comments"
+### Threaded comments
 
-    Excel 365 also has *threaded comments*, which hold a conversation.
-    XLSX.jl does not write them. For a cell that has one, `getComment` returns the
-    plain note Excel stores alongside it. Replacing or deleting a threaded
-    comment throws an error rather than leaving the two out of step.
+Excel 365 also has *threaded comments*, which hold a conversation: a comment and
+its replies, each with its author and date, and the thread can be marked
+resolved. [`XLSX.getThreadedComments`](@ref) and
+[`XLSX.getThreadedComment`](@ref) read them:
+
+```julia
+julia> t = XLSX.getThreadedComment(sheet, "B3");
+
+julia> t.author, t.text, t.resolved
+("Ana", "Is this right?", false)
+
+julia> [(r.author, r.text) for r in t.replies]
+1-element Vector{Tuple{String, String}}:
+ ("Ben", "Yes, checked.")
+```
+
+XLSX.jl reads threaded comments but doesn't write them. For a cell that has one,
+`getComment` returns the plain note Excel stores alongside it for older versions
+of Excel. Replacing or deleting a threaded comment throws an error rather than
+leaving the two out of step.
 
 ## Sheet order
 

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `deleteImage`, which deletes the images whose top-left corner is in a cell, or one image from `getImages`. The picture file goes too, unless another image still shows it, and a drawing left empty is removed. `getImages` is now declared public
+- Add `Charts.deleteChart`, which deletes a chart on a worksheet with the parts only it uses, and for a chartEx chart its hidden `_xlchart` names. A chart on a chartsheet is refused: delete the sheet instead
+- Add `getThreadedComments` and `getThreadedComment`, which read Excel 365's threaded comments: each thread's author, text, date and whether it is resolved, with its replies. Threaded comments are still not written
+
 - `insertRows`, `deleteRows`, `insertColumns` and `deleteColumns` move Excel Tables, so sheets with tables can now be edited this way. A table grows to take in rows or columns inserted inside it (inserted columns become table columns named `Column1`, `Column2`, ...) and shrinks as they are deleted from it; one deleted whole is deleted. References to a deleted table or table column (`Sales[Amount]`) become `#REF!` everywhere, and formulas in calculated columns and totals rows move. Deleting a table's header row, totals row or all its data rows on their own is refused
 - Internal: `addtable!` is broken into steps (choosing the name, reading the header, checking the totals row, attaching the table part)
 

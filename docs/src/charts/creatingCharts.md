@@ -269,6 +269,18 @@ julia> [getSeriesFill(ec, i).value.fgcolor.val for i in 1:3]
 A chart with more than one group — a combo chart — has no single group to add
 to, so `addSeries` throws on one.
 
+## Deleting a chart
+
+[`deleteChart`](@ref) deletes a chart on a worksheet, whether XLSX.jl or Excel
+made it, with everything only it uses. The data it plotted is not changed:
+
+```julia
+julia> deleteChart(getChart(xf, "chart1"))
+```
+
+A chart on a chartsheet is the whole sheet: delete it with
+[`XLSX.deletesheet!`](@ref).
+
 ## Themes
 
 A created chart's colors are theme references, not fixed values, so the chart
