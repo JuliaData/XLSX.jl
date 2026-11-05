@@ -149,4 +149,194 @@
         @test XLSX.removeTabColor(chs)
         @test isnothing(XLSX.getTabColor(chs))
     end
+
+    sheet_xml(bytes, n=1) = entry(bytes, "xl/worksheets/sheet$n.xml")
+    element_atts(xf, name, n=1) = (e = XLSX.first_element_with_tag(sheet_root(xf, "xl/worksheets/sheet$n.xml"), name);
+                                   isnothing(e) ? nothing : Dict(XML.attributes(e)))
+    sheet_tags(xf, n=1) = [XLSX.localname(c) for c in XLSX.xml_elements(sheet_root(xf, "xl/worksheets/sheet$n.xml"))]
+
+    @testset "protection" begin
+        xf = three()
+        s = xf["A"]
+        @test !XLSX.isSheetProtected(s)
+        @test isnothing(XLSX.getSheetProtection(s))
+        @test isnothing(XLSX.protectSheet(s))
+        @test XLSX.isSheetProtected(s)
+        @test element_atts(xf, "sheetProtection") == Dict("sheet" => "1", "objects" => "1", "scenarios" => "1")   # as Excel writes it
+        p = XLSX.getSheetProtection(s)
+        @test !p.password && p.selectLockedCells && p.selectUnlockedCells
+        @test !p.formatCells && !p.sort && !p.objects
+
+        XLSX.protectSheet(s; password="secret", sort=true, autoFilter=true, selectLockedCells=false)
+        a = element_atts(xf, "sheetProtection")
+        @test a["password"] == "DAA7"                                         # Excel's legacy hash of "secret"
+        @test a["sort"] == "0" && a["autoFilter"] == "0" && a["selectLockedCells"] == "1"
+        p = XLSX.getSheetProtection(s)
+        @test p.password && p.sort && p.autoFilter && !p.selectLockedCells && p.selectUnlockedCells && !p.insertRows
+        tags = sheet_tags(xf)
+        @test findfirst(==("sheetProtection"), tags) == findfirst(==("sheetData"), tags) + 1
+
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getSheetProtection(r["A"]) == p
+        @test !XLSX.isSheetProtected(r["B"])
+        @test_throws XLSX.XLSXError XLSX.protectSheet(r["B"])
+
+        @test XLSX.unprotectSheet(s)
+        @test !XLSX.isSheetProtected(s) && isnothing(element_atts(xf, "sheetProtection"))
+        @test !XLSX.unprotectSheet(s)
+
+        @test_throws XLSX.XLSXError XLSX.protectSheet(s; formatcells=true)    # misspelt
+        @test_throws XLSX.XLSXError XLSX.protectSheet(s; sort=1)
+        @test_throws XLSX.XLSXError XLSX.protectSheet(s; password="")
+        @test_throws XLSX.XLSXError XLSX.protectSheet(s; password="pässword")
+        @test_throws XLSX.XLSXError XLSX.protectSheet(s; password="x"^16)
+        @test !XLSX.isSheetProtected(s)                                       # nothing changed
+        SAVE_FILES && (XLSX.protectSheet(s; password="secret"); save_outfile(xf))
+    end
+
+    @testset "password hash" begin
+        @test XLSX._excel_password_hash("secret") == "DAA7"
+        @test length(XLSX._excel_password_hash("x"^15)) == 4
+        # openpyxl's form of the hash, the same for ASCII passwords of up to 15 characters
+        ref(p) = (h = 0; for (i, c) in enumerate(p); v = Int(c) << i; h ⊻= (v & 0x7fff) | (v >> 15); end;
+                  uppercase(string(h ⊻ length(p) ⊻ 0xCE4B; base=16, pad=4)))
+        @test all(XLSX._excel_password_hash(p) == ref(p) for p in ("secret", "abcdefghijklmno", "~~~~~~~~~~~~~~~", "Pa55 w0rd!"))
+    end
+
+    @testset "page setup" begin
+        xf = three()
+        s = xf["A"]
+        @test XLSX.getPageSetup(s) == (orientation=nothing, paperSize=nothing, scale=nothing, fitToWidth=nothing, fitToHeight=nothing)
+        XLSX.setPageSetup(s; orientation=:landscape, paperSize=:A4, scale=80)
+        @test XLSX.getPageSetup(s) == (orientation=:landscape, paperSize=9, scale=80, fitToWidth=nothing, fitToHeight=nothing)
+        tags = sheet_tags(xf)
+        @test findfirst(==("pageSetup"), tags) == findfirst(==("pageMargins"), tags) + 1
+
+        XLSX.setPageSetup(s; fitToWidth=1)                                   # turns scaling off
+        @test XLSX.getPageSetup(s) == (orientation=:landscape, paperSize=9, scale=nothing, fitToWidth=1, fitToHeight=0)
+        pr = XLSX.first_element_with_tag(sheet_root(xf, "xl/worksheets/sheet1.xml"), "sheetPr")
+        @test only(XLSX.xml_elements(pr))["fitToPage"] == "1"
+        XLSX.setTabColor(s, "red")                                            # tabColor goes before pageSetUpPr
+        pr = XLSX.first_element_with_tag(sheet_root(xf, "xl/worksheets/sheet1.xml"), "sheetPr")
+        @test [XLSX.localname(c) for c in XLSX.xml_elements(pr)] == ["tabColor", "pageSetUpPr"]
+
+        XLSX.setPageSetup(s; scale=50)                                        # and back
+        @test XLSX.getPageSetup(s).scale == 50 && isnothing(XLSX.getPageSetup(s).fitToWidth)
+        pr = XLSX.first_element_with_tag(sheet_root(xf, "xl/worksheets/sheet1.xml"), "sheetPr")
+        @test [XLSX.localname(c) for c in XLSX.xml_elements(pr)] == ["tabColor"]
+        XLSX.setPageSetup(s; paperSize=70)                                    # any number Excel knows
+        @test XLSX.getPageSetup(s).paperSize == 70
+
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(s; orientation=:sideways)
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(s; paperSize=:A9)
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(s; paperSize=0)
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(s; scale=5)
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(s; scale=50, fitToWidth=1)
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(s; fitToHeight=-1)
+
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getPageSetup(r["A"]) == (orientation=:landscape, paperSize=70, scale=50, fitToWidth=nothing, fitToHeight=nothing)
+    end
+
+    @testset "page setup keeps the printer settings link" begin
+        xf = three()
+        s = xf["A"]
+        root = sheet_root(xf, "xl/worksheets/sheet1.xml")
+        push!(root.children, XML.Element("pageSetup"; paperSize="9", var"r:id"="rId1"))
+        XLSX.update_worksheets_xml!(xf)
+        XLSX.setPageSetup(s; orientation=:portrait)
+        a = element_atts(xf, "pageSetup")
+        @test a == Dict("paperSize" => "9", "r:id" => "rId1", "orientation" => "portrait")
+    end
+
+    @testset "margins and print options" begin
+        xf = three()
+        s = xf["A"]
+        @test XLSX.getPageMargins(s) == (left=0.7, right=0.7, top=0.75, bottom=0.75, header=0.3, footer=0.3)   # the template's
+        XLSX.setPageMargins(s; left=0.25, top=1)
+        @test XLSX.getPageMargins(s) == (left=0.25, right=0.7, top=1.0, bottom=0.75, header=0.3, footer=0.3)
+        @test_throws XLSX.XLSXError XLSX.setPageMargins(s; left=-1)
+        @test_throws XLSX.XLSXError XLSX.setPageMargins(s; gutter=1)
+
+        root = sheet_root(xf, "xl/worksheets/sheet2.xml")             # a sheet without margins
+        deleteat!(root.children, findfirst(c -> XLSX.localname(c) == "pageMargins", root.children))
+        XLSX.update_worksheets_xml!(xf)
+        @test isnothing(XLSX.getPageMargins(xf["B"]))
+        XLSX.setPageMargins(xf["B"]; bottom=2)
+        @test XLSX.getPageMargins(xf["B"]) == (left=0.7, right=0.7, top=0.75, bottom=2.0, header=0.3, footer=0.3)
+
+        @test XLSX.getPrintOptions(s) == (gridLines=false, headings=false, horizontalCentered=false, verticalCentered=false)
+        XLSX.setPrintOptions(s; gridLines=true, horizontalCentered=true)
+        @test XLSX.getPrintOptions(s) == (gridLines=true, headings=false, horizontalCentered=true, verticalCentered=false)
+        tags = sheet_tags(xf)
+        @test findfirst(==("printOptions"), tags) == findfirst(==("pageMargins"), tags) - 1
+        XLSX.setPrintOptions(s; gridLines=false)
+        @test XLSX.getPrintOptions(s).horizontalCentered && !XLSX.getPrintOptions(s).gridLines
+        XLSX.setPrintOptions(s; horizontalCentered=false)
+        @test isnothing(element_atts(xf, "printOptions"))                     # emptied, so removed
+        @test_throws XLSX.XLSXError XLSX.setPrintOptions(s; gridlines=true)
+        @test_throws XLSX.XLSXError XLSX.setPrintOptions(s; gridLines=1)
+
+        XLSX.setPrintOptions(s; headings=true)
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getPageMargins(r["A"]).left == 0.25
+        @test XLSX.getPrintOptions(r["A"]).headings
+    end
+
+    @testset "print area and titles" begin
+        xf = three()
+        s = xf["A"]
+        @test isnothing(XLSX.getPrintArea(s)) && isnothing(XLSX.getPrintTitles(s))
+        XLSX.setPrintArea(s, "A1:F40")
+        @test XLSX.getPrintArea(s) == XLSX.CellRange("A1:F40")
+        XLSX.setPrintArea(s, "A1:F40,H1:K10")
+        @test XLSX.getPrintArea(s) isa XLSX.NonContiguousRange
+        XLSX.setPrintArea(s, XLSX.CellRange("B2:C3"))
+        @test XLSX.getPrintArea(s) == XLSX.CellRange("B2:C3")
+        @test_throws XLSX.XLSXError XLSX.setPrintArea(s, "B:C")
+
+        XLSX.setPrintTitles(s; rows=1)
+        @test XLSX.getPrintTitles(s) == (rows=1:1, cols=nothing)
+        XLSX.setPrintTitles(s; rows="1:2", cols="A")
+        @test XLSX.getPrintTitles(s) == (rows=1:2, cols=1:1)
+        @test_throws XLSX.XLSXError XLSX.setPrintTitles(s)
+        @test_throws XLSX.XLSXError XLSX.setPrintTitles(s; rows=[1, 3])
+
+        w = entry(roundtrip_bytes(xf), "xl/workbook.xml")
+        @test occursin("<definedName name=\"_xlnm.Print_Area\" localSheetId=\"0\">A!\$B\$2:\$C\$3</definedName>", w)
+        @test occursin("<definedName name=\"_xlnm.Print_Titles\" localSheetId=\"0\">A!\$A:\$A,A!\$1:\$2</definedName>", w)
+
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getPrintArea(r["A"]) == XLSX.CellRange("B2:C3")
+        @test XLSX.getPrintTitles(r["A"]) == (rows=1:2, cols=1:1)
+
+        XLSX.renamesheet!(s, "My Sheet")
+        @test XLSX.getPrintTitles(s) == (rows=1:2, cols=1:1)
+        w = entry(roundtrip_bytes(xf), "xl/workbook.xml")
+        @test occursin(">&apos;My Sheet&apos;!\$B\$2:\$C\$3<", w)
+        @test occursin(">&apos;My Sheet&apos;!\$A:\$A,&apos;My Sheet&apos;!\$1:\$2<", w)
+
+        c = XLSX.copysheet!(s, "Copy")
+        @test XLSX.getPrintArea(c) == XLSX.CellRange("B2:C3")
+        @test XLSX.getPrintTitles(c) == (rows=1:2, cols=1:1)
+        @test occursin(">Copy!\$A:\$A,Copy!\$1:\$2<", entry(roundtrip_bytes(xf), "xl/workbook.xml"))
+
+        @test XLSX.removePrintArea(s) && XLSX.removePrintTitles(s)
+        @test isnothing(XLSX.getPrintArea(s)) && isnothing(XLSX.getPrintTitles(s))
+        @test !XLSX.removePrintArea(s) && !XLSX.removePrintTitles(s)
+        @test !isnothing(XLSX.getPrintArea(c))                                # the copy keeps its own
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "chartsheets have no page setup or protection" begin
+        xf = XLSX.newxlsx("data")
+        xf["data"]["A1:A2"] = [1, 2]
+        c = XLSX.Charts.addChart(xf, :line; sheetname="Trend")
+        XLSX.Charts.addSeries(c, "data!A1:A2")
+        chs = xf["Trend"]
+        @test !XLSX.isSheetProtected(chs)
+        @test_throws XLSX.XLSXError XLSX.protectSheet(chs)
+        @test_throws XLSX.XLSXError XLSX.setPageSetup(chs; orientation=:landscape)
+        @test_throws XLSX.XLSXError XLSX.setPrintArea(chs, "A1:B2")
+    end
 end

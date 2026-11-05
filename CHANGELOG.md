@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `protectSheet`, `unprotectSheet`, `isSheetProtected` and `getSheetProtection` to protect worksheets, with an optional password (Excel's legacy hash, so up to 15 ASCII characters) and the same choice of what users may still do as Excel's *Protect Sheet* dialog
+- Add `setPageSetup`/`getPageSetup` (orientation, paper size, scaling or fit to pages), `setPageMargins`/`getPageMargins`, `setPrintOptions`/`getPrintOptions` (gridlines, headings, centring), and `setPrintArea`, `getPrintArea`, `removePrintArea`, `setPrintTitles`, `getPrintTitles` and `removePrintTitles` for printing. A `pageSetup` that links to printer settings keeps the link
+
 - Add `setSheetVisibility` and `getSheetVisibility` to show and hide sheets (`:visible`, `:hidden` or `:veryHidden`), and `setTabColor`, `getTabColor` and `removeTabColor` for tab colours, on worksheets and chartsheets. Hiding the workbook's last visible sheet is an error, and hiding the sheet the workbook opens on makes the first visible sheet the one it opens on
 - `Worksheet`'s internal `is_hidden` field is replaced by `visibility`, which tells hidden and very hidden sheets apart. `ws.is_hidden` still reads and sets it
 

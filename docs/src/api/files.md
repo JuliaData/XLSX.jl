@@ -62,6 +62,32 @@ XLSX.getTabColor
 XLSX.removeTabColor
 ```
 
+## Sheet protection
+
+```@docs
+XLSX.protectSheet
+XLSX.unprotectSheet
+XLSX.isSheetProtected
+XLSX.getSheetProtection
+```
+
+## Page setup and printing
+
+```@docs
+XLSX.setPageSetup
+XLSX.getPageSetup
+XLSX.setPageMargins
+XLSX.getPageMargins
+XLSX.setPrintOptions
+XLSX.getPrintOptions
+XLSX.setPrintArea
+XLSX.getPrintArea
+XLSX.removePrintArea
+XLSX.setPrintTitles
+XLSX.getPrintTitles
+XLSX.removePrintTitles
+```
+
 ## Errors
 
 ```@docs

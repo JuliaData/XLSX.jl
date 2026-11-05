@@ -81,6 +81,8 @@ export
     setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     setAutoFilter, removeAutoFilter,
     setSheetVisibility, setTabColor, removeTabColor,
+    protectSheet, unprotectSheet,
+    setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
@@ -92,6 +94,8 @@ export
            getConditionalFormats, getColumnWidth, getRowHeight,
            isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
            getAutoFilter, getSheetVisibility, getTabColor,
+           isSheetProtected, getSheetProtection,
+           getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles,
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
