@@ -339,4 +339,71 @@
         @test_throws XLSX.XLSXError XLSX.setPageSetup(chs; orientation=:landscape)
         @test_throws XLSX.XLSXError XLSX.setPrintArea(chs, "A1:B2")
     end
+
+    @testset "cell protection" begin
+        xf = three()
+        s = xf["A"]
+        s["A1"] = ["Name" "Score"; "a" 1; "b" 2]
+        XLSX.setFont(s, "B2"; bold=true)
+        xf_children(ref) = [XLSX.localname(c) for c in XLSX.xml_elements(XLSX.styles_cell_xf(XLSX.get_workbook(xf), Int(XLSX.getcell(s, ref).style)))]
+
+        @test XLSX.getCellProtection(s, "A1") == (locked=true, hidden=false)     # Excel's default
+        @test XLSX.getCellProtection(s, "Z99") == (locked=true, hidden=false)    # empty
+
+        @test isnothing(XLSX.setCellProtection(s, "B2:B5"; locked=false))       # B4:B5 are empty
+        @test all(XLSX.getCellProtection(s, "B$r") == (locked=false, hidden=false) for r in 2:5)
+        @test XLSX.getCellProtection(s, "A2").locked
+        @test XLSX.getcell(s, "B5") isa XLSX.Cell && ismissing(s["B5"])          # formatted, still no value
+        @test haskey(XLSX.getFont(s, "B2").font, "b")                           # other formatting kept
+        @test s["B2"] == 1
+        @test XLSX.getcell(s, "B4").style == XLSX.getcell(s, "B5").style        # one new style, shared
+
+        XLSX.setCellProtection(s, "B3"; hidden=true)
+        @test XLSX.getCellProtection(s, "B3") == (locked=false, hidden=true)     # locked kept
+        XLSX.setCellProtection(s, 3, 2; locked=true)
+        @test XLSX.getCellProtection(s, "B3") == (locked=true, hidden=true)
+        XLSX.setCellProtection(s, "B3")                                          # nothing to change
+        @test XLSX.getCellProtection(s, "B3") == (locked=true, hidden=true)
+
+        # alignment and protection both kept, in the schema's order, whichever comes first
+        XLSX.setAlignment(s, "B2"; horizontal="center")
+        @test xf_children("B2") == ["alignment", "protection"]
+        XLSX.setAlignment(s, "A2"; horizontal="center")
+        XLSX.setCellProtection(s, "A2"; locked=false)
+        @test xf_children("A2") == ["alignment", "protection"]
+        @test XLSX.getAlignment(s, "A2").alignment["alignment"]["horizontal"] == "center"
+
+        XLSX.setCellProtection(xf, "A!C1"; hidden=true)
+        @test XLSX.getCellProtection(xf, "A!C1").hidden
+        XLSX.addDefinedName(s, "Inputs", "D1:D2")
+        XLSX.setCellProtection(s, "Inputs,E1"; locked=false)
+        @test !XLSX.getCellProtection(s, "D2").locked && !XLSX.getCellProtection(s, "E1").locked
+
+        XLSX.protectSheet(s)
+        bytes = roundtrip_bytes(xf)
+        r = XLSX.readxlsx(IOBuffer(bytes))["A"]
+        @test XLSX.getCellProtection(r, "B5") == (locked=false, hidden=false)
+        @test XLSX.getCellProtection(r, "B3") == (locked=true, hidden=true)
+        @test XLSX.getCellProtection(r, "A1") == (locked=true, hidden=false)
+        @test occursin(r"<c r=\"B5\" s=\"\d+\"/>", sheet_xml(bytes))           # an empty, formatted cell
+        @test_throws XLSX.XLSXError XLSX.setCellProtection(r, "A1"; locked=false)   # read-only
+        XLSX.openxlsx(IOBuffer(bytes); enable_cache=false) do f
+            @test !XLSX.getCellProtection(f["A"], "B5").locked
+        end
+
+        @test_throws XLSX.XLSXError XLSX.setCellProtection(s, "B:B"; locked=false)
+        @test_throws XLSX.XLSXError XLSX.setCellProtection(s, "3:4"; locked=false)
+        @test_throws XLSX.XLSXError XLSX.getCellProtection(s, "A1:B2")
+        @test_throws TypeError XLSX.setCellProtection(s, "A1"; locked=1)
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "cell protection on chartsheets" begin
+        xf = XLSX.newxlsx("data")
+        xf["data"]["A1:A2"] = [1, 2]
+        c = XLSX.Charts.addChart(xf, :line; sheetname="Trend")
+        XLSX.Charts.addSeries(c, "data!A1:A2")
+        @test_throws XLSX.XLSXError XLSX.setCellProtection(xf["Trend"], "A1"; locked=false)
+        @test_throws XLSX.XLSXError XLSX.getCellProtection(xf["Trend"], "A1")
+    end
 end

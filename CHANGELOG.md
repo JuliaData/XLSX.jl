@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `setCellProtection` and `getCellProtection` to unlock cells, so they can be filled in on a protected sheet, and to hide cells' formulas, as the *Protection* tab of Excel's *Format Cells* dialog does. Empty cells are given the format without a value, and the cells' other formatting is kept
+- A cell format with both an alignment and a protection setting writes them in the order the schema requires. `setAlignment` added the alignment after any protection Excel had written
+
 - Add `protectSheet`, `unprotectSheet`, `isSheetProtected` and `getSheetProtection` to protect worksheets, with an optional password (Excel's legacy hash, so up to 15 ASCII characters) and the same choice of what users may still do as Excel's *Protect Sheet* dialog
 - Add `setPageSetup`/`getPageSetup` (orientation, paper size, scaling or fit to pages), `setPageMargins`/`getPageMargins`, `setPrintOptions`/`getPrintOptions` (gridlines, headings, centring), and `setPrintArea`, `getPrintArea`, `removePrintArea`, `setPrintTitles`, `getPrintTitles` and `removePrintTitles` for printing. A `pageSetup` that links to printer settings keeps the link
 

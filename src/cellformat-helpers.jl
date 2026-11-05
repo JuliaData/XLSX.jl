@@ -416,15 +416,23 @@ function update_template_xf(ws::Worksheet, allXfNodes::Vector{XML.Node}, existin
     return styles_add_cell_xf(ws.package.workbook, new_cell_xf)
 end
 
-function update_template_xf(ws::Worksheet, allXfNodes::Vector{XML.Node}, existing_style::CellDataFormat, alignment::XML.Node)::CellDataFormat
+# The children of a cellXfs `<xf>`, in the order the schema requires.
+const XF_CHILD_ORDER = ("alignment", "protection", "extLst")
+
+# A copy of the style with its `<alignment>` or `<protection>` replaced by `child`,
+# and attribute `apply` (e.g. `"applyProtection"`) set to "1" if given.
+function update_template_xf(ws::Worksheet, allXfNodes::Vector{XML.Node}, existing_style::CellDataFormat, child::XML.Node;
+                            apply::Union{Nothing,String}=nothing)::CellDataFormat
     old_cell_xf = styles_cell_xf(allXfNodes, Int(existing_style.id))
     new_cell_xf = copynode(old_cell_xf)
 
     existing_children = isnothing(new_cell_xf.children) ? XML.Node{String}[] : new_cell_xf.children
-    remaining_children = filter(c -> XML.tag(c) != "alignment", existing_children)
-    push!(remaining_children, alignment)
+    remaining_children = filter(c -> localname(c) != localname(child), existing_children)
+    push!(remaining_children, child)
+    sort!(remaining_children; by = c -> something(findfirst(==(localname(c)), XF_CHILD_ORDER), length(XF_CHILD_ORDER) + 1))
 
     new_cell_xf = XML.Node{String}(XML.Element, XML.tag(new_cell_xf), new_cell_xf.attributes, nothing, remaining_children)
+    isnothing(apply) || (new_cell_xf[apply] = "1")
 
     return styles_add_cell_xf(ws.package.workbook, new_cell_xf)
 end

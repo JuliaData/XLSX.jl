@@ -79,7 +79,27 @@ julia> XLSX.unprotectSheet(sheet)
 true
 ```
 
-Every cell is locked by default, so protection locks the whole sheet.
+### Unlocking cells
+
+Every cell is locked by default, so protection locks the whole sheet. To let
+users fill in some cells of a protected sheet, unlock them with
+[`XLSX.setCellProtection`](@ref), as the *Protection* tab of Excel's
+*Format Cells* dialog does:
+
+```julia
+XLSX.setCellProtection(sheet, "B2:B20"; locked=false)   # the cells to fill in
+XLSX.setCellProtection(sheet, "D2:D20"; hidden=true)    # hide these cells' formulas
+XLSX.protectSheet(sheet)
+```
+
+Empty cells can be unlocked too: they are given the format without a value.
+A hidden cell still shows its value; only its formula is kept from the formula
+bar. Neither setting has any effect until the sheet is protected.
+
+```julia
+julia> XLSX.getCellProtection(sheet, "B5")
+(locked = false, hidden = false)
+```
 
 ## Printing
 

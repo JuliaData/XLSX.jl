@@ -81,7 +81,7 @@ export
     setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     setAutoFilter, removeAutoFilter,
     setSheetVisibility, setTabColor, removeTabColor,
-    protectSheet, unprotectSheet,
+    protectSheet, unprotectSheet, setCellProtection,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
@@ -94,7 +94,7 @@ export
            getConditionalFormats, getColumnWidth, getRowHeight,
            isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
            getAutoFilter, getSheetVisibility, getTabColor,
-           isSheetProtected, getSheetProtection,
+           isSheetProtected, getSheetProtection, getCellProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles,
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
@@ -136,6 +136,7 @@ include("cellformats/font.jl")
 include("cellformats/border.jl")
 include("cellformats/fill.jl")
 include("cellformats/alignment.jl")
+include("cellformats/protection.jl")
 include("cellformats/numberformat.jl")
 include("cellformats/uniformstyle.jl")
 include("cellformats/widthheight.jl")

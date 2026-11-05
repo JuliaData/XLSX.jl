@@ -214,7 +214,7 @@ getRowOutlineLevel(ws::Worksheet, row)::Int = _level(_row_attr(ws, _single(_row_
 
 # The worksheet and the reference in `"Sheet1!B:D"`.
 function _rowcol_sheet(xf::XLSXFile, ref::AbstractString)
-    occursin('!', ref) || throw(XLSXError("Give the sheet as well as the rows or columns, e.g. `\"Sheet1!B:D\"`. Found `$ref`."))
+    occursin('!', ref) || throw(XLSXError("Give the sheet as well as the reference, e.g. `\"Sheet1!B:D\"`. Found `$ref`."))
     sheet, r = rsplit(ref, '!'; limit=2)
     sheet = replace(strip(sheet, '\''), "''" => "'")
     hassheet(xf, sheet) || throw(XLSXError("No sheet named `$sheet` in the workbook."))
