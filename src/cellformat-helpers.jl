@@ -393,6 +393,20 @@ function get_new_formatId(wb::Workbook, format::String)::Int
         return styles_add_numFmt(wb, format)              # reuses an identical format
     end
 end
+# The start of each per-cell format setter: the cell at `cellref`, which must have
+# a value, given a style of its own if it uses the default one, and the cellXfs nodes.
+function _format_target(sh::Worksheet, cellref::CellRef, what::String)
+    cell = getcell(sh, cellref)
+    cell isa EmptyCell &&
+        throw(XLSXError("Cannot set $what for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
+    allXfNodes = get_cellXfs_nodes(get_workbook(sh))
+    cell.style == UInt32(0) && (cell.style = get_num_style_index(sh, allXfNodes, 0).id)
+    return cell, allXfNodes
+end
+
+# The namespace prefix of styles.xml with its colon, e.g. "x:", or "" for none.
+_styles_prefix(x) = (p = get_prefix("xl/styles.xml", get_xlsxfile(x)); p == "" ? p : p * ":")
+
 function update_template_xf(ws::Worksheet, existing_style::CellDataFormat, attributes::Vector{String}, vals::Vector{String})::CellDataFormat
     old_cell_xf = styles_cell_xf(ws.package.workbook, Int(existing_style.id))
     new_cell_xf = copynode(old_cell_xf)
@@ -569,57 +583,25 @@ function process_ranges(f::Function, ws::Worksheet, ref_or_rng::AbstractString; 
     return newid
 end
 function process_columnranges(f::Function, ws::Worksheet, colrng::ColumnRange; kw...)
-    bounds = column_bounds(colrng)
-    dim = (get_dimension(ws))
-    left = bounds[begin]
-    right = bounds[end]
-    top = dim.start.row_number
-    bottom = dim.stop.row_number
-
-    OK = dim.start.column_number <= left
-    OK &= dim.stop.column_number >= right
-    OK &= dim.start.row_number <= top
-    OK &= dim.stop.row_number >= bottom
-
-    if OK
-        rng = CellRange(top, left, bottom, right)
-        return f(ws, rng; kw...)
-    else
+    dim = get_dimension(ws)
+    left, right = column_bounds(colrng)
+    rng = CellRange(dim.start.row_number, left, dim.stop.row_number, right)
+    issubset(rng, dim) ||
         throw(XLSXError("Column range $colrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
-    end
+    return f(ws, rng; kw...)
 end
 function process_rowranges(f::Function, ws::Worksheet, rowrng::RowRange; kw...)
-    bounds = row_bounds(rowrng)
-    dim = (get_dimension(ws))
-    top = bounds[begin]
-    bottom = bounds[end]
-    left = dim.start.column_number
-    right = dim.stop.column_number
-
-    OK = dim.start.column_number <= left
-    OK &= dim.stop.column_number >= right
-    OK &= dim.start.row_number <= top
-    OK &= dim.stop.row_number >= bottom
-
-    if OK
-        rng = CellRange(top, left, bottom, right)
-        return f(ws, rng; kw...)
-    else
+    dim = get_dimension(ws)
+    top, bottom = row_bounds(rowrng)
+    rng = CellRange(top, dim.start.column_number, bottom, dim.stop.column_number)
+    issubset(rng, dim) ||
         throw(XLSXError("Row range $rowrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
-    end
+    return f(ws, rng; kw...)
 end
 function process_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int
-    bounds = nc_bounds(ncrng)
-    if length(ncrng) == 1
-        single = true
-    else
-        single = false
-    end
-    dim = (get_dimension(ws))
-    OK = dim.start.column_number <= bounds.start.column_number
-    OK &= dim.stop.column_number >= bounds.stop.column_number
-    OK &= dim.start.row_number <= bounds.start.row_number
-    OK &= dim.stop.row_number >= bounds.stop.row_number
+    single = length(ncrng) == 1
+    dim = get_dimension(ws)
+    OK = issubset(nc_bounds(ncrng), dim)
     if OK
         newid = -1 # Each cell may have a different attribute Id so we can't return a single value...
         for r in ncrng.rng
@@ -816,19 +798,8 @@ function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguo
 end
 
 function process_uniform_veccolon(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
-    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
-    dim = get_dimension(ws)
-    row, col = _expand_colon(dim, row, col)
-    isInDim(ws, dim, row, col)
-    newid, first = nothing, true
-    for a in row, b in col
-        cellref = CellRef(a, b)
-        cell = getcell(ws, cellref)
-        cell isa EmptyCell && continue
-        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
-        maybe_update_font!(f, ws, cell, cellref; kw...)
-    end
-    return first ? -1 : newid
+    row, col = _expand_colon(get_dimension(ws), row, col)
+    return process_uniform_vecint(f, ws, row, col, atts; kw...)
 end
 
 function process_uniform_vecint(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
@@ -871,17 +842,9 @@ function process_uniform_core(ws::Worksheet, cellref::CellRef, newid::Union{Int,
     return newid, first, firstFont
 end
 function process_uniform_ncranges(ws::Worksheet, ncrng::NonContiguousRange)
-    bounds = nc_bounds(ncrng)
-    if length(ncrng) == 1
-        single = true
-    else
-        single = false
-    end
-    dim = (get_dimension(ws))
-    OK = dim.start.column_number <= bounds.start.column_number
-    OK &= dim.stop.column_number >= bounds.stop.column_number
-    OK &= dim.start.row_number <= bounds.start.row_number
-    OK &= dim.stop.row_number >= bounds.stop.row_number
+    single = length(ncrng) == 1
+    dim = get_dimension(ws)
+    OK = issubset(nc_bounds(ncrng), dim)
     if OK
         let newid::Union{Int,Nothing}, first::Bool
             newid = nothing
@@ -997,17 +960,9 @@ allXfNodes = get_cellXfs_nodes(get_workbook(ws))
 end
 function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int
     allXfNodes = get_cellXfs_nodes(get_workbook(ws))
-    bounds = nc_bounds(ncrng)
-    if length(ncrng) == 1
-        single = true
-    else
-        single = false
-    end
-    dim = (get_dimension(ws))
-    OK = dim.start.column_number <= bounds.start.column_number
-    OK &= dim.stop.column_number >= bounds.stop.column_number
-    OK &= dim.start.row_number <= bounds.start.row_number
-    OK &= dim.stop.row_number >= bounds.stop.row_number
+    single = length(ncrng) == 1
+    dim = get_dimension(ws)
+    OK = issubset(nc_bounds(ncrng), dim)
     if OK
         let newid::Union{Int,Nothing}, first::Bool, alignment_node::Union{XML.Node,Nothing}
             newid = nothing

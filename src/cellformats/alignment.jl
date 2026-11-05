@@ -152,18 +152,7 @@ function _setAlignment(sh::Worksheet, cellref::CellRef; spec::AlignmentSpec)::In
         throw(XLSXError("Invalid rotation value: $rotation. Must be an integer between -90 and 90."))
 
     wb   = get_workbook(sh)
-    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
-    pfx = pfx == "" ? pfx : pfx * ":"
-    
-    cell = getcell(sh, cellref)
-    cell isa EmptyCell &&
-        throw(XLSXError("Cannot set alignment for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
-
-    allXfNodes = get_cellXfs_nodes(wb)
-
-    if cell.style == UInt32(0)
-        cell.style = get_num_style_index(sh, allXfNodes, 0).id
-    end
+    cell, allXfNodes = _format_target(sh, cellref, "alignment")
 
     cell_style     = styles_cell_xf(allXfNodes, cell.style)
     cell_alignment = getAlignment(wb, cell_style)

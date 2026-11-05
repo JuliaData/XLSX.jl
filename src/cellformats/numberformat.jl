@@ -166,15 +166,7 @@ function _setFormat(sh::Worksheet, cellref::CellRef; spec::FormatSpec)::Int
     _require_writable(sh, "set number format")
 
     wb   = get_workbook(sh)
-    cell = getcell(sh, cellref)
-    cell isa EmptyCell &&
-        throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
-
-    allXfNodes = get_cellXfs_nodes(wb)
-
-    if cell.style == UInt32(0)
-        cell.style = get_num_style_index(sh, allXfNodes, 0).id
-    end
+    cell, allXfNodes = _format_target(sh, cellref, "format")
 
     cell_style  = styles_cell_xf(allXfNodes, cell.style)
     cell_format = getFormat(wb, cell_style)

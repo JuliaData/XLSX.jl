@@ -168,11 +168,7 @@ function _databar_ext_rule(s::Dict{String,Any}, id::AbstractString)
     do_borders = haskey(s, "borders") && s["borders"] == "true"
     if do_borders
         ext_db["border"] = "1"
-        if haskey(s, "border_col") && !isnothing(s["border_col"])
-            push!(ext_db, _color_element("x14:borderColor", s["border_col"]))
-        else
-            push!(ext_db, _color_element("x14:borderColor", "FF638EC6")) # Default color
-        end
+        push!(ext_db, _color_element("x14:borderColor", something(get(s, "border_col", nothing), "FF638EC6")))
     end
     if haskey(s, "direction")
         if s["direction"] == "leftToRight"
@@ -184,19 +180,11 @@ function _databar_ext_rule(s::Dict{String,Any}, id::AbstractString)
     if haskey(s, "sameNegFill") && s["sameNegFill"] == "true"
         ext_db["negativeBarColorSameAsPositive"] = "1"
     else
-        if haskey(s, "neg_fill_col") && !isnothing(s["neg_fill_col"])
-            push!(ext_db, _color_element("x14:negativeFillColor", s["neg_fill_col"]))
-        else
-            push!(ext_db, _color_element("x14:negativeFillColor", "FFFF0000")) # Default color
-        end
+        push!(ext_db, _color_element("x14:negativeFillColor", something(get(s, "neg_fill_col", nothing), "FFFF0000")))
     end
     if do_borders && haskey(s, "sameNegBorders") && s["sameNegBorders"] == "false"
         ext_db["negativeBarBorderColorSameAsPositive"] = "0"
-        if haskey(s, "neg_border_col") && !isnothing(s["neg_border_col"])
-            push!(ext_db, _color_element("x14:negativeBorderColor", s["neg_border_col"]))
-        else
-            push!(ext_db, _color_element("x14:negativeBorderColor", "FFFF0000")) # Default color
-        end
+        push!(ext_db, _color_element("x14:negativeBorderColor", something(get(s, "neg_border_col", nothing), "FFFF0000")))
     end
     if haskey(s, "axis_pos")
         if s["axis_pos"] == "none"

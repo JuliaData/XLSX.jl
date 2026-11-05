@@ -149,17 +149,9 @@ function _setFill(sh::Worksheet, cellref::CellRef; spec::FillSpec)::Int
         throw(XLSXError("Invalid pattern: $pattern. Must be one of: $(join(VALID_FILL_PATTERNS, ", "))."))
 
     wb   = get_workbook(sh)
-    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
-    pfx = pfx == "" ? pfx : pfx * ":"
+    pfx = _styles_prefix(sh)
 
-    cell = getcell(sh, cellref)
-    cell isa EmptyCell && throw(XLSXError("Cannot set fill for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
-
-    allXfNodes = get_cellXfs_nodes(wb)
-
-    if cell.style == UInt32(0)
-        cell.style = get_num_style_index(sh, allXfNodes, 0).id
-    end
+    cell, allXfNodes = _format_target(sh, cellref, "fill")
 
     cell_style   = styles_cell_xf(allXfNodes, cell.style)
     cell_fill    = getFill(wb, cell_style)

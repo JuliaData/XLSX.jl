@@ -102,20 +102,7 @@ _narrow(itr::ValueRowIterator, cr::ColumnRange) = ValueRowIterator(itr.ws, itr.x
 # A state at the start of `<sheetData>`; finds it as `first_cache_fill!` does, with the
 # same error if there is none.
 function _value_row_start(itr::ValueRowIterator)
-    lznode = parse(itr.xml, XML.LazyNode)
-    sheetdata_lazy = nothing
-    c = XML.Cursor(lznode)
-    while XML.next!(c) !== nothing
-        d = XML.depth(c)
-        d < 2 && continue
-        d > 2 && (XML.skip_element!(c); continue)
-        if XML.nodetype(c) == XML.Element && localname(c) == "sheetData"
-            sheetdata_lazy = XML.LazyNode(c)
-            break
-        end
-        XML.skip_element!(c)
-    end
-    sheetdata_lazy === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
+    sheetdata_lazy = _find_sheetdata(parse(itr.xml, XML.LazyNode), itr.ws.name)
     return _ValueRowState(XML.Cursor(sheetdata_lazy), false, 0, false)
 end
 

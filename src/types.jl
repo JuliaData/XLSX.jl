@@ -359,7 +359,7 @@ const CellConcreteType = Union{String, Missing, Float64, Int64, Bool, Dates.Date
 # `Int64`, not `Int`: the set of types a cell can hold must not depend on the
 # host word size, or 32-bit builds would silently narrow it to `Int32`.
 # `setdata!` normalises every `Integer` to `Int64`, so consumers testing a cell
-# value's type must test against `Int64` too (see write.jl).
+# value's type must test against `Int64` too (see setdata.jl).
 
 # CellValue is a Julia type of a value read from a Spreadsheet.
 struct CellValue

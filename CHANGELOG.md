@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Internal: `write.jl` is split into `save.jl` (writing the package), `setdata.jl` (writing cells), `writetable.jl` and `sheetops.jl` (adding, renaming, copying, deleting and moving sheets), and the Excel Tables half of `table.jl` moves to `exceltables.jl`. `copysheet!` and `deletesheet!` are broken into steps, and repeated code in the cell format setters, range handling, conditional format data bars and the sheet cache fill is shared. No change in behaviour
+- `bench/maintainability.jl` counts duplication in code only: it leaves out docstrings, the bodies of `const` tables, lines of nothing but literals, and `include` lines, which it counted as duplicated because blanking their literals made unrelated ones look alike
+
 - Add `setCellProtection` and `getCellProtection` to unlock cells, so they can be filled in on a protected sheet, and to hide cells' formulas, as the *Protection* tab of Excel's *Format Cells* dialog does. Empty cells are given the format without a value, and the cells' other formatting is kept
 - A cell format with both an alignment and a protection setting writes them in the order the schema requires. `setAlignment` added the alignment after any protection Excel had written
 
