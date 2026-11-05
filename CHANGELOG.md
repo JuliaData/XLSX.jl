@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Add `addDataValidation`, `getDataValidations`, `getDataValidation` and `deleteDataValidation` to add, read and delete data validation: drop-down lists (from `values` or a range), whole and decimal numbers, dates, times, text length and custom formulas, with input and error messages. Validations Excel 2010 wrote in its extended (`x14`) form are read and deleted too, and validations can be read from a file opened only for reading
+- `renamesheet!`, `deletesheet!` and `copysheet!` now update sheet references in Excel 2010 (`x14`) data validations, whose formula is held in an `<xm:f>` inside `<x14:formula1>`. Those references were left unchanged
+
 - Add `addHyperlink`, `getHyperlink`, `getHyperlinks` and `deleteHyperlink` to add, read and delete cell hyperlinks: to a web page, email address or file (`url`), or to a place in the workbook (`location`). An empty cell given a link takes its display text and a blue, underlined font, as in Excel. Links can be read from a file opened only for reading, with or without the cell cache
 - `copysheet!` gives the copy's hyperlinks to web pages and files relationships of their own. The copy kept the original's relationship ids, which pointed at relationships the copy didn't have
 

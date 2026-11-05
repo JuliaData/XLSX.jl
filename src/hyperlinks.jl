@@ -289,43 +289,11 @@ function _external_rel_target(xf::XLSXFile, sheet_path::String, rid::String)::Un
     return nothing
 end
 
-# The attributes of each `<hyperlink>` in the sheet, read without disturbing how the
-# sheet is held: a sheet open only for reading is kept as raw XML (or not kept at
-# all, without the cache) so its cells can be read lazily. Those are scanned with a
-# cursor rather than parsed into a tree.
-function _hyperlink_attributes(xf::XLSXFile, sheet_path::String)::Vector{Dict{String,String}}
-    out = Dict{String,String}[]
-    doc = haskey(xf.data, sheet_path) ? xf.data[sheet_path] : open_internal_file_stream(xf, sheet_path)
-    if doc isa XML.Node
-        block = first_element_with_tag(xml_root_element(doc), "hyperlinks")
-        isnothing(block) && return out
-        for n in elements_with_tag(block, "hyperlink")
-            push!(out, Dict{String,String}(something(XML.attributes(n), Dict{String,String}())))
-        end
-        return out
-    end
-
-    lz = doc isa XML.LazyNode ? doc : parse(doc, XML.LazyNode)
-    c = XML.Cursor(xml_root_element(lz))
-    XML.next!(c)   # the <worksheet> element itself, depth 1
-    in_block = false
-    while XML.next!(c) !== nothing
-        d = XML.depth(c)
-        d <= 1 && break
-        XML.nodetype(c) == XML.Element || continue
-        if d == 2
-            in_block && break   # past <hyperlinks>: there is only one
-            if localname(c) == "hyperlinks"
-                in_block = true
-            else
-                XML.skip_element!(c)
-            end
-        elseif d == 3 && in_block && localname(c) == "hyperlink"
-            push!(out, Dict{String,String}(String(k) => String(v) for (k, v) in XML.eachattribute(XML.LazyNode(c))))
-        end
-    end
-    return out
-end
+# The attributes of each `<hyperlink>` in the sheet, on a sheet open for reading only too.
+_hyperlink_attributes(xf::XLSXFile, sheet_path::String)::Vector{Dict{String,String}} =
+    [Dict{String,String}(something(XML.attributes(n), Dict{String,String}()))
+     for block in _sheet_top_elements(xf, sheet_path, ("hyperlinks",))
+     for n in elements_with_tag(block, "hyperlink")]
 
 # A copied sheet's `<hyperlinks>` keeps the original's `r:id`s, but the copy has
 # relationships of its own. Give each external link a relationship in the copy,

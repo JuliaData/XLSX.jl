@@ -22,6 +22,7 @@ This package follows ECMA-376 to parse and generate XLSX files.
 * Stream the rows of large files with `eachrow` and `eachtablerow`, without loading the whole sheet
 * [Cell formatting](formatting/cellFormatting.md) and [conditional formats](formatting/conditionalFormatting.md)
 * [Formulas](formulae/formulas.md) and defined names
+* [Data validation](sheets/dataValidation.md), including drop-down lists
 * Native [Excel Tables](tables/excelTables.md)
 * [Merged cells](formatting/mergedCells.md), [column widths and row heights](formatting/widthAndHeight.md)
   and [freeze/split panes](formatting/freezeAndSplitPanes.md)

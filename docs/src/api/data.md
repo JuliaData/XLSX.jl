@@ -54,6 +54,17 @@ XLSX.deleteDefinedName
 XLSX.deleteAllDefinedNames
 ```
 
+## Data validation
+
+See [Data validation](../sheets/dataValidation.md) for a guide.
+
+```@docs
+XLSX.addDataValidation
+XLSX.getDataValidations
+XLSX.getDataValidation
+XLSX.deleteDataValidation
+```
+
 ## Error Values
 
 ```@docs

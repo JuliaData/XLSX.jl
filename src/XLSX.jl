@@ -63,6 +63,7 @@ export
     addImage,
     addComment, deleteComment,
     addHyperlink, deleteHyperlink,
+    addDataValidation, deleteDataValidation,
     # Cells & data
     CellRef, SheetCellRef, row_number, column_number, eachtablerow,
     readdata, getdata, gettable, readtable, readto,
@@ -91,6 +92,7 @@ export
            getDefinedNames, getAllDefinedNames,
            getComment, getComments,
            getHyperlink, getHyperlinks,
+           getDataValidation, getDataValidations,
            Workbook, XLSXError, SchemeColor,
            CellErrorType, XL_NULL, XL_DIV0, XL_VALUE, XL_REF, 
            XL_NAME, XL_NUM, XL_NA, XL_SPILL
@@ -142,6 +144,7 @@ include("conditionalformats/clear.jl")
 include("images.jl")
 include("comments.jl")
 include("hyperlinks.jl")
+include("datavalidation.jl")
 include("write.jl")
 include("fileArray.jl")
 

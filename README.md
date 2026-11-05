@@ -58,6 +58,7 @@ julia> Pkg.add("XLSX")
 * Stream the rows of large files with `eachrow` and `eachtablerow`, without loading the whole sheet
 * Cell formatting (fonts, fills, borders, alignment, number formats) and conditional formats
 * Formulas and defined names
+* Data validation, including drop-down lists
 * Native Excel Tables
 * Merged cells, column widths, row heights and freeze/split panes
 * Hyperlinks, images and cell comments
