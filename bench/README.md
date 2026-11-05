@@ -122,6 +122,14 @@ It needs no fixtures and no BenchmarkTools, so it is a quick repro for read-path
 
     julia --project=envs/dev --check-bounds=yes worksheet_read.jl
 
+`worksheet_write.jl` does the same for writing. It builds its data in memory and
+times each write path on its own: `writetable` of numbers, strings and mixed types
+(100,000 × 8), writing cells one by one and as a block, opening a workbook `"rw"`
+and saving it, and formatting a range. Give a name to keep the results in
+`results/write/<name>.txt` and see earlier runs alongside:
+
+    julia --project=envs/dev -t auto worksheet_write.jl after-my-change
+
 ### Maintainability check
 
 `maintainability.jl` measures maintainability signals over `src/` and compares them

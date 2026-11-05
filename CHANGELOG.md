@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Writing a worksheet allocates less and is 10–25% faster: `writetable` of 100,000 × 8 strings allocates 772 → 336 MiB, and of numbers 986 → 666 MiB (0.55 → 0.44 s). Integers and cell references are written without making strings, the tags are built once, rows are written a chunk at a time into one buffer per thread, and the sheet goes into the file in pieces rather than being copied whole twice. The files written are byte-for-byte the same
+- `bench/worksheet_write.jl` times each write path on its own, without fixtures, and keeps earlier runs to compare against
+
 - Add `deleteImage`, which deletes the images whose top-left corner is in a cell, or one image from `getImages`. The picture file goes too, unless another image still shows it, and a drawing left empty is removed. `getImages` is now declared public
 - Add `Charts.deleteChart`, which deletes a chart on a worksheet with the parts only it uses, and for a chartEx chart its hidden `_xlchart` names. A chart on a chartsheet is refused: delete the sheet instead
 - Add `getThreadedComments` and `getThreadedComment`, which read Excel 365's threaded comments: each thread's author, text, date and whether it is resolved, with its replies. Threaded comments are still not written

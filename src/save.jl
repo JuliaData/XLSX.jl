@@ -113,10 +113,10 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
             if is_chartsheet(wb, getsheet(wb, sheet_no).name)
                 continue
             end
-            doc = update_single_sheet!(wb, sheet_no, true)
+            pieces = update_single_sheet!(wb, sheet_no, true)
             f = get_relationship_target_by_id("xl", wb, getsheet(wb, sheet_no).relationship_id)
             ZipArchives.zip_newfile(xlsx, f; compress=true)
-            write(xlsx, doc)
+            foreach(p -> write(xlsx, p), pieces)
         end
 
         # write binary files
@@ -251,7 +251,7 @@ function update_worksheets_xml!(xl::XLSXFile; full=false)
     end
     return nothing
 end
-function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{UInt8}}
+function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{Vector{UInt8}}}
     sheet = getsheet(wb, sheet_no)
     doc = copynode(get_worksheet_xml_document(sheet))
     xroot = xml_root_element(doc)
@@ -291,13 +291,13 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
             end
         end
         print(new_doc, ">\n")
-        # iterates over WorksheetCache cells and writes the XML
-        new_doc=vcat(take!(new_doc), get_cache_rows(sheet, pfx))
-
-        new_doc=vcat(new_doc, Vector{UInt8}("  </$(pfx)sheetData>"))
-        new_doc=vcat(new_doc, Vector{UInt8}(empty_doc[last(idx)+1:end]))
-
-        return new_doc
+        # The sheet in pieces, to be written one after another: what comes before
+        # the rows, the rows from the WorksheetCache a chunk at a time, and what
+        # comes after. Joining them first would copy the whole sheet again.
+        pieces = [take!(new_doc)]
+        append!(pieces, get_cache_rows(sheet, pfx))
+        push!(pieces, Vector{UInt8}("  </$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx)))))
+        return pieces
 
     else
         set_worksheet_xml_document!(sheet, doc) # no need to save full reconstructed data
@@ -305,63 +305,105 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
     end
 end
 
+const _NO_ROW_ATTRS = Dict{String,String}()
+
+# The sheet's rows in chunks of `chunksize`, numbered in row order:
+# (chunk number, [(dimension, row, row's other attributes)]).
 function stream_cache_rows(sheet::Worksheet, chunksize::Int)
-    cache_rows = Vector{Tuple{CellRange, SheetRow, Dict{String,String}}}(undef, chunksize)
-    count=0
-    Channel{Vector{Tuple{CellRange, SheetRow, Dict{String,String}}}}(1 << 8) do out
+    Channel{Tuple{Int,Vector{Tuple{CellRange, SheetRow, Dict{String,String}}}}}(1 << 8) do out
         d = get_dimension(sheet)
+        uh_all = sheet.unhandled_attributes
+        chunk = Tuple{CellRange, SheetRow, Dict{String,String}}[]
+        n = 0
         for r in eachrow(sheet)
-            count += 1
-            rn=row_number(r)
-            uh = (!isnothing(sheet.unhandled_attributes) && haskey(sheet.unhandled_attributes, rn)) ? sheet.unhandled_attributes[rn] : Dict{String,String}()
-            cache_rows[count] = (d, r, uh)
-            if count >= chunksize
-                put!(out, copy(cache_rows))
-                count=0
+            uh = isnothing(uh_all) ? _NO_ROW_ATTRS : get(uh_all, row_number(r), _NO_ROW_ATTRS)
+            push!(chunk, (d, r, uh))
+            if length(chunk) >= chunksize
+                put!(out, (n += 1, chunk))
+                chunk = Tuple{CellRange, SheetRow, Dict{String,String}}[]
             end
         end
-        if count>0
-            put!(out, cache_rows[1:count])
-        end
+        isempty(chunk) || put!(out, (n += 1, chunk))
     end
 end
 
-function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{UInt8}
-    chunksize = ROW_CHUNKSIZE
-    read_cache_rows = Channel{Vector{Tuple{Int64,Vector{UInt8}}}}(1 << 8)
-    all_cache_rows = Vector{Tuple{Int64,Vector{UInt8}}}()
-   
-    consumer = @async begin
-        for rows in read_cache_rows
-            for row in rows
-                push!(all_cache_rows, row)
-            end
-        end
-    end
-   
-    cache_rows = stream_cache_rows(sheet, chunksize)
+# What writing a row needs besides the row: the tags, with the namespace prefix
+# `pfx` already in them, the sheet's column letters, and a buffer for numbers.
+struct _RowWriter
+    ws::Worksheet
+    pfx::String
+    row_open::String
+    c_open::String
+    v_open::String
+    v_close::String
+    c_close::String
+    row_close::String
+    columns::Vector{String}   # column letters, by number
+    num::Vector{UInt8}        # where numbers are formatted
+end
+function _RowWriter(ws::Worksheet, pfx::String, ncols::Int)
+    return _RowWriter(ws, pfx, "    <$(pfx)row r=\"", "      <$(pfx)c r=\"", "\n        <$(pfx)v>", "</$(pfx)v>",
+                      "\n      </$(pfx)c>\n", "    </$(pfx)row>\n",
+                      [encode_column_number(c) for c in 1:ncols], Vector{UInt8}(undef, 64))
+end
 
+# Write an integer without making a string. A float is printed: Julia has no public way to
+# format one without making a string.
+function _write_number(io::IO, w::_RowWriter, n::Integer)
+    buf = w.num
+    neg = n < 0
+    u = neg ? unsigned(-(Int128(n))) : unsigned(n)
+    i = length(buf)
+    while true
+        buf[i] = UInt8('0') + UInt8(u % 10)
+        u ÷= 10
+        i -= 1
+        u == 0 && break
+    end
+    neg && (buf[i] = UInt8('-'); i -= 1)
+    GC.@preserve buf unsafe_write(io, pointer(buf, i + 1), length(buf) - i)
+    return nothing
+end
+_write_number(io::IO, ::_RowWriter, x::Float64) = (print(io, x); nothing)
+
+function _write_cellref(io::IO, w::_RowWriter, c::CellRef)
+    col = column_number(c)
+    write(io, col <= length(w.columns) ? w.columns[col] : encode_column_number(col))
+    _write_number(io, w, row_number(c))
+    return nothing
+end
+
+# The sheet's rows as XML, in chunks in row order. The chunks are written in
+# parallel, each into a buffer of its own.
+function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{Vector{UInt8}}
     cache = sheet.cache
     isnothing(cache) && throw(XLSXError("Worksheet '$(sheet.name)' cannot be written - it has no cache."))
-    nrows = length(cache.rows_in_cache)
-    nworkers = clamp(cld(nrows, chunksize), 1, max_threads())
-
-    @sync for _ in 1:nworkers
-        Threads.@spawn begin
-            row_node = IOBuffer()
-            column_indexes = Vector{Int}()
-            for rows in cache_rows
-                processed = [process_cache_row!(row_node, column_indexes, row, sheet, pfx) for row in rows]
-                put!(read_cache_rows, processed)
+    chunksize = ROW_CHUNKSIZE
+    nworkers = clamp(cld(length(cache.rows_in_cache), chunksize), 1, max_threads())
+    ncols = column_number(get_dimension(sheet).stop)
+    chunks = stream_cache_rows(sheet, chunksize)
+    written = Channel{Tuple{Int,Vector{UInt8}}}(1 << 8)
+    workers = @async try   # `written` is read below while they run, and closed when they stop
+        @sync for _ in 1:nworkers
+            Threads.@spawn begin
+                w = _RowWriter(sheet, pfx, ncols)
+                io = IOBuffer()
+                column_indexes = Int[]
+                for (n, rows) in chunks
+                    for row in rows
+                        process_cache_row!(io, column_indexes, row, w)
+                    end
+                    put!(written, (n, take!(io)))
+                end
             end
         end
+    finally
+        close(written)
     end
-
-    close(read_cache_rows)
-    wait(consumer)
-   
-    all_rows = last.(sort(all_cache_rows, by=first))
-    return length(all_rows) == 0 ? Vector{UInt8}() : reduce(vcat, all_rows)
+    out = collect(written)
+    wait(workers)   # rethrows a worker's error
+    sort!(out; by=first)
+    return last.(out)
 end
 
 const DOCPROPS_VTYPES_NS = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
@@ -497,40 +539,28 @@ function encode(d::CellErrorType)
     end
 end
 
-function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cacherow, ws, pfx)
-    truncate(row_node, 0)
-    seek(row_node, 0)
-    
-   
-    pad2 = "    "      # 4 spaces
-    pad3 = "      "    # 6 spaces
-    pad4 = "        "  # 8 spaces
+# Write one row of the cache as XML to `row_node`. `w` holds what every row needs
+# (see `_RowWriter`); integers and cell references are written without making
+# strings, as this runs once for every cell of the sheet.
+function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cacherow, w::_RowWriter)
+    ws, pfx = w.ws, w.pfx
 
     d, r, unhandled_attributes = cacherow
     row_nr = row_number(r)
 
-    # Reuse column_indexes vector
-    resize!(column_indexes, length(r.rowcells))
-    i = 1
-    for k in keys(r.rowcells)
-        column_indexes[i] = k
-        i += 1
-    end
-    sort!(column_indexes)
+    sort!(append!(empty!(column_indexes), keys(r.rowcells)))   # the row's columns, reusing the vector
 
-    write(row_node, pad2, "<$(pfx)row r=\"")
-    print(row_node, row_nr)
-    write(row_node, "\"")
-
-    write(row_node, " spans=\"")
-    print(row_node, column_number(d.start))
+    write(row_node, w.row_open)
+    _write_number(row_node, w, row_nr)
+    write(row_node, "\" spans=\"")
+    _write_number(row_node, w, column_number(d.start))
     write(row_node, ":")
-    print(row_node, column_number(d.stop))
+    _write_number(row_node, w, column_number(d.stop))
     write(row_node, "\"")
 
     if !isnothing(r.ht)
         write(row_node, " ht=\"")
-        print(row_node, r.ht)
+        _write_number(row_node, w, r.ht)
         write(row_node, "\" customHeight=\"1\"")
     end
 
@@ -544,8 +574,8 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         cell = getcell(r, c)
         cell isa EmptyCell && continue
 
-        write(row_node, pad3, "<$(pfx)c r=\"")
-        print(row_node, cell.ref)
+        write(row_node, w.c_open)
+        _write_cellref(row_node, w, cell.ref)
         write(row_node, "\"")
 
         if cell.datatype != CT_EMPTY
@@ -554,13 +584,13 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
 
         if cell.style != UInt32(0)
             write(row_node, " s=\"")
-            print(row_node, cell.style)
+            _write_number(row_node, w, cell.style)
             write(row_node, "\"")
         end
 
         if cell.meta != UInt64(0)
             write(row_node, " cm=\"")
-            print(row_node, cell.meta)
+            _write_number(row_node, w, cell.meta)
             write(row_node, "\"")
         end
 
@@ -589,24 +619,24 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
                 add_node_formula!(row_node, cell.ref, ws, pfx)
             end
             if has_value
-                write(row_node, "\n", pad4, "<$(pfx)v>")
+                write(row_node, w.v_open)
                 if cell.datatype == CT_FLOAT || cell.datatype == CT_DATETIME || cell.datatype == CT_TIME
-                    print(row_node, v_f)
+                    _write_number(row_node, w, v_f)
                 elseif cell.datatype == CT_STRING || cell.datatype == CT_DATE || cell.datatype == CT_INT || cell.datatype == CT_BOOL
-                    print(row_node, v_i)
+                    _write_number(row_node, w, v_i)
                 elseif cell.datatype == CT_ERROR
                     write(row_node, v_e)
                 else
                     print(row_node, v_other)
                 end
-                write(row_node, "</$(pfx)v>")
+                write(row_node, w.v_close)
             end
-            write(row_node, "\n", pad3, "</$(pfx)c>\n")
+            write(row_node, w.c_close)
         end
     end
 
-    write(row_node, pad2, "</$(pfx)row>\n")
-    return (row_nr, take!(row_node))
+    write(row_node, w.row_close)
+    return nothing
 end
 
 function abscell(c::CellRef)
