@@ -184,10 +184,24 @@ formula cells with cached values (half shared, the rest long lookups).
 | xl_issue462 | 30,000 | 137 MB | The #462 shape; gap rows only after the table |
 | xl_gaps | 3,000 | 13 MB | Absent, helper-only and empty rows inside the table |
 
-`readtable_subset` is the #462 call, `readtable(path, "Data", "A:CF"; first_row=5)`,
-which stops at the first empty row. `readtable_gaps` reads `xl_gaps` with
-`stop_in_empty_row=false, keep_empty_rows=true`. v0.10.4 drops absent rows in that
-mode, so compare `readtable_gaps` with v0.12 and later only.
+`readtable` and `writetable` read the whole table with `first_row=5`, all 100 columns
+including the helper columns; on `xl_gaps` they also pass `stop_in_empty_row=false,
+keep_empty_rows=true`. `readtable_subset` runs on `xl_medium` and `xl_issue462`. It is
+the #462 call, `readtable(path, "Data", "A:CF"; first_row=5)`, which stops at the first
+empty row, so on `xl_gaps` it would read only 15 rows. `readtable_gaps` reads the 84
+columns of `xl_gaps` with those same keywords. v0.10.4 drops absent rows in that mode,
+so compare `xl_gaps/readtable`, `xl_gaps/writetable` and `readtable_gaps` with v0.12 and
+later only.
+
+`bench_worker.jl` reads each fixture's table once before benchmarking, logs its shape,
+and stops with an error if it has fewer than 100 rows.
+
+**Results from before issue #490 aren't comparable.** The `xl_*` `readtable` and
+`writetable` benchmarks used to read only the title on row 1, returning no data rows,
+and `xl_gaps/readtable_subset` read only 15 rows. `run_benchmarks.jl` skips versions
+whose results exist and `quick.jl` reuses its baselines, so after this change use a new
+`BENCH_RESULTS` directory and delete `results/quick/`, or the old baselines will show a
+false slowdown.
 
 Every cell of the `xl_*` fixtures is a pure function of its row and column
 (`xl_fixture_spec.jl`). `check_xl_fixtures.jl` reads each one as the benchmarks do,
