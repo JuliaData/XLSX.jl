@@ -361,6 +361,19 @@ end
         @test data == [[1, 3], [2, 4]]
         @test col_names == [:One, :Two]
     end
+
+    # openpyxl writes directory entries ("xl/", ...) into the zip: a rw round trip
+    # must skip them rather than fail writing them back
+    let
+        xf = XLSX.openxlsx(joinpath(data_directory, "openpyxl.xlsx"); mode="rw")
+        @test !any(endswith("/"), keys(xf.binary_data))
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        xf2 = XLSX.readxlsx(IOBuffer(take!(io)))
+        @test XLSX.sheetnames(xf2) == ["Sheet", "Test1"]
+        @test xf2["Test1"]["A1"] == "One"
+        @test xf2["Test1"]["A2"] == 1
+    end
 end
 
 # issues #62, #71

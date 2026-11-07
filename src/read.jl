@@ -1111,8 +1111,10 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
         Channel{String}(channel_size) do out
         for f in ZipArchives.zip_names(zip_io)
 
-            # ignore xl/calcChain.xml in any case (#31)
-            if f != "xl/calcChain.xml"
+            # ignore xl/calcChain.xml in any case (#31), and directory entries
+            # (such as "xl/", written by openpyxl), which hold no part and which
+            # ZipArchives won't write back as files
+            if f != "xl/calcChain.xml" && !endswith(f, "/")
 
                 if pass==1 && !is_binary_path(f) && (endswith(f, ".xml") || endswith(f, ".rels"))
                     # Identify usable xml files in XLSXFile

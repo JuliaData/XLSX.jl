@@ -2472,7 +2472,14 @@ end
         XLSX.setFormat(s, "A1"; format="0.000")
         xroot = XLSX.styles_xmlroot(wb)
         i, j = XLSX.get_idces(xroot, "styleSheet", "numFmts")
-        XLSX.xml_elements(xroot[i][j])[1]["numFmtId"] = "170"   # a gap, as files may have
+        numfmt = XLSX.xml_elements(xroot[i][j])[1]
+        old_id = numfmt["numFmtId"]
+        numfmt["numFmtId"] = "170"                              # a gap, as files may have
+        # Keep A1's style pointing at the renumbered format, so the saved file stays valid.
+        k, l = XLSX.get_idces(xroot, "styleSheet", "cellXfs")
+        for x in XLSX.xml_elements(xroot[k][l])
+            get(x, "numFmtId", "") == old_id && (x["numFmtId"] = "170")
+        end
         wb.numFmt_cache = nothing
         @test XLSX.setFormat(s, "A2"; format="0.000") == 170
         @test XLSX.setFormat(s, "A3"; format="0.0000") == 171
