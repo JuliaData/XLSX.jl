@@ -26,7 +26,7 @@ getSeriesBinning
 getSeriesAggregation
 getSeriesQuartileMethod
 getSeriesParentLabelLayout
-getLabelFlag
+getLabelFlag(::ChartEx, ::Integer, ::Symbol)
 getLabelPosition
 setSeriesName
 setSeriesLayoutFlag

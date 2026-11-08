@@ -319,6 +319,27 @@ return a [`DrawingText`](@ref): a text body of paragraphs and runs, each
 carrying its own `DrawingRunProps`. The [Chart types](../api/chartTypes.md) page
 documents the structure.
 
+## Showing data labels
+
+[`setLabelFlag`](@ref) turns parts of a series' data labels on and off, as the
+check boxes of Excel's Format Data Labels pane do:
+
+```julia
+julia> setLabelFlag(c, 1, :value, true);           # label each point with its value
+
+julia> setLabelFlag(c, 1, :categoryName, true);    # and its category
+```
+
+The parts are `:value`, `:seriesName`, `:categoryName` (the X value on a scatter
+chart), `:legendKey`, `:percent` (pie and doughnut charts) and `:bubbleSize`
+(bubble charts). A series with no labels of its own is given Excel's: the same
+formatting and leader lines Excel gives labels turned on with Chart Elements →
+Data Labels, checked against Excel 365 for every kind. [`getLabelFlag`](@ref)
+reads a part back, from the series' labels or, failing those, its group's.
+
+Formatting labels with [`setLabelTextProp`](@ref) doesn't make them appear, so
+style them and show them in either order.
+
 ## Titles and legends
 
 A title's text and its formatting are separate. [`getChartTitleText`](@ref)

@@ -1995,4 +1995,62 @@
 
         SAVE_FILES && save_outfile(xf)
     end
+
+    @testset "setLabelFlag and getLabelFlag" begin
+        C = XLSX.Charts
+        # Excel's labels, turned on with Chart Elements → Data Labels, for one chart of
+        # each kind (sheets named after the kinds), and then turned off again.
+        excel(file) = Dict(c.sheet => c for c in C.getCharts(XLSX.readxlsx(joinpath(data_directory, file))))
+        on, off = excel("chart_labels_on.xlsx"), excel("chart_labels_off.xlsx")
+        lbls(c, i) = (s = C._series_nodes(C.chart_root(c))[i][2]; n = XLSX.first_element_with_tag(s, "dLbls");
+                      isnothing(n) ? nothing : XLSX.XML.write(n))
+
+        xf = XLSX.newxlsx()
+        ws = xf[1]
+        ws["A1"] = ["" "North" "South"; 2 4 7; 3 5 8; 4 6 9; 5 7 10]
+        for (row, kind) in enumerate(keys(C.C_KINDS))
+            kind === :combo && continue
+            c = C.addChart(ws, kind; anchor = "F$(20row):M$(20row + 15)")
+            if kind === :bubble
+                C.addSeries(c, "B2:B5"; categories = "A2:A5", bubble_sizes = "C2:C5")
+            else
+                C.addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1")
+                kind in (:pie, :doughnut) || C.addSeries(c, "C2:C5"; categories = "A2:A5", name_ref = "C1")
+            end
+            n = length(C.getChartSeries(c))
+            @test all(isnothing(C.getLabelFlag(c, i, :value)) || C.getLabelFlag(c, i, :value) === false for i in 1:n)
+            foreach(i -> C.setLabelFlag(c, i, :value, true), 1:n)
+            @test [lbls(c, i) for i in 1:n] == [lbls(on[String(kind)], i) for i in 1:n]   # as Excel writes them
+            @test C.getLabelFlag(c, 1, :value) === true && C.getLabelFlag(c, 1, :seriesName) === false
+        end
+
+        # The flags are set one at a time, and the labels stay when all are off.
+        c = C.getCharts(ws)[1]
+        C.setLabelFlag(c, 1, :seriesName, true)
+        @test C.getLabelFlag(c, 1, :seriesName) === true && C.getLabelFlag(c, 1, :value) === true
+        C.setLabelFlag(c, 1, :value, false)
+        C.setLabelFlag(c, 1, :seriesName, false)
+        @test C.getLabelFlag(c, 1, :value) === false && !isnothing(lbls(c, 1))
+
+        # Labels a series has deleted are made again; ones of single points are kept.
+        g = XLSX.opentemplate(joinpath(data_directory, "chart_labels_off.xlsx"))
+        col = only(x for x in C.getCharts(g) if x.sheet == "column")
+        @test C.getLabelFlag(col, 1, :value) === false                    # c:delete
+        C.setLabelFlag(col, 1, :value, true)
+        @test lbls(col, 1) == lbls(on["column"], 1)
+        C.setLabelFlag(col, 2, :value, true)
+        C.setLabelText(col, 2, 3, "three")
+        C.setLabelFlag(col, 2, :categoryName, true)
+        @test occursin(">three<", lbls(col, 2))
+
+        # Parts a kind doesn't have are refused.
+        @test_throws XLSX.XLSXError C.setLabelFlag(c, 1, :percent, true)
+        @test_throws XLSX.XLSXError C.setLabelFlag(c, 1, :bubbleSize, true)
+        @test_throws XLSX.XLSXError C.setLabelFlag(c, 1, :values, true)
+        @test_throws XLSX.XLSXError C.getLabelFlag(c, 1, :percent)
+        pie = only(x for x in C.getCharts(ws) if C.getChartType(x) === :pieChart)
+        C.setLabelFlag(pie, 1, :percent, true)
+        @test C.getLabelFlag(pie, 1, :percent) === true
+        SAVE_FILES && save_outfile(xf)
+    end
 end

@@ -830,12 +830,14 @@
             cc = chart(:column, 120)
             C.setChartTitleText(cc, "My Title")
             C.setSeriesFill(cc, 1, "FF0000")
+            C.setLabelFlag(cc, 3, :value, true)
             C.setLabelTextProp(cc, 3, :bold, true)
             C.setAxisTitleText(cc, first(C.getChartAxes(cc, :value)), "Units")
             C.makeCombo(cc)
             @test C.getChartTitle(cc) == "My Title"
             @test C.getSeriesFill(cc, 1).value.fgcolor.val == "FF0000"
             @test C.getLabelTextProp(cc, 3, :bold).value === true
+            @test C.getLabelFlag(cc, 3, :value) === true
             vals = C.getChartAxes(cc, :value)
             @test length(vals) == 2 && occursin(">Units<", XLSX.XML.write(vals[1].raw))
             fmt(ser) = [XLSX.XML.write(k) for k in XLSX.XML.eachelement(ser)

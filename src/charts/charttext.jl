@@ -706,3 +706,102 @@ _deleted_dlbl(lbl::XML.Node, pfx) =
     _with_children(lbl, XML.Node[first_element_with_tag(lbl, "idx"),
                                  XML.Element(prefixed_tag(pfx[NS_C], "delete"); val = "1")])
 
+
+# ---- what data labels show -------------------------------------------------
+
+# A label part by the name Excel's Format Data Labels pane gives it, and its flag.
+const _LABEL_FLAGS = (value = "showVal", seriesName = "showSerName", categoryName = "showCatName",
+                      percent = "showPercent", bubbleSize = "showBubbleSize", legendKey = "showLegendKey")
+
+# The data labels Excel writes for a series when they are turned on (Chart Elements →
+# Data Labels), verbatim from Excel 365: the same for every kind but pie and doughnut,
+# whose labels have leader lines. Checked against test/data/chart_labels_on.xlsx.
+const _LABEL_TEMPLATE_DIR = joinpath(DATA_DIR, "chartlabels")
+const _LABEL_TEMPLATES = Dict{String,String}()
+for f in ("series", "pie")
+    p = joinpath(_LABEL_TEMPLATE_DIR, f * ".xml")
+    include_dependency(p)
+    _LABEL_TEMPLATES[f] = read(p, String)
+end
+
+function _label_flag(ser_key, flag::Symbol)::String
+    haskey(_LABEL_FLAGS, flag) || throw(XLSXError(
+        "Unknown label part `:$flag`. Use one of " * join((":$k" for k in keys(_LABEL_FLAGS)), ", ") * "."))
+    flag === :percent && ser_key[2] != "pieSer" &&
+        throw(XLSXError("`:percent` labels are for pie and doughnut charts."))
+    flag === :bubbleSize && ser_key[2] != "bubbleSer" &&
+        throw(XLSXError("`:bubbleSize` labels are for bubble charts."))
+    return _LABEL_FLAGS[flag]
+end
+
+"""
+    setLabelFlag(c::Chart, i, flag, on::Bool) -> Chart
+
+Show or hide one part of series `i`'s data labels, as the check boxes of Excel's
+Format Data Labels pane do. `flag` is `:value`, `:seriesName`, `:categoryName`
+(the X value on a scatter chart), `:legendKey`, `:percent` (pie and doughnut
+charts) or `:bubbleSize` (bubble charts).
+
+A series with no data labels of its own is given Excel's, formatted as Excel
+formats new labels, showing what the chart group's labels show (usually nothing)
+and then `flag`. So `setLabelFlag(c, 1, :value, true)` labels each point of the
+first series with its value, as Chart Elements → Data Labels does in Excel.
+Labels of single points, such as from [`setLabelText`](@ref), are kept.
+
+See [`getLabelFlag`](@ref) to read them back.
+"""
+function setLabelFlag(c::Chart, i::Integer, flag::Symbol, on::Bool)
+    root = chart_root(c)
+    pfx  = ns_prefixes(root)
+    steps, ser_key, _ = _series_path(c, root, i)
+    tag  = _label_flag(ser_key, flag)
+    grp  = first(_series_pick(c, root, i))
+    function set(lbls)
+        if isempty(collect(XML.eachelement(lbls))) || _bool_val(lbls, "delete") === true
+            lbls = _new_series_labels(lbls, ser_key, first_element_with_tag(grp, "dLbls"), pfx)
+        end
+        lbls = _dlbls_flags_off(lbls, (NS_C, "dLbls"), pfx)
+        return insert_child(lbls, (NS_C, "dLbls"), XML.Element(prefixed_tag(pfx[NS_C], tag); val = on ? "1" : "0"))
+    end
+    set_chart_root!(c, rebuild_path(root, [steps...; (NS_C, "dLbls") => "dLbls"], set;
+                                    prefixes = pfx, parent_key = ser_key))
+    return c
+end
+
+# Excel's new labels for a series, keeping the labels of single points it had, with
+# the flags its group's labels give it (or all off).
+function _new_series_labels(old::XML.Node, ser_key, group_lbls, pfx)
+    tmpl = _in_prefixes(xml_root_element(parse(_LABEL_TEMPLATES[ser_key[2] == "pieSer" ? "pie" : "series"], XML.Node)), pfx)
+    lbls = tmpl
+    for f in DLBLS_FLAGS
+        g = isnothing(group_lbls) ? nothing : first_element_with_tag(group_lbls, f)
+        isnothing(first_element_with_tag(lbls, f)) && continue
+        lbls = insert_child(lbls, (NS_C, "dLbls"),
+                            XML.Element(prefixed_tag(pfx[NS_C], f); val = isnothing(g) ? "0" : _attr(g, "val")))
+    end
+    for d in elements_with_tag(old, "dLbl")
+        lbls = insert_child(lbls, (NS_C, "dLbls"), d)
+    end
+    return lbls
+end
+
+"""
+    getLabelFlag(c::Chart, i, flag) -> Union{Nothing, Bool}
+
+Whether series `i`'s data labels show `flag` (see [`setLabelFlag`](@ref)): from
+the series' own labels, else its chart group's, else `nothing` if neither says.
+Labels deleted with `c:delete` show nothing, so every flag is `false`.
+"""
+function getLabelFlag(c::Chart, i::Integer, flag::Symbol)::Union{Nothing,Bool}
+    root = chart_root(c)
+    _, ser_key, ser = _series_path(c, root, i)
+    tag = _label_flag(ser_key, flag)
+    grp = first(_series_pick(c, root, i))
+    for lbls in (first_element_with_tag(ser, "dLbls"), first_element_with_tag(grp, "dLbls"))
+        isnothing(lbls) && continue
+        _bool_val(lbls, "delete") === true && return false
+        v = _bool_val(lbls, tag)
+        isnothing(v) || return v
+    end
+    return nothing
+end

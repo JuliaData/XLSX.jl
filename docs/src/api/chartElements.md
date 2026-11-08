@@ -80,6 +80,8 @@ getLabelTextProp
 setLabelText
 setLabelTextProp
 setLabelDeleted
+getLabelFlag(::Chart, ::Integer, ::Symbol)
+setLabelFlag
 ```
 
 ## Trendlines and error bars

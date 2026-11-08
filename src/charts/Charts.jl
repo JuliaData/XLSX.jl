@@ -165,7 +165,7 @@ export
     getLabelTextProp, getLabelFlag, getLabelPosition,
     setMarker, setMarkerSymbol, setMarkerSize, setMarkerFill,
     setMarkerLineColor, setMarkerLineWidth,
-    setLabelText, setLabelTextProp, setLabelDeleted,
+    setLabelText, setLabelTextProp, setLabelDeleted, setLabelFlag,
     # Trendlines and error bars
     getTrendlineShapeProps, getTrendlineLabelText, getTrendlineLabelTextProps,
     getTrendlineLabelShapeProps, getErrorBarsShapeProps, getErrorBarsCustomRefs,
