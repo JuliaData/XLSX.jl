@@ -639,7 +639,7 @@
             nx = joinpath(data_directory, "chart_templates_new.xlsx")
             later = (:percentstacked, :percentstackedbar, :stackedline, :percentstackedline,
                      :stackedlinemarkers, :percentstackedlinemarkers, :stackedarea,
-                     :percentstackedarea, :filledradar)
+                     :percentstackedarea, :filledradar, :combo)
             raw  = XLSX.ZipArchives.ZipReader(read(fx))
             rawn = XLSX.ZipArchives.ZipReader(read(nx))
             bysheet = Dict(c.sheet => c for c in XLSX.Charts.getCharts(XLSX.readxlsx(fx)))
@@ -709,6 +709,71 @@
             @test_throws XLSX.XLSXError XLSX.Charts.addSeries(fr, "B2:B5"; markers = true)
             sa = XLSX.Charts.addChart(ws, :stackedArea; anchor = "Q40:X54")
             @test_throws XLSX.XLSXError XLSX.Charts.addSeries(sa, "B2:B5"; smooth = true)
+            SAVE_FILES && save_outfile(xf)
+        end
+
+        @testset "combo charts" begin
+            C = XLSX.Charts
+            fmt(ser)   = [XLSX.XML.write(k) for k in XLSX.XML.eachelement(ser)
+                          if !(XLSX.localname(k) in C._SER_DATA_TAGS)]
+            allsers(c) = [s for (_, s) in C._series_nodes(C.chart_root(c))]
+            excel(file, part) = only(c for c in C.getCharts(XLSX.readxlsx(joinpath(data_directory, file)))
+                                     if basename(c.path) == part)
+            inserted = excel("chart_templates_new.xlsx", "chart10.xml")  # Insert → Combo, two series
+            markered = excel("chart_combo_changes.xlsx", "chart4.xml")   # its line made Line with Markers
+
+            # A combo series is formatted as a :column or :line series is.
+            strs(p) = XLSX.XML.write.(first(p))
+            @test strs(C._series_pattern(:combo, 1)) == strs(C._series_pattern(:column))
+            @test strs(C._series_pattern(:combo, 2)) ==
+                  replace.(strs(C._series_pattern(:line)), "accent1" => "accent2")
+            @test last(C._series_pattern(:combo, 2)) == "accent2"
+
+            xf = XLSX.newxlsx()
+            ws = xf[1]
+            ws["A1"] = ["" "North" "South" "East"; "Q1" 4 7 20; "Q2" 5 8 30; "Q3" 6 9 25; "Q4" 7 10 35]
+            c = C.addChart(ws, :combo; anchor = "H2:O16")
+            @test C.getChartType(c) === :combo
+            @test isempty(C.getChartSeries(c))
+            C.addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1", group = :column)
+            C.addSeries(c, "C2:C5"; categories = "A2:A5", name_ref = "C1", group = :line)
+            @test fmt.(allsers(c)) == fmt.(allsers(inserted))
+            @test [s.charttype for s in C.getChartSeries(c)] == [:barChart, :lineChart]
+
+            # The line is on the secondary axes; idx, order and colour count the whole chart.
+            groups = C.getChartGroups(c)
+            @test [a.axid for a in C.getSeriesAxes(c, 2)] == groups[2].axids != groups[1].axids
+            @test any(a -> a.kind === :valAx && a.pos === :r, C.getSeriesAxes(c, 2))
+            C.addSeries(c, "D2:D5"; categories = "A2:A5", group = :line)
+            @test [(s.idx, s.order, s.charttype) for s in C.getChartSeries(c)] ==
+                  [(0, 0, :barChart), (1, 1, :lineChart), (2, 2, :lineChart)]
+            @test occursin("\"accent3\"", XLSX.XML.write(allsers(c)[3]))
+
+            # Markers give the line Excel's Line with Markers formatting in a combo.
+            m = C.addChart(ws, :combo; anchor = "H20:O34")
+            C.addSeries(m, "B2:B5"; categories = "A2:A5", name_ref = "B1", group = :column)
+            C.addSeries(m, "C2:C5"; categories = "A2:A5", name_ref = "C1", group = :line, markers = true)
+            @test fmt.(allsers(m)) == fmt.(allsers(markered))
+
+            # `group` is required on a combo, refused elsewhere, and must name one group.
+            col = C.addChart(ws, :column; anchor = "Q2:X16")
+            @test_throws XLSX.XLSXError C.addSeries(c, "B2:B5")
+            @test_throws XLSX.XLSXError C.addSeries(c, "B2:B5"; group = :bar)
+            @test_throws XLSX.XLSXError C.addSeries(col, "B2:B5"; group = :column)
+            # The column group takes the options of a :column chart.
+            @test_throws XLSX.XLSXError C.addSeries(c, "B2:B5"; group = :column, markers = true)
+            @test_throws XLSX.XLSXError C.addSeries(c, "B2:B5"; group = :column, smooth = true)
+            @test length(C.getChartSeries(c)) == 3
+
+            # A combo chart Excel made takes a series in either group.
+            g  = XLSX.opentemplate(joinpath(data_directory, "chart_combo.xlsx"))
+            ec = C.getCharts(g)[1]
+            ref = replace(C.getChartSeries(ec; read_cached_values = false)[1].values.ref, "\$" => "")
+            C.addSeries(ec, ref; group = :line, name = "Extra")
+            s = C.getChartSeries(ec; read_cached_values = false)
+            @test length(s) == 3
+            @test allunique(x.idx for x in s) && allunique(x.order for x in s)
+            @test count(x -> x.charttype === :lineChart, s) == 2
             SAVE_FILES && save_outfile(xf)
         end
 
@@ -924,9 +989,12 @@
                 if kind === :bubble
                     XLSX.Charts.addSeries(c, "C2:C5"; categories="B2:B5", bubble_sizes="D2:D5", name="Bubbles")
                 else
-                    XLSX.Charts.addSeries(c, "B2:B5"; categories="A2:A5", name_ref="B1")
+                    combo = kind === :combo
+                    XLSX.Charts.addSeries(c, "B2:B5"; categories="A2:A5", name_ref="B1",
+                                          group = combo ? :column : nothing)
                     kind in (:pie, :doughnut) ||
-                        XLSX.Charts.addSeries(c, "C2:C5"; categories="A2:A5", name_ref="C1")
+                        XLSX.Charts.addSeries(c, "C2:C5"; categories="A2:A5", name_ref="C1",
+                                              group = combo ? :line : nothing)
                 end
                 s = XLSX.Charts.getChartSeries(c)
                 @test s[1].values.data == [10, 20, 30, 40] || kind === :bubble

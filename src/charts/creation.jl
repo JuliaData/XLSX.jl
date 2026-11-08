@@ -190,7 +190,10 @@ such as `"F2:M18"`). Add data with [`addSeries`](@ref).
 - `:line`, `:stackedLine`, `:percentStackedLine`, and `:lineMarkers`,
   `:stackedLineMarkers`, `:percentStackedLineMarkers` with markers;
 - `:area`, `:stackedArea`, `:percentStackedArea`;
-- `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`.
+- `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`;
+- `:combo`, Excel's "Clustered Column – Line on Secondary Axis": a column group
+  and a line group on axes of its own. Pass `group` to [`addSeries`](@ref) to say
+  which a series joins.
 
 The `percentStacked` kinds are Excel's 100% stacked subtypes.
 The chart starts as Excel's own default for that kind, formatted by the
@@ -427,8 +430,10 @@ function _kind_signatures()
     lock(_KIND_SIGNATURES_LOCK) do
         if isempty(_KIND_SIGNATURES)
             for (kind, k) in pairs(C_KINDS)
-                root = xml_root_element(parse(CHART_KIND_TEMPLATES[k.template], XML.Node))
-                _KIND_SIGNATURES[kind] = _group_signature(first(_group_nodes(root)))
+                root   = xml_root_element(parse(CHART_KIND_TEMPLATES[k.template], XML.Node))
+                groups = _group_nodes(root)
+                length(groups) == 1 || continue                 # :combo, chosen by `group`
+                _KIND_SIGNATURES[kind] = _group_signature(only(groups))
             end
         end
         return _KIND_SIGNATURES
@@ -443,25 +448,53 @@ has the same element, `barDir`, `grouping`, line `marker` flag and
 `radarStyle`. Works on any chart, whatever wrote it: where no kind matches all
 four, the one of the same element matching most of them is taken, the first in
 `C_KINDS` order on a tie, so a radar chart of the `standard` style reads as
-`:radar`.
+`:radar`. The chart must have one group; `_series_target` picks one of several.
 """
 function _chart_kind(c::Chart)::Symbol
     groups = _group_nodes(chart_root(c))
+    isempty(groups) && throw(XLSXError("Chart `$(c.name)` has no plot group."))
     length(groups) == 1 || throw(XLSXError(
-        isempty(groups) ? "Chart `$(c.name)` has no plot group." :
         "Chart `$(c.name)` is a combo chart, with $(length(groups)) plot groups. " *
-        "Adding a series to one is not supported."))
+        "Pass `group = :column` or `group = :line` to say which the series joins."))
     sig  = _group_signature(only(groups))
     sigs = _kind_signatures()
     best, score = nothing, -1
     for kind in keys(C_KINDS)
-        s = sigs[kind]
-        s.tag == sig.tag || continue
+        s = get(sigs, kind, nothing)
+        (isnothing(s) || s.tag != sig.tag) && continue
         n = count(f -> getfield(s, f) == getfield(sig, f), _SIGNATURE_FIELDS)
         n > score && ((best, score) = (kind, n))
     end
     isnothing(best) && throw(XLSXError("Adding a series to a `$(sig.tag)` chart is not supported."))
     return best
+end
+
+# Where a series goes and how it is formatted: the plot group it joins, the kind
+# whose options it takes, and the template group whose first series is its pattern.
+# A one-group chart has one answer and refuses `group`. On a chart with more,
+# `group` names a group of the combo template, and the series is formatted as that
+# template's series are, whatever else the chart's group says: Excel writes the
+# line group of every combo with `c:marker val="1"` yet draws its series without
+# markers, so the line group of a combo would read as :lineMarkers by signature.
+function _series_target(c::Chart, group)
+    groups = _group_nodes(chart_root(c))
+    if length(groups) <= 1
+        isnothing(group) || throw(XLSXError(
+            "`group` is for a combo chart; chart `$(c.name)` has one plot group."))
+        kind = _chart_kind(c)
+        return (node = only(groups), kind = kind, template = C_KINDS[kind].template, template_group = 1)
+    end
+    isnothing(group) && _chart_kind(c)                           # throws, saying to pass `group`
+    haskey(_COMBO_GROUPS, group) || throw(XLSXError(
+        "`group` is `:column` or `:line`, not `$(repr(group))`."))
+    want = _COMBO_GROUPS[group]
+    hits = [g for g in groups if localname(g) == want.tag &&
+                                 (isnothing(want.barDir) || _group_signature(g).barDir === want.barDir)]
+    length(hits) == 1 || throw(XLSXError(
+        "Chart `$(c.name)` has $(isempty(hits) ? "no" : length(hits)) `:$group` groups, so " *
+        "`group = :$group` doesn't name one. Its groups are " *
+        join(("`$(localname(g))`" for g in groups), ", ") * "."))
+    return (node = only(hits), kind = group, template = :combo, template_group = want.template_group)
 end
 
 const _SER_DATA_TAGS = ("idx", "order", "tx", "cat", "val", "xVal", "yVal", "bubbleSize", "extLst")
@@ -490,10 +523,11 @@ function _series_color_node(color, template_clr::XML.Node, pfx)
     return _with_children(node, vcat(something(XML.children(node), XML.Node[]), extra))
 end
 
-# Every accent1 in a template fragment, recolored.
-_with_color(n::XML.Node, color, pfx) =
+# Every `from` accent in a template fragment, recolored: accent1 unless the
+# template series was drawn in another, as the second series of :combo is.
+_with_color(n::XML.Node, color, pfx; from::AbstractString = "accent1") =
     _rewrite(n) do e
-        localname(e) == "schemeClr" && _attr(e, "val") == "accent1" || return e
+        localname(e) == "schemeClr" && _attr(e, "val") == from || return e
         return _series_color_node(color, e, pfx)
     end
 
@@ -514,11 +548,14 @@ _in_prefixes(node::XML.Node, pfx; from = _TEMPLATE_NS) =
     end
 
 # The formatting children of a kind's template series: spPr, marker, smooth,
-# invertIfNegative, bubble3D, and for pie and doughnut the per-point dPt list.
-function _series_pattern(kind::Symbol)
-    tmpl = parse(CHART_KIND_TEMPLATES[C_KINDS[kind].template], XML.Node)
-    ser  = first(elements_with_tag(first(_group_nodes(xml_root_element(tmpl))), "ser"))
-    return XML.Node[k for k in XML.eachelement(ser) if !(localname(k) in _SER_DATA_TAGS)]
+# invertIfNegative, bubble3D, and for pie and doughnut the per-point dPt list;
+# with the accent that series was drawn in, its position's, as Excel numbers them.
+# `group` is the template's plot group, the second for the line of :combo.
+function _series_pattern(template::Symbol, group::Integer = 1)
+    tmpl = parse(CHART_KIND_TEMPLATES[template], XML.Node)
+    ser  = first(elements_with_tag(_group_nodes(xml_root_element(tmpl))[group], "ser"))
+    kids = XML.Node[k for k in XML.eachelement(ser) if !(localname(k) in _SER_DATA_TAGS)]
+    return kids, _accent(something(_int_val(ser, "idx"), 0) + 1)
 end
 
 _varies_by_point(kind::Symbol) = kind in (:pie, :doughnut)
@@ -538,7 +575,7 @@ end
 """
     addSeries(c::Chart, values; categories=nothing, name=nothing, name_ref=nothing,
               bubble_sizes=nothing, markers=nothing, smooth=nothing, line=nothing,
-              color=nothing) -> Chart
+              color=nothing, group=nothing) -> Chart
 
 Add a series to `c`, plotting `values`. Each reference is a range string
 (`"B2:B5"`), a defined name, or a reference object; an unqualified range means
@@ -573,15 +610,24 @@ pie and doughnut charts, whose points are colored individually.
 The cells' current values are cached in the chart, as Excel does, so the series
 reads back without opening the file in Excel. Series take the theme's accent
 colors in turn; on a pie or doughnut chart each point does instead.
+
+On a combo chart — one with more than one plot group — `group` says which group
+the series joins: `:column` for the column group or `:line` for the line group,
+which is on the secondary axis in a chart from `addChart(ws, :combo; …)`. It is
+required there, and an error on a chart with one group. The series is formatted
+as Excel formats a series of that group in a combo chart, and takes the options
+of a `:column` or `:line` chart. A chart with no group of that kind, or two of
+them, throws.
 """
 function addSeries(c::Chart, values;
                    categories = nothing, name = nothing, name_ref = nothing,
                    bubble_sizes = nothing, markers = nothing, smooth = nothing,
-                   line = nothing, color = nothing)::Chart
+                   line = nothing, color = nothing, group = nothing)::Chart
     isnothing(name) || isnothing(name_ref) ||
         throw(XLSXError("Pass `name` for literal text or `name_ref` for a cell, not both."))
 
-    kind = _chart_kind(c)
+    target = _series_target(c, group)
+    kind   = target.kind
     isxy = kind in (:scatter, :bubble)
     okmk = kind in (_LINE_KINDS..., :radar, :scatter)
     oksm = kind in (_LINE_KINDS..., :scatter)
@@ -604,12 +650,16 @@ function addSeries(c::Chart, values;
         isnothing(categories)   && throw(XLSXError("A bubble chart series needs `categories`, its X values."))
     end
     markers === true && (markers = :circle)
-    haskey(_WITH_MARKERS, kind) && !isnothing(markers) && markers !== false && (kind = _WITH_MARKERS[kind])
+    tmpl = (target.template, target.template_group)
+    if haskey(_WITH_MARKERS, kind) && !isnothing(markers) && markers !== false
+        kind = _WITH_MARKERS[kind]
+        tmpl = (C_KINDS[kind].template, 1)
+    end
 
     root = chart_root(c)
     pfx  = ns_prefixes(root)
-    g    = only(_group_nodes(root))
-    sers = collect(elements_with_tag(g, "ser"))
+    g    = target.node
+    sers = [s for (_, s) in _series_nodes(root)]          # idx and order count the whole chart
     n    = length(sers)
     idx  = maximum((something(_int_val(s, "idx"),   -1) for s in sers); init = -1) + 1
     ord  = maximum((something(_int_val(s, "order"), -1) for s in sers); init = -1) + 1
@@ -623,7 +673,8 @@ function addSeries(c::Chart, values;
         push!(kids, _c_el(pfx, "tx", _cache_ref(nf, nv, c.package, pfx; str = true)))
     end
 
-    pattern = [_in_prefixes(k, pfx) for k in _series_pattern(kind)]
+    pat, from = _series_pattern(tmpl...)
+    pattern = [_in_prefixes(k, pfx) for k in pat]
     col     = something(color, _accent(n + 1))
     for k in pattern
         t = localname(k)
@@ -635,7 +686,7 @@ function addSeries(c::Chart, values;
         elseif t == "spPr" && line === true
             k = _with_scatter_line(k, pfx)
         end
-        push!(kids, _varies_by_point(kind) ? k : _with_color(k, col, pfx))
+        push!(kids, _varies_by_point(kind) ? k : _with_color(k, col, pfx; from))
     end
 
     val, npts = _data_child(c, isxy ? "yVal" : "val", values, pfx)

@@ -21,14 +21,16 @@ with no template cannot be created at all, rather than being approximated:
 
 - 3-D charts of any kind
 - stock, surface and of-pie charts
-- combo charts — a plot area with more than one group
+- combo charts other than `:combo` (column and line on secondary axes)
 - region maps (the `cx:` filled map), whose geography Excel resolves online
 
 All of these are *read* normally, including their series and formatting and,
 for the `c:` kinds, their cached data. The restriction is on creating them.
 
-A combo chart is also the one case [`addSeries`](@ref) cannot extend, since
-there is no single group to add the series to.
+[`addSeries`](@ref) adds to the column or line group of any combo chart, through
+its `group` keyword, but not to a combo's other groups, such as an area group.
+A group can't be moved between the primary and secondary axes, and an existing
+`:column` or `:line` chart can't yet be made a combo.
 
 ## Style and color parts are read for `cx:` fills only
 

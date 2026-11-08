@@ -402,6 +402,7 @@ const C_KINDS = (
     bubble                    = (template = :bubble,                    style = 269),
     radar                     = (template = :radar,                     style = 317),
     filledRadar               = (template = :filledradar,               style = 317),
+    combo                     = (template = :combo,                     style = 201),
 )
 
 # The line kinds and their "with markers" counterparts: markers on a series of
@@ -410,6 +411,11 @@ const _WITH_MARKERS = Dict(:line => :lineMarkers, :stackedLine => :stackedLineMa
                            :percentStackedLine => :percentStackedLineMarkers)
 const _LINE_KINDS = (:line, :lineMarkers, :stackedLine, :percentStackedLine,
                      :stackedLineMarkers, :percentStackedLineMarkers)
+
+# The groups of a :combo chart that addSeries can add to: each by its element
+# (and barDir), and its position in the combo template, whose series formats it.
+const _COMBO_GROUPS = (column = (tag = "barChart",  barDir = :col,   template_group = 1),
+                       line   = (tag = "lineChart", barDir = nothing, template_group = 2))
 
 #const CHART_STYLE_REL = "http://schemas.microsoft.com/office/2011/relationships/chartStyle"
 #const CHART_COLOR_REL = "http://schemas.microsoft.com/office/2011/relationships/chartColorStyle"

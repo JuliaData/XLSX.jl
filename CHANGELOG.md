@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- `addChart(ws, :combo; …)` creates Excel's "Clustered Column – Line on Secondary Axis" combo chart, from a chart Excel 365 wrote, and `addSeries` takes a `group` keyword, `:column` or `:line`, saying which of a combo chart's groups a series joins. It works on combo charts Excel made too, which `addSeries` refused before. `group` is required on a chart with more than one plot group and an error on one with a single group. Combo series are formatted as Excel formats them, with markers on the line giving Excel's Line with Markers formatting.
+- `addSeries` numbers a new series (`c:idx`, `c:order` and its automatic accent colour) across all of a chart's series rather than within its group. This changes nothing for a chart with one group.
 - `addChart` creates nine more kinds, from charts Excel 365 wrote: `:percentStackedColumn`, `:percentStackedBar`, `:stackedLine`, `:percentStackedLine`, `:stackedLineMarkers`, `:percentStackedLineMarkers`, `:stackedArea`, `:percentStackedArea` and `:filledRadar`. Series added with `addSeries` are formatted as Excel formats them, the second series and on included. `markers` and `smooth` apply to every line kind, and markers on a stacked line series give it the formatting of the kind with markers, as they do for `:line`
 - `addSeries` reads which kind a chart is from its plot group's `barDir`, `grouping`, marker flag and `radarStyle`, compared with each kind's template, so an existing stacked or 100% stacked chart, from Excel or elsewhere, takes the matching kind's series formatting. A stacked bar chart was read as a clustered one; the two format their series alike, so files written before are unaffected
 

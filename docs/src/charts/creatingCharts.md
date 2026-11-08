@@ -61,7 +61,8 @@ schema, where the data block is required.
 | Line with markers | `:lineMarkers` | `:stackedLineMarkers` | `:percentStackedLineMarkers` |
 | Area | `:area` | `:stackedArea` | `:percentStackedArea` |
 
-and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`.
+and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`, and
+`:combo`, a column and a line chart in one; see [Combo charts](#Combo-charts).
 
 Each comes from a chart part Excel itself wrote, kept verbatim in the package,
 so a created chart is what Excel would have produced for that kind — including
@@ -228,6 +229,7 @@ in the table under [The kinds](#The-kinds), as are:
 | Pie, Doughnut | `:pie`, `:doughnut` |
 | Filled Radar | `:filledRadar` |
 | Bubble | `:bubble` |
+| Clustered Column – Line on Secondary Axis | `:combo` |
 
 ### Subtypes that cannot be created
 
@@ -277,8 +279,37 @@ julia> [getSeriesFill(ec, i).value.fgcolor.val for i in 1:3]
  "accent3"
 ```
 
-A chart with more than one group — a combo chart — has no single group to add
-to, so `addSeries` throws on one.
+A chart with more than one group — a combo chart — takes a `group` keyword to
+say which group a series joins; see [Combo charts](#Combo-charts).
+
+## Combo charts
+
+`:combo` is Excel's "Clustered Column – Line on Secondary Axis": a column group
+on the primary axes and a line group on secondary axes of its own, so the two can
+plot values of different sizes. Pass `group` to say which group each series
+joins:
+
+```julia
+julia> ws["A1"] = ["" "Units" "Margin"; "Q1" 120 0.31; "Q2" 135 0.28; "Q3" 150 0.35; "Q4" 160 0.33];
+
+julia> cc = addChart(ws, :combo; anchor = "D2:K17", title = "Units and margin");
+
+julia> addSeries(cc, "B2:B5"; categories = "A2:A5", name_ref = "B1", group = :column);
+
+julia> addSeries(cc, "C2:C5"; categories = "A2:A5", name_ref = "C1", group = :line);
+```
+
+`group` is `:column` or `:line`. It is required on a combo chart and refused on
+any other, so a series can't land in a group by accident. Each series is
+formatted as Excel formats one in that group, and takes the options of a
+`:column` or `:line` series: `markers = true` on a line gives Excel's Line with
+Markers formatting, and `smooth` curves it. Series are numbered, and take the
+accent colors in turn, across the whole chart, as Excel numbers them.
+
+The same works on a combo chart Excel made, provided it has one column group or
+one line group to add to; a chart with neither, or with two of the one asked
+for, throws. Changing which axes a group uses, and promoting an existing
+`:column` or `:line` chart to a combo, are not supported yet.
 
 ## Deleting a chart
 
