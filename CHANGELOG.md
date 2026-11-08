@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- `insertRows` and `insertColumns` format the new rows and columns as Excel does by default ("Format Same As Above"): each new cell takes its neighbour's style, without its border; a row takes the height, style and outline level of the row above, and a column the width, style and outline level of the column to its left; and a conditional format or data validation ending just before the insert grows over it. Checked against Excel 365's own results. The new rows and columns used to be unformatted.
+- Deleting all the rows or columns under an image or chart set to move and size with its cells deletes it, with its picture or chart part, as Excel does. It used to shrink to nothing and stay in the file.
 - `makeCombo(c)` makes a `:column`, `:stackedColumn` or `:line` chart a combo chart, as Excel's Change Chart Type → Combo → "Clustered Column – Line on Secondary Axis" does: the last series becomes a line on new secondary axes and the others clustered columns. As in Excel, the title, legend, axes and the formatting of series that keep their type are kept, and a series that changes type takes the default formatting of its new group, keeping its name, data and data labels. Checked against Excel 365's own results.
 - `addSeries` and `addChartEx` take absolute references, such as `Data!$B$2:$B$5`, `'My Data'!$B$1` or `$B$2:$B$5`, so a reference read from a series with `getChartSeries` can be passed straight back. They threw before.
 - `addSeries` writes a series' children in schema order. A line or scatter series had its `c:smooth` written before its data, where the schema places it after.

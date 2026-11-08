@@ -12,8 +12,9 @@
 # - "absolute" (don't move or size): nothing moves.
 #
 # A corner whose row (column) is deleted goes to the top (left) of the row (column)
-# that follows, so an object all of whose rows are deleted shrinks to nothing, as in
-# Excel, rather than going.
+# that follows. An object all of whose rows (columns) are deleted goes, as in Excel,
+# if it moves and sizes with its cells; one that only moves, or doesn't, is kept at
+# its size.
 #
 # Comments (notes) are in the comments part, by cell, with a box in the sheet's VML
 # drawing whose `<x:Row>`/`<x:Column>` name the cell and whose `<x:Anchor>` places
@@ -41,6 +42,28 @@ function _shift_end_marker_index(p::Int, at_edge::Bool, e::RowColEdit)::Tuple{In
 end
 
 # --- drawings
+
+# Delete the "twoCell" objects whose rows (columns) edit `e` deletes, top to bottom
+# (left to right), with what only they use, as Excel does; before the others move.
+function _delete_drawings_gone!(xf::XLSXFile, sheet_path::String, e::RowColEdit)
+    e.count < 0 || return nothing
+    path = _drawing_path_for_sheet(xf, sheet_path)
+    isnothing(path) && return nothing
+    _delete_drawing_objects!(xf, sheet_path, path, a -> _all_deleted(a, e))
+    return nothing
+end
+
+function _all_deleted(a::XML.Node, e::RowColEdit)::Bool
+    localname(a) == "twoCellAnchor" && get(a, "editAs", "twoCell") == "twoCell" || return false
+    from, to = first_element_with_tag(a, "from"), first_element_with_tag(a, "to")
+    (isnothing(from) || isnothing(to)) && return false
+    idx_tag, off_tag = e.axis === :row ? ("row", "rowOff") : ("col", "colOff")
+    val(m, t) = (el = first_element_with_tag(m, t); isnothing(el) ? 0 : parse(Int, strip(something(XML.is_simple_value(el), "0"))))
+    first_p = val(from, idx_tag) + 1
+    last_p  = val(to, idx_tag) + 1
+    val(to, off_tag) == 0 && last_p > first_p && (last_p -= 1)   # ends at the top of the row after
+    return e.at <= first_p && last_p <= _edit_last_deleted(e)
+end
 
 function _shift_drawing!(xf::XLSXFile, sheet_path::String, e::RowColEdit)
     path = _drawing_path_for_sheet(xf, sheet_path)

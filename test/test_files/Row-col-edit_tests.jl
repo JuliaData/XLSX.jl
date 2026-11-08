@@ -348,12 +348,12 @@
         pane = XLSX.first_element_with_tag(XLSX.first_element_with_tag(element(xf, "sheetViews"), "sheetView"), "pane")
         @test pane["xSplit"] == "2"
         spans() = [(c["min"], c["max"]) for c in XLSX.xml_elements(element(xf, "cols"))]
-        @test spans() == [("3", "4")]                       # column E is new: the wide span is unmoved
+        @test spans() == [("3", "5")]                       # the new column E takes D's width, as in Excel
         XLSX.insertColumns(s, "D")                          # inside the wide span: it grows
-        @test spans() == [("3", "5")]
-        XLSX.insertColumns(s, "A")                          # before it: it moves
-        @test spans() == [("4", "6")]
-        XLSX.deleteColumns(s, "D:F")
+        @test spans() == [("3", "6")]
+        XLSX.insertColumns(s, "A")                          # before it: it moves; a new A takes nothing
+        @test spans() == [("4", "7")]
+        XLSX.deleteColumns(s, "D:G")
         @test isnothing(element(xf, "cols"))
     end
 
@@ -444,16 +444,16 @@
         XLSX.deleteRows(s, 1:3)                            # the image's first row goes
         img, _ = anchors(xf)
         @test img[3][1] == 0 && img[3][2] == 0             # its top is now the top of what was below
+        SAVE_FILES && save_outfile(xf)
 
-        # every row of the image deleted: it shrinks to nothing, but stays
+        # every row of the image deleted: it goes, with its picture, as in Excel
         xf, s = fresh()
         XLSX.addImage(s, "B3:D6", joinpath(data_dir, "track_start.png"))
         XLSX.deleteRows(s, 3:7)
-        img = only(anchors(xf))
-        @test img[3][1] == img[4][1] == 2 && img[3][2] == img[4][2] == 0
-        @test length(XLSX.getImages(s)) == 1
+        @test isempty(XLSX.getImages(s))
+        @test !any(k -> startswith(k, "xl/media/"), keys(xf.binary_data))
         r = roundtrip(xf)
-        @test length(XLSX.getImages(r["Data"])) == 1
+        @test isempty(XLSX.getImages(r["Data"]))
         SAVE_FILES && save_outfile(xf)
     end
 
@@ -476,6 +476,110 @@
         twocell, onecell, absolute = anchors(xf)
         @test onecell[3][1] == before[2][3][1] + 1 && onecell[4][1] == before[2][4][1] + 1   # moved, same size
         @test absolute == before[3]
+    end
+
+    # A sheet as Excel shows it: each formatted cell's number format, font, fill and
+    # border; each row's height, style, outline level and hidden flag; the column
+    # definitions; and the merged, conditional-format and validation ranges.
+    function formatting(xf, sheet)
+        wb = XLSX.get_workbook(xf)
+        ws = xf[sheet]
+        isnothing(ws.cache) && foreach(_ -> nothing, XLSX.eachrow(ws))
+        fonts, fills, borders = XLSX.get_fonts_nodes(wb), XLSX.get_fills_nodes(wb), XLSX.get_borders_nodes(wb)
+        node(v, k) = XLSX.XML.write(v[parse(Int, k) + 1])
+        style(s) = (x = XLSX.styles_cell_xf(wb, Int(s));
+                    (get(x, "numFmtId", "0"), node(fonts, get(x, "fontId", "0")),
+                     node(fills, get(x, "fillId", "0")), node(borders, get(x, "borderId", "0"))))
+        plain = style(0)
+        cells = Dict{String,Any}()
+        rows = Dict{Int,Any}()
+        for (r, row) in ws.cache.cells
+            for cell in values(row)
+                st = style(cell.style)
+                st == plain || (cells[string(cell.ref)] = st)
+            end
+            uh = something(get(something(ws.unhandled_attributes, Dict()), r, nothing), Dict())
+            a = (get(ws.cache.row_ht, r, nothing), haskey(uh, "s") ? style(parse(Int, uh["s"])) : nothing,
+                 get(uh, "outlineLevel", nothing), get(uh, "hidden", nothing))
+            all(isnothing, a) || (rows[r] = a)
+        end
+        root = XLSX._sheet_root(ws)
+        cols = [(d["min"], get(d, "max", d["min"]), get(d, "width", nothing), get(d, "hidden", nothing),
+                 get(d, "outlineLevel", nothing), haskey(d, "style") ? style(parse(Int, d["style"])) : nothing)
+                for c in XLSX.xml_elements(root) if XLSX.localname(c) == "cols" for d in XLSX.xml_elements(c)]
+        ranges = sort([(XLSX.localname(n), get(n, "sqref", get(n, "ref", ""))) for c in XLSX.xml_elements(root)
+                       for n in (XLSX.localname(c) == "conditionalFormatting" ? [c] :
+                                 XLSX.localname(c) in ("mergeCells", "dataValidations") ? XLSX.xml_elements(c) : [])])
+        return (; cells, rows, cols, ranges)
+    end
+
+    @testset "inserted rows and columns are formatted as Excel formats them" begin
+        # Excel's own before and after (made in Excel 365 through its automation): the
+        # same inserts, bottom up and right to left.
+        for (name, edits) in (
+                ("rowcol_inherit", s -> begin
+                    foreach(c -> XLSX.insertColumns(s, c), ("U", "Q", "K", "G"))
+                    for (r, n) in ((56, 1), (51, 1), (41, 1), (31, 1), (21, 3), (15, 1), (10, 1), (6, 1), (1, 1))
+                        XLSX.insertRows(s, r; count = n)
+                    end
+                end),
+                ("rowcol_style", s -> (XLSX.insertColumns(s, "J"); XLSX.insertColumns(s, "E"); XLSX.insertRows(s, 6))))
+            xf = XLSX.opentemplate(joinpath(data_directory, "$(name)_before.xlsx"))
+            sheet = XLSX.sheetnames(xf)[1]
+            edits(xf[sheet])
+            ours, excel = formatting(xf, sheet), formatting(XLSX.opentemplate(joinpath(data_directory, "$(name)_after.xlsx")), sheet)
+            @test ours.cells == excel.cells
+            @test ours.rows == excel.rows
+            @test ours.cols == excel.cols
+            @test ours.ranges == excel.ranges
+            SAVE_FILES && save_outfile(xf)
+        end
+
+        # A range ending just before the insert grows over it; whole rows and columns don't.
+        E(axis, at, n=1) = XLSX.RowColEdit("Data", axis, at, n)
+        @test XLSX._grow_sqref("B2:D9 M50 A:A F1:F3", E(:row, 10, 2)) == "B2:D11 M50 A:A F1:F3"
+        @test XLSX._grow_sqref("M50", E(:row, 51)) == "M50:M51"
+        @test XLSX._grow_sqref("B2:D9 2:4", E(:column, 5)) == "B2:E9 2:4"
+        # At row 1 or column A there is nothing to take formatting from.
+        xf, s = fresh()
+        XLSX.setFill(s, "A1"; pattern = "solid", fgColor = "FFFF0000")
+        XLSX.insertRows(s, 1)
+        XLSX.insertColumns(s, "A")
+        @test isnothing(XLSX.getFill(s, "A1")) && isnothing(XLSX.getFill(s, "B1"))
+        @test !isnothing(XLSX.getFill(s, "B2"))
+    end
+
+    @testset "objects whose rows or columns are all deleted" begin
+        # Excel's own before and after: a picture of each placement and two charts per
+        # sheet; on "Rows" rows 3:18 deleted, on "Cols" columns B:O.
+        function find_name(n)
+            XLSX.localname(n) == "cNvPr" && return n["name"]
+            for k in XLSX.xml_elements(n)
+                r = find_name(k)
+                isnothing(r) || return r
+            end
+            return nothing
+        end
+        function placed(xf, sheet)
+            path = XLSX._drawing_path_for_sheet(xf, XLSX._sheet_path(xf[sheet]))
+            marker(a, t) = (m = XLSX.first_element_with_tag(a, t);
+                            Tuple(XLSX.XML.is_simple_value(XLSX.first_element_with_tag(m, k)) for k in ("col", "colOff", "row", "rowOff")))
+            return sort([(find_name(a), marker(a, "from"), marker(a, "to"))
+                         for a in XLSX.xml_elements(XLSX.xml_root_element(XLSX.get_xml_data(xf, path)))])
+        end
+        xf = XLSX.opentemplate(joinpath(data_directory, "rowcol_objects_before.xlsx"))
+        XLSX.deleteRows(xf["Rows"], 3:18)
+        XLSX.deleteColumns(xf["Cols"], "B:O")
+        excel = XLSX.readxlsx(joinpath(data_directory, "rowcol_objects_after.xlsx"))
+        for sheet in ("Rows", "Cols")
+            @test placed(xf, sheet) == placed(excel, sheet)
+            @test [p[1] for p in placed(xf, sheet)] == ["Chart2", "Pic2", "Pic3"]   # move-and-size went
+        end
+        @test length(XLSX.Charts.getCharts(xf)) == 2                                # with their chart parts
+        @test count(k -> startswith(k, "xl/charts/chart"), keys(xf.data)) == 2
+        r = roundtrip(xf)
+        @test length(XLSX.Charts.getCharts(r)) == 2 && length(XLSX.getImages(r["Rows"])) == 2
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "comments" begin
@@ -506,6 +610,7 @@
 
         r = roundtrip(xf)["Data"]
         @test XLSX.getComment(r, "D9").text == "on C8"
+        SAVE_FILES && save_outfile(xf)                     # the moved comments, before they go
 
         XLSX.deleteRows(s, 1:20)                           # the last comments go: so do their parts
         @test isempty(XLSX.getComments(s))
@@ -572,6 +677,7 @@
         @test t.ref == XLSX.CellRange("A1:D12") && t.has_totals_row
         @test table_filter(xf, s)["ref"] == "A1:D11"
         @test_throws XLSX.XLSXError XLSX.deleteRows(s, 12)   # the totals row
+        SAVE_FILES && save_outfile(xf)                     # the table with its totals row
         XLSX.removetotals!(s, "Sales")
         XLSX.deleteRows(s, 12)
         @test tbl(s).ref == XLSX.CellRange("A1:D11")

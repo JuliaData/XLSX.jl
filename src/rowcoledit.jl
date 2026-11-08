@@ -19,9 +19,10 @@ hyperlinks, the AutoFilter, panes, defined names (including the print area and
 titles), chart series, and the Excel Tables, images, charts and comments on the
 sheet. A range that spans row `at` grows to include the new rows.
 
-`at` is a row number or a string naming one (`"5"`). The new rows are empty and
-unformatted. Inserting rows that would push data past the last row Excel allows
-is an error, as in Excel.
+`at` is a row number or a string naming one (`"5"`). The new rows are empty, and
+formatted like the row above as Excel formats them; see [How new rows and columns
+are formatted](@ref). Inserting rows that would push data past the last row Excel
+allows is an error, as in Excel.
 
 The file must be open for writing (`mode="rw"`).
 
@@ -64,8 +65,10 @@ everything that refers to them follows, as for [`insertRows`](@ref). A reference
 to a deleted cell becomes `#REF!`; a range that loses some of its rows shrinks,
 and one that loses all of them goes too (a merged range, a conditional format, a
 data validation, a hyperlink, the AutoFilter, an Excel Table), or becomes `#REF!`
-in a formula or defined name. Deleting a table's header row, its totals row or
-all its data rows, without the rest of it, is an error.
+in a formula or defined name. An image or chart set to move and size with its
+cells (Excel's default for a chart) goes too when all its rows are deleted; one
+that only moves, or doesn't, is kept. Deleting a table's header row, its totals
+row or all its data rows, without the rest of it, is an error.
 
 `rows` is a row number, a range or vector of row numbers, or a string naming
 rows (`"3:5"`, `"3:5,9"`), cells (whose rows are used) or a defined name.
@@ -149,11 +152,13 @@ function _edit!(ws::Worksheet, e::RowColEdit)
     _delete_tables!(table_plan, dead_tables)
     foreach(r -> deleteComment(ws, r), dead_comments)
     _shift_comments!(ws, e)
+    _delete_drawings_gone!(xf, _sheet_path(ws), e)
     _shift_drawing!(xf, _sheet_path(ws), e)
     _expand_shared_formulas!(wb, e)
     _shift_cells!(ws, e)
     _shift_cell_formulas!(wb, e)
     _shift_sheet_xml!(ws, e)
+    _inherit_formats!(ws, e)
     _move_tables!(ws, table_plan, e, dead_tables)
     for s in wb.sheets   # formulas in conditional formats and data validations, on every sheet
         is_chartsheet(wb, s.name) && continue

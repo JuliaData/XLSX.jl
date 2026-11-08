@@ -654,6 +654,45 @@ function _part_is_target(xf::XLSXFile, path::String)::Bool
     return false
 end
 
+# The relationship ids an element and its descendants refer to (`r:embed`, `r:id`).
+function _rel_ids(node::XML.Node, out::Vector{String} = String[])::Vector{String}
+    for (k, v) in something(XML.attributes(node), Dict{String,String}())
+        occursin(':', k) && !startswith(k, "xmlns:") && push!(out, v)
+    end
+    foreach(c -> _rel_ids(c, out), xml_elements(node))
+    return out
+end
+
+# Delete the objects of the sheet's drawing for which `pick` (given the drawing's
+# top-level element) is true, with whatever only they use: a picture, or a chart
+# part with its style and colors, and a chartEx chart's hidden `_xlchart` names.
+# Returns how many went.
+function _delete_drawing_objects!(xf::XLSXFile, sheet_path::String, drawing_path::String, pick::Function)::Int
+    root = xml_root_element(get_xml_data(xf, drawing_path))
+    gone = XML.Node[n for n in XML.children(root) if XML.nodetype(n) == XML.Element && pick(n)]
+    isempty(gone) && return 0
+    filter!(n -> !any(g -> g === n, gone), XML.children(root))
+    rids = unique(reduce(vcat, (_rel_ids(n) for n in gone); init = String[]))
+    rels_path = _sheet_rels_path(drawing_path)
+    rels = haskey(xf.data, rels_path) ?
+           collect(elements_with_tag(xml_root_element(xf.data[rels_path]), "Relationship")) : XML.Node[]
+    names = get_workbook(xf).workbook_names
+    for rid in rids
+        i = findfirst(n -> get_attr(n, "Id") == rid, rels)
+        if !isnothing(i) && get_attr(rels[i], "Type") == REL_CHARTEX
+            # A chartEx chart finds its data through hidden `_xlchart` names, which only it uses.
+            target = resolve_relative_target(first(_split_zip_path(drawing_path)), get_attr(rels[i], "Target"))
+            haskey(xf.data, target) && _rewrite_chart_formulas!(xml_root_element(get_xml_data(xf, target))) do f
+                startswith(f, "_xlchart.") && delete!(names, String(f))
+                return f
+            end
+        end
+        _drop_drawing_rel!(xf, drawing_path, rid)
+    end
+    _remove_drawing_if_empty!(xf, sheet_path, drawing_path)
+    return length(gone)
+end
+
 # A sheet's drawing with nothing left in it: removed, with its relationship and
 # the sheet's `<drawing>`, as if nothing had ever been added.
 function _remove_drawing_if_empty!(xf::XLSXFile, sheet_path::String, drawing_path::String)

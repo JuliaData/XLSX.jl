@@ -1166,6 +1166,7 @@
             # Rejected.
             pie = XLSX.Charts.addChart(ws, :pie; anchor="O18:V33")
             @test_throws XLSX.XLSXError XLSX.Charts.addSeries(pie, "B2:B5"; color="FF0000")
+            XLSX.Charts.addSeries(pie, "B2:B5"; categories="A2:A5")              # so the pie shows
             @test_throws XLSX.XLSXError XLSX.Charts.addSeries(c, "B2:B5"; markers=:nonsense)
             @test_throws XLSX.XLSXError XLSX.Charts.addSeries(c, "B2:B5"; smooth="yes")
             @test_throws XLSX.XLSXError XLSX.Charts.addSeries(col, "B2:B5"; color="notacolor")
