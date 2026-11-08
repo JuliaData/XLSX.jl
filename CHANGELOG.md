@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Internal: `src/charts/chartprops.jl` (2,972 lines) is split by object into `chartnodes.jl` (design notes, node locators and shared helpers), `charttext.jl`, `chartseries.jl`, `chartaxes.jl`, `chartlegend.jl` and `chartcascade.jl`. Every function moves unchanged. No change in behaviour
+
 - Writing a worksheet allocates less and is 10–25% faster: `writetable` of 100,000 × 8 strings allocates 772 → 336 MiB, and of numbers 986 → 666 MiB (0.55 → 0.44 s). Integers and cell references are written without making strings, the tags are built once, rows are written a chunk at a time into one buffer per thread, and the sheet goes into the file in pieces rather than being copied whole twice. The files written are byte-for-byte the same
 - `bench/worksheet_write.jl` times each write path on its own, without fixtures, and keeps earlier runs to compare against
 

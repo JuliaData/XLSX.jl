@@ -1,5 +1,5 @@
 #
-# Tests for the chart appearance accessors in `src/chartprops.jl` — stage 3.
+# Tests for the chart appearance accessors in `src/charts/chartnodes.jl` and the other chart*.jl files it lists — stage 3.
 #
 # These test node-finding, not DrawingML parsing: that a given accessor reaches
 # the right element and hands it to the right parser. DrawingML parsing itself

@@ -195,7 +195,12 @@ include("discovery.jl")
 include("creation.jl")
 include("deletion.jl")
 include("chartschema.jl")
-include("chartprops.jl")
+include("chartnodes.jl")
+include("charttext.jl")
+include("chartseries.jl")
+include("chartaxes.jl")
+include("chartlegend.jl")
+include("chartcascade.jl")
 include("chartexprops.jl")
 
 end # module Charts
