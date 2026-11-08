@@ -184,9 +184,15 @@ end
 Add an empty chart of `kind` to `ws`, covering the cells in `anchor` (a range
 such as `"F2:M18"`). Add data with [`addSeries`](@ref).
 
-`kind` is one of `:column`, `:bar`, `:stackedColumn`, `:stackedBar`, `:line`,
-`:lineMarkers`, `:area`, `:pie`, `:doughnut`, `:scatter`, `:bubble` or `:radar`.
-`:bar` and `:stackedBar` are horizontal; `:column` and `:stackedColumn` vertical.
+`kind` is one of
+- `:column`, `:stackedColumn`, `:percentStackedColumn` (vertical bars) and `:bar`,
+  `:stackedBar`, `:percentStackedBar` (horizontal);
+- `:line`, `:stackedLine`, `:percentStackedLine`, and `:lineMarkers`,
+  `:stackedLineMarkers`, `:percentStackedLineMarkers` with markers;
+- `:area`, `:stackedArea`, `:percentStackedArea`;
+- `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`.
+
+The `percentStacked` kinds are Excel's 100% stacked subtypes.
 The chart starts as Excel's own default for that kind, formatted by the
 workbook's theme.
 
@@ -398,13 +404,46 @@ function _data_child(c::Chart, tag::AbstractString, ref, pfx)
     return _c_el(pfx, tag, _cache_ref(f, vals, c.package, pfx)), length(vals)
 end
 
+# What tells the c: kinds apart: the plot group's element and four of its
+# children, each read with the schema's default where it is absent. `markers` is
+# the group's own `c:marker` flag (on a line group), not a series' marker.
+function _group_signature(g::XML.Node)
+    tag = String(localname(g))
+    return (tag        = tag,
+            barDir     = something(_sym_val(g, "barDir"), :col),
+            grouping   = something(_sym_val(g, "grouping"), tag == "barChart" ? :clustered : :standard),
+            markers    = _bool_val(g, "marker") === true,
+            radarStyle = something(_sym_val(g, "radarStyle"), :standard))
+end
+
+const _SIGNATURE_FIELDS = (:barDir, :grouping, :markers, :radarStyle)
+
+# Each kind's signature, read from its template on first use. (The helpers it
+# needs are defined after this file, so it cannot be a constant.)
+const _KIND_SIGNATURES = Dict{Symbol,NamedTuple}()
+const _KIND_SIGNATURES_LOCK = ReentrantLock()
+
+function _kind_signatures()
+    lock(_KIND_SIGNATURES_LOCK) do
+        if isempty(_KIND_SIGNATURES)
+            for (kind, k) in pairs(C_KINDS)
+                root = xml_root_element(parse(CHART_KIND_TEMPLATES[k.template], XML.Node))
+                _KIND_SIGNATURES[kind] = _group_signature(first(_group_nodes(root)))
+            end
+        end
+        return _KIND_SIGNATURES
+    end
+end
+
 """
     _chart_kind(c::Chart) -> Symbol
 
-The API kind of `c`, read from its part: the plot group's tag plus the
-attributes that distinguish kinds sharing one tag. Works on any chart, whatever
-wrote it. A `lineChart` reports `:lineMarkers` only if an existing series has a
-real marker symbol, so an empty one reads as `:line`.
+The API kind of `c`, read from its part: the kind whose template's plot group
+has the same element, `barDir`, `grouping`, line `marker` flag and
+`radarStyle`. Works on any chart, whatever wrote it: where no kind matches all
+four, the one of the same element matching most of them is taken, the first in
+`C_KINDS` order on a tie, so a radar chart of the `standard` style reads as
+`:radar`.
 """
 function _chart_kind(c::Chart)::Symbol
     groups = _group_nodes(chart_root(c))
@@ -412,21 +451,17 @@ function _chart_kind(c::Chart)::Symbol
         isempty(groups) ? "Chart `$(c.name)` has no plot group." :
         "Chart `$(c.name)` is a combo chart, with $(length(groups)) plot groups. " *
         "Adding a series to one is not supported."))
-    g = only(groups)
-    tag = localname(g)
-
-    if tag == "barChart"
-        stacked = _sym_val(g, "grouping") in (:stacked, :percentStacked)
-        _sym_val(g, "barDir") === :bar && return :bar
-        return stacked ? :stackedColumn : :column
-    elseif tag == "lineChart"
-        return _bool_val(g, "marker") === true ? :lineMarkers : :line
+    sig  = _group_signature(only(groups))
+    sigs = _kind_signatures()
+    best, score = nothing, -1
+    for kind in keys(C_KINDS)
+        s = sigs[kind]
+        s.tag == sig.tag || continue
+        n = count(f -> getfield(s, f) == getfield(sig, f), _SIGNATURE_FIELDS)
+        n > score && ((best, score) = (kind, n))
     end
-    for (kind, k) in pairs(C_KINDS)
-        localname(first(_group_nodes(xml_root_element(
-            parse(CHART_KIND_TEMPLATES[k.template], XML.Node))))) == tag && return kind
-    end
-    throw(XLSXError("Adding a series to a `$tag` chart is not supported."))
+    isnothing(best) && throw(XLSXError("Adding a series to a `$(sig.tag)` chart is not supported."))
+    return best
 end
 
 const _SER_DATA_TAGS = ("idx", "order", "tx", "cat", "val", "xVal", "yVal", "bubbleSize", "extLst")
@@ -518,10 +553,12 @@ neither.
 
 To plot a table column, pass gettablerange(t, column) for either `values` or `categories`
 
-`markers` (line, lineMarkers, radar and scatter) is a marker Symbol such as
+`markers` (every line kind, `:radar` and `:scatter`) is a marker Symbol such as
 `:circle`, `:square` or `:triangle` — any that [`setMarkerSymbol`](@ref)
-takes — or `true` for `:circle`, or `false` for none. Markers on a `:line`
-chart make it `:lineMarkers`. `smooth` (line, lineMarkers and scatter) is a `Bool`:
+takes — or `true` for `:circle`, or `false` for none. Markers on a series of a
+line kind without markers give it the formatting of the kind with them
+(`:line` → `:lineMarkers`, `:stackedLine` → `:stackedLineMarkers`, and so on).
+`smooth` (every line kind and `:scatter`) is a `Bool`:
 `true` curves the line. `line` (scatter) is a `Bool`: `true` joins the points.
 Together they choose Excel's line, radar and scatter subtypes; see
 [Chart subtypes](@ref).
@@ -546,8 +583,8 @@ function addSeries(c::Chart, values;
 
     kind = _chart_kind(c)
     isxy = kind in (:scatter, :bubble)
-    okmk = kind in (:line, :lineMarkers, :radar, :scatter)
-    oksm = kind in (:line, :lineMarkers, :scatter)
+    okmk = kind in (_LINE_KINDS..., :radar, :scatter)
+    oksm = kind in (_LINE_KINDS..., :scatter)
     bad(opt, v, ok) = isnothing(v) || ok ||
         throw(XLSXError("`$opt` does not apply to a $kind chart."))
     bad("markers", markers, okmk)
@@ -567,7 +604,7 @@ function addSeries(c::Chart, values;
         isnothing(categories)   && throw(XLSXError("A bubble chart series needs `categories`, its X values."))
     end
     markers === true && (markers = :circle)
-    kind === :line && !isnothing(markers) && markers !== false && (kind = :lineMarkers)
+    haskey(_WITH_MARKERS, kind) && !isnothing(markers) && markers !== false && (kind = _WITH_MARKERS[kind])
 
     root = chart_root(c)
     pfx  = ns_prefixes(root)

@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- `addChart` creates nine more kinds, from charts Excel 365 wrote: `:percentStackedColumn`, `:percentStackedBar`, `:stackedLine`, `:percentStackedLine`, `:stackedLineMarkers`, `:percentStackedLineMarkers`, `:stackedArea`, `:percentStackedArea` and `:filledRadar`. Series added with `addSeries` are formatted as Excel formats them, the second series and on included. `markers` and `smooth` apply to every line kind, and markers on a stacked line series give it the formatting of the kind with markers, as they do for `:line`
+- `addSeries` reads which kind a chart is from its plot group's `barDir`, `grouping`, marker flag and `radarStyle`, compared with each kind's template, so an existing stacked or 100% stacked chart, from Excel or elsewhere, takes the matching kind's series formatting. A stacked bar chart was read as a clustered one; the two format their series alike, so files written before are unaffected
+
 - `getSeriesFill` on a chartEx chart reports the colour Excel draws where the chart itself writes none, which until now was nearly always (Excel writes no fill for a `cx:` series until it is formatted). The colour is read from the chart's style and colours parts as a last rung of the cascade, `site.level === :style`, and was checked colour for colour against Excel 365: series of box & whisker, funnel, histogram and Pareto charts, a waterfall's increase, decrease and total points, and a treemap's or sunburst's points by top-level category. Lines, text, monochromatic colour schemes and `c:` charts are unchanged (a `c:` series without formatting is drawn from its `c:style`, not from these parts). A waterfall, treemap or sunburst point's `chain` now ends in the `:style` rung
 - Test fixtures written by Excel 365, with SVG exports of their charts in `test/data/chart_style_svg`, record the colours Excel draws
 

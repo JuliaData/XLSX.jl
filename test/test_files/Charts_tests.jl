@@ -633,14 +633,83 @@
 
     @testset "chart kind templates match Excel" begin
         @testset "c: chart kind templates match Excel" begin
+            # chart_kinds.xlsx has one chart per sheet, named after the template;
+            # chart_templates_new.xlsx has the later kinds on one sheet, in this order.
             fx = joinpath(data_directory, "chart_kinds.xlsx")
-            raw = XLSX.ZipArchives.ZipReader(read(fx))
+            nx = joinpath(data_directory, "chart_templates_new.xlsx")
+            later = (:percentstacked, :percentstackedbar, :stackedline, :percentstackedline,
+                     :stackedlinemarkers, :percentstackedlinemarkers, :stackedarea,
+                     :percentstackedarea, :filledradar)
+            raw  = XLSX.ZipArchives.ZipReader(read(fx))
+            rawn = XLSX.ZipArchives.ZipReader(read(nx))
             bysheet = Dict(c.sheet => c for c in XLSX.Charts.getCharts(XLSX.readxlsx(fx)))
             for (kind, t) in pairs(XLSX.Charts.C_KINDS)
-                c = bysheet[String(t.template)]
-                @test XLSX.ZipArchives.zip_readentry(raw, c.path, String) == XLSX.Charts.CHART_KIND_TEMPLATES[t.template]
+                excel = t.template in later ?
+                    XLSX.ZipArchives.zip_readentry(rawn, "xl/charts/chart$(findfirst(==(t.template), later)).xml", String) :
+                    XLSX.ZipArchives.zip_readentry(raw, bysheet[String(t.template)].path, String)
+                @test excel == XLSX.Charts.CHART_KIND_TEMPLATES[t.template]
                 @test haskey(XLSX.Charts.CHART_STYLE_TEMPLATES, t.style)
             end
+
+            # Excel's own style part for each later kind is the one bundled for its id.
+            for (i, tmpl) in enumerate(later)
+                kind = only(k for (k, t) in pairs(XLSX.Charts.C_KINDS) if t.template === tmpl)
+                rels = XLSX.ZipArchives.zip_readentry(rawn, "xl/charts/_rels/chart$i.xml.rels", String)
+                style = match(r"style\d+\.xml", rels).match
+                @test XLSX.ZipArchives.zip_readentry(rawn, "xl/charts/$style", String) ==
+                      XLSX.Charts.CHART_STYLE_TEMPLATES[XLSX.Charts.C_KINDS[kind].style]
+            end
+        end
+
+        @testset "a chart's kind is read from its plot group" begin
+            for (fx, expected) in (
+                    ("chart_kinds.xlsx", Dict("radar" => :radar, "bubble" => :bubble, "scatter" => :scatter,
+                        "doughnut" => :doughnut, "pie" => :pie, "area" => :area, "linemarkers" => :lineMarkers,
+                        "line" => :line, "stacked" => :stackedColumn, "bar" => :bar, "column" => :column,
+                        "stackedbar" => :stackedBar)),                  # a stacked bar once read as :bar
+                    ("chart_templates_new.xlsx", Dict("chart$i.xml" => k for (i, k) in enumerate((
+                        :percentStackedColumn, :percentStackedBar, :stackedLine, :percentStackedLine,
+                        :stackedLineMarkers, :percentStackedLineMarkers, :stackedArea, :percentStackedArea,
+                        :filledRadar)))))
+                for c in XLSX.Charts.getCharts(XLSX.readxlsx(joinpath(data_directory, fx)))
+                    key = fx == "chart_kinds.xlsx" ? c.sheet : basename(c.path)
+                    haskey(expected, key) || continue
+                    @test XLSX.Charts._chart_kind(c) === expected[key]
+                end
+            end
+        end
+
+        @testset "added series are formatted as Excel formats them" begin
+            # Excel's charts for the later kinds have two series, so the second
+            # series' accent2 colouring is checked too.
+            fixture = XLSX.readxlsx(joinpath(data_directory, "chart_templates_new.xlsx"))
+            excel   = Dict(basename(c.path) => c for c in XLSX.Charts.getCharts(fixture))
+            fmt(ser) = [XLSX.XML.write(k) for k in XLSX.XML.eachelement(ser)
+                        if !(XLSX.localname(k) in XLSX.Charts._SER_DATA_TAGS)]
+            sers(c)  = collect(XLSX.elements_with_tag(only(XLSX.Charts._group_nodes(XLSX.Charts.chart_root(c))), "ser"))
+            xf = XLSX.newxlsx()
+            ws = xf[1]
+            ws["A1"] = ["" "North" "South"; "Q1" 1 2; "Q2" 3 4; "Q3" 5 6; "Q4" 7 8]
+            for (i, kind) in enumerate((:percentStackedColumn, :percentStackedBar, :stackedLine,
+                                        :percentStackedLine, :stackedLineMarkers, :percentStackedLineMarkers,
+                                        :stackedArea, :percentStackedArea, :filledRadar))
+                c = XLSX.Charts.addChart(ws, kind; anchor = "H$(20i):O$(20i + 15)")
+                XLSX.Charts.addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1")
+                XLSX.Charts.addSeries(c, "C2:C5"; categories = "A2:A5", name_ref = "C1")
+                @test XLSX.Charts._chart_kind(c) === kind
+                @test fmt.(sers(c)) == fmt.(sers(excel["chart$i.xml"]))
+            end
+
+            # Markers give a stacked line the formatting of the kind with markers.
+            sl = XLSX.Charts.addChart(ws, :stackedLine; anchor = "Q2:X16")
+            XLSX.Charts.addSeries(sl, "B2:B5"; markers = true)
+            @test fmt(only(sers(sl))) == fmt(first(sers(excel["chart5.xml"])))   # Stacked Line with Markers
+            # Filled radar and stacked area series have no markers or smoothing.
+            fr = XLSX.Charts.addChart(ws, :filledRadar; anchor = "Q20:X34")
+            @test_throws XLSX.XLSXError XLSX.Charts.addSeries(fr, "B2:B5"; markers = true)
+            sa = XLSX.Charts.addChart(ws, :stackedArea; anchor = "Q40:X54")
+            @test_throws XLSX.XLSXError XLSX.Charts.addSeries(sa, "B2:B5"; smooth = true)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "cx: chart kind templates match Excel" begin

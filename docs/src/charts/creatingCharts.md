@@ -51,9 +51,17 @@ schema, where the data block is required.
 
 ## The kinds
 
-`kind` is one of `:column`, `:bar`, `:stackedColumn`, `:stackedBar`, `:line`,
-`:lineMarkers`, `:area`, `:pie`, `:doughnut`, `:scatter`, `:bubble` or `:radar`.
-`:bar` and `:stackedBar` are horizontal; `:column` and `:stackedColumn` vertical.
+`kind` is one of these, each named after the Excel subtype it creates:
+
+| | Clustered or plain | Stacked | 100% stacked |
+| --- | --- | --- | --- |
+| Column (vertical bars) | `:column` | `:stackedColumn` | `:percentStackedColumn` |
+| Bar (horizontal) | `:bar` | `:stackedBar` | `:percentStackedBar` |
+| Line | `:line` | `:stackedLine` | `:percentStackedLine` |
+| Line with markers | `:lineMarkers` | `:stackedLineMarkers` | `:percentStackedLineMarkers` |
+| Area | `:area` | `:stackedArea` | `:percentStackedArea` |
+
+and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`.
 
 Each comes from a chart part Excel itself wrote, kept verbatim in the package,
 so a created chart is what Excel would have produced for that kind — including
@@ -146,8 +154,8 @@ julia> addSeries(c, "C2:C5"; categories = "A2:A5", name = "2025", color = "FF000
 | Keyword | Applies to | Takes |
 | --- | --- | --- |
 | `color` | everything but pie and doughnut | a color name, hex, a `Colorant`, a [`SchemeColor`](@ref), or a scheme name such as `"accent4"` |
-| `markers` | line, lineMarkers, radar, scatter | a symbol such as `:circle`, or `false` for none |
-| `smooth` | line, lineMarkers, scatter | `true` or `false` — whether the line is curved |
+| `markers` | every line kind, radar (not filled), scatter | a symbol such as `:circle`, or `false` for none |
+| `smooth` | every line kind, scatter | `true` or `false` — whether the line is curved |
 | `line` | scatter | `true` to join the points |
 
 An option that doesn't apply to the chart's kind throws rather than being
@@ -201,27 +209,30 @@ Line and radar charts take their subtypes from `markers` in the same way:
 | --- | --- |
 | Line | `:line` |
 | Line with Markers | `:lineMarkers`, or `markers = true` (or a symbol) on a `:line` series |
+| Stacked Line with Markers | `:stackedLineMarkers`, or `markers = true` on a `:stackedLine` series |
+| 100% Stacked Line with Markers | `:percentStackedLineMarkers`, or `markers = true` on a `:percentStackedLine` series |
 | Radar | `:radar` |
 | Radar with Markers | `:radar` with `markers = true` (or a symbol) |
 
 `smooth = true` curves a line series. Excel offers this in the series' format
-pane rather than as a subtype.
+pane rather than as a subtype. Filled radar is a kind of its own,
+`:filledRadar`, and takes neither keyword: its series are filled areas.
 
 ### Subtypes that are separate kinds
 
+The stacked and 100% stacked subtypes of column, bar, line and area are kinds,
+in the table under [The kinds](#The-kinds), as are:
+
 | Excel subtype | Kind |
 | --- | --- |
-| Clustered Column, Stacked Column | `:column`, `:stackedColumn` |
-| Clustered Bar, Stacked Bar | `:bar`, `:stackedBar` |
 | Pie, Doughnut | `:pie`, `:doughnut` |
-| Area | `:area` |
+| Filled Radar | `:filledRadar` |
 | Bubble | `:bubble` |
 
 ### Subtypes that cannot be created
 
-Excel's other subtypes can't be created yet: 100% stacked bar and column, stacked
-and 100% stacked line and area, filled radar, and every 3-D subtype. They can
-still be read. See [Limitations](chartLimitations.md).
+Excel's 3-D subtypes, and its stock, surface and of-pie charts, can't be
+created yet. They can still be read. See [Limitations](chartLimitations.md).
 
 The subtype keywords apply to one series at a time, so one chart can mix
 subtypes, as it can in Excel.
