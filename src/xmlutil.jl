@@ -147,43 +147,6 @@ end
 
 # -- XML tree helpers
 
-function find_all_nodes(givenpath::String, doc::XML.Node)::Vector{XML.Node}
-    XML.nodetype(doc) != XML.Document && throw(XLSXError("Internal error: `find_all_nodes` needs an XML Document, got a $(XML.nodetype(doc)) node."))
-    found_nodes = Vector{XML.Node}()
-    for xp in get_node_paths(doc)
-        if xp.path == givenpath
-            push!(found_nodes, xp.node)
-        end
-    end
-    return found_nodes
-end
-
-function get_node_paths(node::XML.Node)
-    XML.nodetype(node) != XML.Document && throw(XLSXError("Internal error: `get_node_paths` needs an XML Document, got a $(XML.nodetype(node)) node."))
-    default_ns = get_default_namespace(xml_root_element(node))
-    xpaths = Vector{XPathInfo}()
-    get_node_paths!(xpaths, node, default_ns, "")
-    return xpaths
-end
-
-function get_node_paths!(xpaths::Vector{XPathInfo}, node::XML.Node, default_ns, path)
-    for c in XML.children(node)
-        if XML.nodetype(c) ∉ [XML.Declaration, XML.Comment, XML.Text]
-            node_tag = localname(c)
-            if !occursin(":", node_tag) && !isnothing(default_ns)
-                node_tag = default_ns * ":" * node_tag
-            end
-            npath = path * "/" * node_tag
-            push!(xpaths, XPathInfo(c, npath))
-            if length(XML.children(c)) > 0
-                get_node_paths!(xpaths, c, default_ns, npath)
-            end
-        end
-    end
-    return nothing
-end
-
-
 # Remove all children with tag given by att[2] from a parent XML node with a tag given by att[1].
 function unlink(node::XML.Node, att::Tuple{String,String}, pfx::String="")
     new_node = XML.Element(pfx * first(att))

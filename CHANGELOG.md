@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Reading conditional formats, and adding a number format, no longer walk every node of the sheet or styles part to find one element. `getConditionalFormats` on a 50,000-cell sheet read with `readxlsx` takes half the time (111 ms to 58 ms), and each new number format takes under a microsecond, from 58 μs.
 - `setLabelFlag(c, i, flag, on)` shows or hides one part of a `c:` series' data labels (`:value`, `:seriesName`, `:categoryName`, `:legendKey`, `:percent` or `:bubbleSize`), and `getLabelFlag(c::Chart, i, flag)` reads it back. A series with no labels is given the ones Excel 365 writes when labels are turned on, checked for every chart kind. There was no way to make a `c:` chart's labels appear before.
 - `insertRows` and `insertColumns` format the new rows and columns as Excel does by default ("Format Same As Above"): each new cell takes its neighbour's style, without its border; a row takes the height, style and outline level of the row above, and a column the width, style and outline level of the column to its left; and a conditional format or data validation ending just before the insert grows over it. Checked against Excel 365's own results. The new rows and columns used to be unformatted.
 - Deleting all the rows or columns under an image or chart set to move and size with its cells deletes it, with its picture or chart part, as Excel does. It used to shrink to nothing and stay in the file.

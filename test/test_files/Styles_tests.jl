@@ -23,7 +23,7 @@ end
 
         font = XLSX.styles_add_cell_font(wb, Dict("b" => nothing, "sz" => Dict("val" => "24")))
         xroot = XLSX.styles_xmlroot(wb)
-        fontnodes = XLSX.find_all_nodes("/$(XLSX.SPREADSHEET_NAMESPACE_XPATH_ARG):styleSheet/$(XLSX.SPREADSHEET_NAMESPACE_XPATH_ARG):fonts/$(XLSX.SPREADSHEET_NAMESPACE_XPATH_ARG):font", xroot)
+        fontnodes = XLSX.elements_with_tag(XLSX.first_element_with_tag(XLSX.xml_root_element(xroot), "fonts"), "font")
         fontnode = fontnodes[font+1] # XML is zero indexed so we need to add 1 to get the right node
 
         # Check the font was written correctly
