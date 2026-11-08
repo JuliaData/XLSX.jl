@@ -22,10 +22,28 @@ rel(p) = replace(relpath(p, SRC), '\\' => '/')
 # form, `name(...) = ...`, `name` is blanked wherever it appears, so a family of methods
 # copied from one function to the next counts as duplicated even though each names its
 # own function. Returns (line number, text) pairs.
+#
+# Only code is compared. Left out, because blanking their literals makes unrelated
+# ones look alike: the text of triple-quoted strings (docstrings), the body of a
+# multi-line `const` table (`const T = Dict(` up to its closing `)` in column 1),
+# lines of nothing but literals and punctuation, and `include` lines.
 function code_lines(lines)
     out = Tuple{Int,String}[]
+    in_string = false   # inside a triple-quoted string
+    in_table = false    # inside a multi-line `const` table
     for (i, l) in enumerate(lines)
+        quotes = count("\"\"\"", l)
+        if in_string || quotes > 0
+            isodd(quotes) && (in_string = !in_string)
+            continue
+        end
+        if in_table
+            occursin(r"^[\)\]\}]", l) && (in_table = false)
+            continue
+        end
+        occursin(r"^const\b.*[\(\[\{]\s*(#.*)?$", l) && (in_table = true; continue)
         s = replace(strip(l), r"\"[^\"]*\"" => "S", r"\b\d+(\.\d+)?\b" => "N")
+        (occursin(r"^[SN\s=>,:;()\[\]{}]*$", s) || startswith(s, "include(")) && continue
         m = match(r"^([A-Za-z_][A-Za-z0-9_]*!?)\(.*\)\s*(::[^=]+)?=\s", s)
         if m !== nothing
             s = replace(s, Regex("\\b" * replace(m[1], "!" => "\\!") * "(?![A-Za-z0-9_])") => "F")

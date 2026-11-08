@@ -42,10 +42,53 @@ XLSX.deletesheet!
 XLSX.movesheet!
 XLSX.addImage
 XLSX.getImages
+XLSX.deleteImage
 XLSX.addComment
 XLSX.getComment
 XLSX.getComments
 XLSX.deleteComment
+XLSX.getThreadedComment
+XLSX.getThreadedComments
+XLSX.addHyperlink
+XLSX.getHyperlink
+XLSX.getHyperlinks
+XLSX.deleteHyperlink
+```
+
+## Sheet visibility and tab colour
+
+```@docs
+XLSX.setSheetVisibility
+XLSX.getSheetVisibility
+XLSX.setTabColor
+XLSX.getTabColor
+XLSX.removeTabColor
+```
+
+## Sheet protection
+
+```@docs
+XLSX.protectSheet
+XLSX.unprotectSheet
+XLSX.isSheetProtected
+XLSX.getSheetProtection
+```
+
+## Page setup and printing
+
+```@docs
+XLSX.setPageSetup
+XLSX.getPageSetup
+XLSX.setPageMargins
+XLSX.getPageMargins
+XLSX.setPrintOptions
+XLSX.getPrintOptions
+XLSX.setPrintArea
+XLSX.getPrintArea
+XLSX.removePrintArea
+XLSX.setPrintTitles
+XLSX.getPrintTitles
+XLSX.removePrintTitles
 ```
 
 ## Errors

@@ -115,7 +115,7 @@ export
     getCharts, getChart, getChartData, getChartRanges, getChartTitle,
     getChartType, getChartSchema,
     # Creating charts
-    addChart, addChartEx, addSeries,
+    addChart, addChartEx, addSeries, deleteChart,
     # Chart level
     getChartSeries, getChartTypes, getChartGroups, getChartAxes, getChartAxis,
     getChartSeriesCount, getChartDataBlocks, getChartAxisIds,
@@ -193,6 +193,7 @@ include("types.jl")
 include("drawingml.jl")
 include("discovery.jl")
 include("creation.jl")
+include("deletion.jl")
 include("chartschema.jl")
 include("chartprops.jl")
 include("chartexprops.jl")

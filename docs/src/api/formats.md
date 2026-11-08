@@ -17,6 +17,8 @@ XLSX.setUniformFill
 XLSX.getAlignment
 XLSX.setAlignment
 XLSX.setUniformAlignment
+XLSX.getCellProtection
+XLSX.setCellProtection
 XLSX.setUniformStyle
 XLSX.RichTextRun
 XLSX.RichTextString

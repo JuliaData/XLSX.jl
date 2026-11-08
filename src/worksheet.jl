@@ -72,9 +72,10 @@ function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
     sheetId = parse(Int, a["sheetId"])
     relationship_id = a["r:id"]
     name = a["name"]
-    is_hidden = haskey(a, "state") && a["state"] in ["hidden", "veryHidden"]
+    state = get(a, "state", "visible")
+    visibility = state in ("hidden", "veryHidden") ? Symbol(state) : :visible
 
-    return Worksheet(xf, sheetId, relationship_id, name, nothing, is_hidden)
+    return Worksheet(xf, sheetId, relationship_id, name, nothing, visibility)
 end
 
 function ordinal_sheet_number(wb::Workbook, name::String)
@@ -173,6 +174,31 @@ function read_worksheet_dimension(xf::XLSXFile, relationship_id, name)::Union{No
 end
 
 @inline isdate1904(ws::Worksheet) = isdate1904(get_workbook(ws))
+
+# The worksheet's top-level elements named (locally) in `names`, as parsed trees,
+# read without disturbing how the sheet is held. A sheet open only for reading is
+# kept as raw XML (or not kept at all, without the cache) so that its cells can be
+# read lazily; such a sheet is scanned with a cursor, skipping `<sheetData>`, and
+# only the elements wanted are parsed. The trees are the sheet's own only when
+# the sheet is already parsed (open for writing): edit them only then.
+function _sheet_top_elements(xf::XLSXFile, sheet_path::String, names)::Vector{XML.Node}
+    doc = haskey(xf.data, sheet_path) ? xf.data[sheet_path] : open_internal_file_stream(xf, sheet_path)
+    doc isa XML.Node &&
+        return XML.Node[n for n in XML.eachelement(xml_root_element(doc)) if localname(n) in names]
+
+    out = XML.Node[]
+    lz = doc isa XML.LazyNode ? doc : parse(doc, XML.LazyNode)
+    c = XML.Cursor(xml_root_element(lz))
+    XML.next!(c)   # the <worksheet> element itself, depth 1
+    while XML.next!(c) !== nothing
+        XML.depth(c) <= 1 && break
+        XML.nodetype(c) == XML.Element || continue
+        localname(c) in names &&
+            push!(out, xml_root_element(parse(String(XML.sourcetext(XML.LazyNode(c))), XML.Node)))
+        XML.skip_element!(c)
+    end
+    return out
+end
 
 # Returns the recorded dimension, or derives it from worksheet rows if absent.
 # Display can pass allow_load=false to keep an unread sheet lazy. Empty sheets
@@ -597,7 +623,7 @@ Base.getindex(ws::Worksheet, r, c) = getdata(ws, r, c)
 Base.getindex(ws::Worksheet, ::Colon) = getdata(ws)
 
 function Base.show(io::IO, ws::Worksheet)
-    hidden_string = ws.is_hidden ? "(hidden)" : ""
+    hidden_string = ws.visibility === :visible ? "" : ws.visibility === :hidden ? "(hidden)" : "(very hidden)"
     if is_chartsheet(get_workbook(ws), ws.name)
         @printf(io, "Chartsheet: [\"%s\"] %s", ws.name, hidden_string)
         return

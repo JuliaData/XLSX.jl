@@ -34,8 +34,27 @@ println("Version: $label  |  Threads: $(Threads.nthreads()) | XLSX: $(pkgversion
 # hold their table on a second sheet, "Data", with headers on row 5 in A:CF.
 table_sheet(fixture) = startswith(fixture, "xl_") ? "Data" : "Sheet1"
 
-function bench_readtable(path, sheet)
-    XLSX.readtable(path, sheet)
+# How `readtable` and `writetable` read each fixture's whole table, all 100 columns of
+# the xl_* ones. Without `first_row` they would read only the title on row 1. xl_gaps
+# has gap rows inside its table, so its read must not stop at the first of them.
+table_kwargs(fixture) =
+    fixture == "xl_gaps"       ? (; first_row=5, stop_in_empty_row=false, keep_empty_rows=true) :
+    startswith(fixture, "xl_") ? (; first_row=5) : (;)
+
+# Every fixture's table has at least this many data rows. Fewer means a benchmark
+# isn't reading the table, which its timing alone wouldn't show.
+const MIN_TABLE_ROWS = 100
+
+function check_table(fixture, path, sheet, kwargs)
+    t = XLSX.readtable(path, sheet; kwargs...)
+    nrows = isempty(t.data) ? 0 : length(first(t.data))
+    println("$fixture: table of $nrows rows × $(length(t.column_labels)) columns")
+    nrows >= MIN_TABLE_ROWS || error("$fixture: `readtable` read only $nrows rows, so its benchmarks wouldn't measure the table")
+    return nothing
+end
+
+function bench_readtable(path, sheet, kwargs)
+    XLSX.readtable(path, sheet; kwargs...)
 end
 
 # The #462 call: a column subset with headers below title rows.
@@ -52,8 +71,8 @@ function bench_readxlsx(path)
     XLSX.readxlsx(path)
 end
 
-function bench_write(source_path, tmp_path, sheet)
-    XLSX.writetable(tmp_path, XLSX.readtable(source_path, sheet); overwrite=true)
+function bench_write(source_path, tmp_path, sheet, kwargs)
+    XLSX.writetable(tmp_path, XLSX.readtable(source_path, sheet; kwargs...); overwrite=true)
     nothing
 end
 
@@ -86,6 +105,8 @@ for fixture_name in [
         continue
     end
     sheet = table_sheet(fixture_name)
+    kwargs = table_kwargs(fixture_name)
+    (wanted("readtable") || wanted("writetable")) && check_table(fixture_name, path, sheet, kwargs)
 
     suite[fixture_name] = BenchmarkGroup()
 
@@ -97,10 +118,11 @@ for fixture_name in [
 
     # readtable — full user-facing single-sheet read
     wanted("readtable") && (suite[fixture_name]["readtable"] =
-        @benchmarkable bench_readtable($path, $sheet) seconds=SECONDS evals=1)
+        @benchmarkable bench_readtable($path, $sheet, $kwargs) seconds=SECONDS evals=1)
 
-    # readtable_subset — the #462 call (column subset, headers on row 5)
-    if startswith(fixture_name, "xl_") && wanted("readtable_subset")
+    # readtable_subset — the #462 call (column subset, headers on row 5). Not on xl_gaps:
+    # it stops at the first empty row, so it would read only the rows before the first gap.
+    if fixture_name in ("xl_medium", "xl_issue462") && wanted("readtable_subset")
         suite[fixture_name]["readtable_subset"] =
             @benchmarkable bench_readtable_subset($path) seconds=SECONDS evals=1
     end
@@ -153,7 +175,7 @@ for fixture_name in [
     # writetable — read the table sheet and write to temp file
     tmp = tempname() * ".xlsx"
     wanted("writetable") && (suite[fixture_name]["writetable"] =
-        @benchmarkable bench_write($path, $tmp, $sheet) seconds=2SECONDS evals=1)
+        @benchmarkable bench_write($path, $tmp, $sheet, $kwargs) seconds=2SECONDS evals=1)
 
     # open_readwrite — open in rw mode (eager parallel fill)
     wanted("open_readwrite") && (suite[fixture_name]["open_readwrite"] = @benchmarkable(

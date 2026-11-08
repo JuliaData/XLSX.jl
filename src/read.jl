@@ -1111,8 +1111,10 @@ function stream_files(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
         Channel{String}(channel_size) do out
         for f in ZipArchives.zip_names(zip_io)
 
-            # ignore xl/calcChain.xml in any case (#31)
-            if f != "xl/calcChain.xml"
+            # ignore xl/calcChain.xml in any case (#31), and directory entries
+            # (such as "xl/", written by openpyxl), which hold no part and which
+            # ZipArchives won't write back as files
+            if f != "xl/calcChain.xml" && !endswith(f, "/")
 
                 if pass==1 && !is_binary_path(f) && (endswith(f, ".xml") || endswith(f, ".rels"))
                     # Identify usable xml files in XLSXFile
@@ -1477,24 +1479,40 @@ julia> df = DataFrame(XLSX.readtable("myfile.xlsx", "mysheet"; table_name="Sales
 
 See also: [`XLSX.gettable`](@ref), [`XLSX.readto`](@ref), [`XLSX.table`](@ref).
 """
-function readtable(source::Union{AbstractString,IO}; 
+readtable(source::Union{AbstractString,IO}; kw...) = _readtable(source, nothing, nothing; kw...)
+readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; kw...) = _readtable(source, sheet, nothing; kw...)
+readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; kw...) =
+    _readtable(source, sheet, columns; kw...)
+function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString;
+                   table_name::Union{Nothing,AbstractString}=nothing, kw...)
+    _check_no_table_name(table_name)
+    is_valid_column_range(range) || throw(XLSXError("The columns argument must be a valid column range."))
+    return _readtable(source, sheet, ColumnRange(range); kw...)
+end
+
+_check_no_table_name(table_name) = isnothing(table_name) ||
+    throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
+
+# `readtable` from `sheet` (`nothing` for the first, or with `table_name`, any) and
+# `columns` (`nothing` to find them from the data).
+function _readtable(source::Union{AbstractString,IO}, sheet::Union{Nothing,AbstractString,Int}, columns::Union{Nothing,ColumnRange};
     table_name::Union{Nothing,AbstractString}=nothing,
-    first_row::Union{Nothing,Int}=nothing, 
-    column_labels=nothing, 
-    header::Bool=true, 
-    infer_eltypes::Bool=true, 
-    stop_in_empty_row::Bool=true, 
-    stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=true, 
-    keep_empty_rows::Bool=false, 
-    normalizenames::Bool=false, 
+    first_row::Union{Nothing,Int}=nothing,
+    column_labels=nothing,
+    header::Bool=true,
+    infer_eltypes::Bool=true,
+    stop_in_empty_row::Bool=true,
+    stop_in_row_function::Union{Nothing,Function}=nothing,
+    enable_cache::Bool=true,
+    keep_empty_rows::Bool=false,
+    normalizenames::Bool=false,
     missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
 )
+    isnothing(columns) || _check_no_table_name(table_name)
     if !(source isa IO || isfile(source))
         throw(XLSXError("File $source not found."))
     end
-
-    if !isnothing(table_name)
+    if !isnothing(table_name) && isnothing(sheet)
         # Workbook-wide search: no target_sheet, since we don't know which
         # sheet holds the table. Non-matching sheets still never have their
         # cell data materialized — get_worksheet_table_rids cursor-scans
@@ -1509,94 +1527,19 @@ function readtable(source::Union{AbstractString,IO};
         end
         throw(XLSXError("No Excel Table named `$table_name` found in any worksheet of $(xf.source)."))
     end
-
+    sheet = something(sheet, 1)
     kw = (; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
-    _READTABLE_VALUE_ROWS[] && return _readtable_value_rows(source, 1, nothing; kw...)
-    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=1, load_formulas=false)
-    return gettable(getsheet(xf, 1); kw...)
-end
-
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}; 
-    table_name::Union{Nothing,AbstractString}=nothing,
-    first_row::Union{Nothing,Int}=nothing, 
-    column_labels=nothing, 
-    header::Bool=true, 
-    infer_eltypes::Bool=true, 
-    stop_in_empty_row::Bool=true, 
-    stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=true, 
-    keep_empty_rows::Bool=false, 
-    normalizenames::Bool=false,
-    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
-)
-    if !(source isa IO || isfile(source))
-        throw(XLSXError("File $source not found."))
-    end
-
-    kw = (; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
-    isnothing(table_name) && _READTABLE_VALUE_ROWS[] && return _readtable_value_rows(source, sheet, nothing; kw...)
-
+    isnothing(table_name) && _READTABLE_VALUE_ROWS[] && return _readtable_value_rows(source, sheet, columns; kw...)
     xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet, load_formulas=false)
-
     if !isnothing(table_name)
         # target_sheet applies as normal: only this worksheet is decompressed.
         # Table parts (xl/tables/tableN.xml) are loaded in pass 1 regardless
         # of target_sheet, so this is as cheap as a normal single-sheet read.
         return gettable(table(getsheet(xf, sheet), table_name); infer_eltypes, normalizenames, missing_strings)
     end
-
-    return gettable(getsheet(xf, sheet); kw...)
+    ws = getsheet(xf, sheet)
+    return isnothing(columns) ? gettable(ws; kw...) : gettable(ws, columns; kw...)
 end
-
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, columns::ColumnRange; 
-    table_name::Union{Nothing,AbstractString}=nothing,
-    first_row::Union{Nothing,Int}=nothing, 
-    column_labels=nothing, 
-    header::Bool=true, 
-    infer_eltypes::Bool=true, 
-    stop_in_empty_row::Bool=true, 
-    stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=true, 
-    keep_empty_rows::Bool=false, 
-    normalizenames::Bool=false,
-    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
-)
-    !isnothing(table_name) &&
-        throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
-
-    if !(source isa IO || isfile(source))
-        throw(XLSXError("File $source not found."))
-    end
-    kw = (; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, keep_empty_rows, normalizenames, missing_strings)
-    _READTABLE_VALUE_ROWS[] && return _readtable_value_rows(source, sheet, columns; kw...)
-    xf = open_or_read_xlsx(source, true, enable_cache, false; target_sheet=sheet, load_formulas=false)
-    return gettable(getsheet(xf, sheet), columns; kw...)
-end
-
-function readtable(source::Union{AbstractString,IO}, sheet::Union{AbstractString,Int}, range::AbstractString; 
-    table_name::Union{Nothing,AbstractString}=nothing,
-    first_row::Union{Nothing,Int}=nothing, 
-    column_labels=nothing, 
-    header::Bool=true, 
-    infer_eltypes::Bool=true, 
-    stop_in_empty_row::Bool=true, 
-    stop_in_row_function::Union{Nothing,Function}=nothing, 
-    enable_cache::Bool=true, 
-    keep_empty_rows::Bool=false, 
-    normalizenames::Bool=false,
-    missing_strings::Union{AbstractString, AbstractVector{<:AbstractString}, Nothing}=nothing
-)
-    !isnothing(table_name) &&
-        throw(XLSXError("`table_name` cannot be combined with a `columns` range — an Excel Table's own range is authoritative. Drop the `columns` argument to read the table."))
-
-    if is_valid_column_range(range)
-        range = ColumnRange(range)
-    else
-        throw(XLSXError("The columns argument must be a valid column range."))
-    end
-    return readtable(source, sheet, range; first_row, column_labels, header, infer_eltypes, stop_in_empty_row, stop_in_row_function, enable_cache, keep_empty_rows, normalizenames, missing_strings)
-end
-
 # `readtable` reads its sheet through value rows (src/valuerows.jl), not the worksheet
 # cache. Set to `false` to send `readtable` through the cache path, as before #462;
 # the tests run with both settings.

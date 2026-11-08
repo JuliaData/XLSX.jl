@@ -498,14 +498,23 @@ end
 
 # Add a relationship from part `from` to part `to`, reusing an existing one with
 # the same type and target. Returns its Id.
-function add_part_rel!(xf::XLSXFile, from::String, to::String, type::String)::String
+add_part_rel!(xf::XLSXFile, from::String, to::String, type::String)::String =
+    _add_rel!(xf, from, make_relative_target(first(_split_zip_path(from)), to), type, false)
+
+# Add a relationship from part `from` to `target` outside the package (a URL),
+# reusing an existing external one with the same type and target. Returns its Id.
+add_external_rel!(xf::XLSXFile, from::String, target::AbstractString, type::String)::String =
+    _add_rel!(xf, from, String(target), type, true)
+
+function _add_rel!(xf::XLSXFile, from::String, target::String, type::String, external::Bool)::String
     rels_path, root = get_or_create_rels!(xf, from)
-    target = make_relative_target(first(_split_zip_path(from)), to)
     for n in elements_with_tag(root, "Relationship")
-        get_attr(n, "Type") == type && get_attr(n, "Target") == target && return get_attr(n, "Id")
+        get_attr(n, "Type") == type && get_attr(n, "Target") == target &&
+            (get_attr(n, "TargetMode") == "External") == external && return get_attr(n, "Id")
     end
     rid = new_relationship_id(root)
-    push!(root, XML.Element(prefixed_tag(get_prefix(rels_path, xf), "Relationship");
-                            Id = rid, Type = type, Target = target))
+    el = XML.Element(prefixed_tag(get_prefix(rels_path, xf), "Relationship"); Id = rid, Type = type, Target = target)
+    external && (el["TargetMode"] = "External")
+    push!(root, el)
     return rid
 end

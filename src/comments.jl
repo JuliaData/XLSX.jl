@@ -77,7 +77,8 @@ XLSX.addComment(sheet, 5, 2, "Line one\\nLine two"; visible=true)
 
 !!! note
 
-    Excel 365 also has *threaded comments*. These are not written by XLSX.jl.
+    Excel 365 also has *threaded comments*. These are not written by XLSX.jl;
+    read them with [`getThreadedComments`](@ref).
     Every version of Excel shows the notes written here. Trying to replace or
     delete a threaded comment that already exists in a file throws an error.
 
@@ -129,7 +130,7 @@ The text is returned as stored. Notes written by Excel itself usually begin with
 the author's name, e.g. `"Tim:\\n..."`, because Excel puts it in the note text.
 
 For a threaded comment (Excel 365), this returns the legacy note that Excel
-stores alongside it.
+stores alongside it; read the thread with [`getThreadedComment`](@ref).
 
 See also [`addComment`](@ref), [`getComments`](@ref).
 """
@@ -170,6 +171,110 @@ end
 function getComments(xf::XLSXFile)::Vector{CommentInfo}
     wb = get_workbook(xf)
     return reduce(vcat, (getComments(getsheet(wb, i)) for i in 1:sheetcount(wb)); init=CommentInfo[])
+end
+
+# ===========================================================================
+# Threaded comments (read only)
+# ===========================================================================
+
+const REL_PERSON = "http://schemas.microsoft.com/office/2017/10/relationships/person"
+
+const ThreadedReply = NamedTuple{(:author, :text, :date), Tuple{String, String, Union{Nothing,Dates.DateTime}}}
+
+const ThreadedCommentInfo = NamedTuple{
+    (:sheet, :ref, :author, :text, :date, :resolved, :replies),
+    Tuple{String, String, String, String, Union{Nothing,Dates.DateTime}, Bool, Vector{ThreadedReply}},
+}
+
+"""
+    getThreadedComments(s::Worksheet) -> Vector{NamedTuple}
+    getThreadedComments(xf::XLSXFile) -> Vector{NamedTuple}
+
+Return the threaded comments (Excel 365's comments, as opposed to notes) on a
+worksheet, or in every worksheet of a workbook: one `NamedTuple` per thread,
+`(sheet, ref, author, text, date, resolved, replies)`. `author` is the person's
+display name, `date` a `DateTime` (or `nothing` if the file gives none), and
+`resolved` whether the thread is marked resolved. `replies` holds the replies, in
+order, each as `(author, text, date)`.
+
+Threaded comments can be read from any file, but not changed. [`getComment`](@ref)
+returns, for a cell with a threaded comment, the note Excel stores alongside it for
+older versions of Excel.
+
+See also [`getThreadedComment`](@ref).
+"""
+function getThreadedComments(s::Worksheet)::Vector{ThreadedCommentInfo}
+    is_chartsheet(get_workbook(s), s.name) && return ThreadedCommentInfo[]
+    xf = get_xlsxfile(s)
+    people = _threaded_comment_people(xf)
+    out = ThreadedCommentInfo[]
+    for (_, path) in _sheet_rel_targets(xf, _sheet_path(s), REL_THREADED_COMMENT)
+        _part_exists(xf, path) || continue
+        nodes = elements_with_tag(xml_root_element(get_xml_data(xf, path)), "threadedComment")
+        replies = Dict{String,Vector{ThreadedReply}}()
+        for n in nodes
+            parent = get_attr(n, "parentId", "")
+            isempty(parent) && continue
+            push!(get!(Vector{ThreadedReply}, replies, parent),
+                  ThreadedReply((get(people, get_attr(n, "personId"), ""), _threaded_text(n), _threaded_date(n))))
+        end
+        for n in nodes
+            isempty(get_attr(n, "parentId", "")) || continue
+            push!(out, ThreadedCommentInfo((s.name, get_attr(n, "ref"), get(people, get_attr(n, "personId"), ""),
+                                            _threaded_text(n), _threaded_date(n), get_attr(n, "done", "0") in ("1", "true"),
+                                            get(replies, get_attr(n, "id"), ThreadedReply[]))))
+        end
+    end
+    return out
+end
+
+function getThreadedComments(xf::XLSXFile)::Vector{ThreadedCommentInfo}
+    wb = get_workbook(xf)
+    return reduce(vcat, (getThreadedComments(getsheet(wb, i)) for i in 1:sheetcount(wb)); init=ThreadedCommentInfo[])
+end
+
+"""
+    getThreadedComment(s::Worksheet, ref) -> Union{Nothing, NamedTuple}
+    getThreadedComment(s::Worksheet, row::Integer, col::Integer) -> Union{Nothing, NamedTuple}
+
+Return the threaded comment on the given cell, as [`getThreadedComments`](@ref)
+does, or `nothing` if the cell has none.
+"""
+getThreadedComment(s::Worksheet, row::Integer, col::Integer) = getThreadedComment(s, CellRef(row, col))
+getThreadedComment(s::Worksheet, ref::AbstractString) = getThreadedComment(s, _comment_cellref(ref))
+function getThreadedComment(s::Worksheet, ref::CellRef)::Union{Nothing,ThreadedCommentInfo}
+    r = string(ref)
+    i = findfirst(c -> c.ref == r, getThreadedComments(s))
+    return isnothing(i) ? nothing : getThreadedComments(s)[i]
+end
+
+_part_exists(xf::XLSXFile, path::String) = haskey(xf.data, path) || get(xf.files, path, false)
+
+# The workbook's people (who wrote threaded comments): id => display name.
+function _threaded_comment_people(xf::XLSXFile)::Dict{String,String}
+    wb = get_workbook(xf)
+    has_relationship_by_type(wb, REL_PERSON) || return Dict{String,String}()
+    path = get_relationship_target_by_type("xl", wb, REL_PERSON)
+    _part_exists(xf, path) || return Dict{String,String}()
+    return Dict(get_attr(p, "id") => get_attr(p, "displayName")
+                for p in elements_with_tag(xml_root_element(get_xml_data(xf, path)), "person"))
+end
+
+function _threaded_text(n::XML.Node)::String
+    t = first_element_with_tag(n, "text")
+    isnothing(t) && return ""
+    return something(XML.is_simple_value(t), join((something(XML.value(c), "") for c in XML.children(t)), ""))
+end
+
+function _threaded_date(n::XML.Node)::Union{Nothing,Dates.DateTime}
+    d = get_attr(n, "dT", "")
+    isempty(d) && return nothing
+    d = rstrip(d, 'Z')
+    m = match(r"^(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?$", d)
+    isnothing(m) && return nothing
+    t = tryparse(Dates.DateTime, m[1])
+    (isnothing(t) || isnothing(m[2])) && return t
+    return t + Dates.Millisecond(round(Int, parse(Float64, "0." * m[2]) * 1000))
 end
 
 """
@@ -222,10 +327,13 @@ end
 # Lookup helpers
 # ===========================================================================
 
-function _comment_cellref(ref::AbstractString)::CellRef
+_comment_cellref(ref::AbstractString)::CellRef = _single_cellref(ref, "Comments")
+
+# A reference to one cell, for things (`what`) that attach to a single cell only.
+function _single_cellref(ref::AbstractString, what::AbstractString)::CellRef
     is_valid_cellname(ref) && return CellRef(ref)
     is_valid_cellrange(ref) &&
-        throw(XLSXError("Comments attach to a single cell, not a range: `$ref`."))
+        throw(XLSXError("$what attach to a single cell, not a range: `$ref`."))
     throw(XLSXError("Invalid cell reference: `$ref`."))
 end
 

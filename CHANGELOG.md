@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Writing a worksheet allocates less and is 10–25% faster: `writetable` of 100,000 × 8 strings allocates 772 → 336 MiB, and of numbers 986 → 666 MiB (0.55 → 0.44 s). Integers and cell references are written without making strings, the tags are built once, rows are written a chunk at a time into one buffer per thread, and the sheet goes into the file in pieces rather than being copied whole twice. The files written are byte-for-byte the same
+- `bench/worksheet_write.jl` times each write path on its own, without fixtures, and keeps earlier runs to compare against
+
+- Add `deleteImage`, which deletes the images whose top-left corner is in a cell, or one image from `getImages`. The picture file goes too, unless another image still shows it, and a drawing left empty is removed. `getImages` is now declared public
+- Add `Charts.deleteChart`, which deletes a chart on a worksheet with the parts only it uses, and for a chartEx chart its hidden `_xlchart` names. A chart on a chartsheet is refused: delete the sheet instead
+- Add `getThreadedComments` and `getThreadedComment`, which read Excel 365's threaded comments: each thread's author, text, date and whether it is resolved, with its replies. Threaded comments are still not written
+
+- `insertRows`, `deleteRows`, `insertColumns` and `deleteColumns` move Excel Tables, so sheets with tables can now be edited this way. A table grows to take in rows or columns inserted inside it (inserted columns become table columns named `Column1`, `Column2`, ...) and shrinks as they are deleted from it; one deleted whole is deleted. References to a deleted table or table column (`Sales[Amount]`) become `#REF!` everywhere, and formulas in calculated columns and totals rows move. Deleting a table's header row, totals row or all its data rows on their own is refused
+- Internal: `addtable!` is broken into steps (choosing the name, reading the header, checking the totals row, attaching the table part)
+
+- `insertRows`, `deleteRows`, `insertColumns` and `deleteColumns` move the sheet's images, charts and shapes, as each one's *move and size with cells* setting says (an object all of whose rows or columns are deleted shrinks to nothing), and its comments and their boxes. A comment on a deleted cell is deleted; a threaded comment is moved, but deleting its cell is refused. Sheets with images, charts or comments can now be edited this way
+
+- Add `insertRows`, `deleteRows`, `insertColumns` and `deleteColumns`, which work as Excel's *Insert* and *Delete* commands do. Cells move, with their row heights and attributes, and everything that refers to them follows: formulas on every sheet (relative or absolute), merged cells, conditional formats and data validations (their ranges and formulas, x14 ones included), hyperlinks, the AutoFilter and its filter columns, frozen panes (deleting all the frozen rows and columns unfreezes the sheet) and selections, column widths, page breaks, defined names (including the print area and titles) and chart series. Ranges across an insert grow and ranges cut by a delete shrink; references to deleted cells become `#REF!`. A shared formula stays shared when the edit moves all its cells alike; one it would change unevenly (references across the edited rows, or a delete inside its block) is stored as one formula per cell afterwards.
+
+- Internal: the `readtable` and `eachtablerow` methods share one keyword list rather than repeating it, and `mergeCells`/`removeMergedCells` and `setColumnWidth`/`setRowHeight` define their shared address methods once. No change in behaviour, except that an unknown keyword to `readtable` or `eachtablerow` is reported against the internal function the keywords are passed to
+
+- Internal: `write.jl` is split into `save.jl` (writing the package), `setdata.jl` (writing cells), `writetable.jl` and `sheetops.jl` (adding, renaming, copying, deleting and moving sheets), and the Excel Tables half of `table.jl` moves to `exceltables.jl`. `copysheet!` and `deletesheet!` are broken into steps, and repeated code in the cell format setters, range handling, conditional format data bars and the sheet cache fill is shared. No change in behaviour
+- `bench/maintainability.jl` counts duplication in code only: it leaves out docstrings, the bodies of `const` tables, lines of nothing but literals, and `include` lines, which it counted as duplicated because blanking their literals made unrelated ones look alike
+
+- Add `setCellProtection` and `getCellProtection` to unlock cells, so they can be filled in on a protected sheet, and to hide cells' formulas, as the *Protection* tab of Excel's *Format Cells* dialog does. Empty cells are given the format without a value, and the cells' other formatting is kept
+- A cell format with both an alignment and a protection setting writes them in the order the schema requires. `setAlignment` added the alignment after any protection Excel had written
+
+- Add `protectSheet`, `unprotectSheet`, `isSheetProtected` and `getSheetProtection` to protect worksheets, with an optional password (Excel's legacy hash, so up to 15 ASCII characters) and the same choice of what users may still do as Excel's *Protect Sheet* dialog
+- Add `setPageSetup`/`getPageSetup` (orientation, paper size, scaling or fit to pages), `setPageMargins`/`getPageMargins`, `setPrintOptions`/`getPrintOptions` (gridlines, headings, centring), and `setPrintArea`, `getPrintArea`, `removePrintArea`, `setPrintTitles`, `getPrintTitles` and `removePrintTitles` for printing. A `pageSetup` that links to printer settings keeps the link
+
+- Add `setSheetVisibility` and `getSheetVisibility` to show and hide sheets (`:visible`, `:hidden` or `:veryHidden`), and `setTabColor`, `getTabColor` and `removeTabColor` for tab colours, on worksheets and chartsheets. Hiding the workbook's last visible sheet is an error, and hiding the sheet the workbook opens on makes the first visible sheet the one it opens on
+- `Worksheet`'s internal `is_hidden` field is replaced by `visibility`, which tells hidden and very hidden sheets apart. `ws.is_hidden` still reads and sets it
+
+- Add `setAutoFilter`, `getAutoFilter` and `removeAutoFilter` to add, read and remove the filter buttons on a plain range of a sheet, outside an Excel Table. The hidden `_xlnm._FilterDatabase` name Excel keeps for the filter is written and removed with it, and follows the sheet through `copysheet!`, `renamesheet!` and `deletesheet!`. A filter may not overlap an Excel Table
+- `addtable!`, `writetable!` with `as_table=true`, `appendtable!` and `settotals!` throw an error rather than place or grow a table onto the sheet's AutoFilter, as Excel does not allow the two to overlap
+
+- Add `setColumnHidden`, `setRowHidden`, `isColumnHidden` and `isRowHidden` to hide and show rows and columns, and `groupRows`, `groupColumns`, `ungroupRows`, `ungroupColumns`, `getRowOutlineLevel` and `getColumnOutlineLevel` to group them in an outline, nested up to Excel's seven levels and optionally collapsed. Rows and columns needn't hold data, and can be read from a file opened only for reading
+- `setRowHeight` sets the height of a row with no cells, which is written with just its height. It skipped such rows, returning -1 if every row was empty
+- `copysheet!` copies the attributes of the original's rows: their styles, and whether they are hidden or grouped. The copy's rows had none
+- `setColumnWidth` joins adjacent column definitions left with the same settings
+
+- Add `addDataValidation`, `getDataValidations`, `getDataValidation` and `deleteDataValidation` to add, read and delete data validation: drop-down lists (from `values` or a range), whole and decimal numbers, dates, times, text length and custom formulas, with input and error messages. Validations Excel 2010 wrote in its extended (`x14`) form are read and deleted too, and validations can be read from a file opened only for reading
+- `renamesheet!`, `deletesheet!` and `copysheet!` now update sheet references in Excel 2010 (`x14`) data validations, whose formula is held in an `<xm:f>` inside `<x14:formula1>`. Those references were left unchanged
+
+- Add `addHyperlink`, `getHyperlink`, `getHyperlinks` and `deleteHyperlink` to add, read and delete cell hyperlinks: to a web page, email address or file (`url`), or to a place in the workbook (`location`). An empty cell given a link takes its display text and a blue, underlined font, as in Excel. Links can be read from a file opened only for reading, with or without the cell cache
+- `copysheet!` gives the copy's hyperlinks to web pages and files relationships of their own. The copy kept the original's relationship ids, which pointed at relationships the copy didn't have
+
+- Docs: a *Chart subtypes* section in *Creating charts* maps each of Excel's chart subtypes to the kind or `addSeries` keywords that create it, and the *Limitations* list of kinds that can't be created is completed
+- Docs: the *Migration Guide* covers v0.12 and v0.13, including every behaviour change in the v0.13 patch releases
+- Docs: the README and home page list the package's features and give a quick start
+- Docs: a new *Images, comments and sheet order* guide
+
 ## [v0.13.3](https://github.com/JuliaData/XLSX.jl/tree/v0.13.3) - 2026-11-04
 
 - Requires XML.jl v0.4.7, and reads through its public API only: `XML.splicetext` and `XML.sourcetext` replace the XML.jl internals XLSX.jl read, including `XMLTokenizer._skip_element_raw`, which XML.jl v0.4.7 deprecates and v0.5 removes [#482](https://github.com/JuliaData/XLSX.jl/issues/482)

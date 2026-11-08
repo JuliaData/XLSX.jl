@@ -163,6 +163,69 @@ A few combinations are rejected because the result would draw nothing or is
 under-specified: a bubble series needs both `categories` (its X values) and
 `bubble_sizes`, and a scatter series with `markers = false` needs `line = true`.
 
+## Chart subtypes
+
+Excel's Insert menu offers several subtypes of most chart kinds. Some of them
+are set series by series with the keywords above, and others are separate kinds.
+
+### Scatter
+
+There is one `:scatter` kind. Each series chooses one of Excel's five scatter
+subtypes with `markers`, `line` and `smooth`:
+
+| Excel subtype | `addSeries` keywords |
+| --- | --- |
+| Scatter | none: markers only is the default |
+| Scatter with Smooth Lines and Markers | `line = true, smooth = true` |
+| Scatter with Smooth Lines | `line = true, smooth = true, markers = false` |
+| Scatter with Straight Lines and Markers | `line = true` |
+| Scatter with Straight Lines | `line = true, markers = false` |
+
+```julia
+julia> c = addChart(ws, :scatter; anchor = "D2:K17", title = "Smooth lines");
+
+julia> addSeries(c, "B2:B6"; categories = "A2:A6", name_ref = "B1",
+                 line = true, smooth = true, markers = false);
+```
+
+On a scatter or bubble chart `categories` holds the X values, which Excel calls
+"Series X values" and writes as `c:xVal`. The keyword has the same name for every
+chart kind, and [`getChartData`](@ref) and [`getChartRanges`](@ref) read the
+X values back as `categories` too.
+
+### Line and radar
+
+Line and radar charts take their subtypes from `markers` in the same way:
+
+| Excel subtype | How to create it |
+| --- | --- |
+| Line | `:line` |
+| Line with Markers | `:lineMarkers`, or `markers = true` (or a symbol) on a `:line` series |
+| Radar | `:radar` |
+| Radar with Markers | `:radar` with `markers = true` (or a symbol) |
+
+`smooth = true` curves a line series. Excel offers this in the series' format
+pane rather than as a subtype.
+
+### Subtypes that are separate kinds
+
+| Excel subtype | Kind |
+| --- | --- |
+| Clustered Column, Stacked Column | `:column`, `:stackedColumn` |
+| Clustered Bar, Stacked Bar | `:bar`, `:stackedBar` |
+| Pie, Doughnut | `:pie`, `:doughnut` |
+| Area | `:area` |
+| Bubble | `:bubble` |
+
+### Subtypes that cannot be created
+
+Excel's other subtypes can't be created yet: 100% stacked bar and column, stacked
+and 100% stacked line and area, filled radar, and every 3-D subtype. They can
+still be read. See [Limitations](chartLimitations.md).
+
+The subtype keywords apply to one series at a time, so one chart can mix
+subtypes, as it can in Excel.
+
 ## Adding to a chart Excel made
 
 [`addSeries`](@ref) reads the chart's kind back from the part rather than from anything
@@ -205,6 +268,18 @@ julia> [getSeriesFill(ec, i).value.fgcolor.val for i in 1:3]
 
 A chart with more than one group — a combo chart — has no single group to add
 to, so `addSeries` throws on one.
+
+## Deleting a chart
+
+[`deleteChart`](@ref) deletes a chart on a worksheet, whether XLSX.jl or Excel
+made it, with everything only it uses. The data it plotted is not changed:
+
+```julia
+julia> deleteChart(getChart(xf, "chart1"))
+```
+
+A chart on a chartsheet is the whole sheet: delete it with
+[`XLSX.deletesheet!`](@ref).
 
 ## Themes
 

@@ -60,8 +60,10 @@ export
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet,
     addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
-    addImage,
+    addImage, deleteImage,
     addComment, deleteComment,
+    addHyperlink, deleteHyperlink,
+    addDataValidation, deleteDataValidation,
     # Cells & data
     CellRef, SheetCellRef, row_number, column_number, eachtablerow,
     readdata, getdata, gettable, readtable, readto,
@@ -76,6 +78,12 @@ export
     setConditionalFormat,
     RichTextString, RichTextRun,
     setColumnWidth, setRowHeight,
+    setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
+    setAutoFilter, removeAutoFilter,
+    insertRows, deleteRows, insertColumns, deleteColumns,
+    setSheetVisibility, setTabColor, removeTabColor,
+    protectSheet, unprotectSheet, setCellProtection,
+    setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
     freezePanes, splitFreeze, splitPanes, removePanes,
     # Excel Tables
@@ -85,10 +93,16 @@ export
     eval(Meta.parse("""
     public getcell, getcellrange, getFormula, getRichTextString,
            getConditionalFormats, getColumnWidth, getRowHeight,
+           isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
+           getAutoFilter, getSheetVisibility, getTabColor,
+           isSheetProtected, getSheetProtection, getCellProtection,
+           getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles,
            getFormat, getFont, getBorder, getFill, getAlignment,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
-           getComment, getComments,
+           getComment, getComments, getThreadedComment, getThreadedComments, getImages,
+           getHyperlink, getHyperlinks,
+           getDataValidation, getDataValidations,
            Workbook, XLSXError, SchemeColor,
            CellErrorType, XL_NULL, XL_DIV0, XL_VALUE, XL_REF, 
            XL_NAME, XL_NUM, XL_NA, XL_SPILL
@@ -107,10 +121,12 @@ include("xmlutil.jl")
 include("xlsx-colors.jl") # must load before sst.jl and cellformat-helpers.jl
 include("formula.jl")
 include("cellref.jl")
+include("shiftrefs.jl")
 include("sst.jl")
 include("stream.jl")
 include("valuerows.jl")
 include("table.jl")
+include("exceltables.jl")
 include("tables_interface.jl")
 include("relationship.jl")
 include("read.jl")
@@ -123,9 +139,11 @@ include("cellformats/font.jl")
 include("cellformats/border.jl")
 include("cellformats/fill.jl")
 include("cellformats/alignment.jl")
+include("cellformats/protection.jl")
 include("cellformats/numberformat.jl")
 include("cellformats/uniformstyle.jl")
 include("cellformats/widthheight.jl")
+include("cellformats/rowscols.jl")
 include("cellformats/mergedcells.jl")
 include("panes.jl")
 include("conditional-format-helpers.jl") # must load before conditionalformats/
@@ -139,7 +157,17 @@ include("conditionalformats/databar.jl")
 include("conditionalformats/clear.jl")
 include("images.jl")
 include("comments.jl")
-include("write.jl")
+include("hyperlinks.jl")
+include("datavalidation.jl")
+include("autofilter.jl")
+include("sheetsettings.jl")
+include("save.jl")
+include("setdata.jl")
+include("writetable.jl")
+include("sheetops.jl")
+include("rowcoledit.jl")
+include("shiftobjects.jl")
+include("shifttables.jl")
 include("fileArray.jl")
 
 # Charts depends on the core and must load after it; the core never refers to Charts.

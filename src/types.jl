@@ -359,7 +359,7 @@ const CellConcreteType = Union{String, Missing, Float64, Int64, Bool, Dates.Date
 # `Int64`, not `Int`: the set of types a cell can hold must not depend on the
 # host word size, or 32-bit builds would silently narrow it to `Int32`.
 # `setdata!` normalises every `Integer` to `Int64`, so consumers testing a cell
-# value's type must test against `Int64` too (see write.jl).
+# value's type must test against `Int64` too (see setdata.jl).
 
 # CellValue is a Julia type of a value read from a Spreadsheet.
 struct CellValue
@@ -629,7 +629,7 @@ mutable struct Worksheet
     relationship_id::String
     name::String
     dimension::Union{Nothing, CellRange}
-    is_hidden::Bool
+    visibility::Symbol   # :visible, :hidden or :veryHidden (see `setSheetVisibility`)
     cache::Union{WorksheetCache, Nothing}
     next_formula_id::Int
     unhandled_attributes::Union{Nothing,Dict{Int,Dict{String,String}}}
@@ -637,8 +637,8 @@ mutable struct Worksheet
     next_cf_priority::Union{Int, Nothing}
     tables_cache::Union{Vector{Table}, Nothing}   # nothing until first access to `tables(ws)`
 
-    function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, is_hidden::Bool)
-        return new(package, sheetId, relationship_id, name, dimension, is_hidden, nothing, 0, nothing, 0, nothing, nothing)
+    function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, visibility::Symbol)
+        return new(package, sheetId, relationship_id, name, dimension, visibility, nothing, 0, nothing, 0, nothing, nothing)
     end
 end
 

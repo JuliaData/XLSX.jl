@@ -377,6 +377,22 @@ function _find_sheetdata(doc::XML.LazyNode, wsname::String)::XML.LazyNode
     end
     throw(XLSXError("No `sheetData` node found in worksheet $wsname."))
 end
+# Push a row read by `first_cache_fill!` into the cache, with its unhandled
+# attributes, and if `track`, widen `bounds` (row_min, row_max, col_min, col_max) to it.
+@inline function _push_filled_row!(ws::Worksheet, unhandled_attributes::Dict{Int,Dict{String,String}}, row_num::Int,
+                                   row_ht, rowcells::Dict{Int,Cell}, unhandled::Dict{String,String},
+                                   track::Bool, bounds::NTuple{4,Int})::NTuple{4,Int}
+    !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
+    push_sheetrow!(ws.cache, SheetRow(ws, row_num, row_ht, rowcells))
+    track || return bounds
+    row_min, row_max, col_min, col_max = bounds
+    row_min = min(row_min, row_num); row_max = max(row_max, row_num)
+    for col in keys(rowcells)
+        col_min = min(col_min, col); col_max = max(col_max, col)
+    end
+    return (row_min, row_max, col_min, col_max)
+end
+
 function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
     handled_attributes = Set{String}(["r", "spans", "ht", "customHeight"])
     unhandled_attributes = Dict{Int,Dict{String,String}}()
@@ -391,19 +407,7 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
         throw(XLSXError("Expecting empty cache but cache not empty!"))
     end
 
-    sheetdata_lazy = nothing
-    c = XML.Cursor(lznode)
-    while XML.next!(c) !== nothing
-        d = XML.depth(c)
-        d < 2 && continue
-        d > 2 && (XML.skip_element!(c); continue)
-        if XML.nodetype(c) == XML.Element && localname(c) == "sheetData"
-            sheetdata_lazy = XML.LazyNode(c)
-            break
-        end
-        XML.skip_element!(c)
-    end
-    sheetdata_lazy === nothing && throw(XLSXError("No `sheetData` node found in worksheet"))
+    sheetdata_lazy = _find_sheetdata(lznode, ws.name)
 
     sst_total = 0
     rowcells  = Dict{Int,Cell}()
@@ -412,8 +416,7 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
     # Derive the sheet bounds from the rows as they are pushed, but only for a
     # sheet with no recorded dimension.
     track = isnothing(ws.dimension)
-    row_min = col_min = typemax(Int)
-    row_max = col_max = 0
+    bounds = (typemax(Int), 0, typemax(Int), 0)   # row_min, row_max, col_min, col_max
     row_ht    = nothing
     unhandled = _EMPTY_ROW_ATTRS
 
@@ -429,15 +432,7 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
 
         if d == 2 && nt == XML.Element && localname(c2) == "row"
             if !isnothing(row_num)
-                sr = SheetRow(ws, row_num, row_ht, rowcells)
-                !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
-                push_sheetrow!(ws.cache, sr)
-                if track
-                    row_min = min(row_min, row_num); row_max = max(row_max, row_num)
-                    for col in keys(rowcells)
-                        col_min = min(col_min, col); col_max = max(col_max, col)
-                    end
-                end
+                bounds = _push_filled_row!(ws, unhandled_attributes, row_num, row_ht, rowcells, unhandled, track, bounds)
                 rowcells  = Dict{Int,Cell}()
                 sizehint!(rowcells, expected_cols)
                 unhandled = _EMPTY_ROW_ATTRS
@@ -465,27 +460,16 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
             sst_total += cell.datatype == CT_STRING ? 1 : 0
             rowcells[column_number(cell)] = cell
 
-        elseif d == 2 && nt == XML.Element
+        elseif nt == XML.Element && (d == 2 || d == 3)   # anything else in a row, or in <sheetData>
             XML.skip_element!(c2)
-
-        elseif d == 3 && nt == XML.Element
-            XML.skip_element!(c2)
-
         end
     end
 
     if !isnothing(row_num)
-        sr = SheetRow(ws, row_num, row_ht, rowcells)
-        !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
-        push_sheetrow!(ws.cache, sr)
-        if track
-            row_min = min(row_min, row_num); row_max = max(row_max, row_num)
-            for col in keys(rowcells)
-                col_min = min(col_min, col); col_max = max(col_max, col)
-            end
-        end
+        bounds = _push_filled_row!(ws, unhandled_attributes, row_num, row_ht, rowcells, unhandled, track, bounds)
     end
 
+    row_min, row_max, col_min, col_max = bounds
     if track && col_max > 0 && isnothing(ws.dimension)
         set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
     end

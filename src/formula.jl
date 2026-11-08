@@ -388,7 +388,8 @@ function _rewrite_sheet_xml_formulas!(repoint, node::XML.Node)
     for child in XML.eachelement(node)
         if localname(child) in SHEET_XML_FORMULA_ELEMENTS
             s = XML.is_simple_value(child)
-            isnothing(s) && continue
+            # An x14 validation's `<x14:formula1>` holds its formula in an `<xm:f>`.
+            isnothing(s) && (_rewrite_sheet_xml_formulas!(repoint, child); continue)
             t = replace(s, repoint)
             t == s || (child[end] = XML.Text(t))
         else

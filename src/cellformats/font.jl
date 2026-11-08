@@ -89,18 +89,10 @@ function _setFont(sh::Worksheet, cellref::CellRef; spec::FontSpec)::Int
     !isnothing(size) && (size < 1 || size > 409) &&
         throw(XLSXError("Invalid size value: $size. Must be between 1 and 409."))
 
-    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
-    pfx = pfx == "" ? "" : pfx * ":"
+    pfx = _styles_prefix(sh)
 
     wb   = get_workbook(sh)
-    cell = getcell(sh, cellref)
-    cell isa EmptyCell && throw(XLSXError("Cannot set font for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
-
-    allXfNodes = get_cellXfs_nodes(wb)
-
-    if cell.style == UInt32(0)
-        cell.style = get_num_style_index(sh, allXfNodes, 0).id
-    end
+    cell, allXfNodes = _format_target(sh, cellref, "font")
 
     cell_style    = styles_cell_xf(allXfNodes, cell.style)
     cell_font     = getFont(wb, cell_style)

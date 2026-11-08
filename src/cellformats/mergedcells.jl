@@ -211,19 +211,24 @@ julia> XLSX.mergeCells(sh, "A:D")           # Merge columns to the extent of the
 ```
 """
 function mergeCells end
-mergeCells(ws::Worksheet, rng::SheetCellRange) = do_sheet_names_match(ws, rng) && mergeCells(ws, rng.rng)
-mergeCells(ws::Worksheet, rng::SheetColumnRange) = do_sheet_names_match(ws, rng) && mergeCells(ws, rng.colrng)
-mergeCells(ws::Worksheet, rng::SheetRowRange) = do_sheet_names_match(ws, rng) && mergeCells(ws, rng.rowrng)
-mergeCells(ws::Worksheet, colrng::ColumnRange)::Int = process_columnranges(mergeCells, ws, colrng)
-mergeCells(ws::Worksheet, rowrng::RowRange)::Int = process_rowranges(mergeCells, ws, rowrng)
-mergeCells(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges(mergeCells, ws, ncrng; kw...)
-mergeCells(xl::XLSXFile, sheetcell::AbstractString)::Int = process_sheetcell(mergeCells, xl, sheetcell)
-mergeCells(ws::Worksheet, ref_or_rng::AbstractString)::Int = process_ranges(mergeCells, ws, ref_or_rng)
-mergeCells(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon) = process_colon(mergeCells, ws, row, nothing)
-mergeCells(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}) = process_colon(mergeCells, ws, nothing, col)
-mergeCells(ws::Worksheet, ::Colon, ::Colon) = process_colon(mergeCells, ws, nothing, nothing)
-mergeCells(ws::Worksheet, ::Colon) = process_colon(mergeCells, ws, nothing, nothing)
-mergeCells(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = mergeCells(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
+# The address methods mergeCells and removeMergedCells share.
+for f in (:mergeCells, :removeMergedCells)
+    @eval begin
+        $f(ws::Worksheet, rng::SheetCellRange) = do_sheet_names_match(ws, rng) && $f(ws, rng.rng)
+        $f(ws::Worksheet, rng::SheetColumnRange) = do_sheet_names_match(ws, rng) && $f(ws, rng.colrng)
+        $f(ws::Worksheet, rng::SheetRowRange) = do_sheet_names_match(ws, rng) && $f(ws, rng.rowrng)
+        $f(ws::Worksheet, colrng::ColumnRange)::Int = process_columnranges($f, ws, colrng)
+        $f(ws::Worksheet, rowrng::RowRange)::Int = process_rowranges($f, ws, rowrng)
+        $f(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges($f, ws, ncrng; kw...)
+        $f(xl::XLSXFile, sheetcell::AbstractString)::Int = process_sheetcell($f, xl, sheetcell)
+        $f(ws::Worksheet, ref_or_rng::AbstractString)::Int = process_ranges($f, ws, ref_or_rng)
+        $f(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon) = process_colon($f, ws, row, nothing)
+        $f(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}) = process_colon($f, ws, nothing, col)
+        $f(ws::Worksheet, ::Colon, ::Colon) = process_colon($f, ws, nothing, nothing)
+        $f(ws::Worksheet, ::Colon) = process_colon($f, ws, nothing, nothing)
+        $f(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = $f(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
+    end
+end
 function mergeCells(ws::Worksheet, cr::CellRange)
     # May be better if merged cells were part of ws.cache?
 
@@ -336,19 +341,6 @@ julia> XLSX.removeMergedCells(sh)                  # Unmerge everything in the w
 ```
 """
 function removeMergedCells end
-removeMergedCells(ws::Worksheet, rng::SheetCellRange) = do_sheet_names_match(ws, rng) && removeMergedCells(ws, rng.rng)
-removeMergedCells(ws::Worksheet, rng::SheetColumnRange) = do_sheet_names_match(ws, rng) && removeMergedCells(ws, rng.colrng)
-removeMergedCells(ws::Worksheet, rng::SheetRowRange) = do_sheet_names_match(ws, rng) && removeMergedCells(ws, rng.rowrng)
-removeMergedCells(ws::Worksheet, colrng::ColumnRange)::Int = process_columnranges(removeMergedCells, ws, colrng)
-removeMergedCells(ws::Worksheet, rowrng::RowRange)::Int = process_rowranges(removeMergedCells, ws, rowrng)
-removeMergedCells(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges(removeMergedCells, ws, ncrng; kw...)
-removeMergedCells(xl::XLSXFile, sheetcell::AbstractString)::Int = process_sheetcell(removeMergedCells, xl, sheetcell)
-removeMergedCells(ws::Worksheet, ref_or_rng::AbstractString)::Int = process_ranges(removeMergedCells, ws, ref_or_rng)
-removeMergedCells(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon) = process_colon(removeMergedCells, ws, row, nothing)
-removeMergedCells(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}) = process_colon(removeMergedCells, ws, nothing, col)
-removeMergedCells(ws::Worksheet, ::Colon, ::Colon) = process_colon(removeMergedCells, ws, nothing, nothing)
-removeMergedCells(ws::Worksheet, ::Colon) = process_colon(removeMergedCells, ws, nothing, nothing)
-removeMergedCells(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}) = removeMergedCells(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))))
 
 # Unlike `mergeCells`, a single cell is meaningful here: it identifies the merged
 # range that contains it, so `process_ranges` can hand us a bare `CellRef`.

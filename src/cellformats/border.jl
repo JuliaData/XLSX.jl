@@ -228,18 +228,9 @@ function _setBorder(sh::Worksheet, cellref::CellRef; spec::BorderSpec)::Int
     end
 
     wb   = get_workbook(sh)
-    pfx = get_prefix("xl/styles.xml", get_xlsxfile(sh))
-    pfx = pfx == "" ? pfx : pfx * ":"
+    pfx = _styles_prefix(sh)
 
-    cell = getcell(sh, cellref)
-    cell isa EmptyCell &&
-        throw(XLSXError("Cannot set border for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
-
-    allXfNodes = get_cellXfs_nodes(wb)
-
-    if cell.style == UInt32(0)
-        cell.style = get_num_style_index(sh, allXfNodes, 0).id
-    end
+    cell, allXfNodes = _format_target(sh, cellref, "border")
 
     cell_style      = styles_cell_xf(allXfNodes, cell.style)
     cell_borders    = getBorder(wb, cell_style)
