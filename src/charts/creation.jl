@@ -296,6 +296,7 @@ end
 # Resolve `ref` against sheet `sheet` of `xf`, or against the workbook when `sheet`
 # is nothing (a chartsheet). Returns the c:f / cx:f text and the cell values.
 function _resolve_ref(xf::XLSXFile, sheet::Union{Nothing,String}, ref)
+    ref = _unfixed(ref)
     if !(ref isa AbstractString)
         x = isnothing(sheet) ? xf : getsheet(xf, sheet)
         return (_chart_f(x, ref), _chart_values(x, ref))
@@ -306,6 +307,19 @@ function _resolve_ref(xf::XLSXFile, sheet::Union{Nothing,String}, ref)
         "`$ref` is a defined name holding a constant, not a cell range, so a chart " *
         "series cannot plot it."))
     return out
+end
+
+# An absolute reference as getChartSeries reports it (`Data!$B$2:$B$5`, `$B$2`)
+# made one the resolver takes: a sheet-qualified one parsed as a chart part's
+# c:f is, so a quoted sheet name is kept whole; a bare one with its `$`s removed.
+# Anything else, a defined name included, is passed through.
+function _unfixed(ref)
+    ref isa AbstractString && occursin('$', ref) || return ref
+    r = parse_chart_range(ref)
+    r isa Union{SheetCellRef,SheetCellRange,SheetColumnRange,SheetRowRange,NonContiguousRange} && return r
+    bare = replace(ref, '$' => "")
+    return is_valid_cellname(bare) || is_valid_cellrange(bare) || is_valid_column_range(bare) ||
+           is_valid_row_range(bare) ? bare : ref
 end
 
 # A chart on a chartsheet has no cells of its own, so its references resolve
@@ -703,8 +717,9 @@ function addSeries(c::Chart, values;
         append!(kids, _vary_color_points(proto, npts, pfx))
     end
 
-    ser  = _c_el(pfx, "ser", kids...)
-    gtag = String(localname(g))
+    gtag  = String(localname(g))
+    order = CHILD_ORDER[(NS_C, SER_TYPE[gtag])]               # smooth, shape and bubble3D follow the data
+    ser   = _c_el(pfx, "ser", sort(kids; by = k -> findfirst(==(localname(k)), order))...)
     new  = rebuild_path(root,
                [(NS_C, "chart")    => "chart",
                 (NS_C, "plotArea") => "plotArea",

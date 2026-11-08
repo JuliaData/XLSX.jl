@@ -308,8 +308,36 @@ accent colors in turn, across the whole chart, as Excel numbers them.
 
 The same works on a combo chart Excel made, provided it has one column group or
 one line group to add to; a chart with neither, or with two of the one asked
-for, throws. Changing which axes a group uses, and promoting an existing
-`:column` or `:line` chart to a combo, are not supported yet.
+for, throws. Changing which axes a group uses is not supported.
+
+### Making a chart a combo chart
+
+[`makeCombo`](@ref) turns an existing `:column`, `:stackedColumn` or `:line`
+chart into the same combo, as Excel's Change Chart Type → Combo does. The last
+series becomes the line, on new secondary axes, and the others clustered
+columns:
+
+```julia
+julia> c = addChart(ws, :column; anchor = "D20:K35");
+
+julia> addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1");
+
+julia> addSeries(c, "C2:C5"; categories = "A2:A5", name_ref = "C1");
+
+julia> makeCombo(c);
+
+julia> [s.charttype for s in getChartSeries(c)]
+2-element Vector{Symbol}:
+ :barChart
+ :lineChart
+```
+
+What Excel keeps, `makeCombo` keeps: the chart's title, legend and axes, axis
+titles included, and the formatting of each series that stays a column (or, from
+a line chart, the line). A series that changes type takes the formatting Excel
+gives a series of its new group, keeping its name, data and data labels. A
+stacked chart's columns become clustered, as in Excel. The chart needs two series
+or more; to start a combo from nothing, use `addChart(ws, :combo; …)`.
 
 ## Deleting a chart
 

@@ -29,8 +29,9 @@ for the `c:` kinds, their cached data. The restriction is on creating them.
 
 [`addSeries`](@ref) adds to the column or line group of any combo chart, through
 its `group` keyword, but not to a combo's other groups, such as an area group.
-A group can't be moved between the primary and secondary axes, and an existing
-`:column` or `:line` chart can't yet be made a combo.
+A group can't be moved between the primary and secondary axes. [`makeCombo`](@ref)
+makes a combo of a `:column`, `:stackedColumn` or `:line` chart only, the kinds
+checked against Excel's own Change Chart Type.
 
 ## Style and color parts are read for `cx:` fills only
 

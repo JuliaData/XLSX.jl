@@ -768,13 +768,108 @@
             # A combo chart Excel made takes a series in either group.
             g  = XLSX.opentemplate(joinpath(data_directory, "chart_combo.xlsx"))
             ec = C.getCharts(g)[1]
-            ref = replace(C.getChartSeries(ec; read_cached_values = false)[1].values.ref, "\$" => "")
+            ref = C.getChartSeries(ec; read_cached_values = false)[1].values.ref   # absolute, as read
             C.addSeries(ec, ref; group = :line, name = "Extra")
             s = C.getChartSeries(ec; read_cached_values = false)
             @test length(s) == 3
             @test allunique(x.idx for x in s) && allunique(x.order for x in s)
             @test count(x -> x.charttype === :lineChart, s) == 2
             SAVE_FILES && save_outfile(xf)
+        end
+
+        @testset "makeCombo makes a chart a combo chart as Excel does" begin
+            C = XLSX.Charts
+            # A plot area with its data, series identities and axis ids left out:
+            # what Excel's Change Chart Type decides.
+            function plot(c)
+                pa = XLSX.first_element_with_tag(XLSX.first_element_with_tag(C.chart_root(c), "chart"), "plotArea")
+                s  = XLSX.XML.write(pa)
+                s  = replace(s, r"<c:(tx|cat|val)>.*?</c:\1>"s => "")
+                s  = replace(s, r"<c:extLst>\s*<c:ext uri=\"\{C3380CC4[^\"]*\"[^>]*>\s*<c16:uniqueId[^>]*/>\s*</c:ext>\s*</c:extLst>"s => "")
+                s  = replace(s, r"(axId|crossAx) val=\"\d+\"" => s"\1 val=\"N\"")
+                return replace(s, r"\n(\s*\n)+" => "\n")          # the lines the above emptied
+            end
+            excel(file) = Dict(basename(c.path) => c for c in C.getCharts(XLSX.readxlsx(joinpath(data_directory, file))))
+            changed = excel("chart_combo_changes.xlsx")
+            custom  = excel("chart_combo_custom.xlsx")
+
+            xf = XLSX.newxlsx()
+            ws = xf[1]
+            ws["A1"] = ["" "North" "South" "East"; "Q1" 4 7 20; "Q2" 5 8 30; "Q3" 6 9 25; "Q4" 7 10 35]
+            function chart(kind, row; cols = "BCD")
+                c = C.addChart(ws, kind; anchor = "H$row:O$(row + 14)")
+                for col in cols
+                    C.addSeries(c, "$(col)2:$(col)5"; categories = "A2:A5", name_ref = "$(col)1")
+                end
+                return c
+            end
+
+            # From each kind Excel's own result: the last series the line, on new
+            # secondary axes, and the style part left alone.
+            for (i, kind) in enumerate((:column, :line, :stackedColumn))
+                c = chart(kind, 20i)
+                style = XLSX.Charts._style_parts(c)
+                @test C.makeCombo(c) === c
+                @test C.getChartType(c) === :combo
+                @test plot(c) == plot(changed["chart$i.xml"])
+                @test XLSX.Charts._style_parts(c) == style
+                @test [s.charttype for s in C.getChartSeries(c)] == [:barChart, :barChart, :lineChart]
+                @test length(unique(a.axid for a in C.getChartAxes(c))) == 4
+            end
+            # With two series, the second is the line.
+            two = chart(:column, 100; cols = "BC")
+            C.makeCombo(two)
+            @test plot(two) == plot(custom["chart2.xml"])
+            # Afterwards it takes series in either group.
+            C.addSeries(two, "D2:D5"; categories = "A2:A5", group = :line)
+            @test [s.idx for s in C.getChartSeries(two)] == [0, 1, 2]
+
+            # A customised chart keeps its title, axis title and series formatting;
+            # East, moving to the line, keeps its data labels and takes Excel's line
+            # formatting for its place.
+            cc = chart(:column, 120)
+            C.setChartTitleText(cc, "My Title")
+            C.setSeriesFill(cc, 1, "FF0000")
+            C.setLabelTextProp(cc, 3, :bold, true)
+            C.setAxisTitleText(cc, first(C.getChartAxes(cc, :value)), "Units")
+            C.makeCombo(cc)
+            @test C.getChartTitle(cc) == "My Title"
+            @test C.getSeriesFill(cc, 1).value.fgcolor.val == "FF0000"
+            @test C.getLabelTextProp(cc, 3, :bold).value === true
+            vals = C.getChartAxes(cc, :value)
+            @test length(vals) == 2 && occursin(">Units<", XLSX.XML.write(vals[1].raw))
+            fmt(ser) = [XLSX.XML.write(k) for k in XLSX.XML.eachelement(ser)
+                        if !(XLSX.localname(k) in (C._SER_DATA_TAGS..., "dLbls"))]
+            lser(c) = only(XLSX.elements_with_tag(C._group_nodes(C.chart_root(c))[2], "ser"))
+            @test fmt(lser(cc)) == fmt(lser(custom["chart1.xml"]))
+
+            # What it refuses.
+            @test_throws XLSX.XLSXError C.makeCombo(two)                 # already a combo
+            @test_throws XLSX.XLSXError C.makeCombo(chart(:column, 140; cols = "B"))
+            @test_throws XLSX.XLSXError C.makeCombo(chart(:area, 160))
+            SAVE_FILES && save_outfile(xf)
+        end
+
+        @testset "series take absolute references" begin
+            C = XLSX.Charts
+            xf = XLSX.newxlsx()
+            ws = xf[1]
+            XLSX.renamesheet!(ws, "My Data")
+            ws["A1"] = ["" "North"; "Q1" 4; "Q2" 5]
+            c = C.addChart(ws, :column; anchor = "H2:O16")
+            C.addSeries(c, "'My Data'!\$B\$2:\$B\$3"; categories = "\$A\$2:\$A\$3", name_ref = "'My Data'!\$B\$1")
+            s = only(C.getChartSeries(c))
+            @test s.values.ref == "'My Data'!\$B\$2:\$B\$3"
+            @test s.values.data == [4, 5] && s.categories.data == ["Q1", "Q2"] && s.name == "North"
+            # A series' reference passes straight back.
+            C.addSeries(c, s.values.ref; categories = s.categories.ref)
+            @test C.getChartSeries(c)[2].values.data == [4, 5]
+            # And chartEx charts, through the same resolver.
+            x = C.addChartEx(ws, :funnel, "\$B\$2:\$B\$3"; anchor = "Q2:X16",
+                             categories = "'My Data'!\$A\$2:\$A\$3", name_ref = "\$B\$1")
+            xml = XLSX.XML.write(C.chart_root(x))
+            @test occursin("!\$B\$2:\$B\$3</cx:f>", xml) && occursin("!\$A\$2:\$A\$3</cx:f>", xml)
+            @test occursin("<cx:v>North</cx:v>", xml)
         end
 
         @testset "cx: chart kind templates match Excel" begin
@@ -1000,6 +1095,12 @@
                 @test s[1].values.data == [10, 20, 30, 40] || kind === :bubble
                 @test !isnothing(s[1].categories)
                 @test length(s) == (kind in (:pie, :doughnut, :bubble) ? 1 : 2)
+                # Each series' children in schema order, smooth and the like after the data.
+                for (g, ser) in XLSX.Charts._series_nodes(XLSX.Charts.chart_root(c))
+                    order = XLSX.Charts.CHILD_ORDER[(XLSX.Charts.NS_C, XLSX.Charts.SER_TYPE[String(XLSX.localname(g))])]
+                    pos   = [findfirst(==(XLSX.localname(k)), order) for k in XLSX.XML.eachelement(ser)]
+                    @test issorted(pos)
+                end
             end
 
             # Per-point colours on a pie, one per category.
