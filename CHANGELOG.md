@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- A column inserted inside a hidden column span is shown, with the span split around it, as a row inserted among hidden rows already was; and a group that gains a visible row or column loses the collapsed marker on its summary row or column. Both as Excel 365 does; the hidden span used to grow over the new column. Checked against Excel with the fixtures made for P1–P3, now used by the tests.
 - `setLabelFlag(c::ChartEx, i, flag, on)` shows or hides a chartEx series' label parts (`:seriesName`, `:categoryName`, `:value`), writing labels as Excel 365 does. As in Excel, histogram and Pareto labels have no category name and a Pareto line has no labels.
 - Reading conditional formats, and adding a number format, no longer walk every node of the sheet or styles part to find one element. `getConditionalFormats` on a 50,000-cell sheet read with `readxlsx` takes half the time (111 ms to 58 ms), and each new number format takes under a microsecond, from 58 μs.
 - `setLabelFlag(c, i, flag, on)` shows or hides one part of a `c:` series' data labels (`:value`, `:seriesName`, `:categoryName`, `:legendKey`, `:percent` or `:bubbleSize`), and `getLabelFlag(c::Chart, i, flag)` reads it back. A series with no labels is given the ones Excel 365 writes when labels are turned on, checked for every chart kind. There was no way to make a `c:` chart's labels appear before.

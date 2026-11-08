@@ -13,6 +13,8 @@
 #   level, and a new column its width, style and outline level; neither is hidden,
 #   whether or not the neighbour is, and a hidden column of width 0 passes on no
 #   width;
+# - a group a new row or column joins is no longer all hidden, so the collapsed
+#   marker on its summary row or column goes;
 # - a conditional format or data validation whose range ends at the neighbour grows
 #   over the new rows (columns). Nothing else does: merged cells, tables, the
 #   AutoFilter, hyperlinks and defined names stay as they were.
@@ -37,6 +39,7 @@ function _inherit_formats!(ws::Worksheet, e::RowColEdit)
     news = e.at:min(e.at + e.count - 1, _edit_max(e))
     e.axis === :row ? _inherit_rows!(ws, e.at - 1, news, restyle) :
                       _inherit_columns!(ws, e.at - 1, news, restyle)
+    _uncollapse_groups!(ws, e)
     _grow_format_ranges!(_sheet_root(ws), e)
     return nothing
 end
@@ -87,7 +90,8 @@ function _inherit_columns!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyl
     end
     ws.cache.dirty = true
 
-    # The column definition: the neighbour's, unless one already spans the new columns.
+    # The column definition: the neighbour's, as a new column takes it. One the insert
+    # fell inside (it spans the new columns) is split around them if they differ.
     root = _sheet_root(ws)
     i = findfirst(c -> localname(c) == "cols", XML.children(root))
     isnothing(i) && return nothing
@@ -96,7 +100,7 @@ function _inherit_columns!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyl
     k = findfirst(d -> parse(Int, d["min"]) <= src <= parse(Int, get(d, "max", d["min"])), defs)
     isnothing(k) && return nothing
     d = defs[k]
-    parse(Int, get(d, "max", d["min"])) >= first(news) && return nothing   # grew with the insert
+    hi = parse(Int, get(d, "max", d["min"]))
     new = copynode(d)
     foreach(a -> remove_attr!(new, a), ("hidden", "collapsed"))
     if get(d, "hidden", "0") in ("1", "true") && parse(Float64, get(d, "width", "0")) == 0
@@ -106,18 +110,75 @@ function _inherit_columns!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyl
         s = restyle(parse(UInt32, new["style"]))
         s == 0 ? remove_attr!(new, "style") : (new["style"] = string(s))
     end
-    all(p -> first(p) in ("min", "max"), something(XML.attributes(new), Pair{String,String}[])) && return nothing
+    # A default width alone (no customWidth) formats nothing, and Excel writes no definition for it.
+    plain = all(p -> first(p) in ("min", "max", "width"), something(XML.attributes(new), Pair{String,String}[]))
     new["min"] = d["min"]
-    new["max"] = get(d, "max", d["min"])
-    if new == d                                  # the same definition: it widens, as Excel writes it
-        d["max"] = string(last(news))
+    new["max"] = string(hi)
+    if new == d                                            # the same definition: it widens
+        d["max"] = string(max(hi, last(news)))
         return nothing
     end
     new["min"] = string(first(news))
     new["max"] = string(last(news))
     kids = XML.children(cols)
-    insert!(kids, findfirst(x -> x === d, kids) + 1, new)
+    at = findfirst(x -> x === d, kids)
+    if hi >= first(news)                                   # split the span around the new columns
+        left = copynode(d)
+        left["max"] = string(first(news) - 1)
+        parts = XML.Node[left]
+        plain || push!(parts, new)
+        if hi > last(news)
+            right = copynode(d)
+            right["min"] = string(last(news) + 1)
+            push!(parts, right)
+        end
+    else
+        plain && return nothing
+        parts = XML.Node[d, new]
+    end
+    splice!(kids, at, parts)
     haskey(cols, "count") && (cols["count"] = string(length(xml_elements(cols))))
+    return nothing
+end
+
+# A group that a visible new row (column) joins is no longer all hidden, so its
+# summary row (column), after it or before it as the sheet's outline places it, is
+# no longer collapsed, as Excel writes it.
+function _uncollapse_groups!(ws::Worksheet, e::RowColEdit)
+    news = e.at:min(e.at + e.count - 1, _edit_max(e))
+    root = _sheet_root(ws)
+    pr = first_element_with_tag(first_element_with_tag(root, "sheetPr"), "outlinePr")
+    after = get(something(pr, XML.Element("outlinePr")), e.axis === :row ? "summaryBelow" : "summaryRight", "1") != "0"
+    # Each row's (column's) outline level, and how to clear its collapsed marker.
+    if e.axis === :row
+        uh = ws.unhandled_attributes
+        isnothing(uh) && return nothing
+        level_of = r -> parse(Int, get(get(uh, r, _EMPTY_ROW_ATTRS), "outlineLevel", "0"))
+        uncollapse! = r -> (haskey(uh, r) && delete!(uh[r], "collapsed"); nothing)
+    else
+        i = findfirst(c -> localname(c) == "cols", XML.children(root))
+        isnothing(i) && return nothing
+        defs = xml_elements(XML.children(root)[i])
+        def_of = c -> findfirst(d -> parse(Int, d["min"]) <= c <= parse(Int, get(d, "max", d["min"])), defs)
+        level_of = c -> (k = def_of(c); isnothing(k) ? 0 : parse(Int, get(defs[k], "outlineLevel", "0")))
+        uncollapse! = function (c)
+            k = def_of(c)
+            isnothing(k) && return nothing
+            remove_attr!(defs[k], "collapsed")
+            # Left with only a default width, it defines nothing, and Excel drops it.
+            all(p -> first(p) in ("min", "max", "width"), XML.attributes(defs[k])) &&
+                filter!(x -> x !== defs[k], XML.children(XML.children(root)[i]))
+            return nothing
+        end
+    end
+    lvl = maximum(level_of, news)
+    lvl == 0 && return nothing
+    step = after ? 1 : -1
+    p = after ? last(news) + 1 : first(news) - 1
+    while 1 <= p <= _edit_max(e) && level_of(p) >= lvl          # past the rest of the group
+        p += step
+    end
+    1 <= p <= _edit_max(e) && uncollapse!(p)
     return nothing
 end
 

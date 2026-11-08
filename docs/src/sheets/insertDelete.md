@@ -48,6 +48,8 @@ the row above it, and a new column like the column to its left:
 - a row takes the height, row style and outline level of the row above, and a
   column the width, style and outline level of the column to its left. Neither is
   hidden, even when the row or column it copies is;
+- a row or column inserted inside a hidden group is shown, and since the group is
+  no longer all hidden, its summary row or column is no longer marked collapsed;
 - a conditional format or data validation that ends at the row above (the column
   to the left) grows to cover the new rows (columns), since they now have that
   formatting too. Merged cells, tables, the AutoFilter, hyperlinks and defined
