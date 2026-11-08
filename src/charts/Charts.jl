@@ -92,7 +92,7 @@ using ..XLSX:
     ns_prefixes, prefixed_tag, with_attribute, xml_root_element, truncate_len,
     # workbook, sheets and cells
     get_workbook, get_xlsxfile, get_xml_data, get_worksheet_internal_file,
-    getsheet, getdata, getRichTextString, is_chartsheet, isdate1904, date_to_excel_value, time_to_excel_value,
+    getsheet, hassheet, getdata, getRichTextString, is_chartsheet, isdate1904, date_to_excel_value, time_to_excel_value,
     # references and defined names
     abscell, mkabs, quoteit, ref_chooser, row_number, column_number, _parse_cell_marker,
     get_defined_name_value, is_defined_name_value_a_reference, is_workbook_defined_name,
@@ -108,7 +108,8 @@ using ..XLSX:
     # theme and colors (xlsx-colors.jl)
     get_color, get_colorant, _linear_to_srgb,
     SchemeColor, SCHEME_TOKENS, COLOR_TRANSFORMS, SCHEME_ALIASES, canonical_token,
-    get_theme_color_map, get_theme_fonts, resolve_theme_font, apply_drawingml_transforms
+    get_theme_color_map, get_theme_fonts, resolve_theme_font, apply_drawingml_transforms,
+    theme_fill_style
 
 export
     # Finding and reading charts
@@ -201,6 +202,7 @@ include("chartseries.jl")
 include("chartaxes.jl")
 include("chartlegend.jl")
 include("chartcascade.jl")
+include("chartstyle.jl")
 include("chartexprops.jl")
 
 end # module Charts

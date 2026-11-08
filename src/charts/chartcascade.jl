@@ -6,14 +6,13 @@
 # `getLabelTextProp` — walk the rungs instead and return an `Effective`
 # carrying the value, the rung that answered and the whole chain.
 #
-# Cascade resolution deliberately stops at the chart XML. Where a property is
-# written at no rung, `Effective.value` is `nothing`, which means Excel takes it
-# from `xl/charts/style1.xml` and `colors1.xml`. 
-# The reason is that Excel's precedence between them is underdocumented:
-# style1.xml is keyed by a series-index-modulo scheme that varies by chart type,
-# and colors1.xml layers on top. Pinning that down is research in its own right.
-# `FormatSite.level` already accepts `:style`, so adding the rung later is
-# additive, not breaking.
+# For a `c:` chart the cascade stops at the chart XML. Where a property is
+# written at no rung, `Effective.value` is `nothing`, and Excel draws it from
+# the legacy `c:style` number, not from `xl/charts/style1.xml` and
+# `colors1.xml`: a `c:` series with no `spPr` looks the same whatever the
+# colours part says, and Excel drops both parts when it saves such a chart. So
+# there is no `:style` rung here. The `cx:` charts do draw from those parts, and
+# chartstyle.jl adds their fill rung.
 
 """
     _walk_fill(wb, chain) -> Effective{DrawingFill}
@@ -45,8 +44,8 @@ end
 
 The `spPr` cascade for the graphic of series `i`: the data point, then the
 series. Chart groups carry no `spPr`, and `plotArea`/`chartSpace` `spPr`
-describe their own backgrounds rather than a series, so the chain stops there
-and falls through to the style part, which this layer does not read.
+describe their own backgrounds rather than a series, so the chain stops there.
+Excel draws an unformatted series from the chart's `c:style` number.
 """
 function _shape_chain(c::Chart, i::Integer; point::Union{Nothing,Integer}=nothing)
     chain = FormatSite[]

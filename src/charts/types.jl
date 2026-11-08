@@ -934,6 +934,10 @@ whether it does. `container` always exists — it is the `c:ser`, `c:dPt`,
 `txPr` found on it, or `nothing` where none was written, which is the rung
 being absent rather than the property being off.
 
+A `:style` rung (the fill of a [`ChartEx`](@ref)) has the style part's
+`cs:dataPoint` entry as its `container`, and as `props` an `a:spPr` built from
+the style, holding the fill Excel draws.
+
 `kind` distinguishes what `props` holds, so a chain is interpretable without
 knowing which resolver built it: `:shape` for an `spPr` on the element itself,
 `:marker` for an `spPr` on its `c:marker`, `:text` for a `txPr`.
@@ -950,7 +954,9 @@ end
 
 The result of resolving a property up a cascade. `value` is the first explicit
 setting found, or `nothing` where the property is written at no rung at all —
-which means Excel takes it from the chart style part, not that it is off. An
+which means Excel decides it from the chart's style, not that it is off. (The
+fill of a `cx:` chart has the style as its last rung, `level === :style`, so
+there `value` is the colour Excel draws.) An
 explicit `<a:noFill/>` resolves to a `DrawingFill` with `kind === :none` and a
 `site`, because deliberately off is a setting.
 

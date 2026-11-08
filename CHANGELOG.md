@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- `getSeriesFill` on a chartEx chart reports the colour Excel draws where the chart itself writes none, which until now was nearly always (Excel writes no fill for a `cx:` series until it is formatted). The colour is read from the chart's style and colours parts as a last rung of the cascade, `site.level === :style`, and was checked colour for colour against Excel 365: series of box & whisker, funnel, histogram and Pareto charts, a waterfall's increase, decrease and total points, and a treemap's or sunburst's points by top-level category. Lines, text, monochromatic colour schemes and `c:` charts are unchanged (a `c:` series without formatting is drawn from its `c:style`, not from these parts). A waterfall, treemap or sunburst point's `chain` now ends in the `:style` rung
+- Test fixtures written by Excel 365, with SVG exports of their charts in `test/data/chart_style_svg`, record the colours Excel draws
+
 - Internal: `src/charts/chartprops.jl` (2,972 lines) is split by object into `chartnodes.jl` (design notes, node locators and shared helpers), `charttext.jl`, `chartseries.jl`, `chartaxes.jl`, `chartlegend.jl` and `chartcascade.jl`. Every function moves unchanged. No change in behaviour
 
 - Writing a worksheet allocates less and is 10–25% faster: `writetable` of 100,000 × 8 strings allocates 772 → 336 MiB, and of numbers 986 → 666 MiB (0.55 → 0.44 s). Integers and cell references are written without making strings, the tags are built once, rows are written a chunk at a time into one buffer per thread, and the sheet goes into the file in pieces rather than being copied whole twice. The files written are byte-for-byte the same

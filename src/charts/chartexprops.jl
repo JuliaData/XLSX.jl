@@ -347,11 +347,35 @@ _cx_text_chain(c::ChartEx, i::Integer; pareto::Bool = false) = FormatSite[
     getSeriesFill(c::ChartEx, i::Integer; point=nothing, pareto=false) -> Effective{DrawingFill}
 
 Resolve the fill of series `i`, or of one data point of it, walking
-`cx:dataPt/cx:spPr` then `cx:series/cx:spPr`. With `pareto = true`, series
-`i`'s Pareto line instead; an error if it has none.
+`cx:dataPt/cx:spPr`, then `cx:series/cx:spPr`, then the chart's style. With
+`pareto = true`, series `i`'s Pareto line instead; an error if it has none.
+
+Excel writes no fill for a series or point it has not been asked to format, and
+draws one from the chart's style and colours parts instead. That last rung
+reports the same colour: `site.level === :style`, and the colour is a theme
+colour such as `accent2` with Excel's variation applied (the 7th series is
+`accent1` darkened by 40%), so `.value.fgcolor.rgb` is what Excel shows. It
+answers for:
+
+- box & whisker, funnel, histogram and the bars of a Pareto chart, by series;
+- a waterfall's points: increase, decrease and total each have a colour, so
+  `point` is needed;
+- a treemap's or sunburst's points, by top-level category: each point takes the
+  colour of the branch it belongs to, so `point` is needed.
+
+It gives no answer — `value` stays `nothing` when nothing else is written — for
+other layouts, for a Pareto line (a line has no fill; see
+[`getSeriesLine`](@ref)), and under a monochromatic colour scheme (Chart Design →
+Change Colors → Monochromatic), whose shades Excel computes in a way that is not
+reproduced. The colour of a series, or of a point's branch, is checked against
+Excel up to the 8th; later ones follow the variations the colours part lists.
 """
-getSeriesFill(c::ChartEx, i::Integer; point::Union{Nothing,Integer} = nothing, pareto::Bool = false) =
-    _walk_fill(_wb(c), _cx_shape_chain(c, i; point, pareto))
+function getSeriesFill(c::ChartEx, i::Integer; point::Union{Nothing,Integer} = nothing, pareto::Bool = false)
+    chain = _cx_shape_chain(c, i; point, pareto)
+    site  = _cx_style_fill_site(c, i; point, pareto)
+    isnothing(site) || push!(chain, site)
+    return _walk_fill(_wb(c), chain)
+end
 
 """
     getSeriesLine(c::ChartEx, i::Integer; point=nothing, pareto=false) -> Effective{DrawingLine}

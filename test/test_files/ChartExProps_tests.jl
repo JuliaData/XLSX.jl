@@ -124,7 +124,7 @@
         # Point 5 (idx 4) has its own fill: explicit colour with transforms.
         e5 = XLSX.Charts.getSeriesFill(c, 1; point=5)
         @test e5.site.level == :point
-        @test [s.level for s in e5.chain] == [:point, :series]
+        @test [s.level for s in e5.chain] == [:point, :series, :style]    # style rung last, not reached
         @test e5.value.fgcolor.kind == :srgb
         @test e5.value.fgcolor.val == "4EA72E"                                  # as written
         @test e5.value.fgcolor.transforms == [:lumMod => 60000, :lumOff => 40000]
@@ -133,7 +133,7 @@
         # Point 1 has no dataPt: no point rung, resolves at the series.
         e1 = XLSX.Charts.getSeriesFill(c, 1; point=1)
         @test e1.site.level == :series
-        @test [s.level for s in e1.chain] == [:series]
+        @test [s.level for s in e1.chain] == [:series, :style]
         @test_throws XLSX.XLSXError XLSX.Charts.getSeriesFill(c, 1; point=0)
 
         # Label text: set on dataLabels/txPr defRPr.
@@ -164,6 +164,90 @@
         @test isnothing(only(u.chain).props)
         @test isnothing(XLSX.Charts.getLabelTextProp(w, 1, :size).value)
 
+    end
+
+    # The expected colours are the fills in Excel 365's SVG exports of these
+    # charts, test/data/chart_style_svg/cx_*.svg, under the workbook's theme
+    # (accent1 156082, accent2 E97132, accent3 196B24, ...).
+    @testset "style rung: the colours Excel draws" begin
+        f  = XLSX.readxlsx(joinpath(data_directory, "chartex_colors.xlsx"))
+        cs = Dict(basename(c.path) => c for c in XLSX.Charts.getCharts(f) if c isa XLSX.Charts.ChartEx)
+        rgb(c, i = 1; kw...) = (e = XLSX.Charts.getSeriesFill(c, i; kw...);
+                                isnothing(e.value) ? nothing : e.value.fgcolor.rgb)
+        cycle8  = ["156082", "E97132", "196B24", "0F9ED5", "A02B93", "4EA72E", "0D3A4E", "994010"]
+        regions = ["156082", "156082", "156082", "E97132", "E97132", "196B24", "196B24", "196B24"]
+
+        # cx_1: Start, Sales, Returns, Costs, Grants, End (set as total)
+        w = cs["chartEx1.xml"]
+        @test [rgb(w; point = p) for p in 1:6] == ["156082", "156082", "E97132", "E97132", "156082", "196B24"]
+        @test isnothing(rgb(w))                         # increase, decrease and total differ
+        @test isnothing(rgb(w; point = 7))              # beyond the data
+        @test rgb(cs["chartEx2.xml"]) == "156082"                                   # cx_2 funnel
+        @test [rgb(cs["chartEx3.xml"]; point = p) for p in 1:8] == cycle8           # cx_3 treemap, A..H
+        @test [rgb(cs["chartEx4.xml"]; point = p) for p in 1:8] == regions          # cx_4 sunburst, by region
+        @test rgb(cs["chartEx5.xml"]) == "156082"                                   # cx_5 histogram
+        @test rgb(cs["chartEx6.xml"]) == "156082"                                   # cx_6 Pareto bars
+        @test isnothing(rgb(cs["chartEx6.xml"]; pareto = true))                     # a line has no fill
+        @test [rgb(cs["chartEx7.xml"], i) for i in 1:8] == cycle8                   # cx_7 box & whisker
+        @test [rgb(cs["chartEx8.xml"]; point = p) for p in 1:8] == regions          # cx_8 two-level treemap
+
+        # The rung: a :style site on the style's dataPoint entry, with the colour
+        # as the theme colour and Excel's variation.
+        e = XLSX.Charts.getSeriesFill(cs["chartEx7.xml"], 7)
+        @test e.site.level === :style && e.site.kind === :shape
+        @test XLSX.localname(e.site.container) == "dataPoint"
+        @test [s.level for s in e.chain] == [:series, :style]
+        @test e.value.kind === :solid
+        @test e.value.fgcolor.val == "accent1"
+        @test e.value.fgcolor.transforms == [:lumMod => 60000]
+
+        # Lines and text get no style rung.
+        l = XLSX.Charts.getSeriesLine(cs["chartEx7.xml"], 1)
+        @test isnothing(l.value) && [s.level for s in l.chain] == [:series]
+        @test all(s -> s.level !== :style, XLSX.Charts.getLabelTextProp(w, 1, :size).chain)
+    end
+
+    @testset "style rung: no answer where Excel was not checked" begin
+        nostyle(e) = isnothing(e.value) && all(s -> s.level !== :style, e.chain)
+
+        # Monochromatic Palette 1 (withinLinear) is not reproduced.
+        m = XLSX.readxlsx(joinpath(data_directory, "chartex_mono.xlsx"))
+        @test all(c -> nostyle(XLSX.Charts.getSeriesFill(c, 1; point = 1)), XLSX.Charts.getCharts(m))
+
+        xf  = XLSX.openxlsx(joinpath(data_directory, "chartex_colors.xlsx"); mode = "rw")
+        box = only(filter(c -> basename(c.path) == "chartEx7.xml", XLSX.Charts.getCharts(xf)))
+
+        # A series carrying formatIdx, which no fixture has.
+        ser = XLSX.Charts._cx_series_node(box, 2)
+        ser["formatIdx"] = "5"
+        @test nostyle(XLSX.Charts.getSeriesFill(box, 2))
+        @test XLSX.Charts.getSeriesFill(box, 1).value.fgcolor.rgb == "156082"   # others still answer
+
+        # Without its style part the chart ends its cascade where it did before.
+        rels = xf.data["xl/charts/_rels/chartEx7.xml.rels"]
+        kids = XLSX.XML.children(XLSX.xml_root_element(rels))
+        filter!(n -> XLSX.XML.nodetype(n) != XLSX.XML.Element ||
+                     XLSX.get_attr(n, "Type") != XLSX.Charts.REL_CHART_STYLE, kids)
+        @test nostyle(XLSX.Charts.getSeriesFill(box, 1))
+    end
+
+    @testset "style rung: charts made by addChartEx" begin
+        xf = XLSX.newxlsx()
+        ws = xf[1]
+        ws["A1"] = ["Item" "Amount" "s1" "s2" "s3"
+                    "a"     3       1    4    7
+                    "b"    -1       2    5    8
+                    "c"     2       3    6    9]
+        w = XLSX.Charts.addChartEx(ws, :waterfall, "B2:B4"; anchor = "G2:N16", categories = "A2:A4")
+        @test [XLSX.Charts.getSeriesFill(w, 1; point = p).value.fgcolor.val for p in 1:3] ==
+              ["accent1", "accent2", "accent1"]
+        b = XLSX.Charts.addChartEx(ws, :boxWhisker, "C2:C4"; anchor = "G20:N34")
+        XLSX.Charts.addSeries(b, "D2:D4")
+        XLSX.Charts.addSeries(b, "E2:E4")
+        @test [XLSX.Charts.getSeriesFill(b, i).value.fgcolor.val for i in 1:3] == ["accent1", "accent2", "accent3"]
+        XLSX.Charts.setSeriesFill(b, 2, "red")                              # an explicit fill still wins
+        @test XLSX.Charts.getSeriesFill(b, 2).site.level === :series
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "setSeriesFill" begin

@@ -33,22 +33,35 @@ for the `c:` kinds, their cached data. The restriction is on creating them.
 A combo chart is also the one case [`addSeries`](@ref) cannot extend, since
 there is no single group to add the series to.
 
-## Style and color parts are not read
+## Style and color parts are read for `cx:` fills only
 
-Excel keeps much of a chart's appearance in two parts beside the chart itself,
-`style1.xml` and `colors1.xml`. Neither is read into the formatting cascade, so
-a property written at no rung of the chart XML resolves to `nothing` — meaning
-"Excel takes this from the style", not "this is off".
+Excel keeps a chart's default appearance in two parts beside the chart itself,
+`style1.xml` and `colors1.xml`. A `cx:` chart relies on them: Excel writes no
+fill for a series or point until you format it. [`getSeriesFill`](@ref) on a
+[`ChartEx`](@ref) reads them as the last rung of its cascade (`site.level ===
+:style`), and reports the colour Excel draws — checked colour for colour against
+Excel 365 for every layout below. It answers for box & whisker, funnel,
+histogram and Pareto bars by series, and for waterfall, treemap and sunburst
+points.
 
-For a `c:` chart that is a modest gap: most of what you see is written in the
-chart part. For a `cx:` chart it is a large one, because the `cx:` schema keeps
-almost all appearance in the style part. Reading and writing a `cx:` chart's
-data and structure works; formatting one from code reaches much less than the
-equivalent `c:` call would.
+Everything else written at no rung still resolves to `nothing`, meaning "Excel
+decides", not "this is off":
 
-The parts are preserved on write, so nothing is lost by the package not reading
-them. [`FormatSite`](@ref)'s `level` already admits `:style`, so adding the rung
-later would extend the cascade rather than change it.
+- **Lines and text** of a `cx:` chart. Excel does not draw them as the style
+  part says: it draws box & whisker outlines darker than the style's colour,
+  and picks a contrasting colour of its own for labels inside funnel bars.
+- **Monochromatic colour schemes** (Chart Design → Change Colors →
+  Monochromatic). No formula was found that reproduces Excel's shades for
+  these exactly, so no answer is given rather than an approximate one.
+- **Region maps and Pareto lines**, and series written with a `formatIdx`
+  attribute, which Excel itself has not been seen to write.
+- **`c:` charts.** These do not use the style parts at all: a `c:` series
+  written without formatting is drawn from the chart's built-in style number
+  (`c:style`), and Excel deletes the two parts when it saves such a chart.
+  Excel itself writes a `c:` series' formatting in full, so this matters
+  only for files from other programs.
+
+The parts are preserved on write either way.
 
 ## chartEx charts carry no cached values
 

@@ -202,9 +202,10 @@ julia> e.site.level
 :series
 ```
 
-A `value` of `nothing` means no rung wrote the property, so Excel takes it from
-the chart's style part. [Formatting charts](formattingCharts.md) covers this in
-full.
+A `value` of `nothing` means no rung wrote the property, so Excel decides it
+from the chart's style. For the fills of a `cx:` chart that style is read as a
+last rung, so `value` is the colour Excel draws. [Formatting
+charts](formattingCharts.md) covers this in full.
 
 ## Created charts follow the workbook's theme
 
