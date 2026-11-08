@@ -961,4 +961,49 @@
         SAVE_FILES && save_outfile(yf)
         isfile(f) && rm(f)
     end
+
+    @testset "setLabelFlag on chartEx charts, as Excel writes the labels" begin
+        C = XLSX.Charts
+        # Excel's own: in chartex_labels_toggled.xlsx each chart's Data Labels box was
+        # flipped (turned on for histogram, pareto and boxWhisker); in
+        # chartex_labels_parts.xlsx the first series' labels show every part offered.
+        charts(xf) = Dict(c.sheet => c for c in C.getCharts(xf))
+        excel(file) = charts(XLSX.readxlsx(joinpath(data_directory, file)))
+        toggled, parts = excel("chartex_labels_toggled.xlsx"), excel("chartex_labels_parts.xlsx")
+        lbls(c, i) = C._cx_datalabels(c, i)
+        w(n) = isnothing(n) ? nothing : XLSX.XML.write(n)
+        # The labels without what Excel's Format pane adds on its own: text formatting,
+        # and the single points clicked while trying it.
+        shown(n) = isnothing(n) ? nothing :
+            (get(n, "pos", nothing), w(XLSX.first_element_with_tag(n, "visibility")), w(XLSX.first_element_with_tag(n, "separator")))
+
+        xf = XLSX.opentemplate(joinpath(data_directory, "chartex_kinds.xlsx"))
+        ours = charts(xf)
+        for kind in ("histogram", "pareto", "boxWhisker")               # no labels until turned on
+            c = ours[kind]
+            n = length(XLSX.Charts._cx_series_nodes(C.chart_root(c))) - (kind == "pareto")
+            @test all(isnothing(lbls(c, i)) for i in 1:n)
+            foreach(i -> C.setLabelFlag(c, i, :value, true), 1:n)
+            @test [w(lbls(c, i)) for i in 1:n] == [w(lbls(toggled[kind], i)) for i in 1:n]
+        end
+        offered = Dict("histogram" => (:seriesName, :value), "pareto" => (:seriesName, :value))
+        for kind in ("waterfall", "funnel", "treemap", "sunburst", "histogram", "pareto", "boxWhisker")
+            c = ours[kind]
+            foreach(f -> C.setLabelFlag(c, 1, f, true), get(offered, kind, (:seriesName, :categoryName, :value)))
+            @test shown(lbls(c, 1)) == shown(lbls(parts[kind], 1))
+            @test C.getLabelFlag(c, 1, :value) === true
+        end
+
+        # Off, the parts go but the labels stay, with nothing to show.
+        C.setLabelFlag(ours["funnel"], 1, :value, false)
+        @test C.getLabelFlag(ours["funnel"], 1, :value) === false && C.getLabelFlag(ours["funnel"], 1, :seriesName) === true
+
+        # What Excel doesn't offer is refused.
+        @test_throws XLSX.XLSXError C.setLabelFlag(ours["pareto"], 1, :value, true; pareto = true)
+        @test_throws XLSX.XLSXError C.setLabelFlag(ours["histogram"], 1, :categoryName, true)
+        @test_throws XLSX.XLSXError C.setLabelFlag(ours["pareto"], 1, :categoryName, true)
+        @test_throws XLSX.XLSXError C.setLabelFlag(ours["funnel"], 1, :percent, true)
+        @test isnothing(C._cx_datalabels(ours["pareto"], 1; pareto = true))
+        SAVE_FILES && save_outfile(xf)
+    end
 end

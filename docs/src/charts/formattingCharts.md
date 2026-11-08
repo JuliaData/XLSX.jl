@@ -337,6 +337,10 @@ formatting and leader lines Excel gives labels turned on with Chart Elements →
 Data Labels, checked against Excel 365 for every kind. [`getLabelFlag`](@ref)
 reads a part back, from the series' labels or, failing those, its group's.
 
+The same function works on a [`ChartEx`](@ref), whose labels have three parts:
+`:seriesName`, `:categoryName` and `:value`. As in Excel, histogram and Pareto
+labels have no category name, and a Pareto line has no labels at all.
+
 Formatting labels with [`setLabelTextProp`](@ref) doesn't make them appear, so
 style them and show them in either order.
 

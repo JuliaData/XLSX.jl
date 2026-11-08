@@ -303,6 +303,41 @@ function getLabelFlag(c::ChartEx, i::Integer, flag::Symbol; pareto::Bool = false
 end
 
 """
+    setLabelFlag(c::ChartEx, i, flag, on::Bool; pareto=false) -> ChartEx
+
+Show or hide one part of series `i`'s data labels, as the Label Contains boxes
+of Excel's Format Data Labels pane do: `:seriesName`, `:categoryName` or
+`:value`. A series with no labels is given Excel's: just the parts, with no
+position or formatting of their own, as Excel writes labels turned on with Chart
+Elements → Data Labels. When two or more parts show, they are separated by
+`", "`, as in Excel.
+
+As in Excel, a histogram's or Pareto chart's labels have no category name, and a
+Pareto line (`pareto = true`) has no labels at all; both are errors.
+"""
+function setLabelFlag(c::ChartEx, i::Integer, flag::Symbol, on::Bool; pareto::Bool = false)
+    flag in _CX_LABEL_FLAGS ||
+        throw(XLSXError("Unknown label flag `$flag`. Expected one of $(join(_CX_LABEL_FLAGS, ", "))."))
+    pareto && throw(XLSXError(
+        "Excel shows no data labels on a Pareto line. Label its bars instead, with `pareto = false`."))
+    kind = getChartType(c)
+    flag === :categoryName && kind in (:histogram, :pareto) && throw(XLSXError(
+        "A $kind chart's data labels have no category name, as in Excel. Use `:seriesName` or `:value`."))
+    return _cx_edit_series!(c, i, (ser, pfx) ->
+        rebuild_path(ser, [(NS_CX, "dataLabels") => "dataLabels"], function (lbl)
+            lbl = _cx_visibility_off(lbl, pfx)
+            vis = first_element_with_tag(lbl, "visibility")
+            new = with_attribute(vis, String(flag), on ? "1" : "0")
+            lbl = replace_child(lbl, vis, new)
+            shown = count(f -> _cx_bool(new, String(f)) === true, _CX_LABEL_FLAGS)
+            shown >= 2 && isnothing(first_element_with_tag(lbl, "separator")) &&
+                (lbl = insert_child(lbl, (NS_CX, "dataLabels"),
+                                    XML.Element(prefixed_tag(pfx[NS_CX], "separator"), XML.Text(", "))))
+            return lbl
+        end; prefixes = pfx, parent_key = (NS_CX, "series")))
+end
+
+"""
     getLabelPosition(c::ChartEx, i; pareto=false) -> Union{Nothing, Symbol}
 
 Data label position for series `i`, e.g. `:outEnd` (outside-end), `:inEnd`
