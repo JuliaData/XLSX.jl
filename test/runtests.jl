@@ -51,56 +51,98 @@ const test_run_directory = pwd()
 cd(mktempdir())
 
 #=
-Tests have been split across different files each essentially focused on 
-a different subset of functionality. Note, however, that all functions can 
-be applied in combination with any others, so the perfect separation of 
-functions in tests is not complete and it wouuld be undesirable to make 
-it so.
+The tests are grouped by theme, one folder of `test_files` per theme, run from the
+lowest level to the highest. Each theme prints one summary table listing its files;
+a file's own testsets are shown only when one of them fails (or with `verbose=true`).
+The separation is not perfect, and need not be: any function can be used with any
+other.
+
+Every summary table's title is padded to `NAME_WIDTH`, so the Pass, Total and Time
+columns line up across the whole run. Julia aligns the rows within a table itself, so
+nested names only need to fit within `NAME_WIDTH - 2`. Add a new test file to the
+right theme's list below rather than including it on its own.
+
+`include` evaluates each file at global scope, so the constants and helper functions a
+file defines work just as they would if it were included directly.
 =#
+const NAME_WIDTH = 26
+
+function testgroup(theme::AbstractString, files::Vector{Pair{String,String}})
+    @testset "$(rpad(theme, NAME_WIDTH))" verbose=true begin
+        for (label, path) in files
+            @assert textwidth(label) <= NAME_WIDTH - 2 "test label \"$label\" is too long"
+            @testset "$label" begin
+                include(joinpath(files_directory, path))
+            end
+        end
+    end
+end
+
 include(joinpath(files_directory, "helpers.jl"))  # shared helpers first
-include(joinpath(files_directory, "Aqua_tests.jl"))
-include(joinpath(files_directory, "AutoFilter_tests.jl"))
-include(joinpath(files_directory, "Cell-names_tests.jl"))
-include(joinpath(files_directory, "ChartExProps_tests.jl"))
-include(joinpath(files_directory, "ChartImports_tests.jl"))
-include(joinpath(files_directory, "ChartProps_tests.jl"))
-include(joinpath(files_directory, "ChartSchema_tests.jl"))
-include(joinpath(files_directory, "Charts_tests.jl"))
-include(joinpath(files_directory, "Colors_tests.jl"))
-include(joinpath(files_directory, "Comments_tests.jl"))
-include(joinpath(files_directory, "Conditional-format_tests.jl"))
-include(joinpath(files_directory, "Copy-Add_tests.jl"))
-include(joinpath(files_directory, "Data-validation_tests.jl"))
-include(joinpath(files_directory, "Delete-objects_tests.jl"))
-include(joinpath(files_directory, "Defined-names_tests.jl"))
-include(joinpath(files_directory, "Differential_tests.jl"))
-include(joinpath(files_directory, "DrawingML_tests.jl"))
-include(joinpath(files_directory, "Error-values_tests.jl"))
-include(joinpath(files_directory, "Excel-fixtures_tests.jl"))
-include(joinpath(files_directory, "Excel_tables_tests.jl"))
-include(joinpath(files_directory, "FileIO_tests.jl"))
-include(joinpath(files_directory, "Filemodes_tests.jl"))
-include(joinpath(files_directory, "Fixture-files_tests.jl"))
-include(joinpath(files_directory, "Formulas_tests.jl"))
-include(joinpath(files_directory, "Getcell_tests.jl"))
-include(joinpath(files_directory, "Getindex-Setindex_tests.jl"))
-include(joinpath(files_directory, "Hide-group_tests.jl"))
-include(joinpath(files_directory, "Hyperlinks_tests.jl"))
-include(joinpath(files_directory, "Images_tests.jl"))
-include(joinpath(files_directory, "Merge_tests.jl"))
-include(joinpath(files_directory, "Namespace_tests.jl"))
-include(joinpath(files_directory, "Panes_tests.jl"))
-include(joinpath(files_directory, "Ranges_tests.jl"))
-include(joinpath(files_directory, "Row-col-edit_tests.jl"))
-include(joinpath(files_directory, "Read-internals_tests.jl"))
-include(joinpath(files_directory, "Sheet-settings_tests.jl"))
-include(joinpath(files_directory, "Shift-refs_tests.jl"))
-include(joinpath(files_directory, "Strict-format_tests.jl"))
-include(joinpath(files_directory, "Strings_tests.jl"))
-include(joinpath(files_directory, "Styles_tests.jl"))
-include(joinpath(files_directory, "Tables_tests.jl"))
-include(joinpath(files_directory, "Write-Save_tests.jl"))
-include(joinpath(files_directory, "XML_tests.jl"))
+
+testgroup("XML", [
+    "XML helpers"             => "xml/xml.jl",
+    "namespaces"              => "xml/namespaces.jl",
+    "Strict OOXML"            => "xml/strict.jl",
+])
+testgroup("Files", [
+    "fixture files"           => "files/fixtures.jl",
+    "Excel-made files"        => "files/excel-made.jl",
+    "file modes"              => "files/modes.jl",
+    "FileIO"                  => "files/fileio.jl",
+    "write and save"          => "files/write-save.jl",
+    "read internals"          => "files/read-internals.jl",
+    "differential reads"      => "files/differential.jl",
+])
+testgroup("Cells", [
+    "cell references"         => "cells/references.jl",
+    "ranges"                  => "cells/ranges.jl",
+    "getcell"                 => "cells/getcell.jl",
+    "getindex/setindex"       => "cells/getindex-setindex.jl",
+    "error values"            => "cells/error-values.jl",
+    "strings"                 => "cells/strings.jl",
+    "formulas"                => "cells/formulas.jl",
+    "shifting references"     => "cells/shift-refs.jl",
+])
+testgroup("Tables", [
+    "readtable/writetable"    => "tables/tables.jl",
+    "Excel tables"            => "tables/excel-tables.jl",
+])
+testgroup("Sheets", [
+    "add/copy/move sheets"    => "sheets/add-copy-move.jl",
+    "defined names"           => "sheets/defined-names.jl",
+    "insert/delete rows/cols" => "sheets/row-col-edit.jl",
+    "merged cells"            => "sheets/merge.jl",
+    "hide and group"          => "sheets/hide-group.jl",
+    "panes"                   => "sheets/panes.jl",
+    "sheet settings"          => "sheets/settings.jl",
+])
+testgroup("Formatting", [
+    "colors"                  => "formatting/colors.jl",
+    "styles"                  => "formatting/styles.jl",
+    "conditional formats"     => "formatting/conditional.jl",
+])
+testgroup("Features", [
+    "AutoFilter"              => "features/autofilter.jl",
+    "data validation"         => "features/data-validation.jl",
+    "hyperlinks"              => "features/hyperlinks.jl",
+    "comments"                => "features/comments.jl",
+])
+testgroup("Drawings", [
+    "DrawingML"               => "drawings/drawingml.jl",
+    "images"                  => "drawings/images.jl",
+    "deleting objects"        => "drawings/delete-objects.jl",
+])
+testgroup("Charts", [
+    "chart schema"            => "charts/schema.jl",
+    "charts"                  => "charts/charts.jl",
+    "c: properties"           => "charts/c-props.jl",
+    "cx: properties"          => "charts/cx-props.jl",
+    "chart imports"           => "charts/imports.jl",
+])
+testgroup("Quality", [
+    "Aqua"                    => "quality/aqua.jl",
+])
 
 # leave the temporary directory so it can be removed
 cd(test_run_directory)

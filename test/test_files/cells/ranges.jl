@@ -1,4 +1,4 @@
-@testset "Ranges" begin
+@testset "ranges" begin
     @testset "Range intersect" begin
         @test XLSX.intersects(XLSX.CellRange(XLSX.CellRef("A3"), XLSX.CellRef("E4")), XLSX.CellRange(XLSX.CellRef("C1"), XLSX.CellRef("D6")))
         @test XLSX.intersects(XLSX.CellRange(XLSX.CellRef("C1"), XLSX.CellRef("D6")), XLSX.CellRange(XLSX.CellRef("A3"), XLSX.CellRef("E4")))

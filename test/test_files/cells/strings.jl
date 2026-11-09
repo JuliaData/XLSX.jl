@@ -581,7 +581,7 @@ end
     end
 end
 
-@testset "review fixes: rich text" begin
+@testset "rich text runs" begin
     f = XLSX.newxlsx(); s = f[1]
     s["A1"] = XLSX.RichTextString(XLSX.RichTextRun("plain"))
     s["A2"] = XLSX.RichTextString(XLSX.RichTextRun("u", [:under => true, :size => 12.5]))

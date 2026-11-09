@@ -3,8 +3,8 @@
 #
 # These test node-finding, not DrawingML parsing: that a given accessor reaches
 # the right element and hands it to the right parser. DrawingML parsing itself
-# is covered in DrawingML_tests.jl, and chart discovery and data extraction in
-# Charts_tests.jl. A failure here should mean "the accessor looked in the wrong
+# is covered in drawings/drawingml.jl, and chart discovery and data extraction in
+# charts/charts.jl. A failure here should mean "the accessor looked in the wrong
 # place", not "the colour resolved wrongly".
 #
 # A few theme-colour values are asserted anyway, because a colour reached

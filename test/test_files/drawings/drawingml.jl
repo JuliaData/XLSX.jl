@@ -1,4 +1,4 @@
-@testset "DrawingML colors, fills and lines" begin
+@testset "colors, fills and lines" begin
 
     # A workbook is needed only for schemeClr resolution; any file with a
     # standard theme will do.
@@ -415,7 +415,7 @@ end
 
 const _NSDECL = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
 
-@testset "DrawingML text" begin
+@testset "text" begin
 
     # -----------------------------------------------------------------------
     @testset "attribute readers" begin
@@ -812,7 +812,7 @@ const _NSDECL = "xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main
 
 end
 
-@testset "DrawingML shape properties" begin
+@testset "shape properties" begin
 
     XLSX.openxlsx(joinpath(data_directory, "chart_basic.xlsx")) do xf
         wb = XLSX.get_workbook(xf)
@@ -946,7 +946,7 @@ end
     end
 end
 
-@testset "SchemeColor and DrawingML writers" begin
+@testset "writers" begin
     @testset "construction" begin
         @test XLSX.Charts.SchemeColor(:accent1).token === :accent1
         @test isempty(XLSX.Charts.SchemeColor(:accent1).transforms)

@@ -1,4 +1,4 @@
-@testset "Shifting references" begin
+@testset "shifting references" begin
     E(axis, at, count; sheet="Data") = XLSX.RowColEdit(sheet, axis, at, count)
     ins_rows(at, n=1) = E(:row, at, n)
     del_rows(at, n=1) = E(:row, at, -n)

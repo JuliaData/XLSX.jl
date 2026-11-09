@@ -1,7 +1,7 @@
 # Schema tables and the node-insertion primitives they drive.
 #
 # Fixture: chart_appearance.xlsx — see the inventory at the top of
-# ChartProps_tests.jl before assuming what it contains.
+# charts/c-props.jl before assuming what it contains.
 
 
 @testset "ChartSchema" begin

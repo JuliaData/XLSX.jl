@@ -1,6 +1,6 @@
 
 #
-# Charts_tests.jl - cached chart data and chart metadata (issue #263)
+# charts.jl - cached chart data and chart metadata (issue #263)
 #
 # Fixtures live in test/data. Each testset names the fixture it needs in its
 # first line so a missing file is obvious.

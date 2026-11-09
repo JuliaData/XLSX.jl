@@ -1,4 +1,4 @@
-@testset "add/copy sheet!" begin
+@testset "add, copy, delete and rename" begin
     # The text of every `name` element (e.g. "formula", "formula1") in a worksheet's XML.
     function _sheet_xml_texts(ws, name)
         out = String[]
@@ -1029,7 +1029,7 @@
     end
 end
 
-@testset "review fixes: copysheet! shared formula ids" begin
+@testset "copysheet! shared formula ids" begin
     f = XLSX.newxlsx("S"); s = f[1]
     s["A1:A4"] = 1
     XLSX.setFormula(s, "B1:B4", "=A1+1")

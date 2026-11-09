@@ -108,7 +108,7 @@ end
 
 end
 
-@testset "Base.eachrow, and the cache flag on every holder" begin
+@testset "eachrow and the cache flag" begin
     xf = XLSX.newxlsx()
     sh = xf[1]
     sh[1:3, 1:4] = reshape(collect(1:12), 3, 4)

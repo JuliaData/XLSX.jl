@@ -697,7 +697,7 @@ end
     end
 end
 
-@testset "review fixes: reading" begin
+@testset "edge cases" begin
     @testset "a worksheet part not named sheetN.xml" begin
         XLSX.writetable("base_part.xlsx", [[1, 2, 3]], ["a"]; overwrite=true)
         r = ZipReader(read("base_part.xlsx"))

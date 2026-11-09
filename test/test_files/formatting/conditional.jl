@@ -1,4 +1,4 @@
-@testset "Conditional Formats" begin
+@testset "conditional formats" begin
     @testset "DataBar" begin
 
         f = XLSX.newxlsx()
@@ -2944,7 +2944,7 @@
     end
 end
 
-@testset "review fixes: dxf fonts and text rules" begin
+@testset "dxf fonts and text rules" begin
     f = XLSX.newxlsx(); s = f[1]; s["A1:A3"] = 1
     XLSX.setConditionalFormat(s, "A1:A3", :cellIs; value="0", font=["bold"=>"true", "italic"=>"true", "under"=>"double"])
     xroot = XLSX.styles_xmlroot(f.workbook)

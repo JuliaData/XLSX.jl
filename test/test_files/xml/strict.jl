@@ -1,6 +1,6 @@
 const _STRICT_MAIN = "http://purl.oclc.org/ooxml/spreadsheetml/main"
 
-@testset "Strict formats" begin
+@testset "reading Strict files" begin
     @testset "Simple" begin
         XLSX.openxlsx(joinpath(data_directory, "strict.xlsx")) do f
             show(IOBuffer(), f)

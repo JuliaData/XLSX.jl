@@ -412,7 +412,7 @@ end
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
-@testset "Differential: readtable vs gettable" begin
+@testset "readtable vs gettable" begin
     cover = _diff_pairwise(_DIFF_SECONDARY_LEVELS)
 
     @testset "pairwise cover is complete" begin
@@ -1255,7 +1255,7 @@ function _stage4_check(ws, cols, kw::NamedTuple, stop_kind::Symbol, infer_eltype
     return nothing
 end
 
-@testset "table rows and gettable unchanged (#462 Stage 4)" begin
+@testset "table rows and gettable (#462)" begin
     stops = (:none, :at2, :col1missing, :always, :never)
 
     @testset "empty-row corpus" begin

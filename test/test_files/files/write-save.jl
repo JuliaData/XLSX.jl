@@ -1,4 +1,4 @@
-@testset "Write" begin
+@testset "write" begin
     f = XLSX.open_xlsx_template(joinpath(data_directory, "general.xlsx"))
     filename_copy = "general_copy.xlsx"
 
@@ -25,7 +25,7 @@
     isfile(filename_copy) && rm(filename_copy)
 end
 
-@testset "Save" begin
+@testset "save" begin
     f = XLSX.openxlsx("saveable.xlsx", mode="w")
     XLSX.renamesheet!(f["Sheet1"], "new_name")
     s = f[1]
@@ -93,7 +93,7 @@ end
     isfile(filename) && rm(filename)
 end
 
-@testset "Edit Template" begin
+@testset "edit template" begin
     new_filename = "new_file_from_empty_template.xlsx"
     f = XLSX.open_empty_template()
     f["Sheet1"]["A1"] = "Hello"
@@ -108,7 +108,7 @@ end
     isfile(new_filename) && rm(new_filename)
 end
 
-@testset "Fix timestamp" begin
+@testset "fixed timestamp" begin
     t = Dates.now(Dates.UTC) - Dates.Second(1)
     xf = XLSX.newxlsx()
     f = "docProps/core.xml"
@@ -138,7 +138,7 @@ end
     isfile(outfile) && rm(outfile)
 end
 
-@testset "review fixes: write" begin
+@testset "sheet states and names" begin
     @testset "hidden sheets stay hidden" begin
         f = XLSX.newxlsx("A"); s2 = XLSX.addsheet!(f, "B")
         s2.is_hidden = true

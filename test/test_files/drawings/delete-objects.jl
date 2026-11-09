@@ -1,4 +1,4 @@
-@testset "Deleting images and charts, reading threaded comments" begin
+@testset "deleteImage, deleteChart, threads" begin
     data_dir = joinpath(dirname(pathof(XLSX)), "..", "test", "data")
     png = joinpath(data_dir, "track_start.png")
     jpg = joinpath(data_dir, "track_start.jpg")

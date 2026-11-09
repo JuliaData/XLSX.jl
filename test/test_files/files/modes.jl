@@ -1,4 +1,4 @@
-@testset "filemodes" begin
+@testset "file modes" begin
 
     sheetname = "New Sheet"
     filename = "test_file.xlsx"

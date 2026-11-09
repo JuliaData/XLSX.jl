@@ -1,4 +1,4 @@
-@testset "Error Values" begin
+@testset "error values" begin
     f = XLSX.openxlsx(joinpath(data_directory, "Errors.xlsx"), mode="rw")
     s=f[1]
     @test Int64(XLSX.getcell(s, "A1").value) == 1

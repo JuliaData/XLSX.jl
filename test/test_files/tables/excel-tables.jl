@@ -184,7 +184,7 @@ function _two_sheet_file()
     return f, s1, s2, t1, t2
 end
 
-@testset "Excel Tables" begin
+@testset "Excel tables" begin
     @testset "table lookup" begin
         @testset "tables(sheet)" begin
             XLSX.openxlsx(joinpath(data_directory, "two_tables.xlsx")) do xf
@@ -3982,7 +3982,7 @@ end
     end
 end
 
-@testset "review fixes: tables" begin
+@testset "names, escaping and totals" begin
     f = XLSX.newxlsx(); s = f[1]
     s["A1:B1"] = ["Item" "Price [USD]"]; s["A2:A3"] = "x"; s["B2:B3"] = 1.0
     XLSX.addtable!(s, "A1:B3"; name="Sales")

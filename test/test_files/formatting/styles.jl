@@ -6,7 +6,7 @@ function onecell()
     return f, s
 end
 
-@testset "Styles" begin
+@testset "styles" begin
 
     @testset "low-level styles API and number-format classification" begin
         using XLSX: CellValue, id, getcell, setdata!, CellRef
@@ -2465,7 +2465,7 @@ writing a number into a cell carrying a date/time format.
     end
 end
 
-@testset "review fixes: number formats and fonts" begin
+@testset "number formats and fonts" begin
     @testset "custom numFmt ids come from the file, not positions" begin
         f = XLSX.newxlsx(); s = f[1]; wb = f.workbook
         s["A1"] = 1.5; s["A2"] = 2.5; s["A3"] = 3.5

@@ -1,4 +1,4 @@
-@testset "read test files" begin
+@testset "reading fixtures" begin
     ef_blank_ptbr_1904 = XLSX.readxlsx(joinpath(data_directory, "blank_ptbr_1904.xlsx"))
     ef_Book1 = XLSX.readxlsx(joinpath(data_directory, "Book1.xlsx"))
     ef_Book_1904 = XLSX.readxlsx(joinpath(data_directory, "Book_1904.xlsx"))
@@ -282,7 +282,7 @@
     end
 end
 
-@testset "CustomXml" begin
+@testset "customXml parts" begin
     # issue #210
     template = XLSX.open_xlsx_template(joinpath(data_directory, "customXml.xlsx"))
     filename_copy = "customXml_copy.xlsx"

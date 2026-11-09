@@ -290,7 +290,7 @@ end
     end
 end
 
-@testset "review fixes: mergeCells goes where the schema puts it" begin
+@testset "mergeCells schema position" begin
     f = XLSX.newxlsx(); s = f[1]; s["A1:C3"] = 1
     doc = XLSX.xmlroot(f.workbook, s.relationship_id)
     k, l = XLSX.get_idces(doc, "worksheet", "sheetData")

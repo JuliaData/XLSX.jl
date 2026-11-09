@@ -1,4 +1,4 @@
-@testset "Cell names" begin
+@testset "cell names" begin
     @test !XLSX.is_valid_cellname("A0")
     @test XLSX.is_valid_cellname("A1")
     @test !XLSX.is_valid_cellname("A")

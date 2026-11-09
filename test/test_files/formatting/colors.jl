@@ -1,4 +1,4 @@
-@testset "Colors" begin
+@testset "colors" begin
     xf = XLSX.readxlsx(joinpath(data_directory, "is.xlsx"))
     sh = xf["Sheet1"]
     wb = XLSX.get_workbook(xf)
@@ -286,7 +286,7 @@
     end
 end
 
-@testset "review fixes: system indexed colors" begin
+@testset "system indexed colors" begin
     f = XLSX.newxlsx()
     @test XLSX.resolveColor(f.workbook, Dict("indexed" => "64")) == "FF000000"
     @test XLSX.resolveColor(f.workbook, Dict("indexed" => "65")) == "FFFFFFFF"

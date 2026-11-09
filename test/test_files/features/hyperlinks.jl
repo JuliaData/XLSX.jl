@@ -1,4 +1,4 @@
-@testset "Hyperlinks" begin
+@testset "hyperlinks" begin
     REL_HYPERLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
     URL = "https://julialang.org"
 

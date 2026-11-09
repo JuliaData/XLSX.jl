@@ -1,4 +1,4 @@
-@testset "Inserting and deleting rows and columns" begin
+@testset "insert and delete" begin
     # A 10x4 block: A1:D10 holds 1..40, by column.
     function fresh()
         xf = XLSX.newxlsx("Data")

@@ -1,4 +1,4 @@
-@testset "Hide and group rows and columns" begin
+@testset "hide and group" begin
     function fresh()
         xf = XLSX.newxlsx("Data")
         s = xf["Data"]

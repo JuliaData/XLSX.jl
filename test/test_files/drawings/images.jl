@@ -1,4 +1,4 @@
-@testset "Add Images" begin
+@testset "addImage" begin
     REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
     jpeg  = joinpath(data_directory, "track_start.jpg")
     png   = joinpath(data_directory, "track_start.png")
@@ -190,7 +190,7 @@
     
 end
 
-@testset "review fixes: a new image never reuses a taken media name" begin
+@testset "fresh media names" begin
     png = read(joinpath(data_directory, "track_start.png"))
     jpg = read(joinpath(data_directory, "track_start.jpg"))
     f = XLSX.newxlsx("S1"); s2 = XLSX.addsheet!(f, "S2")

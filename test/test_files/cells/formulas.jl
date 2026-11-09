@@ -422,7 +422,7 @@ end
 
 end
 
-@testset "review fixes: formulas" begin
+@testset "shared formulas and sheet edits" begin
     @testset "shift_excel_references shifts each reference in place" begin
         @test XLSX.shift_excel_references("=A1+A10", (1, 0)) == "=A2+A11"
         @test XLSX.shift_excel_references("=LOG10(A1)+ATAN2(B1,C1)", (4, 0)) == "=LOG10(A5)+ATAN2(B5,C5)"

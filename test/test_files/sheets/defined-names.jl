@@ -1,4 +1,4 @@
-@testset "Defined Names" begin # Issue #148
+@testset "defined names" begin # Issue #148
     @test XLSX.is_defined_name_value_a_reference(XLSX.SheetCellRef("Sheet1!A1"))
     @test XLSX.is_defined_name_value_a_reference(XLSX.SheetCellRange("Sheet1!A1:B2"))
     @test !XLSX.is_defined_name_value_a_reference(1)
@@ -744,7 +744,7 @@ end
     end
 end
 
-@testset "review fixes: defined names" begin
+@testset "quoting, constants and sheet edits" begin
     @testset "string constants and formulas" begin
         f = XLSX.newxlsx("S")
         XLSX.addDefinedName(f, "greeting", "Say \"hi\"")

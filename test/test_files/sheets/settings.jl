@@ -1,4 +1,4 @@
-@testset "Sheet settings" begin
+@testset "sheet settings" begin
     function roundtrip_bytes(xf)
         io = IOBuffer()
         XLSX.writexlsx(io, xf)

@@ -1,6 +1,6 @@
 
 #
-# Aqua_tests.jl - package-level checks with Aqua.jl: method ambiguities, unbound type
+# aqua.jl - package-level checks with Aqua.jl: method ambiguities, unbound type
 # parameters, undefined exports, stale or uncapped dependencies, type piracy, and
 # tasks left running when the package is loaded. All together take about 15 seconds.
 #

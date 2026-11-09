@@ -3,7 +3,7 @@ function get_cols(source::XLSX.DataTable)
 end
 
 
-@testset "No FileIO" verbose=true begin
+@testset "load and save, with and without FileIO" verbose=true begin
 
     filename = joinpath(data_directory, "TestData.xlsx")
 
