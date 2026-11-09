@@ -174,10 +174,23 @@ reads that, and replaces it with its own names the next time it saves the file.
 ## Appearance
 
 A created `cx:` chart gets Excel's own style for that layout. Most of a `cx:`
-chart's appearance lives in its style part rather than in the chart part, and
-that part is not read into the cascade — so formatting a `cx:` chart from code
-reaches less than it does for a `c:` chart. See
-[Limitations](chartLimitations.md).
+chart's appearance lives in its style part rather than in the chart part.
+[`getSeriesFill`](@ref) reads the series and point colours from it, so a new
+chart reports the colours Excel will draw:
+
+```julia
+julia> b = addChartEx(ws, :boxWhisker, "C2:C4"; anchor = "G2:N16");
+
+julia> addSeries(b, "D2:D4");
+
+julia> [getSeriesFill(b, i).value.fgcolor.val for i in 1:2]
+2-element Vector{String}:
+ "accent1"
+ "accent2"
+```
+
+Lines and text are not read from the style part, so they resolve to `nothing`
+until you set them. See [Limitations](chartLimitations.md).
 
 Region maps cannot be created: Excel resolves their geography through an online
 service, and the package has no template for one. They are read like any other

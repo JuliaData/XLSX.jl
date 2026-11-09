@@ -51,9 +51,18 @@ schema, where the data block is required.
 
 ## The kinds
 
-`kind` is one of `:column`, `:bar`, `:stackedColumn`, `:stackedBar`, `:line`,
-`:lineMarkers`, `:area`, `:pie`, `:doughnut`, `:scatter`, `:bubble` or `:radar`.
-`:bar` and `:stackedBar` are horizontal; `:column` and `:stackedColumn` vertical.
+`kind` is one of these, each named after the Excel subtype it creates:
+
+| | Clustered or plain | Stacked | 100% stacked |
+| --- | --- | --- | --- |
+| Column (vertical bars) | `:column` | `:stackedColumn` | `:percentStackedColumn` |
+| Bar (horizontal) | `:bar` | `:stackedBar` | `:percentStackedBar` |
+| Line | `:line` | `:stackedLine` | `:percentStackedLine` |
+| Line with markers | `:lineMarkers` | `:stackedLineMarkers` | `:percentStackedLineMarkers` |
+| Area | `:area` | `:stackedArea` | `:percentStackedArea` |
+
+and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`, and
+`:combo`, a column and a line chart in one; see [Combo charts](#Combo-charts).
 
 Each comes from a chart part Excel itself wrote, kept verbatim in the package,
 so a created chart is what Excel would have produced for that kind — including
@@ -146,8 +155,8 @@ julia> addSeries(c, "C2:C5"; categories = "A2:A5", name = "2025", color = "FF000
 | Keyword | Applies to | Takes |
 | --- | --- | --- |
 | `color` | everything but pie and doughnut | a color name, hex, a `Colorant`, a [`SchemeColor`](@ref), or a scheme name such as `"accent4"` |
-| `markers` | line, lineMarkers, radar, scatter | a symbol such as `:circle`, or `false` for none |
-| `smooth` | line, lineMarkers, scatter | `true` or `false` — whether the line is curved |
+| `markers` | every line kind, radar (not filled), scatter | a symbol such as `:circle`, or `false` for none |
+| `smooth` | every line kind, scatter | `true` or `false` — whether the line is curved |
 | `line` | scatter | `true` to join the points |
 
 An option that doesn't apply to the chart's kind throws rather than being
@@ -201,27 +210,31 @@ Line and radar charts take their subtypes from `markers` in the same way:
 | --- | --- |
 | Line | `:line` |
 | Line with Markers | `:lineMarkers`, or `markers = true` (or a symbol) on a `:line` series |
+| Stacked Line with Markers | `:stackedLineMarkers`, or `markers = true` on a `:stackedLine` series |
+| 100% Stacked Line with Markers | `:percentStackedLineMarkers`, or `markers = true` on a `:percentStackedLine` series |
 | Radar | `:radar` |
 | Radar with Markers | `:radar` with `markers = true` (or a symbol) |
 
 `smooth = true` curves a line series. Excel offers this in the series' format
-pane rather than as a subtype.
+pane rather than as a subtype. Filled radar is a kind of its own,
+`:filledRadar`, and takes neither keyword: its series are filled areas.
 
 ### Subtypes that are separate kinds
 
+The stacked and 100% stacked subtypes of column, bar, line and area are kinds,
+in the table under [The kinds](#The-kinds), as are:
+
 | Excel subtype | Kind |
 | --- | --- |
-| Clustered Column, Stacked Column | `:column`, `:stackedColumn` |
-| Clustered Bar, Stacked Bar | `:bar`, `:stackedBar` |
 | Pie, Doughnut | `:pie`, `:doughnut` |
-| Area | `:area` |
+| Filled Radar | `:filledRadar` |
 | Bubble | `:bubble` |
+| Clustered Column – Line on Secondary Axis | `:combo` |
 
 ### Subtypes that cannot be created
 
-Excel's other subtypes can't be created yet: 100% stacked bar and column, stacked
-and 100% stacked line and area, filled radar, and every 3-D subtype. They can
-still be read. See [Limitations](chartLimitations.md).
+Excel's 3-D subtypes, and its stock, surface and of-pie charts, can't be
+created yet. They can still be read. See [Limitations](chartLimitations.md).
 
 The subtype keywords apply to one series at a time, so one chart can mix
 subtypes, as it can in Excel.
@@ -266,8 +279,65 @@ julia> [getSeriesFill(ec, i).value.fgcolor.val for i in 1:3]
  "accent3"
 ```
 
-A chart with more than one group — a combo chart — has no single group to add
-to, so `addSeries` throws on one.
+A chart with more than one group — a combo chart — takes a `group` keyword to
+say which group a series joins; see [Combo charts](#Combo-charts).
+
+## Combo charts
+
+`:combo` is Excel's "Clustered Column – Line on Secondary Axis": a column group
+on the primary axes and a line group on secondary axes of its own, so the two can
+plot values of different sizes. Pass `group` to say which group each series
+joins:
+
+```julia
+julia> ws["A1"] = ["" "Units" "Margin"; "Q1" 120 0.31; "Q2" 135 0.28; "Q3" 150 0.35; "Q4" 160 0.33];
+
+julia> cc = addChart(ws, :combo; anchor = "D2:K17", title = "Units and margin");
+
+julia> addSeries(cc, "B2:B5"; categories = "A2:A5", name_ref = "B1", group = :column);
+
+julia> addSeries(cc, "C2:C5"; categories = "A2:A5", name_ref = "C1", group = :line);
+```
+
+`group` is `:column` or `:line`. It is required on a combo chart and refused on
+any other, so a series can't land in a group by accident. Each series is
+formatted as Excel formats one in that group, and takes the options of a
+`:column` or `:line` series: `markers = true` on a line gives Excel's Line with
+Markers formatting, and `smooth` curves it. Series are numbered, and take the
+accent colors in turn, across the whole chart, as Excel numbers them.
+
+The same works on a combo chart Excel made, provided it has one column group or
+one line group to add to; a chart with neither, or with two of the one asked
+for, throws. Changing which axes a group uses is not supported.
+
+### Making a chart a combo chart
+
+[`makeCombo`](@ref) turns an existing `:column`, `:stackedColumn` or `:line`
+chart into the same combo, as Excel's Change Chart Type → Combo does. The last
+series becomes the line, on new secondary axes, and the others clustered
+columns:
+
+```julia
+julia> c = addChart(ws, :column; anchor = "D20:K35");
+
+julia> addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1");
+
+julia> addSeries(c, "C2:C5"; categories = "A2:A5", name_ref = "C1");
+
+julia> makeCombo(c);
+
+julia> [s.charttype for s in getChartSeries(c)]
+2-element Vector{Symbol}:
+ :barChart
+ :lineChart
+```
+
+What Excel keeps, `makeCombo` keeps: the chart's title, legend and axes, axis
+titles included, and the formatting of each series that stays a column (or, from
+a line chart, the line). A series that changes type takes the formatting Excel
+gives a series of its new group, keeping its name, data and data labels. A
+stacked chart's columns become clustered, as in Excel. The chart needs two series
+or more; to start a combo from nothing, use `addChart(ws, :combo; …)`.
 
 ## Deleting a chart
 

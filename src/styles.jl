@@ -148,16 +148,12 @@ end
 function styles_add_numFmt(wb::Workbook, format_code::AbstractString)::Integer
     xroot = styles_xmlroot(wb)
 
-    numfmts = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":numFmts", xroot)
-    if isempty(numfmts)
-        stylesheet = find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":styleSheet", xroot)[begin] # find first
-
-        # We need to add the numFmts node directly after the styleSheet node
-        # Move everything down one and then insert the new node at the top
+    stylesheet = xml_root_element(xroot)
+    numfmts = first_element_with_tag(stylesheet, "numFmts")
+    if isnothing(numfmts)
+        # numFmts is the styleSheet's first child: insert it at the top
         numfmts = XML.Element("numFmts", count="0")
         pushfirst!(stylesheet, numfmts)
-    else
-        numfmts = numfmts[1]
     end
 
     # Reuse an identical format. Ids are read from the file, not derived from

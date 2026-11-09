@@ -211,7 +211,7 @@ checks every value against the spec and prints a digest for comparing versions:
 
 ### Differential tests
 
-`test/test_files/Differential_tests.jl` checks that `readtable` returns exactly what
+`test/test_files/files/differential.jl` checks that `readtable` returns exactly what
 `gettable` returns on an open file, across generated empty-row cases, randomised
 sheets and every workbook in `test/data`. Two environment variables extend it:
 `XLSX_DIFF_FIXTURES=<bench/fixtures path>` adds the `xl_*` fixtures, and

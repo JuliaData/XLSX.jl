@@ -34,7 +34,7 @@ Differences from the cache path, by design:
 Reversing it: set `_READTABLE_VALUE_ROWS[] = false` (src/read.jl) and `readtable` goes
 through the cache path again; or delete this file, its include, and the branches on
 `_READTABLE_VALUE_ROWS` in `readtable`. The tests run every differential check with the
-switch both ways (test/test_files/Differential_tests.jl), and compare `ValueRow`s with
+switch both ways (test/test_files/files/differential.jl), and compare `ValueRow`s with
 `SheetRow`s row by row, so the two paths can't drift apart unnoticed.
 
 `ValueRowIterator` is internal to `readtable`: its state is a mutable cursor, so a

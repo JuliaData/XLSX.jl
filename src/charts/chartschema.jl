@@ -381,19 +381,41 @@ for f in readdir(_CHARTKIND_DIR)
 end
 
 const C_KINDS = (
-    column        = (template = :column,      style = 201),
-    bar           = (template = :bar,         style = 216),
-    stackedColumn = (template = :stacked,     style = 297),
-    stackedBar    = (template = :stackedbar,  style = 297),
-    line          = (template = :line,        style = 227),
-    lineMarkers   = (template = :linemarkers, style = 332),
-    area          = (template = :area,        style = 276),
-    pie           = (template = :pie,         style = 251),
-    doughnut      = (template = :doughnut,    style = 251),
-    scatter       = (template = :scatter,     style = 240),
-    bubble        = (template = :bubble,      style = 269),
-    radar         = (template = :radar,       style = 317),
+    column                    = (template = :column,                    style = 201),
+    bar                       = (template = :bar,                       style = 216),
+    stackedColumn             = (template = :stacked,                   style = 297),
+    stackedBar                = (template = :stackedbar,                style = 297),
+    percentStackedColumn      = (template = :percentstacked,            style = 297),
+    percentStackedBar         = (template = :percentstackedbar,         style = 297),
+    line                      = (template = :line,                      style = 227),
+    lineMarkers               = (template = :linemarkers,               style = 332),
+    stackedLine               = (template = :stackedline,               style = 227),
+    percentStackedLine        = (template = :percentstackedline,        style = 227),
+    stackedLineMarkers        = (template = :stackedlinemarkers,        style = 332),
+    percentStackedLineMarkers = (template = :percentstackedlinemarkers, style = 332),
+    area                      = (template = :area,                      style = 276),
+    stackedArea               = (template = :stackedarea,               style = 276),
+    percentStackedArea        = (template = :percentstackedarea,        style = 276),
+    pie                       = (template = :pie,                       style = 251),
+    doughnut                  = (template = :doughnut,                  style = 251),
+    scatter                   = (template = :scatter,                   style = 240),
+    bubble                    = (template = :bubble,                    style = 269),
+    radar                     = (template = :radar,                     style = 317),
+    filledRadar               = (template = :filledradar,               style = 317),
+    combo                     = (template = :combo,                     style = 201),
 )
+
+# The line kinds and their "with markers" counterparts: markers on a series of
+# the first make it the second, as Excel's subtypes are named.
+const _WITH_MARKERS = Dict(:line => :lineMarkers, :stackedLine => :stackedLineMarkers,
+                           :percentStackedLine => :percentStackedLineMarkers)
+const _LINE_KINDS = (:line, :lineMarkers, :stackedLine, :percentStackedLine,
+                     :stackedLineMarkers, :percentStackedLineMarkers)
+
+# The groups of a :combo chart that addSeries can add to: each by its element
+# (and barDir), and its position in the combo template, whose series formats it.
+const _COMBO_GROUPS = (column = (tag = "barChart",  barDir = :col,   template_group = 1),
+                       line   = (tag = "lineChart", barDir = nothing, template_group = 2))
 
 #const CHART_STYLE_REL = "http://schemas.microsoft.com/office/2011/relationships/chartStyle"
 #const CHART_COLOR_REL = "http://schemas.microsoft.com/office/2011/relationships/chartColorStyle"

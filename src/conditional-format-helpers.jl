@@ -89,8 +89,10 @@ function allCfs(ws::Worksheet)::Vector{XML.Node}
     sheetdoc = v isa String ? parse(v, XML.Node) : xmlroot(wb, ws.relationship_id)
     return _cfs_in(sheetdoc)
 end
+# The sheet's conditional formats: children of its root, matched by local name. (Not a
+# path search over the whole document, which visits every cell of a parsed sheet.)
 _cfs_in(sheetdoc::XML.Node)::Vector{XML.Node} =
-    find_all_nodes("/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":worksheet/" * SPREADSHEET_NAMESPACE_XPATH_ARG * ":conditionalFormatting", sheetdoc)
+    elements_with_tag(xml_root_element(sheetdoc), "conditionalFormatting")
 function add_cf_to_XML(ws, new_cf)
     wb = get_workbook(ws)
     sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)

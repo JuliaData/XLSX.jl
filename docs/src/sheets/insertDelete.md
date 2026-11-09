@@ -33,7 +33,30 @@ naming rows (`"3:5,9"`), columns (`"B:C"`), cells or a defined name.
 
 A range that spans the place where rows are inserted grows to include them:
 `=SUM(A1:A10)` becomes `=SUM(A1:A11)` when a row is inserted at row 5. Inserting
-just after a range leaves it as it is, as in Excel.
+just after a range leaves it as it is, as in Excel, with one exception: see
+formatting below.
+
+## How new rows and columns are formatted
+
+As in Excel, whose default is *Format Same As Above*, a new row is formatted like
+the row above it, and a new column like the column to its left:
+
+- each cell takes the style of the cell next to it: its number format, font, fill,
+  alignment and protection. Borders are not copied: a cell in a new row has the
+  border of its column's style, if the column has one, and a cell in a new column
+  the border of its row's style;
+- a row takes the height, row style and outline level of the row above, and a
+  column the width, style and outline level of the column to its left. Neither is
+  hidden, even when the row or column it copies is;
+- a row or column inserted inside a hidden group is shown, and since the group is
+  no longer all hidden, its summary row or column is no longer marked collapsed;
+- a conditional format or data validation that ends at the row above (the column
+  to the left) grows to cover the new rows (columns), since they now have that
+  formatting too. Merged cells, tables, the AutoFilter, hyperlinks and defined
+  names don't.
+
+The new cells hold no values or formulas. Rows inserted at row 1, and columns at
+column A, have nothing to copy and are left unformatted.
 
 ## Deleting
 
@@ -78,10 +101,12 @@ Some deletions are refused, because a table can't be left without them:
 Images, charts and shapes move with the cells they sit over, according to their
 *Properties* in Excel's *Format* pane:
 
-- *Move and size with cells* (the default): rows or columns inserted under the
-  object stretch it, and ones deleted under it shrink it. If all of them are
-  deleted, the object shrinks to nothing but stays in the file, as in Excel.
-- *Move but don't size with cells*: the object moves, keeping its size.
+- *Move and size with cells* (the default for a chart): rows or columns inserted
+  under the object stretch it, and ones deleted under it shrink it. If all of them
+  are deleted, the object is deleted, as in Excel, with its picture or chart part
+  unless something else uses it.
+- *Move but don't size with cells*: the object moves, keeping its size, even when
+  all its rows or columns are deleted.
 - *Don't move or size with cells*: the object stays where it is.
 
 A comment moves with its cell, and its box with it. A comment on a deleted cell
@@ -91,8 +116,6 @@ the comment in Excel first.
 
 ## Limits
 
-- The new rows and columns are empty and unformatted. (Excel gives them the
-  format of the row above, or the column to the left.)
 - Inserting rows or columns that would push data past the last row or column
   Excel allows is an error, as in Excel.
 - References written as text, such as `INDIRECT("A5")`, and references in other

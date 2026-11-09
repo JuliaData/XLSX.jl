@@ -7,7 +7,7 @@ helpers used by a single file live in that file.
 
 function current_testset_label()
     ts = Test.get_testset()
-    return ts === nothing ? "untitled" : ts.description
+    return ts === nothing ? "untitled" : strip(ts.description)
 end
 
 function sanitize_filename(s::AbstractString)

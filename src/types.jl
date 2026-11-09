@@ -1035,15 +1035,6 @@ struct DataTable
     end
 end
 
-struct XPathInfo
-    node::XML.Node
-    path::String
-
-    function XPathInfo(node::XML.Node, path::String)
-        new(node, path)
-    end
-end
-
 """
     XLSXError(msg::String)
 

@@ -137,6 +137,7 @@ setGroupOverlap
 addChart
 addChartEx
 addSeries
+makeCombo
 deleteChart
 ```
 

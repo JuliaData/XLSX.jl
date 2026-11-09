@@ -170,6 +170,27 @@ end
 _fontscheme_element(wb::Workbook) =
     first_element_with_tag(_themeelements_element(wb), "fontScheme")
 
+"""
+    theme_fill_style(wb::Workbook, idx) -> Union{Nothing,XML.Node}
+
+The theme fill style that a DrawingML `fillRef idx` names: entry `idx` of the
+theme's `fmtScheme/fillStyleLst` for 1 to 999, entry `idx - 1000` of its
+`bgFillStyleLst` from 1001. `nothing` for 0 (no fill style), for an index the
+theme does not have, or for a workbook without a theme. The entry is a fill
+element such as `a:solidFill`, whose colour is usually the `phClr` placeholder.
+"""
+function theme_fill_style(wb::Workbook, idx::Union{Nothing,Integer})::Union{Nothing,XML.Node}
+    isnothing(idx) && return nothing
+    has_relationship_by_type(wb, THEME_RELATIONSHIP_TYPE) || return nothing
+    fmt = first_element_with_tag(_themeelements_element(wb), "fmtScheme")
+    list, k = 1 <= idx <= 999 ? ("fillStyleLst", idx) :
+              idx >= 1001     ? ("bgFillStyleLst", idx - 1000) : (nothing, 0)
+    lst = isnothing(list) ? nothing : first_element_with_tag(fmt, list)
+    isnothing(lst) && return nothing
+    els = collect(XML.eachelement(lst))
+    return 1 <= k <= length(els) ? els[k] : nothing
+end
+
 # Read and cache the 12 theme colors for a workbook, in OOXML theme-index order
 # (see `THEME_COLOR_ORDER`). Reads the actual `xl/theme/theme1.xml` clrScheme, so this
 # reflects whatever theme the workbook was actually saved with - not just the Excel default.
@@ -225,9 +246,10 @@ end
 # get theme document (xl/theme/theme1.xml) for workbook.
 # Unlike styles.xml, the theme part lives in the DrawingML namespace (NS_A), not the
 # spreadsheet namespace, since themes are shared across Excel/Word/PowerPoint.
+const THEME_RELATIONSHIP_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+
 function theme_xmlroot(workbook::Workbook)
     if workbook.theme_xroot === nothing
-        THEME_RELATIONSHIP_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
         if has_relationship_by_type(workbook, THEME_RELATIONSHIP_TYPE)
             theme_target = get_relationship_target_by_type("xl", workbook, THEME_RELATIONSHIP_TYPE)
             theme_root = xmlroot(get_xlsxfile(workbook), theme_target)

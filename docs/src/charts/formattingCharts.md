@@ -181,7 +181,7 @@ julia> e.site.level             # which rung supplied it
 ```
 
 `site` is the rung that answered; `level` names it — `:point`, `:series`,
-`:group`, `:plotarea` or `:chartspace`. `chain` holds the rungs that exist in
+`:group`, `:plotarea`, `:chartspace`, or `:style` (below). `chain` holds the rungs that exist in
 the file, highest precedence first, which is how a setter knows where to write.
 A data point appears in the chain only once the file has a `c:dPt` for it, so a
 series whose points carry no overrides resolves through a chain of one.
@@ -205,11 +205,32 @@ julia> getSeriesFill(c, 1; point = 3).site.level     # this one doesn't
 Excel wrote, counting from 0 — so a point read back at `idx == 1` is `point = 2`
 here.
 
-!!! note
-    The cascade stops at the chart XML. Excel's style and color parts
-    (`style1.xml`, `colors1.xml`) are not read, so a property written at no rung
-    resolves to `nothing` rather than to the style's value. See
-    [Limitations](chartLimitations.md).
+### The style rung of a `cx:` chart
+
+Excel writes no fill for a `cx:` series or point until you format it, and draws
+it from the chart's style and colours parts instead. [`getSeriesFill`](@ref) on
+a [`ChartEx`](@ref) reads those parts as the last rung, so it reports the colour
+Excel draws, with `site.level === :style`:
+
+```julia
+julia> e = getSeriesFill(box, 7);     # the 7th series of a box & whisker chart
+
+julia> e.site.level
+:style
+
+julia> e.value.fgcolor                # accent1, darkened as Excel does for the 7th
+XLSX.Charts.DrawingColor(accent1 -> #0D3A4E)
+```
+
+Series take the theme's accent colours in turn, darker or lighter ones after
+the sixth. A waterfall's points take one colour each for increase, decrease and
+total, and a treemap's or sunburst's points the colour of their top-level
+category, so for those pass `point`; the series as a whole has no single colour
+and resolves to `nothing`. A fill written in the chart part always comes first.
+
+Only fills are read this way, and only for `cx:` charts. Lines and text, the
+monochromatic colour schemes, and `c:` charts resolve to `nothing` where no rung
+wrote the property; [Limitations](chartLimitations.md) says why.
 
 ## Markers
 
@@ -297,6 +318,31 @@ To read what one element says rather than what applies, the `…TextProps` gette
 return a [`DrawingText`](@ref): a text body of paragraphs and runs, each
 carrying its own `DrawingRunProps`. The [Chart types](../api/chartTypes.md) page
 documents the structure.
+
+## Showing data labels
+
+[`setLabelFlag`](@ref) turns parts of a series' data labels on and off, as the
+check boxes of Excel's Format Data Labels pane do:
+
+```julia
+julia> setLabelFlag(c, 1, :value, true);           # label each point with its value
+
+julia> setLabelFlag(c, 1, :categoryName, true);    # and its category
+```
+
+The parts are `:value`, `:seriesName`, `:categoryName` (the X value on a scatter
+chart), `:legendKey`, `:percent` (pie and doughnut charts) and `:bubbleSize`
+(bubble charts). A series with no labels of its own is given Excel's: the same
+formatting and leader lines Excel gives labels turned on with Chart Elements →
+Data Labels, checked against Excel 365 for every kind. [`getLabelFlag`](@ref)
+reads a part back, from the series' labels or, failing those, its group's.
+
+The same function works on a [`ChartEx`](@ref), whose labels have three parts:
+`:seriesName`, `:categoryName` and `:value`. As in Excel, histogram and Pareto
+labels have no category name, and a Pareto line has no labels at all.
+
+Formatting labels with [`setLabelTextProp`](@ref) doesn't make them appear, so
+style them and show them in either order.
 
 ## Titles and legends
 
