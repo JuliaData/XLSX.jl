@@ -1,3 +1,16 @@
+```@meta
+# The doctests read myfile.xlsx, which sits beside this page. Each one moves into this
+# folder and moves back afterwards: the rest of the build, writing the HTML included,
+# works relative to the folder it started in.
+DocTestSetup = quote
+    import XLSX
+    global _doctest_start_dir = pwd()
+    cd(joinpath(pkgdir(XLSX), "docs", "src", "tutorial"))
+end
+DocTestTeardown = quote
+    cd(_doctest_start_dir)
+end
+```
 
 # XLSX Tutorial
 
@@ -15,7 +28,7 @@ julia> Pkg.add("XLSX")
 
 The basic usage is to read an Excel file and read values.
 
-```jldoctest tutorial; setup = :(import XLSX; cd(joinpath(pkgdir(XLSX), "docs", "src", "tutorial")))
+```jldoctest tutorial
 julia> import XLSX
 
 julia> xf = XLSX.readxlsx("myfile.xlsx")
