@@ -126,7 +126,7 @@ The `load` and `save` functions also support the pipe syntax. For example, to lo
 Excel file into a `DataFrame`, one can use the following code:
 
 ```julia
-using FileIO, DataFrame
+using FileIO, DataFrames
 
 df = load("data.xlsx", "Sheet1") |> DataFrame
 ```
@@ -134,7 +134,7 @@ df = load("data.xlsx", "Sheet1") |> DataFrame
 To save any Tables.jl compatible table (such as a DataFrame), one can use the following form:
 
 ```julia
-using FileIO, DataFrame
+using FileIO, DataFrames
 
 df = # Aquire a DataFrame somehow
 

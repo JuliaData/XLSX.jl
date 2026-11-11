@@ -625,14 +625,28 @@ function _set_marker(c::Chart, i::Integer, point::Union{Nothing,Integer}, f)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
     steps, ser_key = _series_path(c, root, i)
-    marker_in(parent, key) = rebuild_path(parent, [(NS_C, "marker") => "marker"],
-                                          mk -> f(mk, pfx); prefixes = pfx, parent_key = key)
+    marker_in(parent, key, g = f) = rebuild_path(parent, [(NS_C, "marker") => "marker"],
+                                                 mk -> g(mk, pfx); prefixes = pfx, parent_key = key)
+    # A point given a marker of its own for the first time starts from the series'
+    # marker size, as Excel writes it; otherwise Excel draws it at its default size,
+    # however large the series' markers are. A size given in `f` still wins.
+    function point_marker(ser, dp)
+        sz = _marker_size_val(ser)
+        (isnothing(sz) || !isnothing(first_element_with_tag(dp, "marker"))) && return marker_in(dp, (NS_C, "dPt"))
+        return marker_in(dp, (NS_C, "dPt"), (mk, p) -> f(_marker_with_size(mk, sz, p), p))
+    end
     new = rebuild_path(root, steps,
               ser -> isnothing(point) ? marker_in(ser, ser_key) :
-                     _with_dpt(ser, ser_key, point, pfx, dp -> marker_in(dp, (NS_C, "dPt")));
+                     _with_dpt(ser, ser_key, point, pfx, dp -> point_marker(ser, dp));
               prefixes = pfx)
     set_chart_root!(c, new)
     return c
+end
+
+# The `c:size` of a series' own `c:marker`, or `nothing` if it sets none.
+function _marker_size_val(ser)
+    mk = first_element_with_tag(ser, "marker")
+    return isnothing(mk) ? nothing : _int_val(mk, "size")
 end
 
 """

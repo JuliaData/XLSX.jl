@@ -2622,6 +2622,29 @@
             @test isempty(XLSX.getConditionalFormats(XLSX.readxlsx("cleared.xlsx")[1]))
             rm("cleared.xlsx")
         end
+
+        @testset "whole columns, rows and the whole sheet" begin
+            xf = XLSX.newxlsx()
+            ws = xf[1]
+            ws["A1:C5"] = 1
+            setup() = (XLSX.setConditionalFormat(ws, "A1:A5", :dataBar);
+                       XLSX.setConditionalFormat(ws, "B2:B4", :containsBlanks);
+                       XLSX.setConditionalFormat(ws, "C1:C2", :colorScale))
+            setup()
+            @test XLSX.clearConditionalFormats(ws, "A:A") == 1                  # the data bar
+            @test XLSX.clearConditionalFormats(ws, "2:3") == 0                  # B2:B4 reaches row 4
+            @test XLSX.clearConditionalFormats(ws, "2:4") == 1
+            @test length(XLSX.getConditionalFormats(ws)) == 1                   # C1:C2 left
+            @test XLSX.clearConditionalFormats(ws, :) == 1
+            @test isempty(XLSX.getConditionalFormats(ws))
+
+            setup()
+            @test XLSX.clearConditionalFormats(ws, "A:B, C1") == 2              # several parts; C1:C2 isn't inside C1
+            @test XLSX.clearConditionalFormats(ws, "B1:D9,C2,C1") == 1
+            @test isempty(XLSX.getConditionalFormats(ws))
+            @test_throws XLSX.XLSXError XLSX.clearConditionalFormats(ws, "not a range")
+            SAVE_FILES && save_outfile(xf)
+        end
     end
 
     @testset "reading back and round trips" begin

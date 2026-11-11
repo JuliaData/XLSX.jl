@@ -63,15 +63,17 @@ sheetnames(wb::Workbook) = [s.name for s in wb.sheets]
 
 Return `true` if `wb` contains a sheet named `sheetname`.
 
+Sheet names are matched without regard to case, as Excel matches them: a workbook
+can't hold two sheets whose names differ only in case, so `hassheet(xf, "data")`
+finds a sheet named `Data`.
+
 """
-function hassheet(wb::Workbook, sheetname::AbstractString)::Bool
-    for s in wb.sheets
-        if s.name == unquoteit(sheetname)
-            return true
-        end
-    end
-    return false
-end
+hassheet(wb::Workbook, sheetname::AbstractString)::Bool = !isnothing(_sheet_index(wb, sheetname))
+
+# The position of the sheet named `sheetname`, matched without regard to case as Excel
+# does, or `nothing`. A quoted name (`'My Sheet'`) is unquoted first.
+_sheet_index(wb::Workbook, sheetname::AbstractString) =
+    findfirst(s -> _same_sheetname(s.name, unquoteit(sheetname)), wb.sheets)
 
 @inline hassheet(xl::XLSXFile, sheetname::AbstractString) = hassheet(xl.workbook, sheetname)
 
@@ -89,12 +91,9 @@ Count the number of sheets in the Workbook.
 @inline isdate1904(xf::XLSXFile)::Bool = isdate1904(get_workbook(xf))
 
 function getsheet(wb::Workbook, sheetname::String)::Worksheet
-    for ws in wb.sheets
-        if ws.name == unquoteit(sheetname)
-            return ws
-        end
-    end
-    throw(XLSXError("$(get_xlsxfile(wb).source) does not have a Worksheet named `$sheetname`."))
+    i = _sheet_index(wb, sheetname)
+    isnothing(i) && throw(XLSXError("$(get_xlsxfile(wb).source) does not have a Worksheet named `$sheetname`."))
+    return wb.sheets[i]
 end
 
 function getsheet(wb::Workbook, sheet_index::Int)::Worksheet

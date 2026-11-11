@@ -79,12 +79,9 @@ function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
 end
 
 function ordinal_sheet_number(wb::Workbook, name::String)
-    for (i, s) in enumerate(wb.sheets)
-        if s.name == name
-            return i
-        end
-    end
-    throw(XLSXError("worksheet $name not found in workbook"))
+    i = _sheet_index(wb, name)
+    isnothing(i) && throw(XLSXError("worksheet $name not found in workbook"))
+    return i
 end
 
 function Base.axes(ws::Worksheet, d)
@@ -161,7 +158,7 @@ function read_worksheet_dimension(xf::XLSXFile, relationship_id, name)::Union{No
     if hassheet(wb, name)
         let ws = first(wb.sheets)
             for s in wb.sheets
-                if s.name == unquoteit(name)
+                if _same_sheetname(s.name, unquoteit(name))
                     ws = s
                 end
             end

@@ -10,6 +10,29 @@ CurrentModule = XLSX.Charts
 
 # Charts
 
+!!! tip "Start here: create a chart"
+
+    ```julia
+    using XLSX, XLSX.Charts
+
+    f = XLSX.newxlsx()
+    ws = f[1]
+    ws["A1"] = ["Region", "2024"]
+    ws["A2:A5"] = ["North", "South", "East", "West"]
+    ws["B2:B5"] = [10.0, 20.0, 15.0, 5.0]
+
+    c = addChart(ws, :column; anchor = "D2:K17", title = "Revenue")
+    addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1")
+
+    XLSX.writexlsx("revenue.xlsx", f)
+    ```
+
+    [Creating charts](creatingCharts.md) explains each step and lists the chart kinds;
+    [Creating chartEx charts](creatingChartEx.md) covers waterfall, funnel, treemap,
+    histogram and the other newer kinds; [Formatting charts](formattingCharts.md)
+    changes their colors, titles, legends and axes. The rest of this page explains the
+    ideas the chart API is built on.
+
 Excel charts come in two schemas, and XLSX.jl reads, formats and creates both.
 
 - The **`c:` schema** (ECMA-376) covers bar, column, line, pie, doughnut, area,

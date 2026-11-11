@@ -2,6 +2,8 @@
 
 ## Column width and row height
 
+Guide: [Column width and row height](../formatting/widthAndHeight.md).
+
 ```@docs
 XLSX.getColumnWidth
 XLSX.setColumnWidth
@@ -10,6 +12,8 @@ XLSX.setRowHeight
 ```
 
 ## Hiding and grouping rows and columns
+
+Guide: [Hiding and grouping rows and columns](../formatting/hideAndGroup.md).
 
 ```@docs
 XLSX.setColumnHidden
@@ -26,6 +30,8 @@ XLSX.getRowOutlineLevel
 
 ## Merged Cells
 
+Guide: [Working with merged cells](../formatting/mergedCells.md).
+
 ```@docs
 XLSX.getMergedCells
 XLSX.isMergedCell
@@ -36,6 +42,8 @@ XLSX.removeMergedCells
 
 ## Freeze/Split panes
 
+Guide: [Freeze and split panes](../formatting/freezeAndSplitPanes.md).
+
 ```@docs
 XLSX.freezePanes
 XLSX.splitFreeze
@@ -45,6 +53,8 @@ XLSX.removePanes
 
 ## AutoFilter
 
+Guide: [Filtering](../sheets/autoFilter.md).
+
 ```@docs
 XLSX.setAutoFilter
 XLSX.getAutoFilter
@@ -52,6 +62,8 @@ XLSX.removeAutoFilter
 ```
 
 ## Inserting and deleting rows and columns
+
+Guide: [Inserting and deleting rows and columns](../sheets/insertDelete.md).
 
 ```@docs
 XLSX.insertRows

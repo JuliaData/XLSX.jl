@@ -42,7 +42,7 @@ julia> XLSX.getFormula(s, "A5")
 "=sum(A1:A4)"
 ```
 
-![image|320x500](../images/simpleFormula.png)
+![Cell A5 showing the result of =SUM(A1:A4) in Excel](../images/simpleFormula.png)
 
 Special characters need escaping in the usual way, so that absolute references must be written as, 
 for example, `\$A\$1`. Similarly, when entering text strings into formulas, quotation marks need 
@@ -56,7 +56,7 @@ julia> XLSX.getFormula(s, "B1")
 "=hyperlink(\"https://www.bbc.co.uk/news\", \"BBC News\")"
 ```
 
-![image|320x500](../images/hyperlinkFormula.png)
+![A cell showing a BBC News link made by the HYPERLINK function](../images/hyperlinkFormula.png)
 
 Valid formulae of arbitrary complexity and degree of nesting are supported.
 
@@ -205,7 +205,7 @@ The prefix is not shown by Excel in the formula bar, but it is needed in the int
 [`setFormula`](@ref) adds this prefix automatically. A dummy `ref` xml attribute is also created 
 by [`setFormula`](@ref) and will be properly calculated on opening when Excel determines the spill range.
 
-![image|320x500](../images/sortPrefix.png)
+![Cell B1 holding =SORT(A1:A5), its result spilling down to B5](../images/sortPrefix.png)
 
 ```
 <c r="B1" cm="1">
@@ -267,7 +267,7 @@ julia> setFormat(s, "A1:B5";format="Number")
 -1
 ```
 
-![image|320x500](../images/simpleSpill.png)
+![A SORT formula in B1 spilling sorted values down to B5](../images/simpleSpill.png)
 
 Even simple formulas can be made to spill in recent versions of Excel. For example, any cell 
 given the formula `"=A1:A5"` would produce a 5-element result and would spill to fill 5 cells.
@@ -332,5 +332,11 @@ named cell range, should it be necessary to use the `raw` keyword option describ
 
     ```
 
-    ![image|320x500](../images/problemContent.png)
-    ![image|320x500](../images/ExcelRepairs.png)
+    ![Excel's message that it found a problem with some content in the file](../images/problemContent.png)
+    ![Excel's report of the repairs it made to the file](../images/ExcelRepairs.png)
+
+## See also
+
+- API: [Cells and data](../api/data.md)
+- Related guides: [Named ranges](namedRanges.md), [Excel Tables](../tables/excelTables.md)
+- Examples: [Applying formulas](@ref)

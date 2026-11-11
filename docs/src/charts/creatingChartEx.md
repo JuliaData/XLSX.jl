@@ -103,7 +103,7 @@ XLSX.Charts.ChartEx "chartEx3" on sheet "Sheet1" at D42:K57
 Binning is a property of the series rather than of the data — see
 [`getSeriesBinning`](@ref) and [`setSeriesBinning`](@ref).
 
-![image|320x500](../images/chartEx_simples.png)
+![One example of each chartEx kind: waterfall, funnel, treemap, sunburst, histogram, Pareto and box and whisker](../images/chartEx_simples.png)
 
 ### Pareto charts
 

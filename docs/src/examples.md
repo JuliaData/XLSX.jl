@@ -32,7 +32,7 @@ setAlignment(f[1], "H1"; horizontal="center")
 
 ```
 
-![image|320x500](./images/iris.png)
+![The iris data in Excel with GROUPBY, PIVOTBY, VLOOKUP and LAMBDA results spilling beside it](./images/iris.png)
 
 ## Applying cell format to an existing table
 
@@ -73,11 +73,11 @@ XLSX.writexlsx("mytable_unformatted.xlsx", xf, overwrite=true)
 
 By default, this table will look like this in Excel:
 
-![image|320x500](./images/unformatted-table.png)
+![The example table in Excel with no formatting](./images/unformatted-table.png)
 
 We can apply some formatting choices to change the table's appearance:
 
-![image|320x500](./images/formatted-table.png)
+![The same table formatted: a dark header row, borders, aligned and wrapped text, number formats, and highlighted values](./images/formatted-table.png)
 
 This is achieved with the following code:
 
@@ -91,7 +91,7 @@ XLSX.setUniformBorder(sheet, "B2:L6";
 )
 XLSX.setBorder(sheet, "B2:L2"; bottom = ["style" => "medium", "color" => "FF000000"]) 
 XLSX.setBorder(sheet, "B6:L6"; top = ["style" => "double", "color" => "FF000000"])
-XLSX.setOutsideBorder(sheet, "B2:L6"; outside = ["style" => "thick", "color" => "FF000000"])
+XLSX.setBorder(sheet, "B2:L6"; outside = ["style" => "thick", "color" => "FF000000"])
 
 # Cell fill
 XLSX.setFill(sheet, "B2:L2"; pattern = "solid", fgColor = "FF444444")
@@ -119,40 +119,44 @@ XLSX.setRowHeight(sheet, "B4"; height=50)
 XLSX.setRowHeight(sheet, "B6"; height=15)
 XLSX.setColumnWidth(sheet, "I"; width = 20.5)
 
-# Conditional formatting
-function blankmissing(sheet, rng) # Fill with grey and apply both diagonal borders on cells
-    for c in rng                  # with missing values
-        if ismissing(sheet[c])
-            XLSX.setFill(sheet, c; pattern = "solid", fgColor = "grey")
-            XLSX.setBorder(sheet, c; diagonal = ["style" => "thin", "color" => "black"])
-           end
-    end
-end
-function trueorfalse(sheet, rng) # Use green or red font for true or false respectively
-    for c in rng
-        if !ismissing(sheet[c]) && sheet[c] isa Bool
-            XLSX.setFont(sheet, c, bold=true, color = sheet[c] ? "FF548235" : "FFC00000")
+# Formatting chosen by value. This is static: it reflects the values as they are now
+# and won't change if they are edited in Excel. For formats that Excel re-applies as
+# values change, see the Conditional formats guide.
+function blankmissing(sheet, rows, cols) # Fill with grey and apply both diagonal borders on cells
+    for r in rows, c in cols             # with missing values
+        if ismissing(sheet[r, c])
+            XLSX.setFill(sheet, r, c; pattern = "solid", fgColor = "grey")
+            XLSX.setBorder(sheet, r, c; diagonal = ["style" => "thin", "color" => "black"])
         end
     end
 end
-function redgreenminmax(sheet, rng) # Fill light green / light red the cell with maximum / minimum value
-    mn, mx = extrema(x for x in sheet[rng] if !ismissing(x))
-    for c in rng
-        if !ismissing(sheet[c])
-            if sheet[c] == mx
-               XLSX.setFill(sheet, c; pattern = "solid", fgColor = "FFC6EFCE")
-            elseif sheet[c] == mn
-                XLSX.setFill(sheet, c; pattern = "solid", fgColor = "FFFFC7CE")
-            end
+function trueorfalse(sheet, rows, cols) # Use green or red font for true or false respectively
+    for r in rows, c in cols
+        v = sheet[r, c]
+        if v isa Bool
+            XLSX.setFont(sheet, r, c; bold=true, color = v ? "FF548235" : "FFC00000")
+        end
+    end
+end
+function redgreenminmax(sheet, rows, col) # Fill light green / light red the cell with maximum / minimum value
+    vals = [sheet[r, col] for r in rows]
+    mn, mx = extrema(skipmissing(vals))
+    for (r, v) in zip(rows, vals)
+        if ismissing(v)
+            continue
+        elseif v == mx
+            XLSX.setFill(sheet, r, col; pattern = "solid", fgColor = "FFC6EFCE")
+        elseif v == mn
+            XLSX.setFill(sheet, r, col; pattern = "solid", fgColor = "FFFFC7CE")
         end
     end
 end
 
-blankmissing(sheet, XLSX.CellRange("B3:L6"))
-trueorfalse(sheet, XLSX.CellRange("B2:L6"))
-redgreenminmax(sheet, XLSX.CellRange("D3:D6"))
-redgreenminmax(sheet, XLSX.CellRange("J3:J6"))
-redgreenminmax(sheet, XLSX.CellRange("K3:K6"))
+blankmissing(sheet, 3:6, 2:12)    # B3:L6
+trueorfalse(sheet, 2:6, 2:12)     # B2:L6
+redgreenminmax(sheet, 3:6, 4)     # D3:D6
+redgreenminmax(sheet, 3:6, 10)    # J3:J6
+redgreenminmax(sheet, 3:6, 11)    # K3:K6
 
 # Number formats
 XLSX.setFormat(sheet, "J3"; format = "Percentage")
@@ -168,8 +172,9 @@ XLSX.writexlsx("mytable_formatted.xlsx", xf, overwrite=true)
 
 ## Creating a formatted form
 
-There is a file, customXml.xlsx, in the \data folder of this project that looks like a template 
-file - a form to be filled in. The code below creates this form from scratch and makes 
+The test data for this package include a file,
+[`customXml.xlsx`](https://github.com/JuliaData/XLSX.jl/blob/master/test/data/customXml.xlsx),
+that looks like a template file - a form to be filled in. The code below creates this form from scratch and makes 
 extensive use of vector indexing for rows and columns and of non-contiguous ranges:
 
 ```julia
@@ -328,6 +333,10 @@ XLSX.setBorder(s, "B112:B114,D112:D115"; outside = ["style" => "thin", "color" =
 XLSX.writexlsx("myNewTemplate.xlsx", f, overwrite=true)
 ```
 
+The top of the finished form:
+
+![The top of the form: a title, then the User Data and Creator sections, with labelled white entry boxes on a grey background, some merged across several columns](images/formattedForm.png)
+
 ## Adding a dataBar with varying colors
 
 Excel's databar conditional format have a fixed color. The bar length 
@@ -353,7 +362,7 @@ XLSX.setColoredDataBars(s, "C2:C11";
 writexlsx("coloredDataBar.xlsx", xf)
 ```
 
-![image|320x500](./images/coloredDataBars.png)
+![Two columns of data bars: one in a single colour, and one whose colour changes from red to green with the value](./images/coloredDataBars.png)
 
 This function uses the native databar conditional format, but it partitions the range 
 supplied based on cell values and applies different databars of different colors to 
@@ -387,15 +396,16 @@ This function therefore behaves like a static conditional format.
 
 !!! note
 
-    This function is provided on an experimental basis and isn't public. It may be withdrawn 
-    in future and only remain here (more fully documented) as an example.
+    `setColoredDataBars` is public but experimental: its keywords and behaviour may change
+    in a minor release. It is not exported, so call it as `XLSX.setColoredDataBars`. See
+    [`XLSX.setColoredDataBars`](@ref) for all its options.
 
 ## Adding a plot image
 
 Use Julia functionality to create a chart based upon data from a spreadsheet and then add that chart 
 (as a static image) back into the worksheet.
 
-![image|320x500](./images/Add_image_1.png)
+![A worksheet holding a small table of data, before the plot is added](./images/Add_image_1.png)
 
 ```julia
 using CairoMakie, XLSX
@@ -417,7 +427,7 @@ XLSX.addImage(f[1], "D2:H12", io)
 XLSX.writexlsx("Example_add_chart_out.xlsx", f, overwrite=true)
 ```
 
-![image|320x500](./images/Add_image_2.png)
+![The same worksheet with a bar chart made by CairoMakie placed beside the table as a picture](./images/Add_image_2.png)
 
 ## Adding a simple native Excel chart
 
@@ -438,7 +448,7 @@ addSeries(c, "B2:B$(n + 1)"; categories = "A2:A$(n + 1)", name_ref = "B1")
 XLSX.writexlsx("Example_add_native_chart_out.xlsx", f, overwrite=true)
 ```
 
-![image|320x500](./images/Add_native_chart.png)
+![The same worksheet with a native Excel column chart of the table beside it](./images/Add_native_chart.png)
 
 ## A diverging stacked bar chart
 
@@ -647,4 +657,4 @@ XLSX.writexlsx("likert.xlsx", xf; overwrite = true)
 
 The result, opened in Excel:
 
-![image|320x500](./images/likert.png)
+![A diverging stacked bar chart of six survey questions, disagreement to the left of a central line and agreement to the right](./images/likert.png)

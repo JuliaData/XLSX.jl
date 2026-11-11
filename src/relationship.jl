@@ -130,7 +130,7 @@ function is_chartsheet(wb::Workbook, sheetname::AbstractString)::Bool
         for sheet_node in xml_elements(node)
             attrs = XML.attributes(sheet_node)
             isnothing(attrs) && continue
-            get(attrs, "name", "") == name || continue
+            _same_sheetname(get(attrs, "name", ""), name) || continue
             rid = get(attrs, "r:id", "")
             return any(r.Id == rid && occursin("chartsheet", r.Type) for r in wb.relationships)
         end

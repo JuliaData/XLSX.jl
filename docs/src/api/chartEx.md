@@ -7,7 +7,7 @@ CurrentModule = XLSX.Charts
 
 Charts in the Microsoft `cx:` namespace — waterfall, funnel, treemap, sunburst,
 histogram, Pareto, box & whisker and region map. Many of the functions above
-also take a [`ChartEx`](@ref); these are specific to it.
+also take a [`ChartEx`](@ref); these are specific to it. Guide: [Creating chartEx charts](../charts/creatingChartEx.md).
 
 ```@docs
 getChartSeriesCount

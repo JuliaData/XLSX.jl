@@ -125,3 +125,8 @@ the comment in Excel first.
   because its cells refer across the inserted rows, or rows inside its block are
   deleted, is stored as a separate formula in each of its cells afterwards. The
   formulas are the same; the file may be a little larger.
+
+## See also
+
+- API: [Sheet layout](../api/sheetLayout.md)
+- Related guides: [Excel Tables](../tables/excelTables.md), [Hiding and grouping rows and columns](../formatting/hideAndGroup.md)

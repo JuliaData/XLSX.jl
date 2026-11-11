@@ -49,6 +49,8 @@ const builtinFormatNames = Dict(
 
 # Regex fragments for canonical tokens (from Claude)
 const LITERAL      = raw"\"[^\"]*\""       # quoted text (check first)
+const GENERAL      = raw"(?i:General)"     # the General format, as a section of a custom one
+const LOCALE       = raw"\[\$[^\]]*\]"     # currency symbol and/or locale, e.g. [$€-x-euro2], [$-409]
 const CONDITION    = raw"\[[<>=].+?\]"
 const COLOR        = raw"\[[A-Za-z]+\]"
 const DATETIME     = raw"(?:AM/PM|A/P|am/pm|a/p|d{1,4}|m{1,5}|y{2,4}|h{1,2}|s{1,2})"
@@ -56,8 +58,8 @@ const DECIMAL      = raw"\.[0#?]+"
 const EXPONENT     = raw"[0#?]+[eE][+-]?[0#?]+"
 const FRACTION     = raw"\?+/\?+"          # fraction with multiple ?
 const PERCENT      = raw"%"
-const ESCAPE       = raw"\\."              
-const ALIGN        = raw"_."               
+const ESCAPE       = raw"[\\!]."           # \x and !x both show x as it is
+const ALIGN        = raw"_."
 const FILL         = raw"\*."              
 const TEXTPLACE    = raw"@"
 const DIGIT        = raw"[0#?]"            # single digit placeholder
@@ -68,15 +70,16 @@ const SPACE        = raw" +"               # one or more spaces
 const DASH         = raw"-"                # minus/dash
 const CURRENCY     = raw"[\$£€¥₹]"
 const PLUS         = raw"\+"
+const SHOWN        = raw"[/.^&'~{}<>=]"    # other characters Excel shows without quotes (dd/mm/yyyy, dd.mm.yyyy)
 
 # Combine into a master regex - ORDER MATTERS!
 const RGX_FMT = Regex(
     join([
-        LITERAL, CONDITION, COLOR, DATETIME,
+        LITERAL, GENERAL, LOCALE, CONDITION, COLOR, DATETIME,
         DECIMAL, EXPONENT, FRACTION, PERCENT,
         ESCAPE, ALIGN, FILL, TEXTPLACE,
-        DIGIT, COMMA, COLON, DASH, PAREN, SPACE, 
-        CURRENCY, PLUS
+        DIGIT, COMMA, COLON, DASH, PAREN, SPACE,
+        CURRENCY, PLUS, SHOWN
     ], "|")
 )
 
@@ -114,7 +117,7 @@ const EXCEL_COLUMN_WIDTH_PADDING = 0.7109375
 #
 
 function do_sheet_names_match(ws::Worksheet, rng::T) where {T<:Union{SheetCellRef,AbstractSheetCellRange}}
-    if ws.name == rng.sheet
+    if _same_sheetname(ws.name, rng.sheet)
         return true
     else
         throw(XLSXError("Worksheet `$(ws.name)` does not match sheet in cell reference: `$(rng.sheet)`"))

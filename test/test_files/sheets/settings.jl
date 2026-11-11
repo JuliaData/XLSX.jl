@@ -391,10 +391,39 @@
             @test !XLSX.getCellProtection(f["A"], "B5").locked
         end
 
-        @test_throws XLSX.XLSXError XLSX.setCellProtection(s, "B:B"; locked=false)
-        @test_throws XLSX.XLSXError XLSX.setCellProtection(s, "3:4"; locked=false)
         @test_throws XLSX.XLSXError XLSX.getCellProtection(s, "A1:B2")
         @test_throws TypeError XLSX.setCellProtection(s, "A1"; locked=1)
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "cell protection by rows and columns" begin
+        # Whole rows and columns, and `:`, reach as far as the used range, as the
+        # format setters do; explicit cells and number ranges reach empty cells too.
+        xf = XLSX.newxlsx("A")
+        s = xf["A"]
+        s["A1:C4"] = 1                                                          # used range A1:C4
+        locked(ref) = XLSX.getCellProtection(s, ref).locked
+
+        XLSX.setCellProtection(s, "B:B"; locked=false)
+        @test !any(locked("B$r") for r in 1:4)
+        @test locked("B5") && locked("A1") && locked("C1")
+        @test XLSX.getcell(s, "B5") isa XLSX.EmptyCell                           # no cell made beyond the range
+
+        XLSX.setCellProtection(s, "3:4"; hidden=true)
+        @test all(XLSX.getCellProtection(s, "$c$r").hidden for c in "ABC", r in 3:4)
+        @test !XLSX.getCellProtection(s, "A2").hidden && !XLSX.getCellProtection(s, "D3").hidden
+
+        XLSX.setCellProtection(s, :, 3; locked=false)                            # column C, rows 1:4
+        @test !any(locked("C$r") for r in 1:4) && locked("C5")
+        XLSX.setCellProtection(s, 1, :; locked=true)                             # row 1, columns A:C
+        @test all(locked("$c" * "1") for c in "ABC")
+        XLSX.setCellProtection(s, [2, 4], 1:2; locked=false)
+        @test !locked("A2") && !locked("B4") && locked("A3")
+        XLSX.setCellProtection(s, 6:7, 1; locked=false)                          # number ranges reach empty cells
+        @test !locked("A6") && !locked("A7")
+
+        @test_throws XLSX.XLSXError XLSX.setCellProtection(s, "Z:Z"; locked=false)   # outside the used range
+        @test_throws XLSX.XLSXError XLSX.setCellProtection(s, "20:21"; locked=false)
         SAVE_FILES && save_outfile(xf)
     end
 

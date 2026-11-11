@@ -19,7 +19,7 @@ XLSXFile("C:\\Users\\...\\test.xlsx") containing 1 Worksheet
                Sheet1 2x2           A1:B2
 
 julia> s = f["Sheet1"]
-2×2 XLSX.Worksheet: ["Sheet1"](A1:B2)
+2×2 Worksheet: ["Sheet1"](A1:B2)
 
 julia> XLSX.getMergedCells(s)
 1-element Vector{XLSX.CellRange}:

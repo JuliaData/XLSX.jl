@@ -23,10 +23,16 @@ when the sheet is protected with [`protectSheet`](@ref).
 
 Only the keywords given are changed, and the cells' other formatting is kept.
 
-`ref` is a cell (`"B2"`), a range (`"B2:D10"`), several of these separated by
-commas, a defined name, a `CellRef` or a `CellRange`. Empty cells are included:
-an empty cell is given the format without a value, so that it can be filled in
-later on the protected sheet.
+`ref` is a cell (`"B2"`), a range (`"B2:D10"`), whole columns (`"B:C"`) or rows
+(`"2:5"`), several of these separated by commas, a defined name, a `CellRef` or a
+`CellRange`. Rows and columns can also be given by number, as `rows, cols`, each an
+integer, a range, a vector of integers or `:`.
+
+Empty cells are included: an empty cell is given the format without a value, so
+that it can be filled in later on the protected sheet. Whole rows and columns, and
+`:`, reach only as far as the sheet's used range (its dimension), as with
+[`setFont`](@ref) and the other format setters: a row added below it later is
+locked, so unlock it then, or give an explicit range such as `"B2:B500"`.
 
 The file must be open for writing (`mode="rw"`).
 
@@ -35,6 +41,8 @@ The file must be open for writing (`mode="rw"`).
 julia> XLSX.setCellProtection(sheet, "B2:B20"; locked=false)   # input cells
 
 julia> XLSX.setCellProtection(sheet, "D2:D20"; hidden=true)    # hide the formulas
+
+julia> XLSX.setCellProtection(sheet, :, 5; locked=false)       # column E, within the used range
 
 julia> XLSX.protectSheet(sheet)
 ```
@@ -48,14 +56,45 @@ setCellProtection(ws::Worksheet, ref::CellRef; kw...) = setCellProtection(ws, Ce
 setCellProtection(ws::Worksheet, rng::CellRange; kw...) = _set_cell_protection!(ws, Any[rng]; kw...)
 setCellProtection(ws::Worksheet, ref::AbstractString; kw...) = _set_cell_protection!(ws, _rowcol_parts(ws, ref); kw...)
 
+# Not `_RowsOrCols`: setdata.jl defines that for indexing, and Julia before 1.12
+# refuses to redefine a constant.
+const _ProtectionRowsOrCols = Union{Integer,AbstractVector{<:Integer},Colon}
+function setCellProtection(ws::Worksheet, rows::_ProtectionRowsOrCols, cols::_ProtectionRowsOrCols; kw...)
+    dim = _protection_dimension(ws)
+    rs = rows isa Colon ? (row_number(dim.start):row_number(dim.stop)) : rows
+    cs = cols isa Colon ? (column_number(dim.start):column_number(dim.stop)) : cols
+    return _set_cell_protection!(ws, Any[CellRef(r, c) for r in rs for c in cs]; kw...)
+end
+
+function _protection_dimension(ws::Worksheet)::CellRange
+    dim = get_dimension(ws)
+    isnothing(dim) && throw(XLSXError("Worksheet `$(ws.name)` has no used range, so it has no whole rows or columns to protect. Give the cells, such as `B2:D10`."))
+    return dim
+end
+
+# A whole row or column range, limited to the sheet's used range as the format
+# setters limit it. Empty cells beyond it would each have to be created.
+function _clip_to_dimension(ws::Worksheet, p)
+    p isa Union{ColumnRange,RowRange} || return p
+    dim = _protection_dimension(ws)
+    r1, r2 = row_number(dim.start), row_number(dim.stop)
+    c1, c2 = column_number(dim.start), column_number(dim.stop)
+    if p isa ColumnRange
+        lo, hi = max(p.start, c1), min(p.stop, c2)
+        lo <= hi || throw(XLSXError("Column range $p is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
+        return CellRange(CellRef(r1, lo), CellRef(r2, hi))
+    else
+        lo, hi = max(p.start, r1), min(p.stop, r2)
+        lo <= hi || throw(XLSXError("Row range $p is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
+        return CellRange(CellRef(lo, c1), CellRef(hi, c2))
+    end
+end
+
 function _set_cell_protection!(ws::Worksheet, parts::Vector; locked::Union{Nothing,Bool}=nothing, hidden::Union{Nothing,Bool}=nothing)
     _require_writable(ws, "set cell protection")
     _require_worksheet(ws, "set cell protection")
     _require_cache(ws, "set cell protection")
-    for p in parts
-        p isa Union{CellRef,CellRange} ||
-            throw(XLSXError("Give the cells to protect, such as `B2:D10`. Found `$p`, which is a whole row or column range."))
-    end
+    parts = Any[_clip_to_dimension(ws, p) for p in parts]
     isnothing(locked) && isnothing(hidden) && return nothing
 
     wb = get_workbook(ws)

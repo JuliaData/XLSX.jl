@@ -18,6 +18,9 @@ The names released before the sub-module existed — `getCharts`, `getChart`,
 XLSX.Charts
 ```
 
+Guides: start at the [Charts overview](../charts/excelCharts.md), or go straight to
+[Creating charts](../charts/creatingCharts.md) or [Formatting charts](../charts/formattingCharts.md).
+
 ## Conventions
 
 The setters share their argument conventions, so the docstrings below don't

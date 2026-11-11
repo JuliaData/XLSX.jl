@@ -187,7 +187,7 @@ XLSXFile("C:\\...\\blank.xlsx") containing 1 Worksheet
 
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> for i=1:10;for j=1:10; s[i,j]=i*j;end;end
 
@@ -298,7 +298,7 @@ XLSXFile("C:\\...\\blank.xlsx") containing 1 Worksheet
 
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> XLSX.writetable!(s, [columns], ["normal"])
 

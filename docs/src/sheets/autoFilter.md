@@ -1,3 +1,7 @@
+```@meta
+DocTestSetup = :(import XLSX)
+```
+
 # Filtering
 
 An AutoFilter puts drop-down buttons on the header row of a range, as Excel's
@@ -21,7 +25,7 @@ A sheet has a single filter, so setting one replaces any filter the sheet
 already has, together with the criteria chosen in Excel. Setting the same
 range again keeps them.
 
-```julia
+```jldoctest filter; setup = :(import XLSX; sheet = XLSX.newxlsx("Sales")[1]; sheet["A1"] = ["a", "b", "c", "d", "e", "f"]; XLSX.setAutoFilter(sheet, "A1:F200"))
 julia> XLSX.getAutoFilter(sheet)
 A1:F200
 
@@ -45,3 +49,8 @@ only the sheet's filter, not those of its tables.
 The filter goes with its sheet: [`XLSX.copysheet!`](@ref) gives the copy the same
 filter, and [`XLSX.renamesheet!`](@ref) and [`XLSX.deletesheet!`](@ref) keep the
 hidden name Excel uses to record the filter's range in step.
+
+## See also
+
+- API: [Sheet layout](../api/sheetLayout.md)
+- Related guides: [Excel Tables](../tables/excelTables.md), [Hiding and grouping rows and columns](../formatting/hideAndGroup.md)

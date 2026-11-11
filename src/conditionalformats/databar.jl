@@ -263,9 +263,8 @@ return labels 1 and 5, using the first and last colors of the ramp.
 
 !!! note "Experimental"
 
-    This function is experimental. It has a full set of tests and Documentation is 
-    published but it is not yet marked as public. It may be better included in 
-    future only as a documented example rather than as a package function.
+    This function is public but experimental: its keywords and behaviour may change
+    in a minor release. It is not exported, so call it as `XLSX.setColoredDataBars`.
 
 # Examples
 

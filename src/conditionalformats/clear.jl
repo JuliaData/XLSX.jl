@@ -1,23 +1,65 @@
 """
     clearConditionalFormats(ws::Worksheet, rng) -> Int
+    clearConditionalFormats(ws::Worksheet, :) -> Int
 
 Remove every conditional format whose range falls entirely within `rng`, returning
-the number of rules removed.
+the number of rules removed. With `:`, remove every conditional format on the sheet.
+
+`rng` is a cell range (`"B1:B10"`), whole columns (`"B:D"`) or rows (`"2:5"`),
+several of these separated by commas, or a `CellRange`. Whole columns and rows
+cover the full height or width of the sheet.
 
 A rule is removed when all of the cells it applies to lie inside `rng`. A rule
 spanning a wider range is left alone, even where it overlaps.
 
-!!! note "Experimental"
+`clearConditionalFormats` is public but not exported: call it as
+`XLSX.clearConditionalFormats`.
 
-    This function is experimental and is not exported. In particular the rule for which
-    conditional formats are removed — currently, those lying entirely within rng — may
-    change.
+# Examples
 
+```julia
+julia> XLSX.setConditionalFormat(sheet, "B1:B10", :cellIs; operator="greaterThan", value="5");
+
+julia> XLSX.clearConditionalFormats(sheet, "B1:B10")
+1
+
+julia> XLSX.clearConditionalFormats(sheet, "B:B")    # every rule within column B
+
+julia> XLSX.clearConditionalFormats(sheet, :)        # every rule on the sheet
+```
+
+See also [`setConditionalFormat`](@ref), [`getConditionalFormats`](@ref).
 """
 function clearConditionalFormats end
 
 clearConditionalFormats(ws::Worksheet, rng::AbstractString) =
-    clearConditionalFormats(ws, CellRange(rng))
+    clearConditionalFormats(ws, _clear_range(ws, rng))
+clearConditionalFormats(ws::Worksheet, ::Colon) =
+    clearConditionalFormats(ws, CellRange(CellRef(1, 1), CellRef(EXCEL_MAX_ROWS, EXCEL_MAX_COLS)))
+
+# The area to clear: cells and ranges as given, whole columns and rows across the
+# full sheet. Several parts, comma-separated, make a NonContiguousRange.
+function _clear_range(ws::Worksheet, s::AbstractString)::CfRange
+    parts = Union{CellRef,CellRange}[]
+    for p in split(s, ',')
+        p = strip(p)
+        if is_valid_column_range(p)
+            c = ColumnRange(p)
+            push!(parts, CellRange(CellRef(1, c.start), CellRef(EXCEL_MAX_ROWS, c.stop)))
+        elseif is_valid_row_range(p)
+            r = RowRange(p)
+            push!(parts, CellRange(CellRef(r.start, 1), CellRef(r.stop, EXCEL_MAX_COLS)))
+        elseif is_valid_cellname(p)
+            c = CellRef(p)
+            push!(parts, CellRange(c, c))
+        elseif is_valid_cellrange(p)
+            push!(parts, CellRange(p))
+        else
+            throw(XLSXError("`$p` is not a cell range, a column range or a row range."))
+        end
+    end
+    return length(parts) == 1 ? only(parts) : NonContiguousRange(ws.name, parts)
+end
 
 function clearConditionalFormats(ws::Worksheet, rng::CfRange)
     sheetdoc = xmlroot(get_workbook(ws), ws.relationship_id)

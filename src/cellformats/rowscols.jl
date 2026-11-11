@@ -275,7 +275,7 @@ function _rowcol_parts(ws::Worksheet, s::AbstractString)
                 if occursin('!', q)
                     sheet, q = rsplit(q, '!'; limit=2)
                     sheet = replace(strip(sheet, '\''), "''" => "'")
-                    sheet == ws.name || throw(XLSXError("Defined name `$p` refers to sheet `$sheet`, not `$(ws.name)`."))
+                    _same_sheetname(sheet, ws.name) || throw(XLSXError("Defined name `$p` refers to sheet `$sheet`, not `$(ws.name)`."))
                 end
                 push!(parts, _rowcol_part(replace(q, "\$" => "")))
             end
