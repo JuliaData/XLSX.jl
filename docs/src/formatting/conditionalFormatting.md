@@ -1,3 +1,7 @@
+```@meta
+DocTestSetup = :(import XLSX)
+```
+
 
 # Conditional formats
 
@@ -17,7 +21,7 @@ but not otherwise. Such conditional formatting is generally straightforward to a
     Static conditional formats apply formatting based on the current cell values at the time the format 
     is set, but the formats are then static regardless of updates to cell values. They can be updated 
     by re-running the conditional formatting functions described but otherwise remain unchanged. Static 
-    formats are created by applying the `setAttribute()` functions described above.
+    formats are created by applying the `setAttribute()` functions described in [Cell formats](cellFormatting.md).
 
     Dynamic conditional formatting, using the native Excel conditional format functionality, is possible 
     using the `setConditionalFormat()` function, giving access to all of Excel's options. 
@@ -28,40 +32,41 @@ As an example, a simple function to set true values in a range to use a bold gre
 false values to use a bold red color a could be defined as follows:
 
 ```julia
-function trueorfalse(sheet, rng) # Use green or red font for true or false respectively
-    for c in rng
-        if !ismissing(sheet[c]) && sheet[c] isa Bool
-            XLSX.setFont(sheet, c, bold=true, color = sheet[c] ? "FF548235" : "FFC00000")
+function trueorfalse(sheet, rows, cols) # Use green or red font for true or false respectively
+    for r in rows, c in cols
+        v = sheet[r, c]
+        if v isa Bool
+            XLSX.setFont(sheet, r, c; bold=true, color = v ? "FF548235" : "FFC00000")
         end
     end
 end
 ```
 
-Applying this function over any range will conditionally color cells green or red if they are 
-true or false respectively:
+Applying this function over any block of rows and columns will conditionally color cells green 
+or red if they are true or false respectively:
 
 ```julia
-trueorfalse(sheet, XLSX.CellRange("E3:L6"))
+trueorfalse(sheet, 3:6, 5:12) # E3:L6
 ```
 
 Similarly, a function can be defined that fills any cells containing missing values with a grey 
 color and have diagonal borders applied:
 
 ```julia
-function blankmissing(sheet, rng) # Fill with grey and apply both diagonal borders on cells
-    for c in rng                  # with missing values
-        if ismissing(sheet[c])
-            XLSX.setFill(sheet, c; pattern = "solid", fgColor = "lightgrey")
-            XLSX.setBorder(sheet, c; diagonal = ["style" => "thin", "color" => "black"])
-           end
+function blankmissing(sheet, rows, cols) # Fill with grey and apply both diagonal borders on cells
+    for r in rows, c in cols             # with missing values
+        if ismissing(sheet[r, c])
+            XLSX.setFill(sheet, r, c; pattern = "solid", fgColor = "lightgrey")
+            XLSX.setBorder(sheet, r, c; diagonal = ["style" => "thin", "color" => "black"])
+        end
     end
 end
 ```
 
-This can then be applied to a range of cells to conditionally apply the format:
+This can then be applied to a block of cells to conditionally apply the format:
 
 ```julia
-blankmissing(sheet, XLSX.CellRange("B3:L6"))
+blankmissing(sheet, 3:6, 2:12) # B3:L6
 ```
 
 ## Dynamic conditional formats
@@ -104,7 +109,7 @@ of a number of built-in cell format options or using custom formatting. This gro
 represents the greatest range of conditional formatting options available in Excel and are probably the most 
 often used. All the functions of `Highlight Cells Rules` and `Top/Bottom Rules` are provided.
 
-![image|320x500](../images/cell1.png) ![image|100x500](../images/blank.png) ![image|320x500](../images/cell2.png)
+![Excel's Conditional Formatting menu open at Highlight Cells Rules](../images/cell1.png) ![](../images/blank.png) ![Excel's Conditional Formatting menu open at Top/Bottom Rules](../images/cell2.png)
 
 The following `:type` values are used to set conditional formats by making direct comparisons to a cell's value:
 - `:cellIs`
@@ -142,7 +147,7 @@ must also be specified.
 Like all the cell value formatting types, `:cellIs` can use one of six built-in Excel formats, as 
 illustrated here for the `greaterThan` comparison.
 
-![image|320x500](../images/cellvalue-formats.png)
+![Excel's Greater Than dialog with its list of six built-in formats](../images/cellvalue-formats.png)
 
 These six built-in formatting options are available by name in XLSX.jl by specifying the `dxStyle` 
 keyword with one of the following values:
@@ -176,7 +181,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> XLSX.writetable!(s, columns, colnames)
 
@@ -201,18 +206,18 @@ julia> XLSX.setConditionalFormat(s, "B2:B5", :containsText; # Cells with text co
 
 julia> XLSX.setConditionalFormat(s, "C2:C5", :top10;        # Cells with values in the top 10% of values in the range to have a red border.
                     operator ="topN%",
-                    value="10"
+                    value="10",
                     dxStyle="redborder")
 0
 
 ```
 
-![image|320x500](../images/simple-cellvalue-example.png)
+![Cells formatted by three conditional formats: values over 2 in red, text containing u in green, and the top 10% with a red border](../images/simple-cellvalue-example.png)
 
 Alternatively, it is possible to specify custom format options to match the options offered in Excel 
 under the `Custom Format...` option:
 
-![image|320x500](../images/custom-formats.png)
+![Excel's Format Cells dialog for a conditional format, with Font, Border and Fill tabs](../images/custom-formats.png)
 
 !!! note
 
@@ -259,7 +264,7 @@ julia> XLSX.getConditionalFormats(s)
 
 ```
 
-![image|320x500](../images/custom-cellvalue-example.png)
+![Cells highlighted by conditional formats with custom fonts, borders and fills](../images/custom-cellvalue-example.png)
 
 Each of the conditional format `type`s in the cell value group take similar keyword options but 
 the specific details vary for each. For more details, refer to [`XLSX.setConditionalFormat`](@ref).
@@ -269,7 +274,7 @@ the specific details vary for each. For more details, refer to [`XLSX.setConditi
 It is possible to use an Excel formula directly to determine whether to apply a conditional format. 
 Any expression that evaluates to true or false can be used.
 
-![image|320x500](../images/expression.png)
+![Cells formatted by a conditional format whose rule is a formula](../images/expression.png)
 
 For example, to compare one column with another and apply a conditional format accordingly:
 
@@ -281,7 +286,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1        
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> XLSX.writetable!(s, [rand(10), rand(10), rand(10), rand(10)], ["col1", "col2", "col3", "col4"])
 
@@ -305,7 +310,7 @@ julia> XLSX.setConditionalFormat(s, "A2:A10", :expression; formula = "A2>B2", dx
 julia> XLSX.setConditionalFormat(s, "C2:D10", :expression; formula = "C2>\$B2", dxStyle = "greenfilltext")
 0
 ```
-![image|320x500](../images/simpleComparison.png)
+![Cells highlighted where a formula compares their value with another cell](../images/simpleComparison.png)
 
 Column A uses relative referencing. Columns C and D use an absolute reference for the column but not the 
 row of the comparison reference.
@@ -321,7 +326,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> XLSX.writetable!(s, [rand(10).*1000, rand(10).*1000, rand(10).*1000, rand(10).*1000], ["2022", "2023", "2024", "2025"])
 
@@ -331,7 +336,7 @@ julia> XLSX.setConditionalFormat(s, "B2:D11", :expression; formula = "average(B\
 julia> XLSX.setConditionalFormat(s, "B2:D11", :expression; formula = "average(B\$2:B\$11) < average(A\$2:A\$11)", dxStyle = "redfilltext")
 0
 ```
-![image|320x500](../images/averageComparison.png)
+![Cells highlighted where a formula compares their value with the average of a range](../images/averageComparison.png)
 
 (Row 13 above is the average of each column, calculated in Excel)
 
@@ -347,14 +352,14 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> for i=1:10; for j=1:10; s[i, j] = i*j; end; end
 
 julia> XLSX.setConditionalFormat(s, "A1:E5", :expression; formula = "E5 < 50", dxStyle = "redfilltext")
 0
 ```
-![image|320x500](../images/relativeComparison.png)
+![Cells highlighted by a formula using a relative reference, so each cell is compared with its own row](../images/relativeComparison.png)
 
 The format applied in cell `A1` is determined by comparison of cell `E5` to the value 50. In `B2` it is 
 based on cell `F6`, in `C3`, on cell `G7` and so on throughtout the range.
@@ -369,7 +374,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> s[1:3,1:3]="HELLO WORLD"
 "HELLO WORLD"
@@ -392,7 +397,7 @@ julia> XLSX.setConditionalFormat(s, "B1:B3", :expression; formula = "B1=\"HELLO 
 julia> XLSX.setConditionalFormat(s, "C1:C3", :expression; formula = "exact(\"Hello World\", C1)", dxStyle = "greenfilltext")
 0
 ```
-![image|320x500](../images/caseSensitiveComparison.png)
+![Cells highlighted by a case-sensitive text comparison formula](../images/caseSensitiveComparison.png)
 
 ### Data Bar
 
@@ -400,7 +405,7 @@ A `:dataBar` conditional format can be applied to a range of cells.
 In Excel there are twelve built-in data bars available, but it is possible 
 to customise many elements of these.
 
-![image|320x500](../images/dataBars.png)
+![Excel's Data Bars menu, with gradient and solid fill bars in six colours](../images/dataBars.png)
 
 In XLSX.jl, the twelve built-in data bars are named as follows 
 (layout follows image)
@@ -424,7 +429,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1        
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> s[1:10, 1]=1:10
 1:10
@@ -439,13 +444,13 @@ julia> XLSX.setConditionalFormat(s, "C1:C10", :dataBar; databar="orange")
 0
 
 ```
-![image|320x500](../images/simpleDataBar.png)
+![A column of values with default blue data bars](../images/simpleDataBar.png)
 
 All of the options provided by Excel can be adjusted using the provided keyword options. 
 
-![image|320x500](../images/dataBarOptions.png)
+![Excel's Edit Formatting Rule dialog for data bars](../images/dataBarOptions.png)
 
-![image|320x500](../images/negAndAxisOptions.png)
+![Excel's Negative Value and Axis Settings dialog for data bars](../images/negAndAxisOptions.png)
 
 For example, the end points of the bar scale can be defined by setting the `min_type` and `max_type` 
 keywords to `num` (for an absolute number value), `percent`,  `percentile`, `formula` or `min` or `max`. 
@@ -466,7 +471,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> s[1:10, 5]=1:10
 1:10
@@ -487,7 +492,7 @@ julia> XLSX.setConditionalFormat(s, "E1:E10", :dataBar; databar="greengrad", min
 0
 ```
 
-![image|320x500](../images/minmaxDataBar.png)
+![Data bars scaled between a set minimum and maximum](../images/minmaxDataBar.png)
 
 Choose whether to hide values using `showVal="false"`, convert a gradient fill to solid (or vice versa) 
 with `gradient="false"` (`gradient="true"`) and add borders to data bars with `borders="true"`.
@@ -502,7 +507,7 @@ julia> XLSX.setConditionalFormat(s, "C1:C10", :dataBar, showVal="false", gradien
 julia> XLSX.setConditionalFormat(s, "E1:E10", :dataBar; databar=purple,  borders="true", gradient="true")
 0
 ```
-![image|320x500](../images/borderAndGrad.png)
+![Data bars with a border and a gradient fill](../images/borderAndGrad.png)
 
 Change bar colors using `fill_col=` and border colors using `border_col=`. Colors are specified using an 8-digit hexadecimal as `"FFRRGGBB"` or using any named color from [Colors.jl](https://juliagraphics.github.io/Colors.jl/stable/namedcolors/).
 
@@ -519,7 +524,7 @@ julia> XLSX.setConditionalFormat(s, "E1:E11", :dataBar; fill_col="cyan", border_
 0
 
 ```
-![image|320x500](../images/customColors.png)
+![Data bars with custom fill, border and negative-value colours](../images/customColors.png)
 
 By default, Excel positions the axis automatically, based on the range of the cell data. 
 Control the location of the axis using `axis_pos = "middle"` to locate it in the middle 
@@ -547,7 +552,7 @@ julia> XLSX.setConditionalFormat(s, "E1:E10", :dataBar; direction="leftToRight",
 0
 
 ```
-![image|320x500](../images/axisOptions.png)
+![Data bars for positive and negative values about a central axis](../images/axisOptions.png)
 
 ### Color Scale
 
@@ -555,7 +560,7 @@ It is possible to apply a `:colorScale` formatting type to a range of cells.
 In Excel there are twelve built-in color scales available, but it is possible to create 
 custom color scales, too.
 
-![image|320x500](../images/colorScales.png)
+![Excel's Color Scales menu with its two- and three-colour scales](../images/colorScales.png)
 
 In XLSX.jl, the twelve built-in scales are named by their end/mid/start colors as follows 
 (layout follows image)
@@ -586,7 +591,7 @@ in [Colors.jl](https://juliagraphics.github.io/Colors.jl/stable/namedcolors/).
 
 In Excel, the colorScale options (for a 3 color scale) look like this:
 
-![image|320x500](../images/colorScaleOptions.png)
+![Excel's Edit Formatting Rule dialog for a colour scale](../images/colorScaleOptions.png)
 
 The end points (and optional mid-point) can be defined using an absolute number (`num`), a `percent`, 
 a `percentile` or as a `min` or `max`. For the first three options, a value must also be given.
@@ -607,7 +612,7 @@ julia> XLSX.setConditionalFormat(f["Sheet1"], "A13:F22", :colorScale;
         )
 0
 ```
-![image|320x500](../images/custom-colorscale.png)
+![A column of values shaded by a custom three-colour scale](../images/custom-colorscale.png)
 
 ### Icon Set
 
@@ -615,7 +620,7 @@ It is possible to apply an `:iconSet` formatting type to a range of cells.
 In Excel there are twenty built-in icon sets available, but it is possible to 
 create a custom icon set from the 52 built-in icons, too.
 
-![image|320x500](../images/iconSets.png)
+![Excel's Icon Sets menu: directional, shapes, indicators and ratings](../images/iconSets.png)
 
 In XLSX.jl, the twenty built-in icon sets are named as follows 
 (layout follows image)
@@ -646,7 +651,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1        
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> s[1:10, 1]=1:10
 1:10
@@ -654,12 +659,12 @@ julia> s[1:10, 1]=1:10
 julia> XLSX.setConditionalFormat(s, "A1:A10", :iconSet)
 0
 ```
-![image|320x500](../images/basicIconSet.png)
+![A column of values each with an arrow icon from a three-arrow icon set](../images/basicIconSet.png)
 
 All of the options to control an iconSet in Excel are available. The iconSet options 
 (for a 4-icon set) look like this:
 
-![image|320x500](../images/iconSetOptions.png)
+![Excel's Edit Formatting Rule dialog for an icon set](../images/iconSetOptions.png)
 
 Each icon set includes a default set of thresholds defining which symbol to use. These 
 relate the cell value to the range of values in the cell range to which the conditional 
@@ -696,7 +701,7 @@ julia> XLSX.setConditionalFormat(s, "A1:A10", :iconSet;
             min_val="2", max_val="9")
 0
 ```
-![image|320x500](../images/newValIconSet.png)
+![Icon set thresholds changed from the default values](../images/newValIconSet.png)
 
 To suppress the values in cells and just show the icons, use `showVal="false"`, to reverse the icon ordering 
 use `reverse="true"` and to change the default comparison from `>=` to `>` set `min_gte="false"` (and 
@@ -729,7 +734,7 @@ julia> XLSX.setConditionalFormat(s, "D2:D11", :iconSet;
 0
 ```
 
-![image|320x500](../images/showValIcons.png)
+![An icon set showing icons only, with the cell values hidden](../images/showValIcons.png)
 
 Create a custom icon set by specifying `iconset="Custom"`. The icons to use in the custom set are 
 defined with `icon_list` keyword, which takes a vector of integers defining which of the 52 built 
@@ -763,7 +768,7 @@ XLSX.setAlignment(s, "A1:M4", horizontal="center", vertical="center")
 XLSX.setBorder(s, "A1:M4", allsides = ["style"=>"thin","color"=>"black"])
 XLSX.writexlsx("iconKey.xlsx", f, overwrite=true)
 ```
-![image|320x500](../images/iconKey.png)
+![A grid of Excel's 52 conditional formatting icons, each numbered for use in a custom icon set](../images/iconKey.png)
 
 Specifying too few icons in `icon_list` throws an error while any extra will simply be ignored.
 
@@ -806,7 +811,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> col1=rand(5)
 5-element Vector{Float64}:
@@ -845,7 +850,7 @@ julia> XLSX.setConditionalFormat(s, "B2:B6", :cellIs; operator="greaterThan", va
 0
 
 ```
-![image|320x500](../images/relative-CellRef.png)
+![Conditional formats using relative and absolute cell references, applied across a range](../images/relative-CellRef.png)
 
 !!! note
 
@@ -902,7 +907,7 @@ julia> XLSX.getConditionalFormats(s)
 
 ```
 
-![image|320x500](../images/multiple-cellvalue-example.png)
+![Cells formatted by several overlapping conditional formats](../images/multiple-cellvalue-example.png)
 
 When applying multiple overlayed formats, it is possible to make the formatting stop if any cell meets 
 one of the conditions, so that lower proirity conditional formats are not applied to that cell. This is 
@@ -938,12 +943,12 @@ julia> XLSX.setConditionalFormat(s, "A2:C5", :colorScale; colorscale="greenyello
 0
 ```
 
-![image|320x500](../images/stop-if-true.png)
+![Overlapping conditional formats with Stop If True set, so only the first matching rule applies](../images/stop-if-true.png)
 
 Overlaying the same three conditional formats without setting the `stopIfTrue` option 
 will result in the following, instead:
 
-![image|320x500](../images/no-stop-if-true.png)
+![The same rules without Stop If True, so each matching rule applies](../images/no-stop-if-true.png)
 
 It is possible to overlay `:colorScale`s, `:dataBar`s and `:iconSet`s in the same or 
 overlapping cell ranges.
@@ -956,7 +961,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> XLSX.writetable!(s, [rand(10),rand(10),rand(10),rand(10),rand(10),rand(10),rand(10)],["col1","col2","col3","col4","col5","col6","col7"])
 
@@ -973,5 +978,55 @@ julia> XLSX.setFormat(s, "A2:G11"; format="#0.00")
 -1
 
 ``` 
-![image|320x500](../images/moreMixed.png)
+![A table formatted by data bars, an icon set and a colour scale together](../images/moreMixed.png)
 
+## Reading and clearing conditional formats
+
+[`XLSX.getConditionalFormats`](@ref) lists the rules on a sheet, each as the range it
+applies to and its type and priority:
+
+```jldoctest cfclear; setup = :(import XLSX; s = XLSX.newxlsx()[1]; s["A1:A10"] = collect(1:10); s["B1:B10"] = collect(1:10))
+julia> XLSX.setConditionalFormat(s, "A1:A10", :dataBar);
+
+julia> XLSX.setConditionalFormat(s, "B1:B10", :cellIs; operator="greaterThan", value="5");
+
+julia> XLSX.setConditionalFormat(s, "B1:B10", :containsBlanks);
+
+julia> XLSX.getConditionalFormats(s)
+3-element Vector{Pair{Union{XLSX.CellRange, XLSX.NonContiguousRange}, @NamedTuple{type::String, priority::Int64}}}:
+ A1:A10 => (type = "dataBar", priority = 1)
+ B1:B10 => (type = "cellIs", priority = 2)
+ B1:B10 => (type = "containsBlanks", priority = 3)
+```
+
+[`XLSX.clearConditionalFormats`](@ref) removes every rule that lies entirely inside a
+cell range, and returns how many it removed. A rule that reaches outside the range is
+left alone:
+
+```jldoctest cfclear
+julia> XLSX.clearConditionalFormats(s, "B1:B10")
+2
+
+julia> XLSX.clearConditionalFormats(s, "A1:A5")      # the data bar covers A1:A10
+0
+
+julia> XLSX.clearConditionalFormats(s, "A1:A10")
+1
+```
+
+The range can also be whole columns (`"B:D"`) or rows (`"2:5"`), which cover the full
+height or width of the sheet, or several ranges separated by commas. `:` removes every
+rule on the sheet:
+
+```julia
+julia> XLSX.clearConditionalFormats(s, :)
+```
+
+`clearConditionalFormats` is public but not exported: call it as
+`XLSX.clearConditionalFormats`.
+
+## See also
+
+- API: [Conditional format functions](../api/conditionalFormats.md)
+- Related guides: [Cell formats](cellFormatting.md)
+- Examples: [Adding a dataBar with varying colors](@ref)

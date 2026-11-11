@@ -21,7 +21,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
              Sheet1  1x1           A1:A1        
 
 julia> sheet = f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+1×1 Worksheet: ["Sheet1"](A1:A1) 
 
 julia> XLSX.freezePanes(sheet) # freezes the first row (the default: nrows=1, ncols=0)
 
@@ -37,7 +37,7 @@ the left of `C3`.
 Frozen panes have no effect in XLSX.jl but can be set using `freezePanes()` so that the panes are 
 frozen when a saved file is opened in Excel.
 
-![image|320x500](../images/freezePanes.png)
+![A worksheet with the top two rows and first two columns frozen](../images/freezePanes.png)
 
 Calling `freezePanes` again replaces any panes already set with the newly 
 specified panes.
@@ -55,7 +55,7 @@ julia> XLSX.splitPanes(sheet; nrows=10) # splits the view below row 10, with a d
 julia> XLSX.splitPanes(sheet, "D11") # Creates 4 scollable panes
 ```
 
-![image|320x500](../images/splitPanes.png)
+![A worksheet split into four separately scrolling panes](../images/splitPanes.png)
 
 Split panes have no effect in XLSX.jl but can be set using `splitPanes()` so that the panes are 
 split when a saved file is opened in Excel.
@@ -87,3 +87,8 @@ julia> XLSX.removePanes(sheet)
 ```
 
 Removes any frozen or split panes, restoring a plain single-pane view.
+
+## See also
+
+- API: [Sheet layout](../api/sheetLayout.md)
+- Related guides: [Printing](@ref), whose print titles repeat header rows on every printed page

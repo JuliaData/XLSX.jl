@@ -1102,6 +1102,18 @@
         @test occursin("point idx 1", repr(p))  # c:idx, one less than the position
         @test occursin("point idx 1", plain(p))
 
+        # A point's new marker takes the series' size, as Excel 365 writes it when one
+        # point's marker type is changed; otherwise Excel draws it at its default size.
+        @test p.size == 7
+        XLSX.Charts.setMarkerSize(c, 1, 9; point=2)                     # an existing point marker keeps its own
+        XLSX.Charts.setMarkerSymbol(c, 1, :square; point=2)
+        @test XLSX.Charts.getDataPointMarker(c, XLSX.Charts.getSeriesDataPoints(c, 1)[1]).size == 9
+        XLSX.Charts.setMarker(c, 1; point=3, symbol=:triangle, size=4)   # a size given explicitly wins
+        @test XLSX.Charts.getDataPointMarker(c, XLSX.Charts.getSeriesDataPoints(c, 1)[2]).size == 4
+        XLSX.Charts.setMarker(c, 2; symbol=:circle, size=:inherit)       # series 2 sets no size ...
+        XLSX.Charts.setMarkerSymbol(c, 2, :x; point=1)
+        @test isnothing(XLSX.Charts.getDataPointMarker(c, XLSX.Charts.getSeriesDataPoints(c, 2)[1]).size)  # ... so neither does its point
+
         SAVE_FILES && save_outfile(xf)
     end
 

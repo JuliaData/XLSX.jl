@@ -132,7 +132,7 @@ XLSXFile("C:\\...\\general.xlsx") containing 13 Worksheets
          named_ranges 14x6          A2:F15
 
 julia> XLSX.copysheet!(f[4])
-12×8 XLSX.Worksheet: ["table (copy)"](A2:H13)
+12×8 Worksheet: ["table (copy)"](A2:H13)
 
 julia> f
 XLSXFile("C:\\...\\general.xlsx") containing 14 Worksheets
@@ -575,6 +575,7 @@ deletesheet!(xl::XLSXFile, sheetId::Integer) = deletesheet!(get_workbook(xl), xl
 deletesheet!(xl::XLSXFile, name::AbstractString) = deletesheet!(get_workbook(xl), name)
 function deletesheet!(wb::Workbook, name::AbstractString)::XLSXFile
     hassheet(wb, name) || throw(XLSXError("Worksheet `$name` not found in workbook."))
+    name = wb.sheets[_sheet_index(wb, name)].name    # the name as stored, whatever case was given
     sheetcount(wb) > 1 || throw(XLSXError("`$name` is this workbook's only sheet. Cannot delete the only sheet!"))
     ischart = is_chartsheet(wb, name)
     ischart || count(sh -> !is_chartsheet(wb, sh.name), wb.sheets) > 1 || throw(XLSXError(

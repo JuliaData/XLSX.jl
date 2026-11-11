@@ -7,7 +7,8 @@ These change the workbook, so open the file with `mode="rw"` (or start from
 
 ## Which rows and columns
 
-Each function takes the rows or columns in any of these forms:
+Each function takes the rows or columns in any of these forms (see also
+[Addressing cells and ranges](../concepts/addressing.md)):
 
 ```julia
 XLSX.setColumnHidden(sheet, 3)            # a column number
@@ -67,6 +68,25 @@ Pass `collapsed=true` to show a group collapsed, with its rows hidden:
 XLSX.groupRows(sheet, 12:20; collapsed=true)
 ```
 
+For example, a budget with its detail rows grouped under their totals, and both groups
+inside one that covers everything above the grand total:
+
+```julia
+XLSX.groupRows(sheet, 2:8)                    # level 1
+XLSX.groupRows(sheet, 2:3)                    # level 2, shown
+XLSX.groupRows(sheet, 5:7; collapsed=true)    # level 2, collapsed
+```
+
+![Excel's outline gutter beside rows 1 to 11: level buttons 1, 2 and 3 at the top, a minus button on row 4 below the shown Rent and Rates rows, a plus button on row 8 where rows 5 to 7 are collapsed, and a minus button on row 10 for the outer group](../images/outlineGroups.png)
+
+Each group's button is on its summary row: row 4 for rows 2–3, row 8 for rows 5–7, and
+row 10 for the outer group. The numbered buttons show every group down to that level.
+
 [`XLSX.ungroupRows`](@ref) and [`XLSX.ungroupColumns`](@ref) move rows and
 columns out one level. Rows hidden by a collapsed group stay hidden, as in
 Excel: show them with `setRowHidden(sheet, rows; hidden=false)`.
+
+## See also
+
+- API: [Sheet layout](../api/sheetLayout.md)
+- Related guides: [Filtering](../sheets/autoFilter.md), [Inserting and deleting rows and columns](../sheets/insertDelete.md)

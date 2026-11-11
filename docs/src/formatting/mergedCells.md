@@ -102,7 +102,7 @@ It is not allowed to create new merged cells that overlap at all with any existi
 
 
     julia> s=f[1]
-    1×1 XLSX.Worksheet: ["Sheet1"](A1:A1) 
+    1×1 Worksheet: ["Sheet1"](A1:A1) 
 
     julia> s["A1:A3"]=5
     5
@@ -110,7 +110,7 @@ It is not allowed to create new merged cells that overlap at all with any existi
 
     This produces the simple sheet shown.
 
-    ![image|320x500](../images/simple-unmerged.png)
+    ![Cells A1 to A3 each holding 5](../images/simple-unmerged.png)
 
     Merging the three cells `A1:A3` sets the cells `A2` and `A3` to missing just as Excel does.
 
@@ -137,7 +137,7 @@ It is not allowed to create new merged cells that overlap at all with any existi
     missing
     ```
 
-    ![image|320x500](../images/after-merge.png)
+    ![A1 to A3 merged into one cell showing 5](../images/after-merge.png)
 
     However, even after the merge, it is possible to explicitly write into the merged cells. 
     These written values will not be visible in Excel but can still be accessed by reference.
@@ -164,7 +164,7 @@ It is not allowed to create new merged cells that overlap at all with any existi
     won't be visible in Excel, but it can be referenced in a formula as shown here, where 
     cell `B2` references cell `A2` in its formula ("=A2"):
 
-    ![image|320x500](../images/Written-to-merged-cell.png)
+    ![The merged cell still showing 5, while B2's formula =A2 shows the text written into hidden cell A2](../images/Written-to-merged-cell.png)
     
     Assigning values to cells in a merged range like this is prevented in Excel itself by the UI 
     although it is possible using VBA. There is currently no check to prevent this in `XLSX.jl`.
@@ -191,3 +191,9 @@ julia> XLSX.getMergedCells(f[1])
 A merged range is unmerged if it fully encloses the range given, so naming 
 any single cell of a merged range unmerges the whole of it. Unmerging changes 
 no cell values — whatever each cell holds, it keeps.
+
+## See also
+
+- API: [Sheet layout](../api/sheetLayout.md)
+- Related guides: [Cell formats](cellFormatting.md)
+- Examples: [Creating a formatted form](@ref)

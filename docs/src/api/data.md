@@ -1,5 +1,9 @@
 # Cells and data
 
+Functions for reading and writing cell values, formulas and defined names, and for
+data validation. For a walk-through, see the [XLSX Tutorial](../tutorial/XLSXtutorial.md). The ways of naming cells and
+ranges are described in [Addressing cells and ranges](../concepts/addressing.md).
+
 ## Cell referencing
 
 ```@docs
@@ -25,12 +29,16 @@ XLSX.geterror(::XLSX.Worksheet, ::AbstractString)
 
 ## Cell formulas
 
+Guide: [Using Formulas](../formulae/formulas.md).
+
 ```@docs
 XLSX.setFormula
 XLSX.getFormula
 ```
 
 ## Defined names
+
+Guide: [Named ranges](../formulae/namedRanges.md).
 
 Defined names have two scopes. A workbook-scoped name is visible throughout the
 file; a worksheet-scoped name belongs to one sheet, and a name may exist at both

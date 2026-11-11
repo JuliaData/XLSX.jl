@@ -1,3 +1,7 @@
+```@meta
+DocTestSetup = :(import XLSX)
+```
+
 # Data validation
 
 Data validation restricts what can be typed into a cell, as Excel's
@@ -24,6 +28,10 @@ XLSX.openxlsx("survey.xlsx", mode="rw") do xf
     XLSX.addDataValidation(sheet, "B2:B200"; values=["Yes", "No", "Not sure"])
 end
 ```
+
+In Excel, each cell in the range gets a drop-down arrow that opens the list:
+
+![Cell B3 selected, with its drop-down list open showing Yes, No and Not sure, and the input message box partly hidden behind the list](../images/dataValidationDropdown.png)
 
 `values` is the quickest way to make a short list. Excel limits a list typed
 this way to 255 characters and doesn't allow commas in the items. For a longer
@@ -82,6 +90,11 @@ XLSX.addDataValidation(sheet, "D2:D200"; type=:whole, formula1=1, formula2=10,
                        errorStyle=:warning)
 ```
 
+The input message appears beside the selected cell. This one was set with
+`promptTitle="Answer", prompt="Choose Yes, No or Not sure."` on the drop-down list above:
+
+![Cell B3 selected, with a yellow input message box beside it titled Answer, reading Choose Yes, No or Not sure.](../images/dataValidationAnswer.png)
+
 `errorStyle` is `:stop` (the default) to refuse an invalid value, `:warning` to
 ask whether to keep it, or `:information` to accept it after a message. Titles
 may be up to 32 characters and messages up to 255.
@@ -98,7 +111,7 @@ XLSX.addDataValidation(sheet, "A1"; type=:any, prompt="Type the customer's full 
 workbook. [`XLSX.getDataValidation`](@ref) finds the one covering a cell. Each
 is a `NamedTuple` with the settings described above:
 
-```julia
+```jldoctest dv; setup = :(import XLSX; sheet = XLSX.newxlsx("Responses")[1]; XLSX.addDataValidation(sheet, "B2:B200"; values=["Yes", "No", "Not sure"]))
 julia> dv = XLSX.getDataValidation(sheet, "B5");
 
 julia> dv.range, dv.type, dv.formula1
@@ -124,3 +137,8 @@ References in validation formulas are kept up to date as sheets change.
 [`XLSX.renamesheet!`](@ref) renames them, [`XLSX.deletesheet!`](@ref) replaces
 references to the deleted sheet with `#REF!`, and in a copy made by
 [`XLSX.copysheet!`](@ref), references to the original sheet point at the copy.
+
+## See also
+
+- API: [Data validation](../api/data.md#Data-validation) in Cells and data
+- Related guides: [Protecting a sheet](@ref) and [Unlocking cells](@ref), for input forms

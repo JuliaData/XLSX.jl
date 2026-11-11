@@ -51,7 +51,7 @@ XLSXFile("general.xlsx") containing 13 Worksheets
          named_ranges 14x6          A2:F15
 
 julia> s=f["general"]
-10×6 XLSX.Worksheet: ["general"](A1:F10)
+10×6 Worksheet: ["general"](A1:F10)
 
 julia> XLSX.setFont(s, "A1"; name="Arial", size=24, color="blue", bold=true)
 2
@@ -130,7 +130,49 @@ When a theme color is read back, `getFont`, `getFill` and `getBorder` report it 
 [`XLSX.getRichTextString`](@ref) reports every color as its `"FFRRGGBB"` value in the
 current theme.
 
+## Number formats
+
+[`XLSX.setFormat`](@ref) sets how a cell's number, date or time is shown, as the *Number*
+tab of Excel's *Format Cells* dialog does. The value itself doesn't change: a cell
+holding `0.256` shown as `26%` still reads as `0.256`.
+
+```julia
+XLSX.setFormat(s, "A1"; format="Percentage")               # 26%
+XLSX.setFormat(s, "A2"; format="Currency")                 # in the local currency of whoever opens the file
+XLSX.setFormat(s, "A3"; format="LongDate")                 # 9-Mar-25
+XLSX.setFormat(s, "A4"; format="yyyy-mm-dd hh:mm")         # 2025-03-09 14:30
+XLSX.setFormat(s, "A5"; format="0.0%")                     # 25.6%
+XLSX.setFormat(s, "A6"; format="#,##0.00;[Red]-#,##0.00")  # negative numbers in red
+```
+
+`format` is one of these names, the number of one of Excel's built-in formats (as a
+string, such as `"10"` for `0.00%`, listed under [`XLSX.setFormat`](@ref)), or a format
+code of your own, written as in the *Custom* category of the Format Cells dialog.
+
+| Name | Format code |
+|:-----|:------------|
+| `"General"` | `General` |
+| `"Number"` | `0.00` |
+| `"Currency"` | `$#,##0.00_);($#,##0.00)` |
+| `"Percentage"` | `0%` |
+| `"ShortDate"` | `m/d/yyyy` |
+| `"LongDate"` | `d-mmm-yy` |
+| `"Time"` | `h:mm:ss` |
+| `"Scientific"` | `##0.0E+0` |
+
+A `Date`, `DateTime` or `Time` written to a cell is given a date or time format
+automatically (Excel's built-in `m/d/yyyy`, `m/d/yyyy h:mm` and `h:mm`). Excel shows
+those built-in formats in the date style of the computer opening the file. Use a format
+code of your own, such as `"dd/mm/yyyy"`, `"yyyy-mm-dd"` or `"d mmmm yyyy"`, for a fixed
+style.
+
+[`XLSX.getFormat`](@ref) reads a cell's format back, and [`XLSX.setUniformFormat`](@ref)
+applies one format to a range faster (see [Setting uniform attributes](@ref)).
+
 ## Formatting multiple cells at once
+
+[Addressing cells and ranges](../concepts/addressing.md) lists every way of naming the cells to
+format. This section shows how formats combine when they are applied to many cells.
 
 ### Applying `setAttribute` to multiple cells
 
@@ -152,7 +194,7 @@ XLSXFile("C:\...\blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s=f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> s[1:100, 1:100] = "" # Ensure these aren't `EmptyCell`s.
 ""
@@ -223,7 +265,7 @@ julia> XLSX.setUniformStyle(s, "A1:CV100") # set all formatting attributes to be
 To illustrate the differences between applying `setAttribute`, `setUniformAttribute` and `setUinformStyle`,
 consider the following worksheet, which has very hetrogeneous formatting across the three cells:
 
-![image|320x500](../images/multicell.png)
+![Three cells, B2, D2 and F2, with different fonts, fills and borders](../images/multicell.png)
 
 We can apply `setBorder()` to add a top border to each cell:
 
@@ -233,7 +275,7 @@ julia> XLSX.setBorder(s, "B2,D2,F2"; top=["style"=>"thick", "color"=>"red"])
 ```
 This merges the new top border definition with the other, existing border attributes, to get
 
-![image|320x500](../images/multicell2.png)
+![The three cells after setBorder: each keeps its own borders and gains a thick red top border](../images/multicell2.png)
 
 Alternatively, we can apply `setUniformBorder()`, which will update the borders of cell `B2` 
 and then apply all the border attributes of `B2` to the other cells, overwriting the previous 
@@ -247,7 +289,7 @@ julia> XLSX.setUniformBorder(s, "B2,D2,F2"; top=["style"=>"thick", "color"=>"red
 This makes the border formatting entirely consistent across the cells but leaves the other formatting 
 attributes (font, fill, format, alignment) as they were.
 
-![image|320x500](../images/multicell3.png)
+![The three cells after setUniformBorder: all have B2's borders, with a thick red top, and keep their other formats](../images/multicell3.png)
 
 Finally, we can set `B2` to have the formatting we want, and then apply a uniform style to all three cells.
 
@@ -260,7 +302,7 @@ julia> XLSX.setUniformStyle(s, "B2,D2,F2")
 ```
 Which results in all formatting attributes being entirely consistent across the cells.
 
-![image|320x500](../images/multicell4.png)
+![The three cells after setUniformStyle: all are formatted exactly like B2](../images/multicell4.png)
 
 ### Performance differences between methods
 
@@ -350,7 +392,7 @@ julia> XLSX.setUniformStyle(s, "BB50,A1:CV100") # Or if I want to apply all form
 
 Text in a cell can have font formats applied to any substring element as in this example:
 
-![image|320x500](../images/complexFontFormats.png)
+![Cells whose text mixes colours, sizes, bold, italic, underline, superscript and subscript](../images/complexFontFormats.png)
 
 This is referred to here as rich text formatting.
 
@@ -399,7 +441,7 @@ RichTextString: "Helloo Kitty"
  " Kitt"                  [:color => "blue", :size => 14]
  "y"                      [:color => "green", :size => 14, :vertAlign => "subscript"]       
 ```
-![image|320x500](../images/richTextString.png)
+![A cell showing Helloo Kitty in rich text: red, green superscript, blue and green subscript runs](../images/richTextString.png)
 
 A `RichTextString` with only a single run will be converted to a simple text string with font attributes set through `setFont`.
 
@@ -451,7 +493,7 @@ RichTextString: "The quick brown fox jumps over the lazy dog"
 
 ```
 
-![image|320x500](../images/styledString.png)
+![Two cells written from StyledStrings: hello there in yellow and blue, and a sentence with bold, italic and coloured words](../images/styledString.png)
 
 When an `AnnotatedString` is written to a cell, the cell's font is first reset
 to the workbook default, so any font applied to the cell beforehand does not
@@ -487,7 +529,7 @@ For example, to remove the underlining in column B from the "Hello Kitty" exampl
 julia> setFont(s, "B"; under="none")
 -1
 ```
-![image|320x500](../images/complexNoUnder.png)
+![The rich text cells after setFont with under=none: the underlining is gone and the other run formats remain](../images/complexNoUnder.png)
 
 The underlining has been removed, but the other rich text formats remain in place.
 
@@ -500,7 +542,7 @@ For example:
 julia> setUniformFont(s, "A1:F2"; color="orange")
 23
 ```
-![image|320x500](../images/complexUniformColor.png)
+![The rich text cells after setUniformFont with an orange colour: all text is orange, other run formats remain](../images/complexUniformColor.png)
 
 Similarly, applying `setUniformStyle` to a range of cells will remove those elements of the rich text format that are now being applied to the whole cells so that those elements become uniform. Any other heterogeneity arising from rich text formats will remain.
 
@@ -517,7 +559,7 @@ XLSX.CellFont(22, Dict{String, Union{Nothing, Dict{String, String}}}("name" => D
 julia> setUniformStyle(s, "A1,D1:F2") # apply cell A1's Style to cells D1:F2
 1
 ```
-![image|320x500](../images/complexUniformStyle.png)
+![The rich text cells after setUniformStyle from A1: font, size and colour are uniform, bold, italic and sub- and superscript remain](../images/complexUniformStyle.png)
 
 The Style for cell `A1` has a specified font, size and color. These have been uniformly applied to the range `D1:F2`, but the other rich text attributes (in this case, bold, italic, underline, super- and sub-script) retain the original heterogeneity.
 
@@ -537,8 +579,14 @@ or, for tabular data:
 ```julia
 julia> writetable!(s, gettable(s, "A:F"; header=false); write_columnnames=false)
 ```
-![image|320x500](../images/complexNone.png)
+![The cells after being copied over themselves: plain text with no rich text formatting](../images/complexNone.png)
 
 An `XLSXFile` must be opened in write mode for rich text formatting to be editable, otherwise an error is thrown.
 
 There is no way in XLSX.jl to edit the individual runs of a rich text value. To make changes to individual runs beyond what `setFont` can achieve, it is neseccary to overwrite the cell with a new `RichTextString` or `AnnotatedString`.
+
+## See also
+
+- API: [Cell formats](../api/formats.md)
+- Related guides: [Conditional formats](conditionalFormatting.md), [Merged cells](mergedCells.md), [Column width and row height](widthAndHeight.md)
+- Examples: [Applying cell format to an existing table](@ref), [Creating a formatted form](@ref)

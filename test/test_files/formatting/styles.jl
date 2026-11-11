@@ -1122,6 +1122,15 @@ end
         @test_throws XLSX.XLSXError XLSX.setFormat(s, "Sheet1!E1:F5,Sheet1!Z100"; format="Currency")
         @test_throws XLSX.XLSXError XLSX.setFormat(s, "E2"; format="ffzz345")
 
+        # Characters Excel shows without quotes, `!` escapes, General and locale codes:
+        # each of these was checked as accepted by Excel 365.
+        for fmt in ["dd/mm/yyyy", "dd.mm.yyyy", "0!x", "[\$-409]d mmm yyyy", "[\$€-x-euro2] #,##0.00",
+                    "General;[Red]-General", "0^0", "0&0", "0'0", "0~0", "0{0}", "0<0>", "0=0"]
+            @test XLSX.setFormat(s, "E3"; format=fmt) > 163
+            @test XLSX.getFormat(s, "E3").format["numFmt"]["formatCode"] == fmt
+        end
+        @test_throws XLSX.XLSXError XLSX.setFormat(s, "E2"; format="dd/mm/yyyy zz")
+
         XLSX.writexlsx("test.xlsx", f, overwrite=true)
         SAVE_FILES && save_outfile("test.xlsx")
 

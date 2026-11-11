@@ -1155,4 +1155,31 @@ end
         SAVE_FILES && save_outfile(p)
         isfile(p) && rm(p)
     end
+    @testset "sheet names ignore case" begin
+        # Excel matches sheet names without regard to case, and so does every lookup.
+        xf = XLSX.newxlsx("Data")
+        XLSX.addsheet!(xf, "Notes")
+        xf["Data"]["A1"] = 7
+        @test XLSX.hassheet(xf, "data")
+        @test XLSX.hassheet(xf, "DATA")
+        @test XLSX.hassheet(xf, "'notes'")
+        @test !XLSX.hassheet(xf, "Dat")
+        @test xf["data"] === xf["Data"]
+        @test xf["data!A1"] == 7
+        @test XLSX.getdata(xf, "DATA!A1") == 7
+        @test XLSX.ordinal_sheet_number(XLSX.get_workbook(xf), "notes") == 2
+        XLSX.setFont(xf, "data!A1"; bold=true)
+        @test XLSX.getFont(xf["Data"], "A1").font["b"] === nothing
+        XLSX.deletesheet!(xf, "NOTES")
+        @test XLSX.sheetnames(xf) == ["Data"]
+        @test XLSX.addsheet!(xf, "DATA").name == "DATA 1"     # a name in use, in any case, is made unique
+
+        p = "testfiles_sheetname_case.xlsx"
+        xf2 = XLSX.newxlsx("Data")
+        xf2["Data"]["A1"] = ["h"; 1;;]
+        XLSX.addsheet!(xf2, "Other")
+        XLSX.writexlsx(p, xf2; overwrite=true)
+        @test XLSX.readtable(p, "data").column_labels == [:h]
+        isfile(p) && rm(p)
+    end
 end

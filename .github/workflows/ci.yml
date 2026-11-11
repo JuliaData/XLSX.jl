@@ -76,9 +76,14 @@ jobs:
       - run: julia --project=test -e 'using Pkg; Pkg.add(name="Parsers", version="2.8"); Pkg.compat("Parsers", "2.8")'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
-  docs:
-    name: Documentation
+  # The docs are built and deployed by Documentation.yml.
+  docs-links:
+    # Checks the docs' external links. Other sites go down or move, so a failure here
+    # is a prompt to look rather than a broken build. No deploy credentials are given,
+    # so deploydocs does nothing.
+    name: Documentation links
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -91,5 +96,4 @@ jobs:
             Pkg.instantiate()'
       - run: julia --project=docs docs/make.jl
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          DOCUMENTER_LINKCHECK: 'true'

@@ -1,5 +1,9 @@
 # Cell formats
 
+Functions to read and set fonts, fills, borders, alignment, number formats and cell
+protection, and to write rich text. Guide: [Cell formats](../formatting/cellFormatting.md). For the
+ways of choosing which cells to format, see [Addressing cells and ranges](../concepts/addressing.md).
+
 
 ```@docs
 XLSX.getFormat

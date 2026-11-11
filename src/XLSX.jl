@@ -92,7 +92,8 @@ export
 @static if VERSION >= v"1.11"
     eval(Meta.parse("""
     public getcell, getcellrange, getFormula, getRichTextString,
-           getConditionalFormats, getColumnWidth, getRowHeight,
+           getConditionalFormats, setColoredDataBars, clearConditionalFormats,
+           getColumnWidth, getRowHeight,
            isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
            getAutoFilter, getSheetVisibility, getTabColor,
            isSheetProtected, getSheetProtection, getCellProtection,

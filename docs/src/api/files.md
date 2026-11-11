@@ -1,5 +1,8 @@
 # Files and worksheets
 
+Functions for opening, creating and saving files, and for the sheets in them. For a
+walk-through, see the [XLSX Tutorial](../tutorial/XLSXtutorial.md) and [Creating and editing workbooks](../tutorial/creatingWorkbooks.md).
+
 ## Files
 
 ```@docs
@@ -18,6 +21,8 @@ XLSX.writetable
 
 ## Files (using FileIO)
 
+Guide: [FileIO Tutorial](../tutorial/FileIOtutorial.md).
+
 !!! note
 
     These functions extend `FileIO.load` and `FileIO.save`. Call them as
@@ -30,6 +35,9 @@ XLSX.save
 
 ## Worksheets
 
+Guide: [Managing worksheets](../sheets/worksheets.md). Images, comments and hyperlinks
+are on their [own API page](objects.md).
+
 ```@docs
 XLSX.Worksheet
 XLSX.sheetnames
@@ -40,22 +48,11 @@ XLSX.renamesheet!
 XLSX.copysheet!
 XLSX.deletesheet!
 XLSX.movesheet!
-XLSX.addImage
-XLSX.getImages
-XLSX.deleteImage
-XLSX.addComment
-XLSX.getComment
-XLSX.getComments
-XLSX.deleteComment
-XLSX.getThreadedComment
-XLSX.getThreadedComments
-XLSX.addHyperlink
-XLSX.getHyperlink
-XLSX.getHyperlinks
-XLSX.deleteHyperlink
 ```
 
 ## Sheet visibility and tab colour
+
+Guide: [Hiding a sheet](@ref), [Tab colour](@ref).
 
 ```@docs
 XLSX.setSheetVisibility
@@ -67,6 +64,8 @@ XLSX.removeTabColor
 
 ## Sheet protection
 
+Guide: [Protecting a sheet](@ref). Cell locking is set with [`XLSX.setCellProtection`](@ref).
+
 ```@docs
 XLSX.protectSheet
 XLSX.unprotectSheet
@@ -75,6 +74,8 @@ XLSX.getSheetProtection
 ```
 
 ## Page setup and printing
+
+Guide: [Printing](@ref).
 
 ```@docs
 XLSX.setPageSetup

@@ -15,7 +15,7 @@ julia> Pkg.add("XLSX")
 
 The basic usage is to read an Excel file and read values.
 
-```julia
+```jldoctest tutorial; setup = :(import XLSX; cd(joinpath(pkgdir(XLSX), "docs", "src", "tutorial")))
 julia> import XLSX
 
 julia> xf = XLSX.readxlsx("myfile.xlsx")
@@ -24,7 +24,7 @@ XLSXFile("myfile.xlsx") containing 3 Worksheets
 -------------------------------------------------
               mysheet 4x2           A1:B4
            othersheet 1x1           A1:A1
-                named 1x1           B4:B4
+                named 4x2           A1:B4
 
 julia> XLSX.sheetnames(xf)
 3-element Vector{String}:
@@ -33,7 +33,7 @@ julia> XLSX.sheetnames(xf)
  "named"
 
 julia> sh = xf["mysheet"] # get a reference to a Worksheet
-4×2 XLSX.Worksheet: ["mysheet"](A1:B4)
+4×2 Worksheet: ["mysheet"](A1:B4)
 
 julia> sh[2, 2] # access element "B2" (2nd row, 2nd column)
 "first"
@@ -78,11 +78,12 @@ julia> xf["mysheet!2:4"] # And so are row ranges
  1  "first"
  2  "second"
  3  "third"
- 
- julia> xf["NAMED_CELL"] # you can even read named ranges
-"B4 is a named cell from sheet \"named\""
 
+julia> xf["NAMED_CELL"] # you can even read named ranges
+"B4 is a named cell from sheet \"named\""
 ```
+
+To follow along, download [`myfile.xlsx`](myfile.xlsx).
 
 To inspect the internal representation of each cell, use the `getcell` or `getcellrange` methods.
 
@@ -197,11 +198,11 @@ Tables can also be created and modified — see [`XLSX.addtable!`](@ref),
 
 Use [`XLSX.readdata`](@ref) or [`XLSX.getdata`](@ref) to read content as a Julia matrix.
 
-```julia
+```jldoctest tutorial
 julia> import XLSX
 
 julia> m = XLSX.readdata("myfile.xlsx", "mysheet!A1:B3")
-3×2 Array{Any,2}:
+3×2 Matrix{Any}:
   "HeaderA"  "HeaderB"
  1           "first"
  2           "second"
@@ -209,26 +210,26 @@ julia> m = XLSX.readdata("myfile.xlsx", "mysheet!A1:B3")
 
 Indexing in a `Worksheet` will dispatch to [`XLSX.getdata`](@ref) method.
 
-```julia
+```jldoctest tutorial
 julia> xf = XLSX.readxlsx("myfile.xlsx")
 XLSXFile("myfile.xlsx") containing 3 Worksheets
             sheetname size          range
 -------------------------------------------------
               mysheet 4x2           A1:B4
            othersheet 1x1           A1:A1
-                named 1x1           B4:B4
+                named 4x2           A1:B4
 
 julia> xf["mysheet!A1:B3"]
-3×2 Array{Any,2}:
+3×2 Matrix{Any}:
   "HeaderA"  "HeaderB"
  1           "first"
  2           "second"
 
 julia> sheet = xf["mysheet"]
-4×2 XLSX.Worksheet: ["mysheet"](A1:B4)
+4×2 Worksheet: ["mysheet"](A1:B4)
 
 julia> sheet["A1:B3"]
-3×2 Array{Any,2}:
+3×2 Matrix{Any}:
   "HeaderA"  "HeaderB"
  1           "first"
  2           "second"
@@ -236,7 +237,7 @@ julia> sheet["A1:B3"]
 
 But indexing in a single cell will return a single value instead of a matrix.
 
-```julia
+```jldoctest tutorial
 julia> sheet["A1"]
 "HeaderA"
 ```
@@ -244,9 +245,9 @@ julia> sheet["A1"]
 If you don't know the desired range in advance, you can take advantage of the
 [`XLSX.readtable`](@ref) and [`XLSX.gettable`](@ref) methods.
 
-```julia
+```jldoctest tutorial
 julia> dtable = XLSX.readtable("myfile.xlsx", "mysheet")
-XLSX.DataTable(Any[Any[1, 2, 3], Any["first", "second", "third"]], [:HeaderA, :HeaderB], Dict(:HeaderB => 2, :HeaderA => 1))
+XLSX.DataTable with 2 columns and 3 rows.
 
 julia> m = hcat(dtable.data...)
 3×2 Matrix{Any}:
@@ -270,7 +271,7 @@ doesn't fit into memory.
 The following example shows how you would read worksheet cells, one row at a time,
 where `myfile.xlsx` is a spreadsheet that doesn't fit into memory.
 
-```julia
+```jldoctest tutorial
 julia> XLSX.openxlsx("myfile.xlsx", enable_cache=false) do f
            sheet = f["mysheet"]
            for r in XLSX.eachrow(sheet)
@@ -278,10 +279,9 @@ julia> XLSX.openxlsx("myfile.xlsx", enable_cache=false) do f
               rn = XLSX.row_number(r) # `SheetRow` row number
               v1 = r[1]    # will read value at column 1
               v2 = r["B"]  # will read value at column 2
-
               println("v1=$v1, v2=$v2")
            end
-      end
+       end
 v1=HeaderA, v2=HeaderB
 v1=1, v2=first
 v1=2, v2=second
@@ -291,7 +291,7 @@ v1=3, v2=third
 You could also stream tabular data using `XLSX.eachtablerow(sheet)`, which is the underlying iterator in the `gettable` method.
 Check docstrings for `XLSX.eachtablerow` for more advanced options.
 
-```julia
+```jldoctest tutorial
 julia> XLSX.openxlsx("myfile.xlsx", enable_cache=false) do f
            sheet = f["mysheet"]
            for r in XLSX.eachtablerow(sheet)
@@ -299,7 +299,6 @@ julia> XLSX.openxlsx("myfile.xlsx", enable_cache=false) do f
                rn = XLSX.row_number(r) # `TableRow` row number
                v1 = r[1] # will read value at table column 1
                v2 = r[:HeaderB] # will read value at column labeled `:HeaderB`
-
                println("v1=$v1, v2=$v2")
             end
        end
@@ -309,6 +308,9 @@ v1=3, v2=third
 ```
 
 ## Writing Excel Files
+
+This section shows ways of writing values. For the ways of creating, opening and saving
+workbooks, see [Creating and editing workbooks](creatingWorkbooks.md).
 
 ### Create New Files
 
@@ -414,13 +416,14 @@ julia> using Dates
 julia> import DataFrames, XLSX
 
 julia> df = DataFrames.DataFrame(integers=[1, 2, 3, 4], strings=["Hey", "You", "Out", "There"], floats=[10.2, 20.3, 30.4, 40.5], dates=[Date(2018,2,20), Date(2018,2,21), Date(2018,2,22), Date(2018,2,23)], times=[Dates.Time(19,10), Dates.Time(19,20), Dates.Time(19,30), Dates.Time(19,40)], datetimes=[Dates.DateTime(2018,5,20,19,10), Dates.DateTime(2018,5,20,19,20), Dates.DateTime(2018,5,20,19,30), Dates.DateTime(2018,5,20,19,40)])
-4×6 DataFrames.DataFrame
-│ Row │ integers │ strings │ floats │ dates      │ times    │ datetimes           │
-├─────┼──────────┼─────────┼────────┼────────────┼──────────┼─────────────────────┤
-│ 1   │ 1        │ Hey     │ 10.2   │ 2018-02-20 │ 19:10:00 │ 2018-05-20T19:10:00 │
-│ 2   │ 2        │ You     │ 20.3   │ 2018-02-21 │ 19:20:00 │ 2018-05-20T19:20:00 │
-│ 3   │ 3        │ Out     │ 30.4   │ 2018-02-22 │ 19:30:00 │ 2018-05-20T19:30:00 │
-│ 4   │ 4        │ There   │ 40.5   │ 2018-02-23 │ 19:40:00 │ 2018-05-20T19:40:00 │
+4×6 DataFrame
+ Row │ integers  strings  floats   dates       times     datetimes
+     │ Int64     String   Float64  Date        Time      DateTime
+─────┼───────────────────────────────────────────────────────────────────────
+   1 │        1  Hey         10.2  2018-02-20  19:10:00  2018-05-20T19:10:00
+   2 │        2  You         20.3  2018-02-21  19:20:00  2018-05-20T19:20:00
+   3 │        3  Out         30.4  2018-02-22  19:30:00  2018-05-20T19:30:00
+   4 │        4  There       40.5  2018-02-23  19:40:00  2018-05-20T19:40:00
 
 julia> XLSX.writetable("df.xlsx", df)
 ```
@@ -441,19 +444,21 @@ arguments.
 julia> import DataFrames, XLSX
 
 julia> df1 = DataFrames.DataFrame(COL1=[10,20,30], COL2=["Fist", "Sec", "Third"])
-3×2 DataFrames.DataFrame
-│ Row │ COL1 │ COL2  │
-├─────┼──────┼───────┤
-│ 1   │ 10   │ Fist  │
-│ 2   │ 20   │ Sec   │
-│ 3   │ 30   │ Third │
+3×2 DataFrame
+ Row │ COL1   COL2
+     │ Int64  String
+─────┼───────────────
+   1 │    10  Fist
+   2 │    20  Sec
+   3 │    30  Third
 
 julia> df2 = DataFrames.DataFrame(AA=["aa", "bb"], AB=[10.1, 10.2])
-2×2 DataFrames.DataFrame
-│ Row │ AA │ AB   │
-├─────┼────┼──────┤
-│ 1   │ aa │ 10.1 │
-│ 2   │ bb │ 10.2 │
+2×2 DataFrame
+ Row │ AA      AB
+     │ String  Float64
+─────┼─────────────────
+   1 │ aa         10.1
+   2 │ bb         10.2
 
 julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, :REPORT_B => df2)
 ```
@@ -527,14 +532,14 @@ julia> using Dates
 julia> import DataFrames, XLSX
 
 julia> df = DataFrames.DataFrame(integers=[1, 2, 3, 4], strings=["Hey", "You", "Out", "There"], floats=[10.2, 20.3, 30.4, 40.5], dates=[Date(2018,2,20), Date(2018,2,21), Date(2018,2,22), Date(2018,2,23)], times=[Dates.Time(19,10), Dates.Time(19,20), Dates.Time(19,30), Dates.Time(19,40)], datetimes=[Dates.DateTime(2018,5,20,19,10), Dates.DateTime(2018,5,20,19,20), Dates.DateTime(2018,5,20,19,30), Dates.DateTime(2018,5,20,19,40)])
-4×6 DataFrames.DataFrame
-│ Row │ integers │ strings │ floats  │ dates      │ times    │ datetimes           │
-│     │ Int64    │ String  │ Float64 │ Date       │ Time     │ DateTime            │
-├─────┼──────────┼─────────┼─────────┼────────────┼──────────┼─────────────────────┤
-│ 1   │ 1        │ Hey     │ 10.2    │ 2018-02-20 │ 19:10:00 │ 2018-05-20T19:10:00 │
-│ 2   │ 2        │ You     │ 20.3    │ 2018-02-21 │ 19:20:00 │ 2018-05-20T19:20:00 │
-│ 3   │ 3        │ Out     │ 30.4    │ 2018-02-22 │ 19:30:00 │ 2018-05-20T19:30:00 │
-│ 4   │ 4        │ There   │ 40.5    │ 2018-02-23 │ 19:40:00 │ 2018-05-20T19:40:00 │
+4×6 DataFrame
+ Row │ integers  strings  floats   dates       times     datetimes
+     │ Int64     String   Float64  Date        Time      DateTime
+─────┼───────────────────────────────────────────────────────────────────────
+   1 │        1  Hey         10.2  2018-02-20  19:10:00  2018-05-20T19:10:00
+   2 │        2  You         20.3  2018-02-21  19:20:00  2018-05-20T19:20:00
+   3 │        3  Out         30.4  2018-02-22  19:30:00  2018-05-20T19:30:00
+   4 │        4  There       40.5  2018-02-23  19:40:00  2018-05-20T19:40:00
 
 julia> XLSX.writetable("output_table.xlsx", df, overwrite=true, sheetname="report", anchor_cell="B2")
 
@@ -546,17 +551,17 @@ XLSXFile("output_table.xlsx") containing 1 Worksheet
 
 
 julia> s = f["report"]
-6×7 XLSX.Worksheet: ["report"](A1:G6)
+6×7 Worksheet: ["report"](A1:G6)
 
 julia> df2 = XLSX.eachtablerow(s) |> DataFrames.DataFrame
-4×6 DataFrames.DataFrame
-│ Row │ integers │ strings │ floats  │ dates      │ times    │ datetimes           │
-│     │ Int64    │ String  │ Float64 │ Date       │ Time     │ DateTime            │
-├─────┼──────────┼─────────┼─────────┼────────────┼──────────┼─────────────────────┤
-│ 1   │ 1        │ Hey     │ 10.2    │ 2018-02-20 │ 19:10:00 │ 2018-05-20T19:10:00 │
-│ 2   │ 2        │ You     │ 20.3    │ 2018-02-21 │ 19:20:00 │ 2018-05-20T19:20:00 │
-│ 3   │ 3        │ Out     │ 30.4    │ 2018-02-22 │ 19:30:00 │ 2018-05-20T19:30:00 │
-│ 4   │ 4        │ There   │ 40.5    │ 2018-02-23 │ 19:40:00 │ 2018-05-20T19:40:00 │
+4×6 DataFrame
+ Row │ integers  strings  floats   dates       times     datetimes
+     │ Int64     String   Float64  Date        Time      DateTime
+─────┼───────────────────────────────────────────────────────────────────────
+   1 │        1  Hey         10.2  2018-02-20  19:10:00  2018-05-20T19:10:00
+   2 │        2  You         20.3  2018-02-21  19:20:00  2018-05-20T19:20:00
+   3 │        3  Out         30.4  2018-02-22  19:30:00  2018-05-20T19:30:00
+   4 │        4  There       40.5  2018-02-23  19:40:00  2018-05-20T19:40:00
 ```
 Some other packages provide functions (such as `CSV.read`) that can take a sink function 
 to accept a `Tables.jl` table. `XLSXFile` can serve as such a sink function, allowing 

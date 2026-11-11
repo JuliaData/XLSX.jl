@@ -70,6 +70,8 @@ julia> setPlotAreaLine(c; color = "000000");
 julia> setAxisLine(c, getChartAxes(c, :value)[1]; color = "000000", width = 1);
 ```
 
+![Two column charts side by side. Left, Excel's default formatting. Right, the first series filled red with a dotted black outline, and a black border round the plot area](../images/chartFormat_fill.png)
+
 Widths are points, as in Excel's own boxes. Dash, cap and compound take the
 DrawingML name or Excel's name for the same thing, whichever you find easier to
 remember:
@@ -257,6 +259,8 @@ julia> getDataPointMarker(lc, only(getSeriesDataPoints(lc, 1))).symbol
 :diamond
 ```
 
+![Two line charts with markers. Left, the default markers. Right, the first series with larger red circles, and a diamond on its third point](../images/chartFormat_markers.png)
+
 `point` counts from 1. A point's marker overrides the series' marker for that
 point; [`getMarkerFill`](@ref) resolves the two rungs the same way
 [`getSeriesFill`](@ref) resolves shape properties.
@@ -329,6 +333,8 @@ julia> setLabelFlag(c, 1, :value, true);           # label each point with its v
 
 julia> setLabelFlag(c, 1, :categoryName, true);    # and its category
 ```
+
+![Two column charts. Right, the first series' columns labelled with their values in bold](../images/chartFormat_labels.png)
 
 The parts are `:value`, `:seriesName`, `:categoryName` (the X value on a scatter
 chart), `:legendKey`, `:percent` (pie and doughnut charts) and `:bubbleSize`
@@ -459,6 +465,8 @@ julia> getLegendPos(c), getLegendOverlay(c)
 (:tr, true)
 ```
 
+![Two column charts. Right, the title CO2 emissions in rich text, with a subscript 2 and emissions in bold red, a value axis titled £m, and the legend at the top right over the plot area](../images/chartFormat_titles.png)
+
 A legend shows an entry for every series, in series order. Entries can be
 hidden, but not reordered. [`setLegendEntryDeleted`](@ref) hides or shows the
 entries of the series at the given positions, in one rebuild:
@@ -553,6 +561,8 @@ julia> setAxisOrientation(c, catax, :maxMin);          # first category at the t
 julia> setAxisCrosses(c, ax, :max);                    # keep the value axis at the bottom
 ```
 
+![Two bar charts of values between -55% and 65%. Right, the value axis runs from -100% to 100% in steps of 25% without minus signs, with no gridlines, the first category at the top, the value axis at the bottom and the category labels at the left edge](../images/chartFormat_axes.png)
+
 That pair is the usual fix for a bar chart, which plots its first category at
 the bottom: reversing the categories moves the value axis to the top, and
 crossing at the maximum category moves it back.
@@ -571,6 +581,8 @@ julia> grp = only(getChartGroups(bc));
 
 julia> setGroupGapWidth(bc, grp, 50);                  # % of a bar's width, 0–500
 ```
+
+![Two stacked bar charts. Right, the gap between bars set to 50%, so the bars are wider](../images/chartFormat_gap.png)
 
 [`setGroupOverlap`](@ref) sets the overlap, from −100 to 100. Both are
 percentages, as in Excel's boxes. A stacked group needs an overlap of 100 for

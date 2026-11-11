@@ -19,7 +19,7 @@ apart:
   optionally a style, an autofilter and a totals row.
   (Shown below on the left. The Table ribbon is shown when a Table is selected)
 
-![image|320x500](../images/tableVsRange.png)
+![An Excel Table with filter buttons and banding, beside the same data as a plain range, with the Table Design ribbon shown](../images/tableVsRange.png)
 
 In this guide, a capitalised **Table** always means the native Excel object.
 Where a function name is ambiguous, the argument type resolves it: `gettable(sheet)`
@@ -40,6 +40,33 @@ resolve: the header row, the data rows and the totals row are all defined.
 XLSX.jl represents a Table with the `XLSX.Table` type, holding its `name`, `ref`
 (range), `columns`, whether it has a totals row, and its style.
 
+## Quick start
+
+To write a `DataFrame` (or any Tables.jl table) as an Excel Table, pass `as_table=true`:
+
+```julia
+using XLSX, DataFrames
+
+df = DataFrame(region=["North", "South", "East"], revenue=[1000, 1500, 900])
+XLSX.writetable("sales.xlsx", df; as_table=true, table_name="Sales")
+```
+
+To turn cells already in a sheet into a Table, give their range, header row included, to
+[`XLSX.addtable!`](@ref):
+
+```julia
+XLSX.addtable!(sheet, "A1:C4"; name="Sales", style="TableStyleMedium2")
+```
+
+To read a Table back, name it:
+
+```julia
+df = XLSX.readto("sales.xlsx", DataFrame; table_name="Sales")
+```
+
+The rest of this page covers each of these in full, and adding totals rows, appending
+rows and deleting Tables.
+
 ## Reading Tables
 
 ### Finding the Tables on a worksheet
@@ -58,7 +85,7 @@ XLSXFile("tables.xlsx") containing 2 Worksheets
                Sheet2 11x3          A1:C11
 
 julia> s = f["Sheet1"]
-8×7 XLSX.Worksheet: ["Sheet1"](A1:G8)
+8×7 Worksheet: ["Sheet1"](A1:G8)
 
 julia> XLSX.tables(s)
 2-element Vector{XLSX.Table}:
@@ -224,7 +251,7 @@ XLSXFile("blank.xlsx") containing 1 Worksheet
                Sheet1 1x1           A1:A1
 
 julia> s = f[1]
-1×1 XLSX.Worksheet: ["Sheet1"](A1:A1)
+1×1 Worksheet: ["Sheet1"](A1:A1)
 
 julia> s["A1"] = "region"; s["B1"] = "revenue"; s["C1"] = "margin";
 
@@ -245,7 +272,7 @@ XLSX.Table: "Sales"
 julia> writexlsx("NowATable.xlsx", f, overwrite=true)
 ```
 
-![image|320x500](../images/tableAddtable.png)
+![The Sales data turned into an Excel Table with the TableStyleMedium2 style](../images/tableAddtable.png)
 
 `addtable!` only wraps existing cells: it writes no header, data or totals values of its
 own. If `name` is omitted, a unique name is generated (`"Table1"`, `"Table2"`, …).
@@ -269,7 +296,7 @@ gallery in Excel's Table Design ribbon:
 | Dark | `"TableStyleDark1"` … `"TableStyleDark11"` |
 | None | `"None"` |
 
-![image|320x500](../images/tableStyle.png)
+![Excel's gallery of Table styles: light, medium and dark](../images/tableStyle.png)
 
 The first light style shown above corresponds to `None` - there are only 21 light 
 styles. `style` is not validated against this list, because a workbook may also define 
@@ -316,7 +343,7 @@ This writes the data, wraps it as a Table named `Sales`, and adds a totals row b
 in one step — equivalent to calling [`XLSX.writetable`](@ref) with `as_table=true` and then
 [`XLSX.settotals!`](@ref) separately. `totals` requires `as_table=true`.
 
-![image|320x500](../images/tableTotals.png)
+![An Excel Table with a totals row: a Total label, a sum and an average](../images/tableTotals.png)
 
 Custom formulas work here too, subject to the same aggregation requirement described
 under [Totals rows](@ref):
@@ -401,7 +428,7 @@ as `"Total"` above.
 A **`(:custom, formula)`** tuple covers Excel's *More Functions…* option, for a totals
 row cell that isn't one of the built-ins.
 
-![image|320x500](../images/tableFunctions.png)
+![A totals row cell's drop-down list of functions: None, Average, Count, Sum and others](../images/tableFunctions.png)
 
 ```julia
 julia> XLSX.settotals!(s, "Sales", "margin" => (:custom, "SUBTOTAL(109,Sales[revenue])-SUBTOTAL(109,Sales[margin])"))
@@ -511,7 +538,7 @@ julia> df = DataFrame(margin=[260], revenue=[1200], region=["West"])  # scramble
 
 julia> XLSX.appendtable!(s, "Sales", df)   # matched by name, not position
 ```
-![image|320x500](../images/tableAppend.png)
+![An Excel Table extended by appended rows](../images/tableAppend.png)
 
 ### Deleting a Table
 
@@ -539,7 +566,7 @@ julia> XLSX.deletetable!(s, "Sales")
 julia> writexlsx("Sales3.xlsx", f, overwrite=true)
 ```
 
-![image|320x500](../images/tableDelete.png)
+![The sheet after deleting the Table: the data, its formatting and the totals stay as plain cells, the totals formulas now referring to cell ranges](../images/tableDelete.png)
 
 ```
 julia> s[t.ref] = ""        # optional: clear the data too
@@ -588,3 +615,9 @@ preserved as they are, rather than being interpreted:
 
 An `XLSXFile` must be opened in write mode for any of the Table modification functions
 to work, otherwise an error is thrown.
+
+## See also
+
+- API: [Tables](../api/tables.md)
+- Related guides: [Filtering](../sheets/autoFilter.md), [Inserting and deleting rows and columns](../sheets/insertDelete.md), [Referring to data](@ref) in a chart
+- Examples: [A diverging stacked bar chart](@ref)

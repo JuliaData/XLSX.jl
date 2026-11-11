@@ -4,6 +4,9 @@
 CurrentModule = XLSX.Charts
 ```
 
+Guide: [Formatting charts](../charts/formattingCharts.md), which covers axes, gridlines,
+markers and data labels.
+
 ## Axes
 
 ```@docs

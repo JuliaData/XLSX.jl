@@ -766,7 +766,7 @@ function open_or_read_xlsx(source::Union{IO,AbstractString}, _read::Bool, enable
                 throw(XLSXError("Sheet $target_sheet not found: $(xf.source) has $(length(wb.sheets)) sheet(s)."))
             wb.sheets[target_sheet]
         else
-            s = findfirst(s -> s.name == target_sheet, wb.sheets)
+            s = _sheet_index(wb, target_sheet)
             isnothing(s) ? nothing : wb.sheets[s]
         end
         isnothing(ws) ? nothing : get_relationship_target_by_id("xl", wb, ws.relationship_id)

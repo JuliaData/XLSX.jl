@@ -39,7 +39,7 @@ julia> XLSX.writexlsx("revenue.xlsx", f)
 "C:\\Users\\...\\revenue.xlsx"
 ```
 
-![image|320x500](../images/chart_simple_bar.png)
+![A column chart titled Revenue with one column for each of North, South, East and West](../images/chart_simple_bar.png)
 
 `anchor` is required, and is the cell range the chart covers — its top-left and
 bottom-right corners on the sheet. `title` is `nothing` for the title Excel
@@ -63,6 +63,8 @@ schema, where the data block is required.
 
 and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`, and
 `:combo`, a column and a line chart in one; see [Combo charts](#Combo-charts).
+
+![Every chart kind addChart creates, each titled with its kind, from :column to :combo, as Excel draws them in a workbook made by XLSX.newxlsx](../images/chartKinds.png)
 
 Each comes from a chart part Excel itself wrote, kept verbatim in the package,
 so a created chart is what Excel would have produced for that kind — including
@@ -125,7 +127,7 @@ julia> only(getChartSeries(tc)).name
 "Amount"
 ```
 
-![image|320x500](../images/chart_from_Table.png)
+![An Excel Table of sales by item beside a column chart of its Amount column](../images/chart_from_Table.png)
 
 Whatever you pass, the chart part stores a sheet-qualified absolute reference,
 as Excel does. The cells' current values are cached in the chart at the same
@@ -299,6 +301,8 @@ julia> addSeries(cc, "B2:B5"; categories = "A2:A5", name_ref = "B1", group = :co
 julia> addSeries(cc, "C2:C5"; categories = "A2:A5", name_ref = "C1", group = :line);
 ```
 
+![A combo chart titled Units and margin: units as columns against the left axis, and margin as a line against a second axis on the right](../images/chartCombo.png)
+
 `group` is `:column` or `:line`. It is required on a combo chart and refused on
 any other, so a series can't land in a group by accident. Each series is
 formatted as Excel formats one in that group, and takes the options of a
@@ -360,3 +364,9 @@ One consequence worth knowing: a workbook from [`XLSX.newxlsx()`](@ref) carries 
 Office theme than current Excel, so charts created in a new workbook show that
 theme's colors rather than the ones Excel 365 would use. A chart added to a
 workbook Excel created uses that workbook's theme and matches.
+
+## See also
+
+- API: [Charts](../api/charts.md), [Chart axes and elements](../api/chartElements.md)
+- Related guides: [Formatting charts](formattingCharts.md), [Creating chartEx charts](creatingChartEx.md)
+- Examples: [Adding a simple native Excel chart](@ref), [A diverging stacked bar chart](@ref)
