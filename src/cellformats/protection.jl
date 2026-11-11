@@ -56,8 +56,10 @@ setCellProtection(ws::Worksheet, ref::CellRef; kw...) = setCellProtection(ws, Ce
 setCellProtection(ws::Worksheet, rng::CellRange; kw...) = _set_cell_protection!(ws, Any[rng]; kw...)
 setCellProtection(ws::Worksheet, ref::AbstractString; kw...) = _set_cell_protection!(ws, _rowcol_parts(ws, ref); kw...)
 
-const _RowsOrCols = Union{Integer,AbstractVector{<:Integer},Colon}
-function setCellProtection(ws::Worksheet, rows::_RowsOrCols, cols::_RowsOrCols; kw...)
+# Not `_RowsOrCols`: setdata.jl defines that for indexing, and Julia before 1.12
+# refuses to redefine a constant.
+const _ProtectionRowsOrCols = Union{Integer,AbstractVector{<:Integer},Colon}
+function setCellProtection(ws::Worksheet, rows::_ProtectionRowsOrCols, cols::_ProtectionRowsOrCols; kw...)
     dim = _protection_dimension(ws)
     rs = rows isa Colon ? (row_number(dim.start):row_number(dim.stop)) : rows
     cs = cols isa Colon ? (column_number(dim.start):column_number(dim.stop)) : cols
