@@ -91,6 +91,7 @@ testgroup("Files", [
     "file modes"              => "files/modes.jl",
     "FileIO"                  => "files/fileio.jl",
     "write and save"          => "files/write-save.jl",
+    "streaming writes"        => "files/streaming.jl",
     "read internals"          => "files/read-internals.jl",
     "differential reads"      => "files/differential.jl",
 ])

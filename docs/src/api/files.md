@@ -19,6 +19,18 @@ XLSX.writexlsx
 XLSX.writetable
 ```
 
+## Streaming writes
+
+Guide: [Writing large files](@ref). [`XLSX.writetable`](@ref) streams a whole table with
+`streaming=true`; `XLSX.addsheet!` adds a sheet to a `StreamWriter`.
+
+```@docs
+XLSX.streamxlsx
+XLSX.writerow!
+XLSX.StreamWriter
+XLSX.StreamSheet
+```
+
 ## Files (using FileIO)
 
 Guide: [FileIO Tutorial](../tutorial/FileIOtutorial.md).

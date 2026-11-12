@@ -89,47 +89,10 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
     if !all(values(xf.files))
         throw(XLSXError("Some internal files were not loaded into memory for unknown reasons."))
     end
-    if output_source isa AbstractString && !overwrite
-        isfile(output_source) && throw(XLSXError("Output file $output_source already exists."))
-    end
-
-    update_workbook_xml!(xf)
-    update_app_xml!(xf)
-    
-    wb=get_workbook(xf)
+    _check_overwrite(output_source, overwrite)
 
     ZipArchives.ZipWriter(output_source) do xlsx
-
-        # write XML files not in cache
-        for f in keys(xf.files)
-            if !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", f)
-                ZipArchives.zip_newfile(xlsx, f; compress=true)
-                xml_str = XML.write(xf.data[f]; indentsize=0)
-                write(xlsx, xml_str)
-            end
-        end
-        # write worksheet files from cache (cache must be enabled in write mode)
-        for sheet_no in 1:sheetcount(wb)
-            if is_chartsheet(wb, getsheet(wb, sheet_no).name)
-                continue
-            end
-            pieces = update_single_sheet!(wb, sheet_no, true)
-            f = get_relationship_target_by_id("xl", wb, getsheet(wb, sheet_no).relationship_id)
-            ZipArchives.zip_newfile(xlsx, f; compress=true)
-            foreach(p -> write(xlsx, p), pieces)
-        end
-
-        # write binary files
-        for f in keys(xf.binary_data)
-            ZipArchives.zip_newfile(xlsx, f; compress=true)
-            write(xlsx, xf.binary_data[f])
-        end
-        
-        # write sharedString table
-        if !isempty(get_sst(wb))
-            ZipArchives.zip_newfile(xlsx, "xl/sharedStrings.xml"; compress=true)
-            print(xlsx, generate_sst_xml_string(wb))
-        end        
+        _write_package!(xlsx, xf)
     end
 
     if !(output_source isa IO)
@@ -139,6 +102,52 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
         return nothing
     end
 
+end
+
+_check_overwrite(::IO, ::Bool) = nothing
+function _check_overwrite(output_source::AbstractString, overwrite::Bool)
+    !overwrite && isfile(output_source) && throw(XLSXError("Output file $output_source already exists."))
+    return nothing
+end
+
+# Write every part of `xf` into the zip `xlsx`, except the worksheets numbered in
+# `streamed`, which `streamxlsx` has already written.
+function _write_package!(xlsx::ZipArchives.ZipWriter, xf::XLSXFile; streamed=())
+    update_workbook_xml!(xf)
+    update_app_xml!(xf)
+
+    wb = get_workbook(xf)
+
+    # write XML files not in cache
+    for f in keys(xf.files)
+        if !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", f)
+            ZipArchives.zip_newfile(xlsx, f; compress=true)
+            xml_str = XML.write(xf.data[f]; indentsize=0)
+            write(xlsx, xml_str)
+        end
+    end
+    # write worksheet files from cache (cache must be enabled in write mode)
+    for sheet_no in 1:sheetcount(wb)
+        if sheet_no in streamed || is_chartsheet(wb, getsheet(wb, sheet_no).name)
+            continue
+        end
+        pieces = update_single_sheet!(wb, sheet_no, true)
+        ZipArchives.zip_newfile(xlsx, get_worksheet_internal_file(getsheet(wb, sheet_no)); compress=true)
+        foreach(p -> write(xlsx, p), pieces)
+    end
+
+    # write binary files
+    for f in keys(xf.binary_data)
+        ZipArchives.zip_newfile(xlsx, f; compress=true)
+        write(xlsx, xf.binary_data[f])
+    end
+
+    # write sharedString table
+    if !isempty(get_sst(wb))
+        ZipArchives.zip_newfile(xlsx, "xl/sharedStrings.xml"; compress=true)
+        print(xlsx, generate_sst_xml_string(wb))
+    end
+    return nothing
 end
 
 get_worksheet_internal_file(ws::Worksheet) = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
@@ -253,6 +262,25 @@ function update_worksheets_xml!(xl::XLSXFile; full=false)
 end
 function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{Vector{UInt8}}}
     sheet = getsheet(wb, sheet_no)
+    if full # need to reconstruct row and cell data from cache
+        # The sheet in pieces, to be written one after another: what comes before
+        # the rows, the rows from the WorksheetCache a chunk at a time, and what
+        # comes after. Joining them first would copy the whole sheet again.
+        head, tail = _sheet_xml_frame(sheet, get_dimension(sheet))
+        pieces = [head]
+        append!(pieces, get_cache_rows(sheet, _prefix_colon(sheet)))
+        push!(pieces, tail)
+        return pieces
+    else
+        set_worksheet_xml_document!(sheet, _worksheet_doc_copy(sheet)) # no need to save full reconstructed data
+        return nothing
+    end
+end
+
+_prefix_colon(sheet::Worksheet) = (pfx = get_prefix(sheet); pfx == "" ? pfx : pfx * ":")
+
+# A copy of the sheet's XML (without its rows), checked to be a worksheet.
+function _worksheet_doc_copy(sheet::Worksheet)::XML.Node
     doc = copynode(get_worksheet_xml_document(sheet))
     xroot = xml_root_element(doc)
 
@@ -261,48 +289,45 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
     spreadsheet_ns_declared = (SPREADSHEET_NAMESPACE_XPATH_ARG in values(ns_map))
     spreadsheet_ns_declared || throw(XLSXError("Unsupported Spreadsheet XML namespace."))
     localname(xroot) !=   "worksheet" && throw(XLSXError("Malformed Excel file. Expected root node named `worksheet` in worksheet XML file."))
+    return doc
+end
 
-    if full # need to reconstruct row and cell data from cache
+# The sheet's XML before its rows, up to and including `<sheetData>`, and after them,
+# from `</sheetData>`. `dimension` is written as the sheet's `<dimension>`, or for
+# `nothing` (a sheet streamed without knowing its size) the element is left out.
+function _sheet_xml_frame(sheet::Worksheet, dimension::Union{Nothing,CellRange})::Tuple{Vector{UInt8},Vector{UInt8}}
+    doc = _worksheet_doc_copy(sheet)
 
-        # update worksheet dimension
-        i, j = get_idces(doc, "worksheet", "dimension")
-        if !isnothing(j)
-            dimension_node = doc[i][j]
-            dimension_node["ref"] = string(get_dimension(sheet))
+    # update worksheet dimension
+    i, j = get_idces(doc, "worksheet", "dimension")
+    if !isnothing(j)
+        if isnothing(dimension)
+            deleteat!(doc[i].children, j)
+        else
+            doc[i][j]["ref"] = string(dimension)
         end
-
-        pfx = get_prefix(sheet)
-        pfx = pfx == "" ? pfx : pfx * ":"
-
-        empty_doc = XML.write(doc)
-
-        idx = findfirst("<$(pfx)sheetData/>", empty_doc)
-        idx === nothing && throw(XLSXError("<$(pfx)sheetData/> placeholder not found when reconstructing worksheet '$(sheet.name)'"))
-        new_doc=IOBuffer()
-        print(new_doc, empty_doc[begin:first(idx)-1])
-
-        # create <sheetData> with any attributes
-        print(new_doc, "<$(pfx)sheetData")
-        i, j = get_idces(doc, "worksheet", "sheetData")
-        a = XML.attributes(doc[i][j])
-        if !isnothing(a)
-            for (k, v) in a
-                print(new_doc, " ",k,"=\"",v,"\"")
-            end
-        end
-        print(new_doc, ">\n")
-        # The sheet in pieces, to be written one after another: what comes before
-        # the rows, the rows from the WorksheetCache a chunk at a time, and what
-        # comes after. Joining them first would copy the whole sheet again.
-        pieces = [take!(new_doc)]
-        append!(pieces, get_cache_rows(sheet, pfx))
-        push!(pieces, Vector{UInt8}("  </$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx)))))
-        return pieces
-
-    else
-        set_worksheet_xml_document!(sheet, doc) # no need to save full reconstructed data
-        return nothing
     end
+
+    pfx = _prefix_colon(sheet)
+    empty_doc = XML.write(doc)
+
+    idx = findfirst("<$(pfx)sheetData/>", empty_doc)
+    idx === nothing && throw(XLSXError("<$(pfx)sheetData/> placeholder not found when reconstructing worksheet '$(sheet.name)'"))
+    head = IOBuffer()
+    print(head, empty_doc[begin:first(idx)-1])
+
+    # create <sheetData> with any attributes
+    print(head, "<$(pfx)sheetData")
+    i, j = get_idces(doc, "worksheet", "sheetData")
+    a = XML.attributes(doc[i][j])
+    if !isnothing(a)
+        for (k, v) in a
+            print(head, " ",k,"=\"",v,"\"")
+        end
+    end
+    print(head, ">\n")
+    tail = Vector{UInt8}("  </$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx))))
+    return take!(head), tail
 end
 
 const _NO_ROW_ATTRS = Dict{String,String}()
@@ -574,19 +599,7 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         cell = getcell(r, c)
         cell isa EmptyCell && continue
 
-        write(row_node, w.c_open)
-        _write_cellref(row_node, w, cell.ref)
-        write(row_node, "\"")
-
-        if cell.datatype != CT_EMPTY
-            write(row_node, " t=\"", encode(cell.datatype), "\"")
-        end
-
-        if cell.style != UInt32(0)
-            write(row_node, " s=\"")
-            _write_number(row_node, w, cell.style)
-            write(row_node, "\"")
-        end
+        _write_cell_open!(row_node, w, cell.ref, encode(cell.datatype), cell.style)
 
         if cell.meta != UInt64(0)
             write(row_node, " cm=\"")
@@ -595,18 +608,13 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         end
 
         has_formula = cell.formula
-        has_value = false
-        
-        if cell.datatype == CT_FLOAT || cell.datatype == CT_DATETIME || cell.datatype == CT_TIME
-            v_f = reinterpret(Float64, cell.value)
-            has_value = true
-        elseif cell.datatype == CT_STRING || cell.datatype == CT_DATE || cell.datatype == CT_INT || cell.datatype == CT_BOOL
-            v_i = reinterpret(Int64, cell.value)
-            has_value = true
-        elseif cell.datatype == CT_ERROR
-            v_e = encode(reinterpret(CellErrorType, cell.value))
-            has_value = !isempty(v_e)
-        elseif cell.datatype != CT_EMPTY
+        is_raw = _is_raw_value_type(cell.datatype)
+        has_value = is_raw
+        v_other = ""
+        if cell.datatype == CT_ERROR
+            v_other = encode(reinterpret(CellErrorType, cell.value))
+            has_value = !isempty(v_other)
+        elseif !is_raw && cell.datatype != CT_EMPTY
             v_other = getdata(ws, cell)
             has_value = !ismissing(v_other) && v_other != ""
         end
@@ -618,17 +626,11 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
             if has_formula
                 add_node_formula!(row_node, cell.ref, ws, pfx)
             end
-            if has_value
+            if is_raw
+                _write_cell_v!(row_node, w, cell.datatype, cell.value)
+            elseif has_value
                 write(row_node, w.v_open)
-                if cell.datatype == CT_FLOAT || cell.datatype == CT_DATETIME || cell.datatype == CT_TIME
-                    _write_number(row_node, w, v_f)
-                elseif cell.datatype == CT_STRING || cell.datatype == CT_DATE || cell.datatype == CT_INT || cell.datatype == CT_BOOL
-                    _write_number(row_node, w, v_i)
-                elseif cell.datatype == CT_ERROR
-                    write(row_node, v_e)
-                else
-                    print(row_node, v_other)
-                end
+                print(row_node, v_other)
                 write(row_node, w.v_close)
             end
             write(row_node, w.c_close)
@@ -636,6 +638,37 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
     end
 
     write(row_node, w.row_close)
+    return nothing
+end
+
+# Types whose `<v>` is the cell's stored value, written as a number: a string's is its
+# index in the shared string table.
+_is_raw_value_type(t::CellValueType) =
+    t == CT_FLOAT || t == CT_DATETIME || t == CT_TIME || t == CT_STRING || t == CT_DATE || t == CT_INT || t == CT_BOOL
+
+# `<c r="…"`, with the cell's type `t` (`""` for none) and style, leaving the tag open.
+function _write_cell_open!(io::IO, w::_RowWriter, ref::CellRef, t::AbstractString, style::Integer)
+    write(io, w.c_open)
+    _write_cellref(io, w, ref)
+    write(io, "\"")
+    isempty(t) || write(io, " t=\"", t, "\"")
+    if style != 0
+        write(io, " s=\"")
+        _write_number(io, w, style)
+        write(io, "\"")
+    end
+    return nothing
+end
+
+# The `<v>` of a cell whose type `_is_raw_value_type`, from its stored `value`.
+function _write_cell_v!(io::IO, w::_RowWriter, t::CellValueType, value::UInt64)
+    write(io, w.v_open)
+    if t == CT_FLOAT || t == CT_DATETIME || t == CT_TIME
+        _write_number(io, w, reinterpret(Float64, value))
+    else
+        _write_number(io, w, reinterpret(Int64, value))
+    end
+    write(io, w.v_close)
     return nothing
 end
 

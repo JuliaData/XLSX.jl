@@ -130,6 +130,15 @@ and saving it, and formatting a range. Give a name to keep the results in
 
     julia --project=envs/dev -t auto worksheet_write.jl after-my-change
 
+`stream_write.jl` compares `writetable` through the cell cache with streaming
+(`streaming=true`, with inline and with shared strings) by peak memory as well as time,
+allocations and file size, on 1,000,000 × 20 mixed columns and on the 100,000 × 8
+strings of `worksheet_write.jl`. Peak RSS only rises within a process, so each case
+runs in a fresh Julia process; a `data only` case gives the memory the data itself
+takes. It needs no fixtures, and takes a few minutes:
+
+    julia --project=envs/dev -t auto stream_write.jl after-my-change
+
 ### Maintainability check
 
 `maintainability.jl` measures maintainability signals over `src/` and compares them

@@ -482,29 +482,39 @@ function addtable!(sheet::Worksheet, ref::CellRange;
                     style::Union{AbstractString,Nothing}=nothing,
                     has_totals_row::Bool=false)::Table
 
-    xf = get_xlsxfile(sheet)
-    _require_writable(xf, "add a table")
-    wb = get_workbook(sheet)
-
-    name = _new_table_name(wb, sheet, name)
-    display_name = name
-    !_is_valid_table_display_name(display_name) &&
-        throw(XLSXError("Table displayName `$display_name` is not a valid identifier (must start with a letter or underscore, contain only letters, digits, underscores, or periods thereafter, and no spaces)."))
-    _is_cell_address_like(display_name) &&
-        throw(XLSXError("Table name `$display_name` is a cell address (such as `T1` or `R1C1`), which Excel does not allow."))
-
-    ref.stop.row_number == ref.start.row_number &&
-        throw(XLSXError("Table `ref` must span at least two rows (a header row plus at least one data row) — Excel does not support header-only tables. Got `$ref`."))
+    _require_writable(get_xlsxfile(sheet), "add a table")
+    name = _checked_new_table_name(sheet, name, ref)
 
     columns = _table_header_columns(sheet, ref)
     has_totals_row && _check_totals_row_empty(sheet, ref, name, columns)
 
     _check_table_overlap(sheet, ref, name)
+    _add_table_part!(sheet, ref, name, columns, style, has_totals_row)
+    return table(sheet, name)
+end
 
+# The name of a new table over `ref` (see `_new_table_name`), checked to be one Excel
+# accepts, and `ref` checked to have a data row.
+function _checked_new_table_name(sheet::Worksheet, name::AbstractString, ref::CellRange)::String
+    name = _new_table_name(get_workbook(sheet), sheet, name)
+    !_is_valid_table_display_name(name) &&
+        throw(XLSXError("Table displayName `$name` is not a valid identifier (must start with a letter or underscore, contain only letters, digits, underscores, or periods thereafter, and no spaces)."))
+    _is_cell_address_like(name) &&
+        throw(XLSXError("Table name `$name` is a cell address (such as `T1` or `R1C1`), which Excel does not allow."))
+
+    ref.stop.row_number == ref.start.row_number &&
+        throw(XLSXError("Table `ref` must span at least two rows (a header row plus at least one data row) — Excel does not support header-only tables. Got `$ref`."))
+    return name
+end
+
+# Write the part of a new table, checked already, and link it to `sheet`.
+function _add_table_part!(sheet::Worksheet, ref::CellRange, name::String, columns::Vector{String},
+                          style::Union{AbstractString,Nothing}, has_totals_row::Bool)
+    xf = get_xlsxfile(sheet)
     style_info = isnothing(style) ? nothing : TableStyleInfo(style, false, false, true, false)
 
-    id = next_table_id!(wb)
-    table_doc  = build_table_xml(id, name, display_name, ref, columns, has_totals_row, style_info)
+    id = next_table_id!(get_workbook(sheet))
+    table_doc  = build_table_xml(id, name, name, ref, columns, has_totals_row, style_info)
     table_path = new_table_filename(xf)
     xf.data[table_path]  = table_doc
     xf.files[table_path] = true
@@ -513,7 +523,7 @@ function addtable!(sheet::Worksheet, ref::CellRange;
     _attach_table_part!(xf, sheet, table_path)
 
     sheet.tables_cache = nothing
-    return table(sheet, name)
+    return nothing
 end
 
 addtable!(sheet::Worksheet, ref::AbstractString; kw...) = addtable!(sheet, CellRange(ref); kw...)
@@ -559,10 +569,16 @@ function _table_header_columns(sheet::Worksheet, ref::CellRange)::Vector{String}
             throw(XLSXError("Table header cell $(CellRef(header_row, c)) is empty; every column needs a header value before calling `addtable!`."))
         push!(columns, string(v))
     end
+    _check_table_columns(columns)
+    return columns
+end
+
+function _check_table_columns(columns::Vector{String})
+    any(isempty, columns) &&
+        throw(XLSXError("Table header row has an empty column name; every column of a table needs one."))
     length(unique(uppercase.(columns))) != length(columns) &&   # case-insensitive, as in Excel
         throw(XLSXError("Table header row contains duplicate column names."))
-
-    return columns
+    return nothing
 end
 
 # The last row of `ref`, about to be a totals row, must be empty, as `settotals!`

@@ -69,7 +69,7 @@ export
     readdata, getdata, gettable, readtable, readto,
     iserror, geterror,
     gettransposedtable, readtransposedtable,
-    writetable, writetable!,
+    writetable, writetable!, streamxlsx, writerow!,
     addDefinedName, deleteDefinedName, deleteAllDefinedNames,
     setFormula,
     # Formats
@@ -104,7 +104,7 @@ export
            getComment, getComments, getThreadedComment, getThreadedComments, getImages,
            getHyperlink, getHyperlinks,
            getDataValidation, getDataValidations,
-           Workbook, XLSXError, SchemeColor,
+           Workbook, XLSXError, SchemeColor, StreamWriter, StreamSheet,
            CellErrorType, XL_NULL, XL_DIV0, XL_VALUE, XL_REF, 
            XL_NAME, XL_NUM, XL_NA, XL_SPILL
     """))
@@ -166,6 +166,7 @@ include("save.jl")
 include("setdata.jl")
 include("writetable.jl")
 include("sheetops.jl")
+include("streamwrite.jl")
 include("rowcoledit.jl")
 include("rowcolformats.jl")
 include("shiftobjects.jl")

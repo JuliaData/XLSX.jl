@@ -161,6 +161,11 @@ julia> XLSX.setFormat(sh, "named_range"; format = "39") # specifies the built-in
 function setFormat end
 define_percell_spec_methods(:setFormat, :_setFormat, :FormatSpec)
 
+# The `numFmtId` of `format`, as `setFormat` takes it: a built-in format's id, or the id
+# of a custom format, added to the workbook if new.
+_format_id(wb::Workbook, format::AbstractString)::Int =
+    haskey(BUILTIN_FORMAT_CODES, format) ? BUILTIN_FORMAT_CODES[format] : get_new_formatId(wb, String(format))
+
 function _setFormat(sh::Worksheet, cellref::CellRef; spec::FormatSpec)::Int
     (; format) = spec
     _require_writable(sh, "set number format")
@@ -176,12 +181,7 @@ function _setFormat(sh::Worksheet, cellref::CellRef; spec::FormatSpec)::Int
         return isnothing(cell_format) ? 0 : cell_format.numFmtId
     end
 
-    # Resolve new format id: built-in lookup or next available custom id
-    new_formatid = if haskey(BUILTIN_FORMAT_CODES, format)
-        BUILTIN_FORMAT_CODES[format]
-    else
-        get_new_formatId(wb, format)
-    end
+    new_formatid = _format_id(wb, format)
 
     # numFmtId == 0 is the "General" default format — applyNumberFormat is redundant for it
     atts = new_formatid == 0 ?
