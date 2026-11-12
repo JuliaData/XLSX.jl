@@ -196,6 +196,53 @@ A streamed sheet is written in one pass, so it has limits:
   a row at a time whose length is unknown), the sheet's `<dimension>`, the range Excel
   records as used, is left out. Excel and XLSX.jl work it out from the rows.
 
+## Document properties
+
+A workbook's title, author, tags and other properties, shown in Excel's
+*File → Info*, are set with [`XLSX.setDocumentProperties`](@ref) and read with
+[`XLSX.getDocumentProperties`](@ref):
+
+```jldoctest docprops; setup = :(import XLSX; using Dates)
+julia> xf = XLSX.newxlsx();
+
+julia> XLSX.setDocumentProperties(xf; title="Quarterly sales", creator="Finance team",
+                                      keywords="sales; Q3", company="Acme Ltd")
+
+julia> p = XLSX.getDocumentProperties(xf);
+
+julia> (p.title, p.creator, p.company)
+("Quarterly sales", "Finance team", "Acme Ltd")
+```
+
+The properties are `title`, `subject`, `creator` (Excel's Author), `keywords` (Tags),
+`description` (Comments), `lastModifiedBy`, `category`, `contentStatus` (Status),
+`company`, `manager`, and the dates `created` and `modified`, which are in UTC. Only
+those given are changed, and `""` removes one.
+
+Custom properties, from Excel's *Advanced Properties → Custom*, hold a string, number,
+`Bool` or date each:
+
+```jldoctest docprops
+julia> XLSX.setCustomProperty(xf, "Project", "Apollo")
+
+julia> XLSX.setCustomProperty(xf, "Approved", true)
+
+julia> XLSX.setCustomProperty(xf, "Due", Date(2026, 6, 30))
+
+julia> XLSX.getCustomProperty(xf, "approved")    # names ignore case, as in Excel
+true
+
+julia> collect(keys(XLSX.getCustomProperties(xf)))
+3-element Vector{String}:
+ "Project"
+ "Approved"
+ "Due"
+```
+
+[`XLSX.deleteCustomProperty`](@ref) deletes one. Properties other programs add, such as
+sensitivity labels, are kept as they are. XLSX.jl doesn't change `modified` or
+`lastModifiedBy` when it saves; set them if you need to.
+
 ## Where next
 
 - Reading data back: [XLSX Tutorial](XLSXtutorial.md)

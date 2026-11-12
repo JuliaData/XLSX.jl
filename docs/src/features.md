@@ -59,6 +59,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 
 | Excel feature | In Excel | Read | Create or change | Remove | Guide |
 |:--------------|:---------|:-----|:-----------------|:-------|:------|
+| Document properties | *File → Info → Properties* | [`XLSX.getDocumentProperties`](@ref), [`XLSX.getCustomProperty`](@ref), [`XLSX.getCustomProperties`](@ref) | [`XLSX.setDocumentProperties`](@ref), [`XLSX.setCustomProperty`](@ref) | [`XLSX.deleteCustomProperty`](@ref) | [Document properties](@ref) |
 | Worksheets | sheet tabs | [`XLSX.sheetnames`](@ref), [`XLSX.sheetcount`](@ref), [`XLSX.hassheet`](@ref) | [`XLSX.addsheet!`](@ref), [`XLSX.copysheet!`](@ref), [`XLSX.renamesheet!`](@ref), [`XLSX.movesheet!`](@ref) | [`XLSX.deletesheet!`](@ref) | [Managing worksheets](sheets/worksheets.md) |
 | Sheet visibility | right-click a tab → *Hide* | [`XLSX.getSheetVisibility`](@ref) | [`XLSX.setSheetVisibility`](@ref) | — | [Hiding a sheet](@ref) |
 | Tab colour | right-click a tab → *Tab Color* | [`XLSX.getTabColor`](@ref) | [`XLSX.setTabColor`](@ref) | [`XLSX.removeTabColor`](@ref) | [Tab colour](@ref) |

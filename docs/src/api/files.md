@@ -109,6 +109,19 @@ XLSX.headerFooterField
 XLSX.headerFooterFont
 ```
 
+## Document properties
+
+Guide: [Document properties](@ref).
+
+```@docs
+XLSX.setDocumentProperties
+XLSX.getDocumentProperties
+XLSX.setCustomProperty
+XLSX.getCustomProperty
+XLSX.getCustomProperties
+XLSX.deleteCustomProperty
+```
+
 ## Errors
 
 ```@docs

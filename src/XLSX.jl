@@ -5,6 +5,7 @@ import Base.convert
 import Base.Threads
 import Colors
 import Dates
+import OrderedCollections
 import Parsers
 import Printf.@printf
 import Random
@@ -82,6 +83,7 @@ export
     setAutoFilter, removeAutoFilter,
     insertRows, deleteRows, insertColumns, deleteColumns,
     setSheetVisibility, setTabColor, removeTabColor,
+    setDocumentProperties, setCustomProperty, deleteCustomProperty,
     protectSheet, unprotectSheet, setCellProtection,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
     setHeaderFooter, removeHeaderFooter, headerFooterField, headerFooterFont,
@@ -99,6 +101,7 @@ export
            getAutoFilter, getSheetVisibility, getTabColor,
            isSheetProtected, getSheetProtection, getCellProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles, getHeaderFooter, getSheetView,
+           getDocumentProperties, getCustomProperty, getCustomProperties,
            getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -166,6 +169,7 @@ include("datavalidation.jl")
 include("autofilter.jl")
 include("sheetsettings.jl")
 include("save.jl")
+include("docprops.jl")
 include("setdata.jl")
 include("writetable.jl")
 include("sheetops.jl")
