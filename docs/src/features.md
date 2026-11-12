@@ -17,7 +17,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Tabular data | — | [`XLSX.readtable`](@ref), [`XLSX.gettable`](@ref), [`XLSX.eachtablerow`](@ref) | [`XLSX.writetable`](@ref), [`XLSX.writetable!`](@ref) | — | [XLSX Tutorial](tutorial/XLSXtutorial.md) |
 | Writing large files in constant memory | — | — | [`XLSX.writetable`](@ref) with `streaming=true`, [`XLSX.streamxlsx`](@ref), [`XLSX.writerow!`](@ref) | — | [Writing large files](@ref) |
 | Excel Tables | *Insert → Table* | [`XLSX.tables`](@ref), [`XLSX.table`](@ref), [`XLSX.gettotals`](@ref) | [`XLSX.addtable!`](@ref), [`XLSX.appendtable!`](@ref), [`XLSX.settotals!`](@ref) | [`XLSX.deletetable!`](@ref), [`XLSX.removetotals!`](@ref) | [Excel Tables](tables/excelTables.md) |
-| Formulas | formula bar | [`XLSX.getFormula`](@ref) | [`XLSX.setFormula`](@ref) | — | [Using Formulas](formulae/formulas.md) |
+| Formulas, with their cached values | formula bar | [`XLSX.getFormula`](@ref), `sheet["A1"]` for the value | [`XLSX.setFormula`](@ref), with `value` | — | [Using Formulas](formulae/formulas.md) |
 | Named ranges | *Formulas → Name Manager* | [`XLSX.getDefinedNames`](@ref), [`XLSX.getAllDefinedNames`](@ref) | [`XLSX.addDefinedName`](@ref) | [`XLSX.deleteDefinedName`](@ref), [`XLSX.deleteAllDefinedNames`](@ref) | [Named ranges](formulae/namedRanges.md) |
 | Data validation and drop-downs | *Data → Data Validation* | [`XLSX.getDataValidations`](@ref), [`XLSX.getDataValidation`](@ref) | [`XLSX.addDataValidation`](@ref) | [`XLSX.deleteDataValidation`](@ref) | [Data validation](sheets/dataValidation.md) |
 | AutoFilter buttons | *Data → Filter* | [`XLSX.getAutoFilter`](@ref) | [`XLSX.setAutoFilter`](@ref) | [`XLSX.removeAutoFilter`](@ref) | [Filtering](sheets/autoFilter.md) |
@@ -68,7 +68,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 
 | Feature | Notes |
 |:--------|:------|
-| Calculating formulas | [`XLSX.setFormula`](@ref) writes the formula, and its value reads as `missing` until Excel recalculates the file when it is opened. See [Using Formulas](formulae/formulas.md). |
+| Calculating formulas | [`XLSX.setFormula`](@ref) writes the formula, and Excel recalculates it when the file is opened. Its value reads as `missing` until then, unless you give the value yourself: see [Cached values](@ref). |
 | Auto-fitting column widths | Set widths with [`XLSX.setColumnWidth`](@ref). |
 | Sorting data, or setting filter criteria | [`XLSX.setAutoFilter`](@ref) adds the filter buttons only. Sort the data in Julia before writing it. |
 | Writing threaded comments | They can be read. Write a note with [`XLSX.addComment`](@ref) instead. |

@@ -193,6 +193,10 @@ function generate_sst_xml_string(wb::Workbook)::String
     return String(take!(buff))
 end
 
+# A formula as `<f>` holds it, without the leading `=` it has in Excel's formula bar
+# (and which `setFormula` is usually given): Excel never writes one there.
+_formula_text(f::AbstractString) = startswith(f, '=') ? f[nextind(f, 1):end] : f
+
 function add_node_formula!(io, ref::CellRef, ws::Worksheet, pfx)
     return add_node_formula!(io, get_formula_from_cache(ws, ref), pfx)
 end
@@ -210,7 +214,7 @@ function add_node_formula!(io, f::Formula, pfx)
         end
     end
     
-    write(io, ">", XML.escape(f.formula), "</$(pfx)f>")
+    write(io, ">", XML.escape(_formula_text(f.formula)), "</$(pfx)f>")
 end
 
 function add_node_formula!(io, f::FormulaReference, pfx)
@@ -238,7 +242,7 @@ function add_node_formula!(io, f::ReferencedFormula, pfx)
     
     write(io, " si=\"")
     print(io, f.id)
-    write(io, "\">", XML.escape(f.formula), "</$(pfx)f>")
+    write(io, "\">", XML.escape(_formula_text(f.formula)), "</$(pfx)f>")
 end
 
 """
@@ -599,7 +603,10 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         cell = getcell(r, c)
         cell isa EmptyCell && continue
 
-        _write_cell_open!(row_node, w, cell.ref, encode(cell.datatype), cell.style)
+        # A formula's string result is written in the cell, as Excel writes it, not
+        # as a shared string.
+        str_result = cell.formula && cell.datatype == CT_STRING
+        _write_cell_open!(row_node, w, cell.ref, str_result ? "str" : encode(cell.datatype), cell.style)
 
         if cell.meta != UInt64(0)
             write(row_node, " cm=\"")
@@ -626,7 +633,10 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
             if has_formula
                 add_node_formula!(row_node, cell.ref, ws, pfx)
             end
-            if is_raw
+            if str_result
+                write(row_node, "\n        ")
+                write_preserved(row_node, "v", sst_unformatted_string(ws, reinterpret(Int64, cell.value)), pfx)
+            elseif is_raw
                 _write_cell_v!(row_node, w, cell.datatype, cell.value)
             elseif has_value
                 write(row_node, w.v_open)

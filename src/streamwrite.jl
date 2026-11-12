@@ -261,7 +261,7 @@ function _write_row!(sh::StreamSheet, value::F, n::Int; styled::Bool=true) where
     write(io, "\">\n")
     written = false
     for c in 1:n
-        written |= _write_stream_cell!(sh, CellRef(r, c), _stream_value(value(c)), styled)
+        written |= _write_stream_cell!(sh, CellRef(r, c), _as_cell_value(value(c)), styled)
     end
     if written
         write(io, w.row_close)
@@ -274,14 +274,6 @@ function _write_row!(sh::StreamSheet, value::F, n::Int; styled::Bool=true) where
     sh.rows_in_chunk >= ROW_CHUNKSIZE && _flush_chunk!(sh)
     return nothing
 end
-
-# Values as `setdata!` writes them.
-_stream_value(::Union{Missing,Nothing}) = missing
-_stream_value(v::Union{Bool,String,Dates.Date,Dates.DateTime,Dates.Time}) = v
-_stream_value(v::Integer) = Int64(v)
-_stream_value(v::Real) = (f = Float64(v); isfinite(f) ? f : string(v))   # Excel has no NaN or Inf
-_stream_value(v::AbstractString) = String(v)
-_stream_value(v) = string(v)
 
 # Write one cell; `false` if the value leaves it empty.
 function _write_stream_cell!(sh::StreamSheet, ref::CellRef, v, styled::Bool)::Bool

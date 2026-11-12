@@ -71,8 +71,8 @@ julia> setFormula(s, "B2", "AND(ROUNDDOWN(A1,0)-TODAY()>(7-WEEKDAY(TODAY())),ROU
 Since `XLSX.jl` does not and cannot replicate all the functions built in to Excel, 
 setting a formula in a cell does not permit the cell's value to be re-calculated 
 within `XLSX.jl`. Instead, although the formula is properly added to the cell, the 
-value is set to `missing`. However, the saved `XLSXFile` is set to force Excel to 
-re-calculate on opening.
+value is set to `missing`, unless you give it (see [Cached values](@ref)). The saved
+`XLSXFile` is set to force Excel to re-calculate on opening.
 
 ```julia
 julia> using XLSX
@@ -115,6 +115,43 @@ julia> XLSX.getFormula(s, "B2")
 julia> XLSX.getFormula(s, "J10")
 "=I10+J9"
 ```
+
+## Cached values
+
+Excel saves the last value each formula calculated alongside it, and other programs
+(pandas, file previews, XLSX.jl itself) read that value rather than calculating the
+formula. If you know a formula's result, pass it as `value`, and it is saved as Excel
+would save it, so the cell reads as that value rather than `missing`:
+
+```jldoctest cached; setup = :(import XLSX; using Dates)
+julia> s = XLSX.newxlsx()[1];
+
+julia> s["A1:A3"] = [10, 20, 30];
+
+julia> XLSX.setFormula(s, "B1", "=SUM(A1:A3)"; value=60)
+"=SUM(A1:A3)"
+
+julia> s["B1"]
+60
+```
+
+`value` may be a number, string, `Bool`, `Date`, `DateTime` or `Time` (formatted as a
+date or time, as when written to a cell), or an error value such as
+[`XLSX.XL_NA`](@ref). For a range, give one value for every cell, or
+an array with the range's shape:
+
+```jldoctest cached
+julia> XLSX.setFormula(s, "C1:C3", "=A1*2"; value=[20, 40, 60]);
+
+julia> XLSX.setFormula(s, "D1:D3", "=A1/0"; value=XLSX.XL_DIV0);
+
+julia> s["C3"], XLSX.geterror(s, "D2")
+(60, "#DIV/0!")
+```
+
+XLSX.jl does not check the value against the formula, which it can't calculate. Excel
+still recalculates every formula when it opens the file, so a wrong value is shown
+only until then, and only by other programs.
 
 ## Referenced formulas
 
