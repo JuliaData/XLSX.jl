@@ -102,6 +102,11 @@ XLSX.removePrintArea
 XLSX.setPrintTitles
 XLSX.getPrintTitles
 XLSX.removePrintTitles
+XLSX.setHeaderFooter
+XLSX.getHeaderFooter
+XLSX.removeHeaderFooter
+XLSX.headerFooterField
+XLSX.headerFooterFont
 ```
 
 ## Errors
