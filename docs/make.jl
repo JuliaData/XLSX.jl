@@ -29,6 +29,7 @@ makedocs(
             "Inserting and deleting rows and columns" => "sheets/insertDelete.md",
             "Hide and group rows/columns (outlines)" => "formatting/hideAndGroup.md",
             "Freeze and split panes" => "formatting/freezeAndSplitPanes.md",
+            "Zoom, gridlines and the view" => "formatting/sheetView.md",
         ],
         "Worksheets" => Any[
             "Managing worksheets" => "sheets/worksheets.md",

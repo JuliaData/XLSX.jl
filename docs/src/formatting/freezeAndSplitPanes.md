@@ -91,4 +91,4 @@ Removes any frozen or split panes, restoring a plain single-pane view.
 ## See also
 
 - API: [Sheet layout](../api/sheetLayout.md)
-- Related guides: [Printing](@ref), whose print titles repeat header rows on every printed page
+- Related guides: [Zoom, gridlines and the view](sheetView.md), to scroll and select within the panes; [Printing](@ref), whose print titles repeat header rows on every printed page

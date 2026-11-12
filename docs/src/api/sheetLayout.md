@@ -52,6 +52,15 @@ XLSX.splitPanes
 XLSX.removePanes
 ```
 
+## Sheet view
+
+Guide: [Zoom, gridlines and the view](../formatting/sheetView.md).
+
+```@docs
+XLSX.setSheetView
+XLSX.getSheetView
+```
+
 ## AutoFilter
 
 Guide: [Filtering](../sheets/autoFilter.md).

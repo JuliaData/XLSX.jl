@@ -116,6 +116,7 @@ testgroup("Sheets", [
     "merged cells"            => "sheets/merge.jl",
     "hide and group"          => "sheets/hide-group.jl",
     "panes"                   => "sheets/panes.jl",
+    "sheet view"              => "sheets/sheet-view.jl",
     "sheet settings"          => "sheets/settings.jl",
 ])
 testgroup("Formatting", [

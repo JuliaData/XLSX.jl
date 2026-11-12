@@ -41,6 +41,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Hidden rows and columns | *Home → Format → Hide & Unhide* | [`XLSX.isRowHidden`](@ref), [`XLSX.isColumnHidden`](@ref) | [`XLSX.setRowHidden`](@ref), [`XLSX.setColumnHidden`](@ref) | the same, with `hidden=false` | [Hiding and grouping](formatting/hideAndGroup.md) |
 | Grouping and outlines | *Data → Group* | [`XLSX.getRowOutlineLevel`](@ref), [`XLSX.getColumnOutlineLevel`](@ref) | [`XLSX.groupRows`](@ref), [`XLSX.groupColumns`](@ref) | [`XLSX.ungroupRows`](@ref), [`XLSX.ungroupColumns`](@ref) | [Hiding and grouping](formatting/hideAndGroup.md) |
 | Freeze and split panes | *View → Freeze Panes / Split* | — | [`XLSX.freezePanes`](@ref), [`XLSX.splitPanes`](@ref), [`XLSX.splitFreeze`](@ref) | [`XLSX.removePanes`](@ref) | [Freeze and split panes](formatting/freezeAndSplitPanes.md) |
+| Zoom, gridlines, headings, zeros, right-to-left, scroll position and selection | *View* | [`XLSX.getSheetView`](@ref) | [`XLSX.setSheetView`](@ref) | — | [Zoom, gridlines and the view](formatting/sheetView.md) |
 | Inserting and deleting rows and columns | *Home → Insert / Delete* | — | [`XLSX.insertRows`](@ref), [`XLSX.insertColumns`](@ref) | [`XLSX.deleteRows`](@ref), [`XLSX.deleteColumns`](@ref) | [Inserting and deleting rows and columns](sheets/insertDelete.md) |
 
 ### Charts, images, links and comments
@@ -75,7 +76,6 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Creating region map charts, and some chart subtypes | See the charts [Limitations](charts/chartLimitations.md). |
 | Hyperlinks on a range of cells | They can be read and deleted, but [`XLSX.addHyperlink`](@ref) adds links to single cells. |
 | Pivot tables, slicers, sparklines, shapes and text boxes | No functions to create or edit them. |
-| Zoom, showing or hiding gridlines on screen | No functions to set them. Gridlines can be printed with [`XLSX.setPrintOptions`](@ref). |
 | Pictures in headers and footers | [`XLSX.setHeaderFooter`](@ref) sets their text, fields and fonts only. |
 | Workbook protection, and password-encrypted files | [`XLSX.protectSheet`](@ref) protects single sheets. To read an encrypted file, decrypt it first with [XLSXDecrypt.jl](https://github.com/TimG1964/XLSXDecrypt.jl). |
 | VBA macros | Not created or edited. |
