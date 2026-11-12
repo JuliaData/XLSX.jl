@@ -64,6 +64,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Sheet visibility | right-click a tab → *Hide* | [`XLSX.getSheetVisibility`](@ref) | [`XLSX.setSheetVisibility`](@ref) | — | [Hiding a sheet](@ref) |
 | Tab colour | right-click a tab → *Tab Color* | [`XLSX.getTabColor`](@ref) | [`XLSX.setTabColor`](@ref) | [`XLSX.removeTabColor`](@ref) | [Tab colour](@ref) |
 | Sheet protection | *Review → Protect Sheet* | [`XLSX.isSheetProtected`](@ref), [`XLSX.getSheetProtection`](@ref), [`XLSX.getCellProtection`](@ref) | [`XLSX.protectSheet`](@ref), [`XLSX.setCellProtection`](@ref) | [`XLSX.unprotectSheet`](@ref) | [Protecting a sheet](@ref) |
+| Workbook protection | *Review → Protect Workbook* | [`XLSX.isWorkbookProtected`](@ref), [`XLSX.getWorkbookProtection`](@ref) | [`XLSX.protectWorkbook`](@ref) | [`XLSX.unprotectWorkbook`](@ref) | [Protecting the workbook](@ref) |
 | Page setup and printing | *Page Layout* | [`XLSX.getPageSetup`](@ref), [`XLSX.getPageMargins`](@ref), [`XLSX.getPrintOptions`](@ref), [`XLSX.getPrintArea`](@ref), [`XLSX.getPrintTitles`](@ref) | [`XLSX.setPageSetup`](@ref), [`XLSX.setPageMargins`](@ref), [`XLSX.setPrintOptions`](@ref), [`XLSX.setPrintArea`](@ref), [`XLSX.setPrintTitles`](@ref) | [`XLSX.removePrintArea`](@ref), [`XLSX.removePrintTitles`](@ref) | [Printing](@ref) |
 | Headers and footers | *Page Layout → Page Setup → Header/Footer* | [`XLSX.getHeaderFooter`](@ref) | [`XLSX.setHeaderFooter`](@ref), [`XLSX.headerFooterField`](@ref), [`XLSX.headerFooterFont`](@ref) | [`XLSX.removeHeaderFooter`](@ref) | [Headers and footers](@ref) |
 
@@ -78,7 +79,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Hyperlinks on a range of cells | They can be read and deleted, but [`XLSX.addHyperlink`](@ref) adds links to single cells. |
 | Pivot tables, slicers, sparklines, shapes and text boxes | No functions to create or edit them. |
 | Pictures in headers and footers | [`XLSX.setHeaderFooter`](@ref) sets their text, fields and fonts only. |
-| Workbook protection, and password-encrypted files | [`XLSX.protectSheet`](@ref) protects single sheets. To read an encrypted file, decrypt it first with [XLSXDecrypt.jl](https://github.com/TimG1964/XLSXDecrypt.jl). |
+| Password-encrypted files | To read an encrypted file, decrypt it first with [XLSXDecrypt.jl](https://github.com/TimG1964/XLSXDecrypt.jl). |
 | VBA macros | Not created or edited. |
 
 Opening a file that holds any of these in `mode="rw"` and saving it over the

@@ -203,6 +203,53 @@
         @test all(XLSX._excel_password_hash(p) == ref(p) for p in ("secret", "abcdefghijklmno", "~~~~~~~~~~~~~~~", "Pa55 w0rd!"))
     end
 
+    @testset "workbook protection" begin
+        wb_tags(xf) = [XLSX.localname(c) for c in XLSX.xml_elements(XLSX._workbook_root(xf))]
+        wp_atts(xf) = something(XLSX._workbook_protection_atts(xf), Pair{String,String}[])
+
+        # Excel's file, protected without a password: XLSX.jl puts the element back where Excel had it
+        ex = XLSX.openxlsx(joinpath(data_directory, "workbook_protected_excel.xlsx"); mode="rw")
+        excel_tags, excel_atts = wb_tags(ex), wp_atts(ex)
+        @test XLSX.getWorkbookProtection(ex) == (password=false, structure=true, windows=false)
+        @test XLSX.unprotectWorkbook(ex)
+        @test !XLSX.isWorkbookProtected(ex) && !("workbookProtection" in wb_tags(ex))
+        @test !XLSX.unprotectWorkbook(ex)
+        XLSX.protectWorkbook(ex)
+        @test wb_tags(ex) == excel_tags && wp_atts(ex) == excel_atts
+        @test excel_tags[findfirst(==("workbookProtection"), excel_tags) - 1] == "revisionPtr"   # after Excel's extensions
+
+        # Excel's own SHA-512 password is recognised
+        pw = XLSX.readxlsx(joinpath(data_directory, "workbook_password_excel.xlsx"))
+        @test XLSX.getWorkbookProtection(pw) == (password=true, structure=true, windows=false)
+
+        xf = three()
+        @test !XLSX.isWorkbookProtected(xf) && isnothing(XLSX.getWorkbookProtection(xf))
+        XLSX.protectWorkbook(xf; password="secret")
+        @test wp_atts(xf) == ["workbookPassword" => "DAA7", "lockStructure" => "1"]   # Excel's legacy hash
+        @test wb_tags(xf)[findfirst(==("workbookProtection"), wb_tags(xf)) + 1] == "bookViews"
+        XLSX.protectWorkbook(xf; windows=true)                                 # replaces the settings
+        @test XLSX.getWorkbookProtection(xf) == (password=false, structure=true, windows=true)
+        XLSX.protectWorkbook(xf; structure=false, windows=true)
+        @test XLSX.isWorkbookProtected(xf) && XLSX.getWorkbookProtection(xf).windows
+        @test count(==("workbookProtection"), wb_tags(xf)) == 1
+
+        XLSX.addsheet!(xf, "D")                                                # XLSX.jl isn't stopped
+        XLSX.protectSheet(xf["A"])
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getWorkbookProtection(r) == (password=false, structure=false, windows=true)
+        @test XLSX.isSheetProtected(r["A"])
+        @test XLSX.unprotectWorkbook(xf) && XLSX.isSheetProtected(xf["A"])    # sheets keep theirs
+
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; structure=false)
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; password="")
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; password="x"^16)
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; password="pässword")
+        @test !XLSX.isWorkbookProtected(xf)                                   # nothing changed
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(r)
+        @test_throws XLSX.XLSXError XLSX.unprotectWorkbook(r)
+        SAVE_FILES && save_outfile(ex)
+    end
+
     @testset "page setup" begin
         xf = three()
         s = xf["A"]

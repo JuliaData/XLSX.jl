@@ -66,6 +66,30 @@ julia> XLSX.getCellProtection(sheet, "B5")
 (locked = false, hidden = false)
 ```
 
+## Protecting the workbook
+
+[`XLSX.protectWorkbook`](@ref) protects a workbook's structure, as Excel's
+*Review → Protect Workbook* does: in Excel, its sheets can't then be added,
+deleted, moved, renamed, hidden or unhidden. It is separate from protecting each
+sheet, which guards the cells.
+
+```jldoctest workbook; setup = :(import XLSX)
+julia> xf = XLSX.newxlsx();
+
+julia> XLSX.protectWorkbook(xf; password="secret")
+
+julia> XLSX.getWorkbookProtection(xf)
+(password = true, structure = true, windows = false)
+
+julia> XLSX.unprotectWorkbook(xf)
+true
+```
+
+The password is stored as Excel's legacy hash, as a sheet's is, so it keeps out
+mistakes rather than anyone determined. `windows=true` also locks the workbook's
+windows, an option only Excel for Mac and older versions of Excel use. XLSX.jl
+itself can still change the sheets of a protected workbook.
+
 ## See also
 
 - API: [Sheet protection](@ref) in Files and worksheets, and [`XLSX.setCellProtection`](@ref) on the Cell formats page

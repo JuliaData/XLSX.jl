@@ -83,6 +83,10 @@ XLSX.protectSheet
 XLSX.unprotectSheet
 XLSX.isSheetProtected
 XLSX.getSheetProtection
+XLSX.protectWorkbook
+XLSX.unprotectWorkbook
+XLSX.isWorkbookProtected
+XLSX.getWorkbookProtection
 ```
 
 ## Page setup and printing

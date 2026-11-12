@@ -305,11 +305,11 @@ end
 
 # Excel's legacy password hash (ECMA-376 Part 4, 14.7.1), as 4 hex digits.
 function _excel_password_hash(password::AbstractString)::String
-    isascii(password) || throw(XLSXError("A sheet password must be ASCII text."))
+    isascii(password) || throw(XLSXError("A protection password must be ASCII text."))
     n = length(password)
     # The legacy hash uses only the first 15 characters, so a longer password would
     # unlock with its first 15 alone. Refuse it rather than mislead.
-    1 <= n <= 15 || throw(XLSXError("A sheet password must be from 1 to 15 characters long, the most Excel's legacy hash uses."))
+    1 <= n <= 15 || throw(XLSXError("A protection password must be from 1 to 15 characters long, the most Excel's legacy hash uses."))
     h = 0x0000
     for (i, c) in enumerate(password)
         v = UInt16(c)
@@ -325,6 +325,121 @@ end
 
 _xml_bool(atts::AbstractDict, k::AbstractString, default::Bool) =
     haskey(atts, k) ? atts[k] in ("1", "true") : default
+
+# ===========================================================================
+# Workbook protection
+# ===========================================================================
+
+"""
+    protectWorkbook(xf::XLSXFile; password=nothing, structure=true, windows=false)
+
+Protect a workbook's structure, as Excel's *Review → Protect Workbook* does, so that
+its sheets can't be added, deleted, moved, renamed, hidden or unhidden in Excel.
+
+- `password`, if given, must be typed in Excel to unprotect the workbook. As for
+  [`protectSheet`](@ref), it is stored as Excel's legacy hash, which Excel accepts but
+  which is easily broken, and must be ASCII text of at most 15 characters.
+- `structure`: lock the sheets. The default is `true`.
+- `windows`: lock the size and position of the workbook's windows. Only Excel for Mac
+  and older versions of Excel use this: Excel 365 for Windows neither shows nor applies it.
+
+Protecting a workbook that is already protected replaces its settings. Protection
+applies in Excel only: XLSX.jl can still add, delete and rename sheets in a protected
+workbook.
+
+The file must be open for writing (`mode="rw"`).
+
+# Examples
+```julia
+julia> XLSX.protectWorkbook(xf)
+
+julia> XLSX.protectWorkbook(xf; password="secret")
+```
+
+See also [`unprotectWorkbook`](@ref), [`isWorkbookProtected`](@ref) and
+[`getWorkbookProtection`](@ref).
+"""
+function protectWorkbook(xf::XLSXFile; password::Union{Nothing,AbstractString}=nothing,
+                         structure::Bool=true, windows::Bool=false)
+    _require_writable(xf, "protect the workbook")
+    structure || windows ||
+        throw(XLSXError("Nothing to protect: give `structure=true`, `windows=true` or both. To remove protection, use `unprotectWorkbook`."))
+    atts = Pair{String,String}[]
+    isnothing(password) || push!(atts, "workbookPassword" => _excel_password_hash(password))
+    structure && push!(atts, "lockStructure" => "1")
+    windows && push!(atts, "lockWindows" => "1")
+    _set_workbook_protection!(xf, atts)
+    return nothing
+end
+
+"""
+    unprotectWorkbook(xf::XLSXFile) -> Bool
+
+Remove a workbook's protection, whatever its password. Returns `false` if it wasn't
+protected. Sheets keep their own protection: see [`unprotectSheet`](@ref).
+
+The file must be open for writing (`mode="rw"`).
+"""
+function unprotectWorkbook(xf::XLSXFile)::Bool
+    _require_writable(xf, "unprotect the workbook")
+    isnothing(_workbook_protection_atts(xf)) && return false
+    _set_workbook_protection!(xf, nothing)
+    return true
+end
+
+"""
+    isWorkbookProtected(xf::XLSXFile) -> Bool
+
+Whether a workbook's structure or windows are protected. See [`protectWorkbook`](@ref).
+"""
+isWorkbookProtected(xf::XLSXFile)::Bool = !isnothing(getWorkbookProtection(xf))
+
+"""
+    getWorkbookProtection(xf::XLSXFile) -> Union{Nothing, NamedTuple}
+
+How a workbook is protected, or `nothing` if it isn't: a `NamedTuple` with `Bool` fields
+`password` (whether a password is needed to unprotect it), `structure` and `windows`, as
+the keywords of [`protectWorkbook`](@ref).
+
+# Examples
+```julia
+julia> XLSX.getWorkbookProtection(xf)
+(password = true, structure = true, windows = false)
+```
+"""
+function getWorkbookProtection(xf::XLSXFile)
+    atts = _workbook_protection_atts(xf)
+    isnothing(atts) && return nothing
+    d = Dict(atts)
+    structure, windows = _xml_bool(d, "lockStructure", false), _xml_bool(d, "lockWindows", false)
+    structure || windows || return nothing
+    return (password = haskey(d, "workbookPassword") || haskey(d, "workbookHashValue"),
+            structure = structure, windows = windows)
+end
+
+_workbook_root(xf::XLSXFile) = xml_root_element(xmlroot(xf, "xl/workbook.xml"))
+
+function _workbook_protection_atts(xf::XLSXFile)
+    for c in xml_elements(_workbook_root(xf))
+        localname(c) == "workbookProtection" && return _atts_vector(c)
+    end
+    return nothing
+end
+
+# Replace the workbook's `<workbookProtection>` with one with attributes `atts`, or
+# remove it if `atts` is `nothing`. Made just before the element the schema puts after
+# it, as Excel writes it: after `<workbookPr>` and the extensions Excel puts there.
+function _set_workbook_protection!(xf::XLSXFile, atts)
+    root = _workbook_root(xf)
+    chn = XML.children(root)
+    filter!(c -> !(XML.nodetype(c) == XML.Element && localname(c) == "workbookProtection"), chn)
+    isnothing(atts) && return nothing
+    after = WORKBOOK_ORDER[findfirst(==("workbookProtection"), WORKBOOK_ORDER)+1:end]
+    i = findfirst(c -> XML.nodetype(c) == XML.Element && localname(c) in after, chn)
+    el = _xml_element(something(_ns_prefix(XML.tag(root)), "") * "workbookProtection", atts)
+    insert!(chn, something(i, length(chn) + 1), el)
+    return nothing
+end
 
 # ===========================================================================
 # Page setup and printing
