@@ -85,6 +85,7 @@ export
     setSheetVisibility, setTabColor, removeTabColor,
     setDocumentProperties, setCustomProperty, deleteCustomProperty,
     protectSheet, unprotectSheet, setCellProtection, protectWorkbook, unprotectWorkbook,
+    setIgnoredErrors, removeIgnoredErrors,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
     setHeaderFooter, removeHeaderFooter, headerFooterField, headerFooterFont,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
@@ -102,6 +103,7 @@ export
            isSheetProtected, getSheetProtection, getCellProtection, isWorkbookProtected, getWorkbookProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles, getHeaderFooter, getSheetView,
            getDocumentProperties, getCustomProperty, getCustomProperties,
+           getIgnoredErrors,
            getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -168,6 +170,7 @@ include("hyperlinks.jl")
 include("datavalidation.jl")
 include("autofilter.jl")
 include("sheetsettings.jl")
+include("ignorederrors.jl")
 include("save.jl")
 include("docprops.jl")
 include("setdata.jl")

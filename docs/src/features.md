@@ -22,6 +22,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Data validation and drop-downs | *Data → Data Validation* | [`XLSX.getDataValidations`](@ref), [`XLSX.getDataValidation`](@ref) | [`XLSX.addDataValidation`](@ref) | [`XLSX.deleteDataValidation`](@ref) | [Data validation](sheets/dataValidation.md) |
 | AutoFilter buttons | *Data → Filter* | [`XLSX.getAutoFilter`](@ref) | [`XLSX.setAutoFilter`](@ref) | [`XLSX.removeAutoFilter`](@ref) | [Filtering](sheets/autoFilter.md) |
 | Error values (`#N/A`, `#DIV/0!`, …) | — | [`XLSX.iserror`](@ref), [`XLSX.geterror`](@ref) | — | — | [Error Values](@ref) (API) |
+| Ignoring error-checking warnings | green triangle → *Ignore Error* | [`XLSX.getIgnoredErrors`](@ref) | [`XLSX.setIgnoredErrors`](@ref) | [`XLSX.removeIgnoredErrors`](@ref) | [Ignoring error-checking warnings](@ref) |
 
 ### Formatting
 

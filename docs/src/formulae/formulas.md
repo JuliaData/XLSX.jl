@@ -372,6 +372,38 @@ named cell range, should it be necessary to use the `raw` keyword option describ
     ![Excel's message that it found a problem with some content in the file](../images/problemContent.png)
     ![Excel's report of the repairs it made to the file](../images/ExcelRepairs.png)
 
+## Ignoring error-checking warnings
+
+Excel marks cells it suspects with a green triangle: a number stored as text, a
+formula unlike its neighbours, a formula that leaves out cells beside its range,
+and so on. [`XLSX.setIgnoredErrors`](@ref) turns these warnings off for some cells,
+as Excel's *Ignore Error* does, which is useful when, for example, a column of
+codes is deliberately kept as text:
+
+```jldoctest ignored; setup = :(import XLSX)
+julia> s = XLSX.newxlsx()[1];
+
+julia> s["A1:A3"] = ["007", "042", "100"];
+
+julia> XLSX.setIgnoredErrors(s, "A1:A3"; numberStoredAsText=true)
+
+julia> XLSX.setIgnoredErrors(s, "A2"; evalError=true)
+
+julia> XLSX.getIgnoredErrors(s)
+2-element Vector{Pair{String, Vector{Symbol}}}:
+ "A1,A3" => [:numberStoredAsText]
+    "A2" => [:evalError, :numberStoredAsText]
+```
+
+The warnings are `evalError`, `twoDigitTextYear`, `numberStoredAsText`, `formula`,
+`formulaRange`, `unlockedFormula`, `emptyCellReference`, `listDataValidation` and
+`calculatedColumn`. Giving one as `false` shows it again. As Excel does, each cell is
+listed once, with all the warnings ignored in it, so ranges are split where the
+warnings of their cells differ. Whole columns (`"B:B"`) and rows reach the edges of
+the sheet. [`XLSX.getIgnoredErrors`](@ref) also gives one cell's warnings, and
+[`XLSX.removeIgnoredErrors`](@ref) shows all the warnings again, in a range or the
+whole sheet. The ranges move as rows and columns are inserted and deleted.
+
 ## See also
 
 - API: [Cells and data](../api/data.md)

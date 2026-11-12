@@ -73,6 +73,16 @@ XLSX.getDataValidation
 XLSX.deleteDataValidation
 ```
 
+## Ignored errors
+
+Guide: [Ignoring error-checking warnings](@ref).
+
+```@docs
+XLSX.setIgnoredErrors
+XLSX.getIgnoredErrors
+XLSX.removeIgnoredErrors
+```
+
 ## Error Values
 
 ```@docs

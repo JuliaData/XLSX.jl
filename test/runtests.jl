@@ -132,6 +132,7 @@ testgroup("Features", [
     "data validation"         => "features/data-validation.jl",
     "hyperlinks"              => "features/hyperlinks.jl",
     "comments"                => "features/comments.jl",
+    "ignored errors"          => "features/ignored-errors.jl",
 ])
 testgroup("Drawings", [
     "DrawingML"               => "drawings/drawingml.jl",
