@@ -73,6 +73,16 @@ julia> XLSX.setHeaderFooter(s; header=(center=title,), footer=(right=XLSX.header
 | `&D` | date | | `&A` | sheet name |
 | `&T` | time | | `&&` | an ampersand, `&` |
 
+This page was printed from a sheet set up with:
+
+```julia
+XLSX.setHeaderFooter(sheet;
+    header=(left="Acme Ltd", center=XLSX.headerFooterFont(bold=true, size=14) * "Quarterly sales", right="&D"),
+    footer=(left="&F", right="Page &P of &N"))
+```
+
+![A printed page of a small sales table. Its header has the company name at the left, the title "Quarterly sales" in bold in the centre and the date at the right; its footer has the file name at the left and "Page 1 of 1" at the right](../images/headerFooter.png)
+
 The first page, and even pages, can have headers and footers of their own:
 
 ```julia

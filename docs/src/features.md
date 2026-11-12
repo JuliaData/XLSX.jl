@@ -51,6 +51,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 |:--------------|:---------|:-----|:-----------------|:-------|:------|
 | Charts (experimental) | *Insert → Charts* | [`getCharts`](@ref XLSX.Charts.getCharts), [`getChartData`](@ref XLSX.Charts.getChartData) and many more | [`addChart`](@ref XLSX.Charts.addChart), [`addChartEx`](@ref XLSX.Charts.addChartEx), [`addSeries`](@ref XLSX.Charts.addSeries), [`makeCombo`](@ref XLSX.Charts.makeCombo), the `set…` functions | [`deleteChart`](@ref XLSX.Charts.deleteChart) | [Charts](charts/excelCharts.md) |
 | Chartsheets | *Move Chart → New sheet* | [`getCharts`](@ref XLSX.Charts.getCharts) | [`addChart`](@ref XLSX.Charts.addChart) given the file | [`XLSX.deletesheet!`](@ref) | [Sheets with charts](charts/chartSheets.md) |
+| Sparklines | *Insert → Sparklines* | [`XLSX.getSparklines`](@ref) | [`XLSX.addSparklines`](@ref) | [`XLSX.deleteSparklines`](@ref) | [Sparklines](charts/sparklines.md) |
 | Images (PNG, JPEG, GIF) | *Insert → Pictures* | [`XLSX.getImages`](@ref) | [`XLSX.addImage`](@ref) | [`XLSX.deleteImage`](@ref) | [Images](@ref) |
 | Hyperlinks | *Insert → Link* | [`XLSX.getHyperlink`](@ref), [`XLSX.getHyperlinks`](@ref) | [`XLSX.addHyperlink`](@ref) (single cells) | [`XLSX.deleteHyperlink`](@ref) | [Hyperlinks](@ref) |
 | Comments (notes) | *Review → Notes* | [`XLSX.getComment`](@ref), [`XLSX.getComments`](@ref) | [`XLSX.addComment`](@ref) | [`XLSX.deleteComment`](@ref) | [Comments](@ref) |
@@ -78,7 +79,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Writing threaded comments | They can be read. Write a note with [`XLSX.addComment`](@ref) instead. |
 | Creating region map charts, and some chart subtypes | See the charts [Limitations](charts/chartLimitations.md). |
 | Hyperlinks on a range of cells | They can be read and deleted, but [`XLSX.addHyperlink`](@ref) adds links to single cells. |
-| Pivot tables, slicers, sparklines, shapes and text boxes | No functions to create or edit them. |
+| Pivot tables, slicers, shapes and text boxes | No functions to create or edit them. |
 | Pictures in headers and footers | [`XLSX.setHeaderFooter`](@ref) sets their text, fields and fonts only. |
 | Password-encrypted files | To read an encrypted file, decrypt it first with [XLSXDecrypt.jl](https://github.com/TimG1964/XLSXDecrypt.jl). |
 | VBA macros | Not created or edited. |

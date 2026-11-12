@@ -47,6 +47,7 @@ makedocs(
             "Creating chartEx charts" => "charts/creatingChartEx.md",
             "Formatting charts" => "charts/formattingCharts.md",
             "Reading charts" => "charts/readingCharts.md",
+            "Sparklines" => "charts/sparklines.md",
             "Sheets with charts" => "charts/chartSheets.md",
             "Limitations" => "charts/chartLimitations.md",
         ],

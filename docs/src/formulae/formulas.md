@@ -380,6 +380,8 @@ and so on. [`XLSX.setIgnoredErrors`](@ref) turns these warnings off for some cel
 as Excel's *Ignore Error* does, which is useful when, for example, a column of
 codes is deliberately kept as text:
 
+![Two columns of the codes 007, 042, 100 and 315 kept as text. In the first, each cell has Excel's green error triangle in its corner; in the second, where numberStoredAsText is ignored, there are none](../images/ignoredErrors.png)
+
 ```jldoctest ignored; setup = :(import XLSX)
 julia> s = XLSX.newxlsx()[1];
 

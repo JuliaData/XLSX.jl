@@ -86,6 +86,7 @@ export
     setDocumentProperties, setCustomProperty, deleteCustomProperty,
     protectSheet, unprotectSheet, setCellProtection, protectWorkbook, unprotectWorkbook,
     setIgnoredErrors, removeIgnoredErrors,
+    addSparklines, deleteSparklines,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
     setHeaderFooter, removeHeaderFooter, headerFooterField, headerFooterFont,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
@@ -103,7 +104,7 @@ export
            isSheetProtected, getSheetProtection, getCellProtection, isWorkbookProtected, getWorkbookProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles, getHeaderFooter, getSheetView,
            getDocumentProperties, getCustomProperty, getCustomProperties,
-           getIgnoredErrors,
+           getIgnoredErrors, getSparklines,
            getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -171,6 +172,7 @@ include("datavalidation.jl")
 include("autofilter.jl")
 include("sheetsettings.jl")
 include("ignorederrors.jl")
+include("sparklines.jl")
 include("save.jl")
 include("docprops.jl")
 include("setdata.jl")

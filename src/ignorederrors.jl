@@ -52,7 +52,7 @@ function setIgnoredErrors(ws::Worksheet, ref::Union{AbstractString,CellRef,CellR
         haskey(IGNORABLE_ERRORS, k) || throw(XLSXError("Unknown error check `$k`. Must be one of $(join(keys(IGNORABLE_ERRORS), ", "))."))
         v isa Bool || throw(XLSXError("`$k` must be `true` or `false`. Found `$(repr(v))`."))
     end
-    region = _ignored_error_region(ws, ref)
+    region = _cell_region(ws, ref)
     _update_ignored_errors!(ws, region) do flags
         for (k, v) in kw
             v ? push!(flags, k) : delete!(flags, k)
@@ -115,7 +115,7 @@ end
 function removeIgnoredErrors(ws::Worksheet, ref::Union{AbstractString,CellRef,CellRange})::Bool
     _require_writable(ws, "remove ignored errors")
     _require_worksheet(ws, "remove ignored errors")
-    region = _ignored_error_region(ws, ref)
+    region = _cell_region(ws, ref)
     any(((rngs, _),) -> any(r -> any(s -> _overlap(r, s) !== nothing, region), rngs), _read_ignored_errors(ws)) || return false
     _update_ignored_errors!(empty!, ws, region)
     return true
@@ -125,7 +125,7 @@ _ordered_flags(flags) = Symbol[k for k in keys(IGNORABLE_ERRORS) if k in flags]
 
 # The cells of `ref` as ranges; whole columns and rows reach the edges of the sheet, as
 # Excel writes them.
-function _ignored_error_region(ws::Worksheet, ref)::Vector{CellRange}
+function _cell_region(ws::Worksheet, ref)::Vector{CellRange}
     parts = ref isa AbstractString ? _rowcol_parts(ws, ref) : Any[ref]
     return map(parts) do p
         p isa CellRef && return CellRange(p, p)

@@ -407,6 +407,7 @@ function _repoint_sheet_xml_formulas!(ws::Worksheet, repoint)
     for c in XML.eachelement(ws_el)
         localname(c) in SHEET_XML_FORMULA_CONTAINERS && _rewrite_sheet_xml_formulas!(repoint, c)
     end
+    _drop_dead_sparkline_data!(ws_el)
     return nothing
 end
 

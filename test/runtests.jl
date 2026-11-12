@@ -133,6 +133,7 @@ testgroup("Features", [
     "hyperlinks"              => "features/hyperlinks.jl",
     "comments"                => "features/comments.jl",
     "ignored errors"          => "features/ignored-errors.jl",
+    "sparklines"              => "features/sparklines.jl",
 ])
 testgroup("Drawings", [
     "DrawingML"               => "drawings/drawingml.jl",

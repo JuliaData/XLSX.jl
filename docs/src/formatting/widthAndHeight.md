@@ -21,6 +21,8 @@ Excel's *Format → AutoFit Column Width* does. Text is measured as it is shown,
 number format, font and size, so a formatted price or a long date gets the room it
 needs:
 
+![The same table twice. With Excel's default column widths, product names are cut off and the dates show as hash signs; after autofitColumns, every name, price and date shows in full](../images/autofitColumns.png)
+
 ```jldoctest autofit; setup = :(import XLSX; using Dates)
 julia> s = XLSX.newxlsx()[1];
 
