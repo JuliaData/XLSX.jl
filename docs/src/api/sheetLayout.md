@@ -7,6 +7,7 @@ Guide: [Column width and row height](../formatting/widthAndHeight.md).
 ```@docs
 XLSX.getColumnWidth
 XLSX.setColumnWidth
+XLSX.autofitColumns
 XLSX.getRowHeight
 XLSX.setRowHeight
 ```

@@ -77,7 +77,7 @@ export
     setUniformFormat, setUniformFont, setUniformBorder, setUniformFill, setUniformAlignment, setUniformStyle,
     setConditionalFormat,
     RichTextString, RichTextRun,
-    setColumnWidth, setRowHeight,
+    setColumnWidth, setRowHeight, autofitColumns,
     setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     setAutoFilter, removeAutoFilter,
     insertRows, deleteRows, insertColumns, deleteColumns,
@@ -98,7 +98,7 @@ export
            getAutoFilter, getSheetVisibility, getTabColor,
            isSheetProtected, getSheetProtection, getCellProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles,
-           getFormat, getFont, getBorder, getFill, getAlignment,
+           getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
            getComment, getComments, getThreadedComment, getThreadedComments, getImages,
@@ -142,10 +142,12 @@ include("cellformats/fill.jl")
 include("cellformats/alignment.jl")
 include("cellformats/protection.jl")
 include("cellformats/numberformat.jl")
+include("cellformats/displaytext.jl")
 include("cellformats/uniformstyle.jl")
 include("cellformats/widthheight.jl")
 include("cellformats/rowscols.jl")
 include("cellformats/mergedcells.jl")
+include("cellformats/autofit.jl")
 include("panes.jl")
 include("conditional-format-helpers.jl") # must load before conditionalformats/
 include("conditionalformats/presets.jl")

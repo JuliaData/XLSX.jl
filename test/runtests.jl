@@ -121,6 +121,8 @@ testgroup("Sheets", [
 testgroup("Formatting", [
     "colors"                  => "formatting/colors.jl",
     "styles"                  => "formatting/styles.jl",
+    "displayed text"          => "formatting/display-text.jl",
+    "autofit columns"         => "formatting/autofit.jl",
     "conditional formats"     => "formatting/conditional.jl",
 ])
 testgroup("Features", [

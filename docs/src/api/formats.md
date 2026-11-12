@@ -8,6 +8,7 @@ ways of choosing which cells to format, see [Addressing cells and ranges](../con
 ```@docs
 XLSX.getFormat
 XLSX.setFormat
+XLSX.getText
 XLSX.setUniformFormat
 XLSX.getFont
 XLSX.setFont

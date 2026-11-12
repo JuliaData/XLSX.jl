@@ -169,6 +169,33 @@ style.
 [`XLSX.getFormat`](@ref) reads a cell's format back, and [`XLSX.setUniformFormat`](@ref)
 applies one format to a range faster (see [Setting uniform attributes](@ref)).
 
+### The text a cell shows
+
+[`XLSX.getText`](@ref) gives the text Excel shows in a cell: its value in its number
+format, as it appears on screen. It works on a file opened only for reading too.
+
+```jldoctest celltext; setup = :(import XLSX; using Dates)
+julia> s = XLSX.newxlsx()[1];
+
+julia> s["A1"] = 1234.5; XLSX.setFormat(s, "A1"; format="#,##0.00");
+
+julia> s["A2"] = Date(2026, 3, 7); XLSX.setFormat(s, "A2"; format="d mmmm yyyy");
+
+julia> s["A3"] = 0.256; XLSX.setFormat(s, "A3"; format="0.0%");
+
+julia> [XLSX.getText(s, "A\$i") for i in 1:3]
+3-element Vector{String}:
+ "1,234.50"
+ "7 March 2026"
+ "25.6%"
+```
+
+The text matches Excel 365's for every part of a format code: General, digit
+placeholders, separators, percentages, scientific notation, fractions, dates, times,
+text sections, literals, currency codes, colours and conditions. Excel shows its
+built-in date formats in the date style of the computer opening the file; `getText`
+shows them as Excel does in US English (`3/7/2026`).
+
 ## Formatting multiple cells at once
 
 [Addressing cells and ranges](../concepts/addressing.md) lists every way of naming the cells to

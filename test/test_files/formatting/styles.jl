@@ -1120,7 +1120,7 @@ end
         @test_throws XLSX.XLSXError XLSX.setFormat(s, "Z100"; format="Currency")
         @test_throws XLSX.XLSXError XLSX.setFormat(s, "Sheet1!Z100"; format="Currency")
         @test_throws XLSX.XLSXError XLSX.setFormat(s, "Sheet1!E1:F5,Sheet1!Z100"; format="Currency")
-        @test_throws XLSX.XLSXError XLSX.setFormat(s, "E2"; format="ffzz345")
+        @test_throws XLSX.XLSXError XLSX.setFormat(s, "E2"; format="[Purple]0")      # an unknown colour, which Excel refuses
 
         # Characters Excel shows without quotes, `!` escapes, General and locale codes:
         # each of these was checked as accepted by Excel 365.
@@ -1129,7 +1129,7 @@ end
             @test XLSX.setFormat(s, "E3"; format=fmt) > 163
             @test XLSX.getFormat(s, "E3").format["numFmt"]["formatCode"] == fmt
         end
-        @test_throws XLSX.XLSXError XLSX.setFormat(s, "E2"; format="dd/mm/yyyy zz")
+        @test_throws XLSX.XLSXError XLSX.setFormat(s, "E2"; format="0 h")   # date codes among digits, which Excel refuses (it accepts "ffzz345" and "dd/mm/yyyy zz": letters are shown as written)
 
         XLSX.writexlsx("test.xlsx", f, overwrite=true)
         SAVE_FILES && save_outfile("test.xlsx")

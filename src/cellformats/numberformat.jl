@@ -108,9 +108,9 @@ format ID (as a string). The following built-in format IDs are supported:
 * "3" => "#,##0"
 * "4" => "#,##0.00"
 * "5" => "\$#,##0_);(\$#,##0)"
-* "6" => "\$#,##0_);Red"
+* "6" => "\$#,##0_);[Red](\$#,##0)"
 * "7" => "\$#,##0.00_);(\$#,##0.00)"
-* "8" => "\$#,##0.00_);Red"
+* "8" => "\$#,##0.00_);[Red](\$#,##0.00)"
 * "9" => "0%"
 * "10" => "0.00%"
 * "11" => "0.00E+00"
@@ -126,18 +126,18 @@ format ID (as a string). The following built-in format IDs are supported:
 * "21" => "h:mm:ss"
 * "22" => "m/d/yyyy h:mm"
 * "37" => "#,##0_);(#,##0)"
-* "38" => "#,##0_);Red"
+* "38" => "#,##0_);[Red](#,##0)"
 * "39" => "#,##0.00_);(#,##0.00)"
-* "40" => "#,##0.00_);Red"
+* "40" => "#,##0.00_);[Red](#,##0.00)"
 * "45" => "mm:ss"
 * "46" => "[h]:mm:ss"
-* "47" => "mmss.0"
+* "47" => "mm:ss.0"
 * "48" => "##0.0E+0"
 * "49" => "@"
 
 Lastly, `format` can be used to specify any custom format directly. 
-Only weak checks are made of custom formats specified - they are otherwise added 
-to the `XLSXFile` verbatim.
+A custom format is checked as Excel 365 checks it, and refused if Excel would refuse
+it; it is otherwise added to the `XLSXFile` verbatim.
 
 Formats may need characters that must be escaped when specified (see penultimate 
 example, below).

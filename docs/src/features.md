@@ -28,11 +28,11 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Excel feature | In Excel | Read | Create or change | Remove | Guide |
 |:--------------|:---------|:-----|:-----------------|:-------|:------|
 | Fonts, fills, borders, alignment | *Home → Font / Alignment* | [`XLSX.getFont`](@ref), [`XLSX.getFill`](@ref), [`XLSX.getBorder`](@ref), [`XLSX.getAlignment`](@ref) | [`XLSX.setFont`](@ref), [`XLSX.setFill`](@ref), [`XLSX.setBorder`](@ref), [`XLSX.setAlignment`](@ref) and their `setUniform…` forms, [`XLSX.setUniformStyle`](@ref) | — | [Cell formats](formatting/cellFormatting.md) |
-| Number formats | *Home → Number* | [`XLSX.getFormat`](@ref) | [`XLSX.setFormat`](@ref), [`XLSX.setUniformFormat`](@ref) | — | [Number formats](@ref) |
+| Number formats | *Home → Number* | [`XLSX.getFormat`](@ref), [`XLSX.getText`](@ref) (the text shown) | [`XLSX.setFormat`](@ref), [`XLSX.setUniformFormat`](@ref) | — | [Number formats](@ref) |
 | Rich text (mixed formats in one cell) | selecting part of the text | [`XLSX.getRichTextString`](@ref) | [`XLSX.RichTextString`](@ref), StyledStrings.jl | — | [Rich text formats](@ref) |
 | Conditional formatting | *Home → Conditional Formatting* | [`XLSX.getConditionalFormats`](@ref) | [`XLSX.setConditionalFormat`](@ref), [`XLSX.setColoredDataBars`](@ref) (experimental) | [`XLSX.clearConditionalFormats`](@ref) | [Conditional formats](formatting/conditionalFormatting.md) |
 | Merged cells | *Home → Merge & Center* | [`XLSX.getMergedCells`](@ref), [`XLSX.isMergedCell`](@ref), [`XLSX.getMergedBaseCell`](@ref) | [`XLSX.mergeCells`](@ref) | [`XLSX.removeMergedCells`](@ref) | [Merged cells](formatting/mergedCells.md) |
-| Column widths and row heights | *Home → Format* | [`XLSX.getColumnWidth`](@ref), [`XLSX.getRowHeight`](@ref) | [`XLSX.setColumnWidth`](@ref), [`XLSX.setRowHeight`](@ref) | — | [Column width and row height](formatting/widthAndHeight.md) |
+| Column widths and row heights | *Home → Format* | [`XLSX.getColumnWidth`](@ref), [`XLSX.getRowHeight`](@ref) | [`XLSX.setColumnWidth`](@ref), [`XLSX.setRowHeight`](@ref), [`XLSX.autofitColumns`](@ref) | — | [Column width and row height](formatting/widthAndHeight.md) |
 
 ### Sheet layout and view
 
@@ -69,7 +69,6 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Feature | Notes |
 |:--------|:------|
 | Calculating formulas | [`XLSX.setFormula`](@ref) writes the formula, and Excel recalculates it when the file is opened. Its value reads as `missing` until then, unless you give the value yourself: see [Cached values](@ref). |
-| Auto-fitting column widths | Set widths with [`XLSX.setColumnWidth`](@ref). |
 | Sorting data, or setting filter criteria | [`XLSX.setAutoFilter`](@ref) adds the filter buttons only. Sort the data in Julia before writing it. |
 | Writing threaded comments | They can be read. Write a note with [`XLSX.addComment`](@ref) instead. |
 | Creating region map charts, and some chart subtypes | See the charts [Limitations](charts/chartLimitations.md). |
