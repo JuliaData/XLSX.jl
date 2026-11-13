@@ -814,7 +814,8 @@ Since `XLSX.jl` does not and cannot replicate all the functions built in to Exce
 setting a formula in a cell does not permit the cell's value to be re-calculated
 within `XLSX.jl`. Instead, although the formula is properly added to the cell, the
 value is set to `missing`. However, the saved `XLSXFile` is set to force Excel to
-re-calculate on opening.
+re-calculate on opening. A workbook set to manual calculation stays so, as Excel keeps
+it, and Excel then recalculates only when asked (F9).
 
 If you know the formula's result, give it as `value`: it is saved as the formula's
 cached value, as Excel saves the last value it calculated, so XLSX.jl and other programs

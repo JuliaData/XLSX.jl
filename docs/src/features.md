@@ -64,7 +64,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 
 | Excel feature | In Excel | Read | Create or change | Remove | Guide |
 |:--------------|:---------|:-----|:-----------------|:-------|:------|
-| Document properties | *File → Info → Properties* | [`XLSX.getDocumentProperties`](@ref), [`XLSX.getCustomProperty`](@ref), [`XLSX.getCustomProperties`](@ref) | [`XLSX.setDocumentProperties`](@ref), [`XLSX.setCustomProperty`](@ref) | [`XLSX.deleteCustomProperty`](@ref) | [Document properties](@ref) |
+| Document properties | *File → Info → Properties* | [`XLSX.getDocumentProperties`](@ref), [`XLSX.getCustomProperty`](@ref), [`XLSX.getCustomProperties`](@ref) | [`XLSX.setDocumentProperties`](@ref), [`XLSX.setCustomProperty`](@ref) | [`XLSX.deleteCustomProperty`](@ref) | [Document properties](tutorial/creatingWorkbooks.md#Document-properties) |
 | Worksheets | sheet tabs | [`XLSX.sheetnames`](@ref), [`XLSX.sheetcount`](@ref), [`XLSX.hassheet`](@ref) | [`XLSX.addsheet!`](@ref), [`XLSX.copysheet!`](@ref), [`XLSX.renamesheet!`](@ref), [`XLSX.movesheet!`](@ref) | [`XLSX.deletesheet!`](@ref) | [Managing worksheets](sheets/worksheets.md) |
 | Sheet visibility | right-click a tab → *Hide* | [`XLSX.getSheetVisibility`](@ref) | [`XLSX.setSheetVisibility`](@ref) | — | [Hiding a sheet](@ref) |
 | Tab colour | right-click a tab → *Tab Color* | [`XLSX.getTabColor`](@ref) | [`XLSX.setTabColor`](@ref) | [`XLSX.removeTabColor`](@ref) | [Tab colour](@ref) |
@@ -80,7 +80,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Calculating formulas | [`XLSX.setFormula`](@ref) writes the formula, and Excel recalculates it when the file is opened. Its value reads as `missing` until then, unless you give the value yourself: see [Cached values](@ref). |
 | Filtering by colour or by icon | [`XLSX.setAutoFilter`](@ref) filters by values, conditions, top or bottom items, the average and dates. |
 | Creating region map charts, and some chart subtypes | See the charts [Limitations](charts/chartLimitations.md). |
-| Pivot tables and slicers | No functions to create or edit them. |
+| Pivot tables, slicers and timelines | No functions to create or edit them. A file holding them keeps them when it is edited and saved, but they aren't updated: refresh a pivot table in Excel. |
 | Shapes filled with pictures, connectors, grouped shapes and SmartArt | [`XLSX.addShape`](@ref) adds single preset shapes with text, fill and border. |
 | Pictures in headers and footers | [`XLSX.setHeaderFooter`](@ref) sets their text, fields and fonts only. |
 | Password-encrypted files | To read an encrypted file, decrypt it first with [XLSXDecrypt.jl](https://github.com/TimG1964/XLSXDecrypt.jl). |

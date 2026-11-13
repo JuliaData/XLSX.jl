@@ -91,6 +91,7 @@ testgroup("Files", [
     "file modes"              => "files/modes.jl",
     "FileIO"                  => "files/fileio.jl",
     "write and save"          => "files/write-save.jl",
+    "round-trip fidelity"     => "files/round-trip.jl",
     "streaming writes"        => "files/streaming.jl",
     "document properties"     => "files/docprops.jl",
     "read internals"          => "files/read-internals.jl",

@@ -365,7 +365,7 @@ end
 
 !!! warning
 
-    Using do-block syntax in "rw" mode will overwrite the file you read in with the modified data when the do block ends. Care is needed to ensure data are not inadvertantly overwritten, especially if the xlsx file contains any elements that `XLSX.jl` cannot process (such as charts, pivot tables, etc), but that would otherwise be preserved if not overwritten. You may avoid this risk by choosing to open files in "rw" mode without using do-block syntax, in which case it becomes necessary explicitly to write the `XLSXFile` out again, providing the option to write to another file name.
+    Using do-block syntax in "rw" mode will overwrite the file you read in with the modified data when the do block ends. To keep the original, open the file in "rw" mode without a do block and write the `XLSXFile` to another file name with [`XLSX.writexlsx`](@ref). Parts XLSX.jl doesn't model, such as pivot tables and slicers, are kept but not updated: see the warning on [`XLSX.openxlsx`](@ref).
 
 ### Export Tabular Data from a Worksheet
 

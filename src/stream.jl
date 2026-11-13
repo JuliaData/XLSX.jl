@@ -394,7 +394,7 @@ end
 end
 
 function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
-    handled_attributes = Set{String}(["r", "spans", "ht", "customHeight"])
+    handled_attributes = Set{String}(["r", "spans", "ht"])   # `customHeight` is kept as the file has it
     unhandled_attributes = Dict{Int,Dict{String,String}}()
     sst_pfx = get_sst_prefix(ws)
     wb = get_workbook(ws)

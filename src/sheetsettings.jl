@@ -989,7 +989,7 @@ The code Excel replaces with `field` when it prints a header or footer:
 | `:sheet` | `&A` | the sheet's name               |
 
 # Examples
-```jldoctest
+```jldoctest; setup = :(import XLSX)
 julia> "Page " * XLSX.headerFooterField(:page) * " of " * XLSX.headerFooterField(:pages)
 "Page &P of &N"
 ```
@@ -1021,7 +1021,7 @@ If the text after a `size` starts with a digit, separate them with a space, or E
 reads the digits as part of the size.
 
 # Examples
-```jldoctest
+```jldoctest; setup = :(import XLSX)
 julia> XLSX.headerFooterFont(name="Arial", bold=true, size=14)
 "&\\"Arial,Bold\\"&14"
 

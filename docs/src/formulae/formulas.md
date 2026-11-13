@@ -151,7 +151,8 @@ julia> s["C3"], XLSX.geterror(s, "D2")
 
 XLSX.jl does not check the value against the formula, which it can't calculate. Excel
 still recalculates every formula when it opens the file, so a wrong value is shown
-only until then, and only by other programs.
+only until then, and only by other programs. A workbook set to manual calculation
+keeps that setting, and Excel then recalculates only when asked (F9).
 
 ## Referenced formulas
 

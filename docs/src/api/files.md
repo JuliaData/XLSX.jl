@@ -115,7 +115,7 @@ XLSX.headerFooterFont
 
 ## Document properties
 
-Guide: [Document properties](@ref).
+Guide: [Document properties](../tutorial/creatingWorkbooks.md#Document-properties).
 
 ```@docs
 XLSX.setDocumentProperties

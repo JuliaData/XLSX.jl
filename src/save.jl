@@ -482,12 +482,24 @@ function update_app_xml!(xl::XLSXFile)
     handled    = Set{String}()
     pos = 1
 
+    # Excel names the categories in its own language ("Planilhas", "Arbeitsblätter"), so
+    # a category not named in English is recognised by its titles: the sheets'.
+    labels = Set(text_value(only(xml_elements(pairs[k]))) for k in 1:2:length(pairs)-1)
+    function category(label, titles)
+        haskey(new_names, label) && return label
+        for kind in ("Worksheets", "Charts")
+            kind in labels || kind in handled || isempty(intersect(titles, new_names[kind])) || return kind
+        end
+        return nothing
+    end
+
     c = 1
     while c <= length(pairs) - 1
-        label = text_value(only(xml_elements(pairs[c])))
         count = parse(Int, something(text_value(only(xml_elements(pairs[c+1]))), "0"))
+        label = category(text_value(only(xml_elements(pairs[c]))),
+                         [something(text_value(t), "") for t in title_nodes[pos:min(pos+count-1, end)]])
 
-        if haskey(new_names, label)
+        if !isnothing(label) && !(label in handled)
             names = new_names[label]
             if !isempty(names)
                 push!(new_pairs, pairs[c])
@@ -587,10 +599,10 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
     _write_number(row_node, w, column_number(d.stop))
     write(row_node, "\"")
 
-    if !isnothing(r.ht)
+    if !isnothing(r.ht)   # `customHeight`, if the height is set rather than fitted, is among the other attributes
         write(row_node, " ht=\"")
-        _write_number(row_node, w, r.ht)
-        write(row_node, "\" customHeight=\"1\"")
+        isinteger(r.ht) ? _write_number(row_node, w, Int(r.ht)) : _write_number(row_node, w, r.ht)   # "29", as Excel writes it
+        write(row_node, "\"")
     end
 
     for (attribute, value) in unhandled_attributes
@@ -737,10 +749,11 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
 
     wbdoc = xmlroot(xl, "xl/workbook.xml") # find the workbook's xml file
 
-    #update calcPr to force update on loaded
+    # Have Excel recalculate every formula when it opens the file, keeping the
+    # workbook's own calculation settings (manual calculation, iteration, R1C1, ...).
     i, j = get_idces(wbdoc, "workbook", "calcPr")
     if !isnothing(j)
-        wbdoc[i][j] = XML.Element("$(pfx)calcPr", fullCalcOnLoad="1", calcMode="auto")
+        wbdoc[i][j]["fullCalcOnLoad"] = "1"
     end
 
     #update defined names
@@ -767,27 +780,23 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
             definedNames = unlink(wbdoc[i][j], ("definedNames", "definedName"), pfx) # Remove old defined names
         end
 
-        for (k, v) in wb.workbook_names
-            txt = _defined_name_text(v)
-            dn_node = XML.Element("$(pfx)definedName", name=k, XML.Text(txt))
-            if v.hidden
-                dn_node["hidden"] = "1"
-            end
-            push!(definedNames, dn_node)
-        end
-
+        # Each name with its sheet's 0-based position, or `nothing` for a workbook name.
         # `n` deliberately not `i`: `i` is still needed for `wbdoc[i][j]` below.
         sheet_ordinals = Dict(s.sheetId => n for (n, s) in enumerate(wb.sheets))
+        names = Tuple{String,Union{Nothing,Int},DefinedNameValue}[(k, nothing, v) for (k, v) in wb.workbook_names]
         for (k, v) in wb.worksheet_names
             ordinal = get(sheet_ordinals, first(k), nothing)
             isnothing(ordinal) &&
                 throw(XLSXError("Defined name `$(last(k))` is scoped to sheetId $(first(k)), which is not in the workbook."))
-            txt = _defined_name_text(v)
-            dn_node = XML.Element("$(pfx)definedName", name=last(k),
-                                localSheetId=string(ordinal - 1), XML.Text(txt))
-            if v.hidden
-                dn_node["hidden"] = "1"
-            end
+            push!(names, (last(k), ordinal - 1, v))
+        end
+        # In Excel's order: by name, in any case and without `_xlnm.`, then sheet by
+        # sheet, with the workbook's own name after the sheets'.
+        sort!(names; by = ((name, sheet, _),) -> (lowercase(replace(name, r"^_xlnm\." => "")), something(sheet, typemax(Int))))
+        for (name, sheet, v) in names
+            dn_node = XML.Element("$(pfx)definedName", name=name, XML.Text(_defined_name_text(v)))
+            isnothing(sheet) || (dn_node["localSheetId"] = string(sheet))
+            v.hidden && (dn_node["hidden"] = "1")
             push!(definedNames, dn_node)
         end
         wbdoc[i][j] = definedNames # Add the new definedNames block to the workbook's xml file

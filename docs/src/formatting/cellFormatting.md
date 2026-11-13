@@ -183,7 +183,7 @@ julia> s["A2"] = Date(2026, 3, 7); XLSX.setFormat(s, "A2"; format="d mmmm yyyy")
 
 julia> s["A3"] = 0.256; XLSX.setFormat(s, "A3"; format="0.0%");
 
-julia> [XLSX.getText(s, "A\$i") for i in 1:3]
+julia> [XLSX.getText(s, "A$i") for i in 1:3]
 3-element Vector{String}:
  "1,234.50"
  "7 March 2026"
