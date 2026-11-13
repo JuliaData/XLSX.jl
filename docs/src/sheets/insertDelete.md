@@ -111,8 +111,8 @@ Images, charts and shapes move with the cells they sit over, according to their
 
 A comment moves with its cell, and its box with it. A comment on a deleted cell
 is deleted. A threaded comment (Excel 365) also moves with its cell, but deleting
-the cell it is on is refused, as XLSX.jl can't change threaded comments: delete
-the comment in Excel first.
+the cell it is on is refused, so that a conversation isn't lost by accident: delete
+it first with [`XLSX.deleteThreadedComment`](@ref).
 
 ## Limits
 

@@ -164,6 +164,7 @@ function _edit!(ws::Worksheet, e::RowColEdit)
         is_chartsheet(wb, s.name) && continue
         _repoint_sheet_xml_formulas!(s, r"(?s)\A.+\z" => (t -> _shift_formula(t, e; own_sheet=s.name)))
     end
+    _inherit_sparklines!(ws, e)   # after the formulas move, so the new ones' data isn't moved too
     _shift_defined_names!(wb, e)
     for mime in (MIME_CHART, MIME_CHARTEX), path in parts_with_content_type(xf, mime)
         _rewrite_chart_formulas!(s -> _shift_formula(s, e), xml_root_element(get_xml_data(xf, path)))
@@ -433,6 +434,8 @@ function _shift_ext_sqrefs!(node::XML.Node, e::RowColEdit)
         if isnothing(sq)   # a container: kept unless the edit empties it
             had = !isempty(xml_elements(c))
             _shift_ext_sqrefs!(c, e)
+            # a sparkline group keeps its colours, so it is empty once its sparklines are gone
+            localname(c) == "sparklineGroup" && !any(k -> localname(k) == "sparklines", xml_elements(c)) && return false
             return !had || !isempty(xml_elements(c))
         end
         el = xml_elements(c)[sq]

@@ -20,7 +20,7 @@ function target_cell_ref_from_offset(anchor_cell::CellRef, offset::Integer, dim:
     return target_cell_ref_from_offset(row_number(anchor_cell), column_number(anchor_cell), offset, dim)
 end
 
-const ALLOWED_TYPES = Union{Number,String,Bool,Dates.Date,Dates.Time,Dates.DateTime,Missing,Nothing}
+const ALLOWED_TYPES = Union{Number,String,Bool,Dates.Date,Dates.Time,Dates.DateTime,Missing,Nothing,CellImage}
 function process_vector(col) # Convert any disallowed types to strings. #239.
     if eltype(col) <: ALLOWED_TYPES
         # Case 1: All elements are of allowed types
@@ -45,6 +45,9 @@ end
         table_name::AbstractString="",
         table_style::Union{AbstractString,Nothing}=nothing,
         totals::Union{Nothing,AbstractVector{<:Pair}}=nothing,
+        column_widths=nothing,
+        column_formats=nothing,
+        freeze_header::Bool=false,
     )
 
 Write tabular data `data` with labels given by `columnnames` to `sheet`,
@@ -73,6 +76,16 @@ equivalent to calling [`XLSX.settotals!`](@ref) immediately afterward.
 `value` forms `settotals!` accepts (a `Symbol` for a built-in function, a
 `(:custom, formula)` tuple, or a `String` label). Requires `as_table=true`.
 
+Three keywords lay out the columns written:
+- `column_widths`: one width for every column, or a vector of widths by column,
+  `nothing` leaving a column's width as it is. Widths are in characters, as
+  [`XLSX.setColumnWidth`](@ref) takes them.
+- `column_formats`: a `Dict` from column (number from the first written, or name in
+  `columnnames`) to a number format, as [`XLSX.setFormat`](@ref) takes it, applied to
+  the column's data cells.
+- `freeze_header`: freeze the rows down to the header row, as
+  [`XLSX.freezePanes`](@ref) does. Requires `write_columnnames=true`.
+
 # Examples
 ```julia
 julia> using DataFrames
@@ -96,23 +109,20 @@ function writetable!(
     table_name::AbstractString="",
     table_style::Union{AbstractString,Nothing}=nothing,
     totals::Union{Nothing,AbstractVector{<:Pair}}=nothing,
+    column_widths=nothing,
+    column_formats=nothing,
+    freeze_header::Bool=false,
 )
+    freeze_header && !write_columnnames &&
+        throw(XLSXError("`freeze_header=true` requires `write_columnnames=true`: there is no header row to freeze otherwise."))
     as_table && !write_columnnames &&
         throw(XLSXError("`as_table=true` requires `write_columnnames=true` — an Excel Table needs a header row, and `writetable!` is what writes it."))
     !isnothing(totals) && !as_table &&
         throw(XLSXError("`totals` requires `as_table=true` — there's no table to set a totals row on otherwise."))
 
     col_count = length(data)
-    col_count != length(columnnames) && throw(XLSXError("Column count mismatch between `data` ($col_count columns) and `columnnames` ($(length(columnnames)) columns)."))
-    col_count <= 0 && throw(XLSXError("Can't write table with no columns."))
-    col_count > EXCEL_MAX_COLS && throw(XLSXError("`data` contains $col_count columns, but Excel only supports up to $EXCEL_MAX_COLS; must reduce `data` size"))
-    row_count = length(data[1])
-    row_count > EXCEL_MAX_ROWS - 1 && throw(XLSXError("`data` contains $row_count rows, but Excel only supports up to $(EXCEL_MAX_ROWS-1); must reduce `data` size"))
-    if col_count > 1
-        for c in 2:col_count
-            length(data[c]) != row_count && throw(XLSXError("Row count mismatch between column 1 ($row_count rows) and column $c ($(length(data[c])) rows)."))
-        end
-    end
+    row_count = _check_table_shape(data, columnnames)
+    widths, formats = _column_settings([string(c) for c in columnnames], column_widths, column_formats)
 
     as_table && row_count <= 0 &&
         throw(XLSXError("`as_table=true` requires at least one data row — Excel does not support header-only tables."))
@@ -152,7 +162,37 @@ function writetable!(
         !isnothing(totals) && settotals!(sheet, t.name, totals...)
     end
 
+    for (c, width) in widths
+        col = anchor_col + c - 1
+        setColumnWidth(sheet, CellRange(CellRef(1, col), CellRef(1, col)); width)
+    end
+    first_data_row = anchor_row + 1 - start_from_anchor
+    if row_count > 0
+        for (c, fmt) in formats
+            col = anchor_col + c - 1
+            setUniformFormat(sheet, CellRange(CellRef(first_data_row, col), CellRef(first_data_row + row_count - 1, col)); format=fmt)
+        end
+    end
+    freeze_header && freezePanes(sheet; nrows=anchor_row)
+
     return nothing
+end
+
+# The number of rows in `data`, a vector of columns named by `columnnames`, checked
+# to fit in a sheet.
+function _check_table_shape(data, columnnames)::Int
+    col_count = length(data)
+    col_count != length(columnnames) && throw(XLSXError("Column count mismatch between `data` ($col_count columns) and `columnnames` ($(length(columnnames)) columns)."))
+    col_count <= 0 && throw(XLSXError("Can't write table with no columns."))
+    col_count > EXCEL_MAX_COLS && throw(XLSXError("`data` contains $col_count columns, but Excel only supports up to $EXCEL_MAX_COLS; must reduce `data` size"))
+    row_count = length(data[1])
+    row_count > EXCEL_MAX_ROWS - 1 && throw(XLSXError("`data` contains $row_count rows, but Excel only supports up to $(EXCEL_MAX_ROWS-1); must reduce `data` size"))
+    if col_count > 1
+        for c in 2:col_count
+            length(data[c]) != row_count && throw(XLSXError("Row count mismatch between column 1 ($row_count rows) and column $c ($(length(data[c])) rows)."))
+        end
+    end
+    return row_count
 end
 
 #
@@ -197,19 +237,30 @@ function _table_name_from_sheet(wb::Workbook, sheet::Worksheet, sheetname::Abstr
 end
 
 """
-    writetable(filename, data, columnnames; [overwrite], [sheetname], [anchor_cell], [as_table], [table_name], [table_style], [totals])
+    writetable(filename, data, columnnames; [overwrite], [sheetname], [anchor_cell], [as_table], [table_name], [table_style], [totals],
+               [column_widths], [column_formats], [freeze_header], [streaming], [shared_strings])
 
 - `data` is a vector of columns.
 - `columnames` is a vector of column labels.
 - `overwrite` is a `Bool` to control if `filename` should be overwritten if already exists.
 - `sheetname` is the name for the worksheet.
 - `as_table` is a `Bool` to turn the written range into an Excel Table if true.
-- `table_name` is the name of the Excel Table (if `as_table=true`) 
-- `table_style` is the Ezxcel style to use for the Table (if `as_table=true`)
+- `table_name` is the name of the Excel Table (if `as_table=true`)
+- `table_style` is the Excel style to use for the Table (if `as_table=true`)
 - `totals` defines whether and how Table totals are defined (if `as_table=true`)
+- `column_widths`, `column_formats` and `freeze_header` set the columns' widths and
+  number formats and freeze the header row (see [`XLSX.writetable!`](@ref)).
+- `streaming=true` writes the rows straight into the file, a chunk at a time, rather
+  than building the workbook in memory first, so a table of any size is written in
+  about the same memory. A Tables.jl table that is read a row at a time (not by
+  columns) is never held in memory as a whole. A streamed table starts in cell A1 and
+  has no `totals`; strings are written inline unless `shared_strings=true`. See
+  [`XLSX.streamxlsx`](@ref) and [Writing large files](@ref).
 
-For more details on `table_name`, `table_style`, `totals`, refer to 
+For more details on `table_name`, `table_style`, `totals`, refer to
 [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref) and [`XLSX.settotals!`](@ref)
+
+The other forms of `writetable`, which write several sheets, take `streaming` too.
 
 Returns the filepath of the written file if a filename is supplied, or `nothing` if writing to an `IO`.
 
@@ -232,23 +283,37 @@ See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals
 """
 function writetable(filename::Union{AbstractString,IO}, data, columnnames; overwrite::Bool=false, sheetname::AbstractString="", anchor_cell::Union{String,CellRef}=CellRef("A1"),
     as_table::Bool=false, table_name::AbstractString="", table_style::Union{AbstractString,Nothing}=nothing,
-    totals::Union{Nothing,AbstractVector{<:Pair}}=nothing,
+    totals::Union{Nothing,AbstractVector{<:Pair}}=nothing, streaming::Bool=false, layout...
 )
 
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
 
-    xf = open_empty_template(sheetname)
-    sheet = xf[1]
-
     if isa(anchor_cell, String)
         anchor_cell = CellRef(anchor_cell)
     end
 
-    writetable!(sheet, data, columnnames; anchor_cell=anchor_cell, as_table=as_table, table_name=table_name, table_style=table_style, totals=totals)
+    if streaming
+        _check_streaming_options(anchor_cell, totals)
+        return _stream_sheets(filename, [(sheetname, (data, columnnames))]; overwrite, as_table,
+                              table_name, table_style, layout...)
+    end
+
+    xf = open_empty_template(sheetname)
+    sheet = xf[1]
+
+    writetable!(sheet, data, columnnames; anchor_cell=anchor_cell, as_table=as_table, table_name=table_name, table_style=table_style, totals=totals, layout...)
 
     writexlsx(filename, xf, overwrite=overwrite)
+end
+
+function _check_streaming_options(anchor_cell::CellRef, totals)
+    anchor_cell == CellRef(1, 1) ||
+        throw(XLSXError("`streaming=true` writes from cell A1: `anchor_cell` can't be used with it."))
+    isnothing(totals) ||
+        throw(XLSXError("`streaming=true` can't write a totals row: use `as_table=true` and add totals with `settotals!` after opening the file with `mode=\"rw\"`."))
+    return nothing
 end
 
 """
@@ -291,7 +356,7 @@ julia> XLSX.writetable("report.xlsx"; overwrite=true, as_table=true, table_style
     Because sheet names are given as keywords, they must be valid Julia
     identifiers — `REPORT_A` works, `"Report A"` does not. They also share
     the keyword namespace with this method's own options so, using this method, 
-    a sheet cannot be named `overwrite`, `as_table` or `table_style` — such a
+    a sheet cannot be named `overwrite`, `as_table`, `table_style` or `streaming` — such a
     keyword is taken as the option, and the resulting error will not mention sheet
     names. Use the `Vector{Tuple{String, …}}` form, or `"Report A" => table` pairs,
     for names that don't satisfy this.
@@ -299,7 +364,7 @@ julia> XLSX.writetable("report.xlsx"; overwrite=true, as_table=true, table_style
 See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
 function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
-    as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing, kw...)
+    as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing, streaming::Bool=false, kw...)
 
     for (sheetname, spec) in kw # do this before confirming isfile - ordering pinned in tests
         spec isa Tuple{Any,Any} || throw(XLSXError(
@@ -311,6 +376,9 @@ function writetable(filename::Union{AbstractString,IO}; overwrite::Bool=false,
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
+
+    streaming && return _stream_sheets(filename, [(k, spec) for (k, spec) in kw];
+                                       overwrite, as_table, table_style, table_name_from_sheet=true)
 
     xf = open_empty_template()
     wb = get_workbook(xf)
@@ -366,11 +434,15 @@ See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals
 """
 function writetable(filename::Union{AbstractString,IO}, tables::Vector{Tuple{String,S,Vector{T}}};
     overwrite::Bool=false, as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing,
+    streaming::Bool=false,
 ) where {S<:Vector{U} where {U},T<:Union{String,Symbol}}
 
     if filename isa AbstractString && !overwrite
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
+
+    streaming && return _stream_sheets(filename, [(n, (d, c)) for (n, d, c) in tables];
+                                       overwrite, as_table, table_style, table_name_from_sheet=true)
 
     xf = open_empty_template()
     wb = get_workbook(xf)

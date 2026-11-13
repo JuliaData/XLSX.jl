@@ -89,47 +89,10 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
     if !all(values(xf.files))
         throw(XLSXError("Some internal files were not loaded into memory for unknown reasons."))
     end
-    if output_source isa AbstractString && !overwrite
-        isfile(output_source) && throw(XLSXError("Output file $output_source already exists."))
-    end
-
-    update_workbook_xml!(xf)
-    update_app_xml!(xf)
-    
-    wb=get_workbook(xf)
+    _check_overwrite(output_source, overwrite)
 
     ZipArchives.ZipWriter(output_source) do xlsx
-
-        # write XML files not in cache
-        for f in keys(xf.files)
-            if !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", f)
-                ZipArchives.zip_newfile(xlsx, f; compress=true)
-                xml_str = XML.write(xf.data[f]; indentsize=0)
-                write(xlsx, xml_str)
-            end
-        end
-        # write worksheet files from cache (cache must be enabled in write mode)
-        for sheet_no in 1:sheetcount(wb)
-            if is_chartsheet(wb, getsheet(wb, sheet_no).name)
-                continue
-            end
-            pieces = update_single_sheet!(wb, sheet_no, true)
-            f = get_relationship_target_by_id("xl", wb, getsheet(wb, sheet_no).relationship_id)
-            ZipArchives.zip_newfile(xlsx, f; compress=true)
-            foreach(p -> write(xlsx, p), pieces)
-        end
-
-        # write binary files
-        for f in keys(xf.binary_data)
-            ZipArchives.zip_newfile(xlsx, f; compress=true)
-            write(xlsx, xf.binary_data[f])
-        end
-        
-        # write sharedString table
-        if !isempty(get_sst(wb))
-            ZipArchives.zip_newfile(xlsx, "xl/sharedStrings.xml"; compress=true)
-            print(xlsx, generate_sst_xml_string(wb))
-        end        
+        _write_package!(xlsx, xf)
     end
 
     if !(output_source isa IO)
@@ -139,6 +102,52 @@ function writexlsx(output_source::Union{AbstractString,IO}, xf::XLSXFile; overwr
         return nothing
     end
 
+end
+
+_check_overwrite(::IO, ::Bool) = nothing
+function _check_overwrite(output_source::AbstractString, overwrite::Bool)
+    !overwrite && isfile(output_source) && throw(XLSXError("Output file $output_source already exists."))
+    return nothing
+end
+
+# Write every part of `xf` into the zip `xlsx`, except the worksheets numbered in
+# `streamed`, which `streamxlsx` has already written.
+function _write_package!(xlsx::ZipArchives.ZipWriter, xf::XLSXFile; streamed=())
+    update_workbook_xml!(xf)
+    update_app_xml!(xf)
+
+    wb = get_workbook(xf)
+
+    # write XML files not in cache
+    for f in keys(xf.files)
+        if !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", f)
+            ZipArchives.zip_newfile(xlsx, f; compress=true)
+            xml_str = XML.write(xf.data[f]; pretty=false)
+            write(xlsx, xml_str)
+        end
+    end
+    # write worksheet files from cache (cache must be enabled in write mode)
+    for sheet_no in 1:sheetcount(wb)
+        if sheet_no in streamed || is_chartsheet(wb, getsheet(wb, sheet_no).name)
+            continue
+        end
+        pieces = update_single_sheet!(wb, sheet_no, true)
+        ZipArchives.zip_newfile(xlsx, get_worksheet_internal_file(getsheet(wb, sheet_no)); compress=true)
+        foreach(p -> write(xlsx, p), pieces)
+    end
+
+    # write binary files
+    for f in keys(xf.binary_data)
+        ZipArchives.zip_newfile(xlsx, f; compress=true)
+        write(xlsx, xf.binary_data[f])
+    end
+
+    # write sharedString table
+    if !isempty(get_sst(wb))
+        ZipArchives.zip_newfile(xlsx, "xl/sharedStrings.xml"; compress=true)
+        print(xlsx, generate_sst_xml_string(wb))
+    end
+    return nothing
 end
 
 get_worksheet_internal_file(ws::Worksheet) = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
@@ -184,6 +193,10 @@ function generate_sst_xml_string(wb::Workbook)::String
     return String(take!(buff))
 end
 
+# A formula as `<f>` holds it, without the leading `=` it has in Excel's formula bar
+# (and which `setFormula` is usually given): Excel never writes one there.
+_formula_text(f::AbstractString) = startswith(f, '=') ? f[nextind(f, 1):end] : f
+
 function add_node_formula!(io, ref::CellRef, ws::Worksheet, pfx)
     return add_node_formula!(io, get_formula_from_cache(ws, ref), pfx)
 end
@@ -201,7 +214,7 @@ function add_node_formula!(io, f::Formula, pfx)
         end
     end
     
-    write(io, ">", XML.escape(f.formula), "</$(pfx)f>")
+    write(io, ">", XML.escape(_formula_text(f.formula)), "</$(pfx)f>")
 end
 
 function add_node_formula!(io, f::FormulaReference, pfx)
@@ -229,7 +242,7 @@ function add_node_formula!(io, f::ReferencedFormula, pfx)
     
     write(io, " si=\"")
     print(io, f.id)
-    write(io, "\">", XML.escape(f.formula), "</$(pfx)f>")
+    write(io, "\">", XML.escape(_formula_text(f.formula)), "</$(pfx)f>")
 end
 
 """
@@ -253,6 +266,25 @@ function update_worksheets_xml!(xl::XLSXFile; full=false)
 end
 function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{Vector{UInt8}}}
     sheet = getsheet(wb, sheet_no)
+    if full # need to reconstruct row and cell data from cache
+        # The sheet in pieces, to be written one after another: what comes before
+        # the rows, the rows from the WorksheetCache a chunk at a time, and what
+        # comes after. Joining them first would copy the whole sheet again.
+        head, tail = _sheet_xml_frame(sheet, get_dimension(sheet))
+        pieces = [head]
+        append!(pieces, get_cache_rows(sheet, _prefix_colon(sheet)))
+        push!(pieces, tail)
+        return pieces
+    else
+        set_worksheet_xml_document!(sheet, _worksheet_doc_copy(sheet)) # no need to save full reconstructed data
+        return nothing
+    end
+end
+
+_prefix_colon(sheet::Worksheet) = (pfx = get_prefix(sheet); pfx == "" ? pfx : pfx * ":")
+
+# A copy of the sheet's XML (without its rows), checked to be a worksheet.
+function _worksheet_doc_copy(sheet::Worksheet)::XML.Node
     doc = copynode(get_worksheet_xml_document(sheet))
     xroot = xml_root_element(doc)
 
@@ -261,48 +293,45 @@ function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{No
     spreadsheet_ns_declared = (SPREADSHEET_NAMESPACE_XPATH_ARG in values(ns_map))
     spreadsheet_ns_declared || throw(XLSXError("Unsupported Spreadsheet XML namespace."))
     localname(xroot) !=   "worksheet" && throw(XLSXError("Malformed Excel file. Expected root node named `worksheet` in worksheet XML file."))
+    return doc
+end
 
-    if full # need to reconstruct row and cell data from cache
+# The sheet's XML before its rows, up to and including `<sheetData>`, and after them,
+# from `</sheetData>`. `dimension` is written as the sheet's `<dimension>`, or for
+# `nothing` (a sheet streamed without knowing its size) the element is left out.
+function _sheet_xml_frame(sheet::Worksheet, dimension::Union{Nothing,CellRange})::Tuple{Vector{UInt8},Vector{UInt8}}
+    doc = _worksheet_doc_copy(sheet)
 
-        # update worksheet dimension
-        i, j = get_idces(doc, "worksheet", "dimension")
-        if !isnothing(j)
-            dimension_node = doc[i][j]
-            dimension_node["ref"] = string(get_dimension(sheet))
+    # update worksheet dimension
+    i, j = get_idces(doc, "worksheet", "dimension")
+    if !isnothing(j)
+        if isnothing(dimension)
+            deleteat!(doc[i].children, j)
+        else
+            doc[i][j]["ref"] = string(dimension)
         end
-
-        pfx = get_prefix(sheet)
-        pfx = pfx == "" ? pfx : pfx * ":"
-
-        empty_doc = XML.write(doc)
-
-        idx = findfirst("<$(pfx)sheetData/>", empty_doc)
-        idx === nothing && throw(XLSXError("<$(pfx)sheetData/> placeholder not found when reconstructing worksheet '$(sheet.name)'"))
-        new_doc=IOBuffer()
-        print(new_doc, empty_doc[begin:first(idx)-1])
-
-        # create <sheetData> with any attributes
-        print(new_doc, "<$(pfx)sheetData")
-        i, j = get_idces(doc, "worksheet", "sheetData")
-        a = XML.attributes(doc[i][j])
-        if !isnothing(a)
-            for (k, v) in a
-                print(new_doc, " ",k,"=\"",v,"\"")
-            end
-        end
-        print(new_doc, ">\n")
-        # The sheet in pieces, to be written one after another: what comes before
-        # the rows, the rows from the WorksheetCache a chunk at a time, and what
-        # comes after. Joining them first would copy the whole sheet again.
-        pieces = [take!(new_doc)]
-        append!(pieces, get_cache_rows(sheet, pfx))
-        push!(pieces, Vector{UInt8}("  </$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx)))))
-        return pieces
-
-    else
-        set_worksheet_xml_document!(sheet, doc) # no need to save full reconstructed data
-        return nothing
     end
+
+    pfx = _prefix_colon(sheet)
+    empty_doc = XML.write(doc; pretty=false)
+
+    idx = findfirst("<$(pfx)sheetData/>", empty_doc)
+    idx === nothing && throw(XLSXError("<$(pfx)sheetData/> placeholder not found when reconstructing worksheet '$(sheet.name)'"))
+    head = IOBuffer()
+    print(head, empty_doc[begin:first(idx)-1])
+
+    # create <sheetData> with any attributes
+    print(head, "<$(pfx)sheetData")
+    i, j = get_idces(doc, "worksheet", "sheetData")
+    a = XML.attributes(doc[i][j])
+    if !isnothing(a)
+        for (k, v) in a
+            print(head, " ",k,"=\"",v,"\"")
+        end
+    end
+    print(head, ">\n")
+    tail = Vector{UInt8}("  </$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx))))
+    return take!(head), tail
 end
 
 const _NO_ROW_ATTRS = Dict{String,String}()
@@ -453,12 +482,24 @@ function update_app_xml!(xl::XLSXFile)
     handled    = Set{String}()
     pos = 1
 
+    # Excel names the categories in its own language ("Planilhas", "Arbeitsblätter"), so
+    # a category not named in English is recognised by its titles: the sheets'.
+    labels = Set(text_value(only(xml_elements(pairs[k]))) for k in 1:2:length(pairs)-1)
+    function category(label, titles)
+        haskey(new_names, label) && return label
+        for kind in ("Worksheets", "Charts")
+            kind in labels || kind in handled || isempty(intersect(titles, new_names[kind])) || return kind
+        end
+        return nothing
+    end
+
     c = 1
     while c <= length(pairs) - 1
-        label = text_value(only(xml_elements(pairs[c])))
         count = parse(Int, something(text_value(only(xml_elements(pairs[c+1]))), "0"))
+        label = category(text_value(only(xml_elements(pairs[c]))),
+                         [something(text_value(t), "") for t in title_nodes[pos:min(pos+count-1, end)]])
 
-        if haskey(new_names, label)
+        if !isnothing(label) && !(label in handled)
             names = new_names[label]
             if !isempty(names)
                 push!(new_pairs, pairs[c])
@@ -509,7 +550,7 @@ function encode(d::CellValueType)
         return "n"
     elseif d == CT_BOOL
         return "b"
-    elseif d == CT_ERROR
+    elseif d == CT_ERROR || d == CT_RICHVALUE
         return "e"
     elseif d == CT_EMPTY
         return ""
@@ -558,10 +599,10 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
     _write_number(row_node, w, column_number(d.stop))
     write(row_node, "\"")
 
-    if !isnothing(r.ht)
+    if !isnothing(r.ht)   # `customHeight`, if the height is set rather than fitted, is among the other attributes
         write(row_node, " ht=\"")
-        _write_number(row_node, w, r.ht)
-        write(row_node, "\" customHeight=\"1\"")
+        isinteger(r.ht) ? _write_number(row_node, w, Int(r.ht)) : _write_number(row_node, w, r.ht)   # "29", as Excel writes it
+        write(row_node, "\"")
     end
 
     for (attribute, value) in unhandled_attributes
@@ -574,39 +615,33 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         cell = getcell(r, c)
         cell isa EmptyCell && continue
 
-        write(row_node, w.c_open)
-        _write_cellref(row_node, w, cell.ref)
-        write(row_node, "\"")
-
-        if cell.datatype != CT_EMPTY
-            write(row_node, " t=\"", encode(cell.datatype), "\"")
-        end
-
-        if cell.style != UInt32(0)
-            write(row_node, " s=\"")
-            _write_number(row_node, w, cell.style)
-            write(row_node, "\"")
-        end
+        # A formula's string result is written in the cell, as Excel writes it, not
+        # as a shared string.
+        str_result = cell.formula && cell.datatype == CT_STRING
+        _write_cell_open!(row_node, w, cell.ref, str_result ? "str" : encode(cell.datatype), cell.style)
 
         if cell.meta != UInt64(0)
             write(row_node, " cm=\"")
             _write_number(row_node, w, cell.meta)
             write(row_node, "\"")
         end
+        if cell.datatype == CT_RICHVALUE
+            write(row_node, " vm=\"")
+            _write_number(row_node, w, Int64(cell.value))
+            write(row_node, "\"")
+        end
 
         has_formula = cell.formula
-        has_value = false
-        
-        if cell.datatype == CT_FLOAT || cell.datatype == CT_DATETIME || cell.datatype == CT_TIME
-            v_f = reinterpret(Float64, cell.value)
+        is_raw = _is_raw_value_type(cell.datatype)
+        has_value = is_raw
+        v_other = ""
+        if cell.datatype == CT_ERROR
+            v_other = encode(reinterpret(CellErrorType, cell.value))
+            has_value = !isempty(v_other)
+        elseif cell.datatype == CT_RICHVALUE   # what programs without rich values show
+            v_other = "#VALUE!"
             has_value = true
-        elseif cell.datatype == CT_STRING || cell.datatype == CT_DATE || cell.datatype == CT_INT || cell.datatype == CT_BOOL
-            v_i = reinterpret(Int64, cell.value)
-            has_value = true
-        elseif cell.datatype == CT_ERROR
-            v_e = encode(reinterpret(CellErrorType, cell.value))
-            has_value = !isempty(v_e)
-        elseif cell.datatype != CT_EMPTY
+        elseif !is_raw && cell.datatype != CT_EMPTY
             v_other = getdata(ws, cell)
             has_value = !ismissing(v_other) && v_other != ""
         end
@@ -618,17 +653,14 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
             if has_formula
                 add_node_formula!(row_node, cell.ref, ws, pfx)
             end
-            if has_value
+            if str_result
+                write(row_node, "\n        ")
+                write_preserved(row_node, "v", sst_unformatted_string(ws, reinterpret(Int64, cell.value)), pfx)
+            elseif is_raw
+                _write_cell_v!(row_node, w, cell.datatype, cell.value)
+            elseif has_value
                 write(row_node, w.v_open)
-                if cell.datatype == CT_FLOAT || cell.datatype == CT_DATETIME || cell.datatype == CT_TIME
-                    _write_number(row_node, w, v_f)
-                elseif cell.datatype == CT_STRING || cell.datatype == CT_DATE || cell.datatype == CT_INT || cell.datatype == CT_BOOL
-                    _write_number(row_node, w, v_i)
-                elseif cell.datatype == CT_ERROR
-                    write(row_node, v_e)
-                else
-                    print(row_node, v_other)
-                end
+                print(row_node, v_other)
                 write(row_node, w.v_close)
             end
             write(row_node, w.c_close)
@@ -636,6 +668,37 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
     end
 
     write(row_node, w.row_close)
+    return nothing
+end
+
+# Types whose `<v>` is the cell's stored value, written as a number: a string's is its
+# index in the shared string table.
+_is_raw_value_type(t::CellValueType) =
+    t == CT_FLOAT || t == CT_DATETIME || t == CT_TIME || t == CT_STRING || t == CT_DATE || t == CT_INT || t == CT_BOOL
+
+# `<c r="…"`, with the cell's type `t` (`""` for none) and style, leaving the tag open.
+function _write_cell_open!(io::IO, w::_RowWriter, ref::CellRef, t::AbstractString, style::Integer)
+    write(io, w.c_open)
+    _write_cellref(io, w, ref)
+    write(io, "\"")
+    isempty(t) || write(io, " t=\"", t, "\"")
+    if style != 0
+        write(io, " s=\"")
+        _write_number(io, w, style)
+        write(io, "\"")
+    end
+    return nothing
+end
+
+# The `<v>` of a cell whose type `_is_raw_value_type`, from its stored `value`.
+function _write_cell_v!(io::IO, w::_RowWriter, t::CellValueType, value::UInt64)
+    write(io, w.v_open)
+    if t == CT_FLOAT || t == CT_DATETIME || t == CT_TIME
+        _write_number(io, w, reinterpret(Float64, value))
+    else
+        _write_number(io, w, reinterpret(Int64, value))
+    end
+    write(io, w.v_close)
     return nothing
 end
 
@@ -686,10 +749,11 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
 
     wbdoc = xmlroot(xl, "xl/workbook.xml") # find the workbook's xml file
 
-    #update calcPr to force update on loaded
+    # Have Excel recalculate every formula when it opens the file, keeping the
+    # workbook's own calculation settings (manual calculation, iteration, R1C1, ...).
     i, j = get_idces(wbdoc, "workbook", "calcPr")
     if !isnothing(j)
-        wbdoc[i][j] = XML.Element("$(pfx)calcPr", fullCalcOnLoad="1", calcMode="auto")
+        wbdoc[i][j]["fullCalcOnLoad"] = "1"
     end
 
     #update defined names
@@ -716,27 +780,23 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
             definedNames = unlink(wbdoc[i][j], ("definedNames", "definedName"), pfx) # Remove old defined names
         end
 
-        for (k, v) in wb.workbook_names
-            txt = _defined_name_text(v)
-            dn_node = XML.Element("$(pfx)definedName", name=k, XML.Text(txt))
-            if v.hidden
-                dn_node["hidden"] = "1"
-            end
-            push!(definedNames, dn_node)
-        end
-
+        # Each name with its sheet's 0-based position, or `nothing` for a workbook name.
         # `n` deliberately not `i`: `i` is still needed for `wbdoc[i][j]` below.
         sheet_ordinals = Dict(s.sheetId => n for (n, s) in enumerate(wb.sheets))
+        names = Tuple{String,Union{Nothing,Int},DefinedNameValue}[(k, nothing, v) for (k, v) in wb.workbook_names]
         for (k, v) in wb.worksheet_names
             ordinal = get(sheet_ordinals, first(k), nothing)
             isnothing(ordinal) &&
                 throw(XLSXError("Defined name `$(last(k))` is scoped to sheetId $(first(k)), which is not in the workbook."))
-            txt = _defined_name_text(v)
-            dn_node = XML.Element("$(pfx)definedName", name=last(k),
-                                localSheetId=string(ordinal - 1), XML.Text(txt))
-            if v.hidden
-                dn_node["hidden"] = "1"
-            end
+            push!(names, (last(k), ordinal - 1, v))
+        end
+        # In Excel's order: by name, in any case and without `_xlnm.`, then sheet by
+        # sheet, with the workbook's own name after the sheets'.
+        sort!(names; by = ((name, sheet, _),) -> (lowercase(replace(name, r"^_xlnm\." => "")), something(sheet, typemax(Int))))
+        for (name, sheet, v) in names
+            dn_node = XML.Element("$(pfx)definedName", name=name, XML.Text(_defined_name_text(v)))
+            isnothing(sheet) || (dn_node["localSheetId"] = string(sheet))
+            v.hidden && (dn_node["hidden"] = "1")
             push!(definedNames, dn_node)
         end
         wbdoc[i][j] = definedNames # Add the new definedNames block to the workbook's xml file

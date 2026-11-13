@@ -11,10 +11,24 @@ SharedStringTable() = SharedStringTable(Vector{String}(), Dict{Int64, String}(),
 
 # Write the `<si>` of a plain string.
 function write_plain_si(io::IO, text::AbstractString, pfx_colon::AbstractString)
-    # Keep any whitespace other than single spaces, not just what `needs_preserve` covers.
+    write(io, "<", pfx_colon, "si>")
+    write_plain_t(io, text, pfx_colon)
+    write(io, "</", pfx_colon, "si>")
+    return nothing
+end
+
+# The `<t>` of plain text, in a shared string's `<si>` or an inline string's `<is>`.
+function write_plain_t(io::IO, text::AbstractString, pfx_colon::AbstractString)
+    write_preserved(io, "t", text, pfx_colon)
+    return nothing
+end
+
+# `<tag>text</tag>`, with `xml:space="preserve"` when the text's whitespace must be
+# kept: any but single spaces, not just what `needs_preserve` covers.
+function write_preserved(io::IO, tag::AbstractString, text::AbstractString, pfx_colon::AbstractString)
     preserve = needs_preserve(text) || any(c -> isspace(c) && c != ' ', text)
-    write(io, "<", pfx_colon, "si><", pfx_colon, preserve ? "t xml:space=\"preserve\">" : "t>",
-        XML.escape(text), "</", pfx_colon, "t></", pfx_colon, "si>")
+    write(io, "<", pfx_colon, tag, preserve ? " xml:space=\"preserve\">" : ">",
+        XML.escape(text), "</", pfx_colon, tag, ">")
     return nothing
 end
 

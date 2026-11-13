@@ -5,6 +5,7 @@ import Base.convert
 import Base.Threads
 import Colors
 import Dates
+import OrderedCollections
 import Parsers
 import Printf.@printf
 import Random
@@ -60,8 +61,9 @@ export
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet,
     addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
-    addImage, deleteImage,
+    addImage, deleteImage, CellImage, addTextBox, addShape, deleteShape,
     addComment, deleteComment,
+    addThreadedComment, addThreadedReply, setThreadedCommentResolved, deleteThreadedComment,
     addHyperlink, deleteHyperlink,
     addDataValidation, deleteDataValidation,
     # Cells & data
@@ -69,7 +71,7 @@ export
     readdata, getdata, gettable, readtable, readto,
     iserror, geterror,
     gettransposedtable, readtransposedtable,
-    writetable, writetable!,
+    writetable, writetable!, streamxlsx, writerow!,
     addDefinedName, deleteDefinedName, deleteAllDefinedNames,
     setFormula,
     # Formats
@@ -77,15 +79,20 @@ export
     setUniformFormat, setUniformFont, setUniformBorder, setUniformFill, setUniformAlignment, setUniformStyle,
     setConditionalFormat,
     RichTextString, RichTextRun,
-    setColumnWidth, setRowHeight,
+    setColumnWidth, setRowHeight, autofitColumns,
     setColumnHidden, setRowHidden, groupColumns, groupRows, ungroupColumns, ungroupRows,
     setAutoFilter, removeAutoFilter,
     insertRows, deleteRows, insertColumns, deleteColumns,
     setSheetVisibility, setTabColor, removeTabColor,
-    protectSheet, unprotectSheet, setCellProtection,
+    setDocumentProperties, setCustomProperty, deleteCustomProperty,
+    protectSheet, unprotectSheet, setCellProtection, protectWorkbook, unprotectWorkbook,
+    setCheckbox, removeCheckbox,
+    setIgnoredErrors, removeIgnoredErrors,
+    addSparklines, deleteSparklines,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
+    setHeaderFooter, removeHeaderFooter, headerFooterField, headerFooterFont,
     getMergedCells, isMergedCell, getMergedBaseCell, mergeCells, removeMergedCells,
-    freezePanes, splitFreeze, splitPanes, removePanes,
+    freezePanes, splitFreeze, splitPanes, removePanes, setSheetView,
     # Excel Tables
     addtable!, deletetable!, settotals!, gettotals, removetotals!, appendtable!, gettablerange
 
@@ -96,15 +103,17 @@ export
            getColumnWidth, getRowHeight,
            isColumnHidden, isRowHidden, getColumnOutlineLevel, getRowOutlineLevel,
            getAutoFilter, getSheetVisibility, getTabColor,
-           isSheetProtected, getSheetProtection, getCellProtection,
-           getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles,
-           getFormat, getFont, getBorder, getFill, getAlignment,
+           isSheetProtected, getSheetProtection, getCellProtection, isWorkbookProtected, getWorkbookProtection,
+           getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles, getHeaderFooter, getSheetView,
+           getDocumentProperties, getCustomProperty, getCustomProperties,
+           getIgnoredErrors, getSparklines, getShapes, getCellImage, getCellImages, getCheckboxes, hasCheckbox,
+           getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
            getComment, getComments, getThreadedComment, getThreadedComments, getImages,
            getHyperlink, getHyperlinks,
            getDataValidation, getDataValidations,
-           Workbook, XLSXError, SchemeColor,
+           Workbook, XLSXError, SchemeColor, StreamWriter, StreamSheet,
            CellErrorType, XL_NULL, XL_DIV0, XL_VALUE, XL_REF, 
            XL_NAME, XL_NUM, XL_NA, XL_SPILL
     """))
@@ -142,10 +151,12 @@ include("cellformats/fill.jl")
 include("cellformats/alignment.jl")
 include("cellformats/protection.jl")
 include("cellformats/numberformat.jl")
+include("cellformats/displaytext.jl")
 include("cellformats/uniformstyle.jl")
 include("cellformats/widthheight.jl")
 include("cellformats/rowscols.jl")
 include("cellformats/mergedcells.jl")
+include("cellformats/autofit.jl")
 include("panes.jl")
 include("conditional-format-helpers.jl") # must load before conditionalformats/
 include("conditionalformats/presets.jl")
@@ -158,14 +169,22 @@ include("conditionalformats/databar.jl")
 include("conditionalformats/clear.jl")
 include("images.jl")
 include("comments.jl")
+include("threadedcomments.jl")
 include("hyperlinks.jl")
 include("datavalidation.jl")
 include("autofilter.jl")
+include("filtersort.jl")
 include("sheetsettings.jl")
+include("ignorederrors.jl")
+include("sparklines.jl")
+include("richvalues.jl")
+include("checkboxes.jl")
 include("save.jl")
+include("docprops.jl")
 include("setdata.jl")
 include("writetable.jl")
 include("sheetops.jl")
+include("streamwrite.jl")
 include("rowcoledit.jl")
 include("rowcolformats.jl")
 include("shiftobjects.jl")
@@ -174,6 +193,7 @@ include("fileArray.jl")
 
 # Charts depends on the core and must load after it; the core never refers to Charts.
 include("charts/Charts.jl")
+include("textboxes.jl")   # uses the DrawingML layer in Charts
 
 # Names released as `XLSX.x` before the sub-module existed.
 using .Charts: AbstractChart, Chart, ChartEx, ChartRef, ChartSeries,

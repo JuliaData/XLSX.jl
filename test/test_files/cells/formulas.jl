@@ -19,12 +19,12 @@
         SAVE_FILES && save_outfile("formulas.xlsx")
 
         f = XLSX.openxlsx("formulas.xlsx", mode="rw")
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C1")) == XLSX.ReferencedFormula("=A1+B1", 0, "C1:C10", nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C1")) == XLSX.ReferencedFormula("A1+B1", 0, "C1:C10", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C2")) == XLSX.FormulaReference(0, nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C10")) == XLSX.FormulaReference(0, nothing)
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("A11")) == XLSX.ReferencedFormula("=A10/\$D11", 1, "A11:C11", nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("A11")) == XLSX.ReferencedFormula("A10/\$D11", 1, "A11:C11", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C11")) == XLSX.FormulaReference(1, nothing)
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D11")) == XLSX.Formula("=sum(A1:C10)", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D11")) == XLSX.Formula("sum(A1:C10)", nothing, nothing, nothing)
 
         SAVE_FILES && save_outfile(f)
         f = XLSX.newxlsx("mySheet")
@@ -56,17 +56,17 @@
         SAVE_FILES && save_outfile("formulas.xlsx")
 
         f = XLSX.openxlsx("formulas.xlsx", mode="rw")
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B1")) == XLSX.ReferencedFormula("=\$A1+A1", 0, "B1:L12", nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B1")) == XLSX.ReferencedFormula("\$A1+A1", 0, "B1:L12", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B2")) == XLSX.FormulaReference(0, nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("L10")) == XLSX.FormulaReference(0, nothing)
-        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("A1")) == XLSX.Formula("=max(mySheet!A1:A12)", nothing, nothing, nothing)
-        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("G1")) == XLSX.Formula("=max(mySheet!G1:G12)", nothing, nothing, nothing)
-        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("L1")) == XLSX.Formula("=max(mySheet!L1:L12)", nothing, nothing, nothing)
-        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("A2")) == XLSX.ReferencedFormula("=min(\$A1:A1)", 0, "A2:L2", nothing)
+        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("A1")) == XLSX.Formula("max(mySheet!A1:A12)", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("G1")) == XLSX.Formula("max(mySheet!G1:G12)", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("L1")) == XLSX.Formula("max(mySheet!L1:L12)", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("A2")) == XLSX.ReferencedFormula("min(\$A1:A1)", 0, "A2:L2", nothing)
         @test XLSX.get_formula_from_cache(f[2], XLSX.CellRef("L2")) == XLSX.FormulaReference(0, nothing)
-        @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("A1")) == XLSX.Formula("=mySheet!A\$1+mySheet!A1", nothing, nothing, nothing)
-        @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("F6")) == XLSX.Formula("=mySheet!F\$1+mySheet!F6", nothing, nothing, nothing)
-        @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("L12")) == XLSX.Formula("=mySheet!L\$1+mySheet!L12", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("A1")) == XLSX.Formula("mySheet!A\$1+mySheet!A1", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("F6")) == XLSX.Formula("mySheet!F\$1+mySheet!F6", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[3], XLSX.CellRef("L12")) == XLSX.Formula("mySheet!L\$1+mySheet!L12", nothing, nothing, nothing)
         isfile("formulas.xlsx") && rm("formulas.xlsx")
 
         SAVE_FILES && save_outfile(f)
@@ -112,11 +112,11 @@
         @test XLSX.getcell(f[1], "C1") == XLSX.Cell(XLSX.get_workbook(f), XLSX.CellRef("C1"), "", "", "1", "1", true)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("C1")) == XLSX.Formula("_xlfn.UNIQUE(A1:A9)", "array", "C1:C3", nothing)
         s = f[1]
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B1")) == XLSX.Formula("=A1", nothing, nothing, nothing)
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B2")) == XLSX.ReferencedFormula("=A2+B1", 0, "B2:B10", nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B1")) == XLSX.Formula("A1", nothing, nothing, nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B2")) == XLSX.ReferencedFormula("A2+B1", 0, "B2:B10", nothing)
         @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("B5")) == XLSX.FormulaReference(0, nothing)
         @test XLSX.getcell(f[1], "D1") == XLSX.Cell(XLSX.get_workbook(f), XLSX.CellRef("D1"), "", "", "", "1", true)
-        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D1")) == XLSX.Formula("=_xlfn.SORT(B1:B10,,-1)", "array", "D1:D1", nothing)
+        @test XLSX.get_formula_from_cache(f[1], XLSX.CellRef("D1")) == XLSX.Formula("_xlfn.SORT(B1:B10,,-1)", "array", "D1:D1", nothing)
         isfile("formulas.xlsx") && rm("formulas.xlsx")
 
         SAVE_FILES && save_outfile(f)
@@ -484,4 +484,148 @@ end
         @test XLSX.getFormula(s2, "A1") == "=#REF!*2"
         SAVE_FILES && save_outfile(f)
     end
+end
+
+@testset "cached formula values" begin
+    function written_and_read(xf)
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        return take!(io)
+    end
+
+    @testset "each type, read back as the value" begin
+        f = XLSX.newxlsx()
+        s = f[1]
+        s["A1:A3"] = [1, 2, 3]
+        @test XLSX.setFormula(s, "B1", "=SUM(A1:A3)"; value=6) == "=SUM(A1:A3)"
+        XLSX.setFormula(s, "B2", "=A1/4"; value=0.25)
+        XLSX.setFormula(s, "B3", "=\"n\"&A1"; value="n1")
+        XLSX.setFormula(s, "B4", "=A1>0"; value=true)
+        XLSX.setFormula(s, "B5", "=NA()"; value=XLSX.XL_NA)
+        XLSX.setFormula(s, "B6", "=DATE(2026,11,12)"; value=Date(2026, 11, 12))
+        XLSX.setFormula(s, "B7", "=NOW()"; value=DateTime(2026, 11, 12, 9, 30))
+        XLSX.setFormula(s, "B8", "=TIME(9,30,0)"; value=Time(9, 30))
+        XLSX.setFormula(s, "B9", "=PI()"; value=pi)                      # converted as a cell value is
+        XLSX.setFormula(s, "B10", "=1/0"; value=Inf)                     # Excel has no Inf: text, as in a cell
+        XLSX.setFormula(s, "B11", "=A1"; value=missing)                  # no value, as without `value`
+        XLSX.setFormula(s, 12, 2, "=A2*3"; value=6)                      # row and column form
+
+        @test s["B1"] == 6                                              # in memory too
+        bytes = written_and_read(f)
+        SAVE_FILES && save_outfile(f)
+        for r in (XLSX.readxlsx(IOBuffer(bytes))[1], XLSX.openxlsx(IOBuffer(bytes); enable_cache=false)[1])
+            @test r["B1"] == 6
+            @test r["B2"] == 0.25
+            @test r["B3"] == "n1"
+            @test r["B4"] === true
+            @test XLSX.geterror(r, "B5") == "#N/A"
+            @test r["B6"] == Date(2026, 11, 12)
+            @test r["B7"] == DateTime(2026, 11, 12, 9, 30)
+            @test r["B8"] == Time(9, 30)
+            @test r["B9"] ≈ pi
+            @test r["B10"] == "Inf"
+            @test ismissing(r["B11"])
+            @test r["B12"] == 6
+        end
+        r = XLSX.readxlsx(IOBuffer(bytes))[1]
+        @test XLSX.getFormula(r, "B6") == "=DATE(2026,11,12)"
+        @test XLSX.getFormat(r, "B6").numFmtId == XLSX.DEFAULT_DATE_numFmtId
+
+        sheet = zip_readentry(ZipReader(bytes), "xl/worksheets/sheet1.xml", String)
+        @test occursin(r"<c r=\"B5\" t=\"e\">\s*<f>NA\(\)</f>\s*<v>#N/A</v>", sheet)  # `<f>` before `<v>`
+        @test occursin(r"<c r=\"B3\" t=\"str\">\s*<f>[^<]*</f>\s*<v>n1</v>", sheet)   # a string result in the cell, as Excel writes it
+        @test !occursin("<f>=", sheet)                                   # no `=`, as Excel writes formulas
+        workbook = zip_readentry(ZipReader(bytes), "xl/workbook.xml", String)
+        @test occursin("fullCalcOnLoad=\"1\"", workbook)                # Excel still recalculates
+    end
+
+    @testset "ranges" begin
+        f = XLSX.newxlsx()
+        s = f[1]
+        s["A1:A3"] = [1, 2, 3]
+        XLSX.setFormula(s, "B1:B3", "=A1*2"; value=[2, 4, 6])           # one value per cell
+        XLSX.setFormula(s, "C1:D1", "=A1+1"; value=[2 3])               # a row
+        XLSX.setFormula(s, "E1:F2", "=A1"; value=[1 2; 3 4])            # a block, row by row
+        XLSX.setFormula(s, "G1:G3", "=A1/0"; value=XLSX.XL_DIV0)        # one value for every cell
+        XLSX.setFormula(s, "H1:H2", "=SORT(A1:A2)"; value=[1, 2])       # set cell by cell
+        XLSX.setFormula(s, "I1:I3", "=Sheet1!A1"; value=7)
+        XLSX.setFormula(s, "B1:B3", "=A1*3"; value=[3, 6, 9])           # the same block again
+        r = XLSX.readxlsx(IOBuffer(written_and_read(f)))[1]
+        @test vec(r["B1:B3"]) == [3, 6, 9]
+        @test XLSX.getFormula(r, "B3") == "=A3*3"
+        @test r["C1:D1"] == [2 3]
+        @test r["E1:F2"] == [1 2; 3 4]
+        @test XLSX.geterror(r, "G3") == "#DIV/0!"
+        @test r["H2"] == 2
+        @test vec(r["I1:I3"]) == [7, 7, 7]
+    end
+
+    @testset "a cell's format" begin
+        f = XLSX.newxlsx()
+        s = f[1]
+        s["A1:B2"] = 1.5
+        XLSX.setFormat(s, "B1:B2"; format="0.00")
+        XLSX.setFont(s, "B1:B2"; bold=true)
+        XLSX.setFormula(s, "B1", "=A1*2"; value=3.0)                    # keeps the number format
+        XLSX.setFormula(s, "B2", "=TODAY()"; value=Date(2026, 1, 1))    # takes a date format
+        @test XLSX.getFormat(s, "B1").format["numFmt"]["formatCode"] == "0.00"
+        @test s["B2"] == Date(2026, 1, 1)
+        @test haskey(XLSX.getFont(s, "B2").font, "b")                   # still bold
+    end
+
+    @testset "bad values" begin
+        f = XLSX.newxlsx()
+        s = f[1]
+        @test_throws XLSX.XLSXError XLSX.setFormula(s, "A1", "=1"; value=:sym)
+        @test_throws XLSX.XLSXError XLSX.setFormula(s, "A1", "=1"; value=[1, 2])
+        @test_throws XLSX.XLSXError XLSX.setFormula(s, "A1:A3", "=1"; value=[1, 2])
+        @test_throws XLSX.XLSXError XLSX.setFormula(s, "A1:B2", "=1"; value=[1, 2, 3, 4])
+        @test isnothing(XLSX.getFormula(s, "A1"))                       # refused before any change
+    end
+
+    @testset "unsupported addresses" begin
+        f = XLSX.newxlsx("S")
+        s = f[1]
+        s["A1:F4"] = 1
+        XLSX.addDefinedName(s, "parts", "B1:B2,D3")
+        for target in (("B1:B2,D3",), ("parts",), ([1, 3], 2), (2, 1:2:5), ([1, 2], :), (:, [2, 4]))
+            @test_throws XLSX.XLSXError XLSX.setFormula(s, target..., "=A1")
+            @test_throws XLSX.XLSXError XLSX.setFormula(s, target..., "=A1"; value=1)
+        end
+        @test all(c -> isnothing(XLSX.getFormula(s, c)), ("B1", "B2", "D3", "A2", "B3"))
+    end
+end
+
+@testset "formula XML as Excel writes it" begin
+    # Checked against Excel 365, which removes a leading `=` from `<f>` and writes a
+    # formula's string result as `t="str"` when it saves a file.
+    f = XLSX.newxlsx()
+    s = f[1]
+    s["A1"] = 5
+    XLSX.setFormula(s, "B1", "=\"x\"&A1"; value="x5")
+    XLSX.setFormula(s, "B2", "\"y\"&A1"; value="y5")              # given without `=`: the same
+    XLSX.setFormula(s, "B3", "=\" \"&A1"; value=" 5")             # whitespace kept
+    XLSX.setFormula(s, "C1:C3", "=A1+1")                          # a shared formula
+    io = IOBuffer()
+    XLSX.writexlsx(io, f)
+    SAVE_FILES && save_outfile(f)
+    bytes = take!(io)
+    sheet = zip_readentry(ZipReader(bytes), "xl/worksheets/sheet1.xml", String)
+    @test occursin("<f>&quot;x&quot;&amp;A1</f>", sheet)
+    @test occursin("<f>&quot;y&quot;&amp;A1</f>", sheet)
+    @test occursin("ref=\"C1:C3\" si=\"0\">A1+1</f>", sheet)
+    @test occursin("<v xml:space=\"preserve\"> 5</v>", sheet)
+    @test count("t=\"str\"", sheet) == 3
+    @test !occursin("t=\"s\"", sheet)
+
+    r = XLSX.readxlsx(IOBuffer(bytes))[1]
+    @test [r["B1"], r["B2"], r["B3"]] == ["x5", "y5", " 5"]
+    @test XLSX.getFormula(r, "B1") == "=\"x\"&A1"                # read with `=`, as before
+    @test XLSX.getFormula(r, "C3") == "=A3+1"
+
+    # A formula's string read from a file is written back as Excel wrote it
+    r2 = XLSX.openxlsx(IOBuffer(bytes); mode="rw")
+    io = IOBuffer()
+    XLSX.writexlsx(io, r2)
+    @test zip_readentry(ZipReader(take!(io)), "xl/worksheets/sheet1.xml", String) == sheet
 end

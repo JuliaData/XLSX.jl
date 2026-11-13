@@ -19,6 +19,18 @@ XLSX.writexlsx
 XLSX.writetable
 ```
 
+## Streaming writes
+
+Guide: [Writing large files](@ref). [`XLSX.writetable`](@ref) streams a whole table with
+`streaming=true`; `XLSX.addsheet!` adds a sheet to a `StreamWriter`.
+
+```@docs
+XLSX.streamxlsx
+XLSX.writerow!
+XLSX.StreamWriter
+XLSX.StreamSheet
+```
+
 ## Files (using FileIO)
 
 Guide: [FileIO Tutorial](../tutorial/FileIOtutorial.md).
@@ -71,6 +83,10 @@ XLSX.protectSheet
 XLSX.unprotectSheet
 XLSX.isSheetProtected
 XLSX.getSheetProtection
+XLSX.protectWorkbook
+XLSX.unprotectWorkbook
+XLSX.isWorkbookProtected
+XLSX.getWorkbookProtection
 ```
 
 ## Page setup and printing
@@ -90,6 +106,24 @@ XLSX.removePrintArea
 XLSX.setPrintTitles
 XLSX.getPrintTitles
 XLSX.removePrintTitles
+XLSX.setHeaderFooter
+XLSX.getHeaderFooter
+XLSX.removeHeaderFooter
+XLSX.headerFooterField
+XLSX.headerFooterFont
+```
+
+## Document properties
+
+Guide: [Document properties](../tutorial/creatingWorkbooks.md#Document-properties).
+
+```@docs
+XLSX.setDocumentProperties
+XLSX.getDocumentProperties
+XLSX.setCustomProperty
+XLSX.getCustomProperty
+XLSX.getCustomProperties
+XLSX.deleteCustomProperty
 ```
 
 ## Errors

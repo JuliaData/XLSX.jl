@@ -144,3 +144,13 @@ makeCombo
 deleteChart
 ```
 
+
+## Sparklines
+
+Sparklines are part of `XLSX` itself, not `XLSX.Charts`. Guide: [Sparklines](../charts/sparklines.md).
+
+```@docs
+XLSX.addSparklines
+XLSX.getSparklines
+XLSX.deleteSparklines
+```

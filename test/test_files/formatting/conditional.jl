@@ -2799,15 +2799,15 @@
             exts(xf) = XLSX.xml_elements(extlst(xf))
             sqrefs(e) = [XML.simple_value(s) for b in XLSX.xml_elements(e) for c in XLSX.xml_elements(b) for s in XLSX.xml_elements(c) if XLSX.localname(s) == "sqref"]
 
-            # No conditional-format ext yet: one is added after the sparkline ext.
+            # No conditional-format ext yet: one is added before the sparkline ext, in Excel's order.
             xf = XLSX.newxlsx()
             xf[1]["A1:B3"] = 1
             push!(wsroot(xf), XML.Element("extLst", spark()))
             XLSX.setConditionalFormat(xf[1], "A1:A3", :dataBar)
             e = exts(xf)
             @test length(e) == 2
-            @test isempty(sqrefs(e[1]))
-            @test e[2]["uri"] == XLSX.X14_CF_EXT_URI && sqrefs(e[2]) == ["A1:A3"]
+            @test e[1]["uri"] == XLSX.X14_CF_EXT_URI && sqrefs(e[1]) == ["A1:A3"]
+            @test isempty(sqrefs(e[2]))
 
             # Sparkline ext ahead of an existing conditional-format ext.
             xf = XLSX.newxlsx()

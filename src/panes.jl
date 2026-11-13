@@ -77,23 +77,21 @@ _rows_to_twips(ws::Worksheet, nrows::Int)::Int =
 # Selection-cell placement
 #-----------------------------------------------------------------------------
 
-# Which pane names get a <selection>, and which cell each should show.
-# corner_selectable=true only for plain (non-frozen) splits -- the top-left
-# pane is a real interactive pane there; for frozen/frozenSplit it's locked
-# and Excel doesn't give it a <selection> at all.
+# Which pane names get a <selection>, and which cell each should show, in the
+# order Excel writes them. corner_selectable=true only for plain (non-frozen)
+# splits -- the top-left pane is a real interactive pane there; for
+# frozen/frozenSplit it's locked and Excel doesn't give it a <selection> at all.
 function _selection_cells(nrows::Int, ncols::Int, topLeftCell::CellRef; corner_selectable::Bool)
-    sels = Dict{String,CellRef}()
+    sels = Pair{String,CellRef}[]
+    corner_selectable && (ncols > 0 || nrows > 0) && push!(sels, "topLeft" => CellRef(1, 1))
     if ncols > 0 && nrows > 0
-        sels["topRight"] = CellRef(1, topLeftCell.column_number)
-        sels["bottomLeft"] = CellRef(topLeftCell.row_number, 1)
-        sels["bottomRight"] = topLeftCell
-        corner_selectable && (sels["topLeft"] = CellRef(1, 1))
+        push!(sels, "topRight" => CellRef(1, topLeftCell.column_number),
+                    "bottomLeft" => CellRef(topLeftCell.row_number, 1),
+                    "bottomRight" => topLeftCell)
     elseif ncols > 0
-        sels["topRight"] = topLeftCell
-        corner_selectable && (sels["topLeft"] = CellRef(1, 1))
+        push!(sels, "topRight" => topLeftCell)
     elseif nrows > 0
-        sels["bottomLeft"] = topLeftCell
-        corner_selectable && (sels["topLeft"] = CellRef(1, 1))
+        push!(sels, "bottomLeft" => topLeftCell)
     end
     return sels
 end
@@ -108,9 +106,47 @@ function _apply_pane!(ws::Worksheet, kind::PaneKind, nrows::Int, ncols::Int)
 
     (nrows < 0 || ncols < 0) && throw(XLSXError("nrows and ncols must be non-negative."))
 
+    pfx_c = _sheet_view_prefix(ws)
+
+    # Build the new pane/selection children (empty for removePanes).
+    new_children = XML.Node[]
+    if !(nrows == 0 && ncols == 0)
+        topLeftCell = CellRef(nrows + 1, ncols + 1)
+        activePane = nrows > 0 && ncols > 0 ? "bottomRight" :
+                     ncols > 0 ? "topRight" : "bottomLeft"
+        xSplit, ySplit = kind == SPLIT ? (_cols_to_twips(ws, ncols), _rows_to_twips(ws, nrows)) : (ncols, nrows)
+
+        pane_atts = Pair{String,String}[]   # in the order Excel writes them
+        ncols > 0 && push!(pane_atts, "xSplit" => string(xSplit))
+        nrows > 0 && push!(pane_atts, "ySplit" => string(ySplit))
+        push!(pane_atts, "topLeftCell" => string(topLeftCell), "activePane" => activePane)
+        kind != SPLIT && push!(pane_atts, "state" => kind == FROZEN ? "frozen" : "frozenSplit")
+
+        push!(new_children, _xml_element(pfx_c * "pane", pane_atts))
+
+        corner_selectable = (kind == SPLIT)
+        for (pane_name, cell) in _selection_cells(nrows, ncols, topLeftCell; corner_selectable)
+            push!(new_children, XML.Element(pfx_c * "selection"; pane=pane_name, activeCell=string(cell), sqref=string(cell)))
+        end
+    end
+
+    # The panes count from row 1 and column 1, so the view starts there: Excel
+    # freezes at the cell in view, so a view scrolled to row 10 would freeze rows 10 on.
+    _update_sheet_view!(ws) do atts, _
+        return _merge_atts(atts, ["topLeftCell" => nothing]), new_children
+    end
+    return ws
+end
+
+# "x:" for a sheet whose elements are prefixed, otherwise "".
+_sheet_view_prefix(ws::Worksheet) = (pfx = get_prefix(ws); isempty(pfx) ? "" : "$(pfx):")
+
+# Replace the sheet's first `<sheetView>` with one whose attributes and children are
+# `f(atts, kids)`, given the old ones (none if there is no `<sheetView>` yet). The
+# attributes are written in the schema's order, as Excel writes them.
+function _update_sheet_view!(f, ws::Worksheet)
     doc = get_worksheet_xml_document(ws)
-    pfx = get_prefix(ws)
-    pfx_c = isempty(pfx) ? "" : "$(pfx):"
+    pfx_c = _sheet_view_prefix(ws)
 
     wroot_idx, sv_idx = get_idces(doc, "worksheet", "sheetViews")
     wroot_idx === nothing && throw(XLSXError("Malformed worksheet: no <worksheet> root element found."))
@@ -118,10 +154,8 @@ function _apply_pane!(ws::Worksheet, kind::PaneKind, nrows::Int, ncols::Int)
     isnothing(xroot.children) && throw(XLSXError("Malformed worksheet: <worksheet> element has no children."))
     root_children = XML.children(xroot)
 
-    # Preserve any existing <sheetView>'s own attributes (tabSelected, zoomScale,
-    # showGridLines, etc.) and locate where it sits so we can replace it in
-    # place rather than mutate it.
     existing_attrs = Pair{String,String}[]
+    existing_kids = XML.Node[]
     existing_sv_idx = nothing
     sheetViews_children = nothing
 
@@ -132,37 +166,16 @@ function _apply_pane!(ws::Worksheet, kind::PaneKind, nrows::Int, ncols::Int)
             existing_sv_idx = find_child_index(sheetViews_children, "sheetView")
             if existing_sv_idx !== nothing
                 existing_sheetview = sheetViews_children[existing_sv_idx]
-                existing_attrs = isnothing(existing_sheetview.attributes) ? Pair{String,String}[] : copy(existing_sheetview.attributes)
+                existing_attrs = _atts_vector(existing_sheetview)
+                existing_kids = XML.Node[c for c in XML.children(existing_sheetview)]
             end
         end
     end
 
-    attrs_dict = Dict(existing_attrs)
-    haskey(attrs_dict, "workbookViewId") || (attrs_dict["workbookViewId"] = "0")
-    sheetview_kwargs = (Symbol(k) => v for (k, v) in attrs_dict)
-
-    # Build the new pane/selection children (empty for removePanes).
-    new_children = XML.Node{String}[]
-    if !(nrows == 0 && ncols == 0)
-        topLeftCell = CellRef(nrows + 1, ncols + 1)
-        activePane = nrows > 0 && ncols > 0 ? "bottomRight" :
-                     ncols > 0 ? "topRight" : "bottomLeft"
-        xSplit, ySplit = kind == SPLIT ? (_cols_to_twips(ws, ncols), _rows_to_twips(ws, nrows)) : (ncols, nrows)
-
-        pane_kw = Dict{Symbol,Any}(:activePane => activePane, :topLeftCell => string(topLeftCell))
-        ncols > 0 && (pane_kw[:xSplit] = string(xSplit))
-        nrows > 0 && (pane_kw[:ySplit] = string(ySplit))
-        kind != SPLIT && (pane_kw[:state] = kind == FROZEN ? "frozen" : "frozenSplit")
-
-        push!(new_children, XML.Element(pfx_c * "pane"; pane_kw...))
-
-        corner_selectable = (kind == SPLIT)
-        for (pane_name, cell) in _selection_cells(nrows, ncols, topLeftCell; corner_selectable)
-            push!(new_children, XML.Element(pfx_c * "selection"; pane=pane_name, activeCell=string(cell), sqref=string(cell)))
-        end
-    end
-
-    new_sheetView = XML.Element(pfx_c * "sheetView", new_children...; sheetview_kwargs...)
+    atts, kids = f(existing_attrs, existing_kids)
+    atts = _merge_atts(atts, any(p -> first(p) == "workbookViewId", atts) ? () : ["workbookViewId" => "0"])
+    sort!(atts; by = p -> something(findfirst(==(first(p)), _SHEET_VIEW_ATT_ORDER), length(_SHEET_VIEW_ATT_ORDER) + 1))
+    new_sheetView = _xml_element(pfx_c * "sheetView", atts, kids)
 
     if sv_idx === nothing
         # No <sheetViews> at all yet: build it together with its <sheetView>
@@ -192,8 +205,14 @@ function _apply_pane!(ws::Worksheet, kind::PaneKind, nrows::Int, ncols::Int)
     end
 
     set_worksheet_xml_document!(ws, doc)
-    return ws
+    return nothing
 end
+
+# The attributes of `<sheetView>` in the schema's order.
+const _SHEET_VIEW_ATT_ORDER = ("windowProtection", "showFormulas", "showGridLines", "showRowColHeaders",
+    "showZeros", "rightToLeft", "tabSelected", "showRuler", "showOutlineSymbols", "defaultGridColor",
+    "showWhiteSpace", "view", "topLeftCell", "colorId", "zoomScale", "zoomScaleNormal",
+    "zoomScaleSheetLayoutView", "zoomScalePageLayoutView", "workbookViewId")
 
 _anchor_to_counts(anchor_cell::AbstractString) = begin
     is_valid_cellname(anchor_cell) || throw(XLSXError("`$anchor_cell` is not a valid cell reference."))
@@ -212,7 +231,8 @@ end
 Freeze the first `nrows` rows and/or `ncols` columns of `ws` so they stay
 visible while scrolling, or equivalently freeze everything above/left of
 `anchor_cell` (the first cell of the scrolling region). Calling this again
-replaces any existing frozen/split panes.
+replaces any existing frozen/split panes. The panes count from row 1 and column A, so
+a view scrolled elsewhere (see [`setSheetView`](@ref)) is scrolled back to the top.
 
 # Examples
 ```julia
@@ -275,3 +295,204 @@ The Excel file must be opened in write mode to work with panes.
 
 """
 removePanes(ws::Worksheet) = _apply_pane!(ws, SPLIT, 0, 0)
+
+#-----------------------------------------------------------------------------
+# Sheet view: zoom, gridlines, headings, zeros, direction, scroll and selection
+#-----------------------------------------------------------------------------
+
+# The on/off settings of a sheet's view and their defaults, which Excel leaves unwritten.
+const _SHEET_VIEW_FLAGS = (showGridLines = true, showRowColHeaders = true, showZeros = true, rightToLeft = false)
+# Each view keeps its own zoom, and the zoom Excel gives a view seen for the first time.
+const _SHEET_VIEW_ZOOMS = (normal = ("zoomScaleNormal", "100"), pageLayout = ("zoomScalePageLayoutView", "100"),
+                           pageBreakPreview = ("zoomScaleSheetLayoutView", "60"))
+const _SHEET_VIEW_KEYWORDS = (:zoom, :view, keys(_SHEET_VIEW_FLAGS)..., :topLeftCell, :activeCell, :selection)
+
+"""
+    setSheetView(ws::Worksheet; zoom, view, showGridLines, showRowColHeaders, showZeros,
+                 rightToLeft, topLeftCell, activeCell, selection)
+
+Set how a worksheet looks when Excel opens it, as Excel's *View* tab does. Only the
+keywords given are changed.
+
+- `zoom`: the zoom, in percent, from 10 to 400. Excel keeps a zoom for each `view`;
+  this sets the zoom of the view the sheet is in.
+- `view`: `:normal`, `:pageLayout` or `:pageBreakPreview`. A view takes back the zoom it
+  had before.
+- `showGridLines`, `showRowColHeaders`: show the gridlines, and the row and column
+  headings (`1, 2, 3...` and `A, B, C...`), on screen. For printing them, see
+  [`setPrintOptions`](@ref).
+- `showZeros`: show a cell whose value is zero as `0`, rather than empty.
+- `rightToLeft`: show column A at the right, for right-to-left languages.
+- `topLeftCell`: scroll so that this cell is at the top left of the window. With frozen
+  panes, it is the top-left cell of the part that scrolls, so it must be below and to
+  the right of the frozen rows and columns.
+- `selection`: the selected cells: a cell or range (`"B2:D5"`), several separated by
+  commas (`"B2:D5,F7"`), or a defined name for them.
+- `activeCell`: the cell with the cursor, which must be in the `selection`. Given alone,
+  it is selected on its own; a `selection` alone has its first cell active. With frozen
+  or split panes, the selection is the active pane's, as in Excel.
+
+Cells are given as a string (`"C10"`) or a `CellRef`.
+
+The file must be open for writing (`mode="rw"`).
+
+# Examples
+```julia
+julia> XLSX.setSheetView(sheet; zoom=150, showGridLines=false)
+
+julia> XLSX.setSheetView(sheet; selection="B2:D5", activeCell="C3", topLeftCell="A1")
+```
+
+See also [`getSheetView`](@ref) and [`freezePanes`](@ref).
+"""
+function setSheetView(ws::Worksheet; kw...)
+    _require_writable(ws, "set the sheet view")
+    _require_worksheet(ws, "set the sheet view")
+    isempty(kw) && throw(XLSXError("Give the view settings to change as keywords, such as `zoom=150`."))
+    for k in keys(kw)
+        k in _SHEET_VIEW_KEYWORDS || throw(XLSXError("Unknown keyword `$k`. Must be one of $(join(_SHEET_VIEW_KEYWORDS, ", "))."))
+    end
+    for k in keys(_SHEET_VIEW_FLAGS)
+        haskey(kw, k) && !(kw[k] isa Bool) && throw(XLSXError("`$k` must be `true` or `false`. Found `$(repr(kw[k]))`."))
+    end
+    if haskey(kw, :view)
+        (kw[:view] isa Symbol && haskey(_SHEET_VIEW_ZOOMS, kw[:view])) ||
+            throw(XLSXError("Invalid `view` `$(repr(kw[:view]))`. Must be one of $(join((":$k" for k in keys(_SHEET_VIEW_ZOOMS)), ", "))."))
+    end
+    if haskey(kw, :zoom)
+        (kw[:zoom] isa Integer && 10 <= kw[:zoom] <= 400) ||
+            throw(XLSXError("Invalid `zoom` `$(repr(kw[:zoom]))`. Must be a whole percentage from 10 to 400."))
+    end
+    topleft = haskey(kw, :topLeftCell) ? _view_cell(kw[:topLeftCell], :topLeftCell) : nothing
+    sel = haskey(kw, :selection) || haskey(kw, :activeCell) ?
+          _view_selection(ws, get(kw, :selection, nothing), get(kw, :activeCell, nothing)) : nothing
+
+    _update_sheet_view!(ws) do atts, kids
+        old = Dict(atts)
+        changes = Pair{String,Union{Nothing,String}}[]
+        for (k, d) in pairs(_SHEET_VIEW_FLAGS)
+            haskey(kw, k) && push!(changes, String(k) => kw[k] == d ? nothing : kw[k] ? "1" : "0")
+        end
+        view = haskey(kw, :view) ? kw[:view] : Symbol(get(old, "view", "normal"))
+        haskey(_SHEET_VIEW_ZOOMS, view) || (view = :normal)
+        haskey(kw, :view) && push!(changes, "view" => view == :normal ? nothing : String(view))
+        zoom_att, zoom_default = _SHEET_VIEW_ZOOMS[view]
+        if haskey(kw, :zoom)   # the view's own zoom is written once set, as Excel does
+            zoom = string(kw[:zoom])
+            push!(changes, "zoomScale" => (zoom == "100" ? nothing : zoom), zoom_att => zoom)
+        elseif haskey(kw, :view)
+            zoom = get(old, zoom_att, zoom_default)
+            push!(changes, "zoomScale" => (zoom == "100" ? nothing : zoom))
+        end
+
+        kids = XML.Node[k for k in kids]
+        ip = findfirst(c -> localname(c) == "pane", kids)
+        pane = isnothing(ip) ? nothing : kids[ip]
+        if !isnothing(topleft)
+            if isnothing(pane)
+                push!(changes, "topLeftCell" => topleft == CellRef(1, 1) ? nothing : string(topleft))
+            else
+                _check_scroll_cell(pane, CellRef(get(old, "topLeftCell", "A1")), topleft)
+                kids[ip] = _xml_element(XML.tag(pane), _merge_atts(_atts_vector(pane), ["topLeftCell" => string(topleft)]))
+            end
+        end
+        isnothing(sel) || _set_view_selection!(kids, _active_pane(pane), _sheet_view_prefix(ws), sel...)
+        return _merge_atts(atts, changes), kids
+    end
+    return nothing
+end
+
+_view_cell(c::CellRef, ::Symbol) = c
+_view_cell(c, k::Symbol) = (c isa AbstractString && is_valid_cellname(c)) ? CellRef(c) :
+    throw(XLSXError("`$k` must be a single cell, such as `\"C10\"`. Found `$(repr(c))`."))
+
+# The selection's active cell and ranges.
+function _view_selection(ws::Worksheet, selection, active)
+    ac = isnothing(active) ? nothing : _view_cell(active, :activeCell)
+    rngs = CellRange[]
+    if isnothing(selection)
+        push!(rngs, CellRange(ac, ac))
+    else
+        parts = selection isa Union{CellRef,CellRange} ? Any[selection] :
+                selection isa AbstractString ? _rowcol_parts(ws, selection) :
+                throw(XLSXError("`selection` must be cells, such as `\"B2:D5\"` or `\"B2:D5,F7\"`. Found `$(repr(selection))`."))
+        for p in parts
+            p isa Union{CellRef,CellRange} || throw(XLSXError("A selection is made of cells, such as `B2:D5`. Found `$p`."))
+            push!(rngs, p isa CellRef ? CellRange(p, p) : p)
+        end
+    end
+    ac = something(ac, first(rngs).start)
+    any(r -> ac ∈ r, rngs) || throw(XLSXError("The `activeCell` $ac must be in the `selection`."))
+    return ac, rngs
+end
+
+# A frozen pane's scrolling part starts below and right of the frozen rows and columns.
+function _check_scroll_cell(pane::XML.Node, view_topleft::CellRef, cell::CellRef)
+    get(pane, "state", "split") in ("frozen", "frozenSplit") || return nothing
+    first_row = view_topleft.row_number + parse(Int, get(pane, "ySplit", "0"))
+    first_col = view_topleft.column_number + parse(Int, get(pane, "xSplit", "0"))
+    (cell.row_number >= first_row && cell.column_number >= first_col) ||
+        throw(XLSXError("The `topLeftCell` $cell is in the frozen panes: with these panes it must be at or below and right of $(CellRef(first_row, first_col))."))
+    return nothing
+end
+
+# Excel keeps the selection of each pane in a `<selection>`, and shows the active pane's.
+# A sheet without panes has one `<selection>`, with no `pane`.
+_active_pane(pane) = isnothing(pane) ? nothing : get(pane, "activePane", "topLeft")
+_selection_pane(s::XML.Node) = get(s, "pane", "topLeft")
+
+function _set_view_selection!(kids::Vector, pane_name, pfx_c::String, ac::CellRef, rngs::Vector{CellRange})
+    atts = Pair{String,String}[]
+    isnothing(pane_name) || push!(atts, "pane" => pane_name)
+    push!(atts, "activeCell" => string(ac), "sqref" => join(_sqref_part.(rngs), ' '))
+    el = _xml_element(pfx_c * "selection", atts)
+    target = something(pane_name, "topLeft")
+    i = findfirst(c -> localname(c) == "selection" && _selection_pane(c) == target, kids)
+    if !isnothing(i)
+        kids[i] = el
+    else   # after the pane and any other selections, before anything else
+        j = findlast(c -> localname(c) in ("pane", "selection"), kids)
+        insert!(kids, something(j, 0) + 1, el)
+    end
+    return kids
+end
+_sqref_part(r::CellRange) = r.start == r.stop ? string(r.start) : string(r)
+
+"""
+    getSheetView(ws::Worksheet) -> NamedTuple
+
+How a worksheet looks when Excel opens it: a `NamedTuple` with fields `zoom`, `view`,
+`showGridLines`, `showRowColHeaders`, `showZeros`, `rightToLeft`, `topLeftCell`,
+`activeCell` and `selection`, described in [`setSheetView`](@ref). `topLeftCell` and
+`activeCell` are `CellRef`s, and `selection` is a string such as `"B2:D5,F7"`. A setting
+the sheet doesn't set has Excel's default.
+
+Works on files opened for reading only.
+
+# Examples
+```julia
+julia> XLSX.getSheetView(sheet).zoom
+150
+```
+"""
+function getSheetView(ws::Worksheet)
+    sv = nothing
+    for views in _sheet_top_elements(get_xlsxfile(ws), _sheet_path(ws), ("sheetViews",))
+        svs = [c for c in xml_elements(views) if localname(c) == "sheetView"]
+        isempty(svs) || (sv = first(svs); break)
+    end
+    atts = isnothing(sv) ? Dict{String,String}() : Dict(_atts_vector(sv))
+    kids = isnothing(sv) ? XML.Node[] : collect(xml_elements(sv))
+    flags = NamedTuple{keys(_SHEET_VIEW_FLAGS)}(map(k -> _xml_bool(atts, String(k), _SHEET_VIEW_FLAGS[k]), keys(_SHEET_VIEW_FLAGS)))
+    ip = findfirst(c -> localname(c) == "pane", kids)
+    pane = isnothing(ip) ? nothing : kids[ip]
+    topleft = get(atts, "topLeftCell", "A1")
+    isnothing(pane) || (topleft = get(pane, "topLeftCell", topleft))
+    target = something(_active_pane(pane), "topLeft")
+    i = findfirst(c -> localname(c) == "selection" && _selection_pane(c) == target, kids)
+    s = isnothing(i) ? nothing : kids[i]
+    active = isnothing(s) ? "A1" : get(s, "activeCell", "A1")
+    sqref = isnothing(s) ? active : get(s, "sqref", active)
+    return (zoom = parse(Int, get(atts, "zoomScale", "100")), view = Symbol(get(atts, "view", "normal")), flags...,
+            topLeftCell = CellRef(topleft), activeCell = CellRef(active), selection = join(split(sqref), ','))
+end

@@ -130,6 +130,38 @@ and saving it, and formatting a range. Give a name to keep the results in
 
     julia --project=envs/dev -t auto worksheet_write.jl after-my-change
 
+`stream_write.jl` compares `writetable` through the cell cache with streaming
+(`streaming=true`, with inline and with shared strings) by peak memory as well as time,
+allocations and file size, on 1,000,000 × 20 mixed columns and on the 100,000 × 8
+strings of `worksheet_write.jl`. Peak RSS only rises within a process, so each case
+runs in a fresh Julia process; a `data only` case gives the memory the data itself
+takes. It needs no fixtures, and takes a few minutes:
+
+    julia --project=envs/dev -t auto stream_write.jl after-my-change
+
+### Against Python's readers
+
+`external_read.jl` times python-calamine, fastexcel and openpyxl reading the same
+tables `readtable` reads, so that `report.jl` can show where XLSX.jl stands. It is
+optional and not a test dependency. It runs in its own environment, `envs/python`,
+whose CondaPkg installs a private Python with the three readers (from conda-forge,
+into `envs/python/.CondaPkg/`, which git ignores) the first time it is used. Each
+reader is timed in Python itself, after a warm-up read. With the `readtable` results
+of a version in the same results directory, `report.jl` adds a table of the times
+side by side:
+
+    BENCH_RESULTS=results/<name> julia --project=envs/python external_read.jl
+    BENCH_RESULTS=results/<name> BENCH_BENCHMARKS=readtable julia --project=envs/dev --threads=8 bench_worker.jl dev fixtures results/<name>/dev.json
+    BENCH_RESULTS=results/<name> julia --project=. report.jl
+
+Delete `envs/python/.CondaPkg/` afterwards to remove that Python again.
+
+On 2026-11-13 (Windows, 8 threads, `BENCH_SECONDS=5`; Python 3.13, calamine 0.9.1,
+fastexcel 0.21.0, openpyxl 3.1.5), XLSX.jl's `readtable` took 0.16–0.32× openpyxl's
+time, 1.5–2.0× python-calamine's and 2.6–4.1× fastexcel's on every fixture
+(3.7× and 4.6× on `small`, where the fixed costs dominate). On `large` (50,000 rows ×
+70 columns): XLSX.jl 3.0 s, calamine 1.8 s, fastexcel 1.1 s, openpyxl 13.7 s.
+
 ### Maintainability check
 
 `maintainability.jl` measures maintainability signals over `src/` and compares them

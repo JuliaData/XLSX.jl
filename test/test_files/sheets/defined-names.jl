@@ -607,6 +607,31 @@
 end
 @testset "system defined names" begin
 
+    @testset "written in Excel's order" begin
+        # Excel 365 saved this file: names sorted in any case without `_xlnm.`, a
+        # sheet's name before the workbook's of the same name, and sheets in order.
+        excel = joinpath(data_directory, "definednames_order.xlsx")
+        block(bytes) = replace(match(r"<definedNames>.*</definedNames>"s,
+            XLSX.ZipArchives.zip_readentry(XLSX.ZipArchives.ZipReader(bytes), "xl/workbook.xml", String)).match, r">\s+<" => "><")
+        io = IOBuffer()
+        XLSX.writexlsx(io, XLSX.opentemplate(excel))
+        @test block(take!(io)) == block(read(excel))
+
+        xf = XLSX.newxlsx("S1")
+        XLSX.addsheet!(xf, "S2")
+        XLSX.addDefinedName(xf, "zeta", "S1!A1")
+        XLSX.addDefinedName(xf["S2"], "Alpha", "S2!A1")
+        XLSX.addDefinedName(xf, "alpha", "S1!A2")
+        for k in (2, 1)
+            xf[k]["A1"] = 1; xf[k]["A2"] = 2
+            XLSX.setAutoFilter(xf[k], "A1:A2")
+        end
+        io = IOBuffer()
+        XLSX.writexlsx(io, xf)
+        names = [(m[1], m[2]) for m in eachmatch(r"<definedName name=\"([^\"]+)\"(?: localSheetId=\"(\d+)\")?", block(take!(io)))]
+        @test names == [("_xlnm._FilterDatabase", "0"), ("_xlnm._FilterDatabase", "1"), ("Alpha", "1"), ("alpha", nothing), ("zeta", nothing)]
+    end
+
     @testset "hidden survives a round trip" begin
         f = XLSX.opentemplate(joinpath(data_directory, "chart_ex.xlsx"))
         before = XLSX.getAllDefinedNames(f; include_system=true)
@@ -759,6 +784,7 @@ end
         @test XLSX.get_defined_name_value(f2.workbook, "rows") == "=COUNTA(S!\$A:\$A)"
         @test XLSX.parse_defined_name_value("\"a\"&\"b\"") == ("=\"a\"&\"b\"", false)
         SAVE_FILES && save_outfile("dn_consts.xlsx")
+        isfile("dn_consts.xlsx") && rm("dn_consts.xlsx")
     end
     @testset "names on sheets whose names need quoting" begin
         f = XLSX.newxlsx("2024"); f[1]["A1"] = 42

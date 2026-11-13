@@ -131,9 +131,7 @@ function Base.iterate(itr::ValueRowIterator, st::_ValueRowState)
 
     ws = itr.ws
     wb = get_workbook(ws)
-    r_val = XML.get(c, "r", nothing)
-    r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
-    row = parse(Int, r_val)
+    row = _row_number(c, ws.name)
     row <= st.last_row && throw(_RowsNotAscending())
     st.last_row = row
 
@@ -158,7 +156,7 @@ function Base.iterate(itr::ValueRowIterator, st::_ValueRowState)
             nt == XML.Element || continue
             if localname(c) == "c"
                 has_cells = true
-                attrs = _cell_attributes(XML.LazyNode(c))
+                attrs = _cell_attributes(c)
                 col = column_number(first(attrs))
                 if isnothing(cols) || col in cols
                     # `<f>` is ignored: readtable reads values only
@@ -221,7 +219,7 @@ function _check_rows_ascending!(itr::ValueRowIterator)
             end
         end
         pending = false
-        r_val = XML.get(c, "r", nothing)
+        r_val = _cursor_attr(c, "r")
         r = isnothing(r_val) ? nothing : tryparse(Int, r_val)
         if !isnothing(r)
             r <= last && throw(_RowsNotAscending())

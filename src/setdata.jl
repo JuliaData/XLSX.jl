@@ -185,29 +185,7 @@ function setdata!(ws::Worksheet, ref::CellRef, val::Union{AbstractFormula,CellCo
             return setdata!(ws, ref, CellValue(ws, val))
         end
     else
-        existing_style = CellDataFormat(c.style)
-        isa_dt = styles_is_datetime(ws.package.workbook, existing_style)
-        if val isa Dates.Date
-            if isa_dt == false
-                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_DATE_numFmtId), "1"]).id
-            end
-        elseif val isa Dates.Time
-            if isa_dt == false
-                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_TIME_numFmtId), "1"]).id
-            end
-        elseif val isa Dates.DateTime
-            if isa_dt == false
-                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_DATETIME_numFmtId), "1"]).id
-            end
-        elseif val isa Float64 || val isa Int64
-            if isa_dt # only override a date/time format, which would misdisplay a plain number
-                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_NUMBER_numFmtId), "1"]).id
-            end
-        elseif val isa Bool
-            if isa_dt
-                c.style = update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(DEFAULT_BOOL_numFmtId), "1"]).id
-            end
-        end
+        c.style = _style_for_value(ws, c.style, val)
         if val isa AbstractFormula
             return setdata!(ws, ref, CellFormula(val, CellDataFormat(c.style)))
         else
@@ -215,6 +193,41 @@ function setdata!(ws::Worksheet, ref::CellRef, val::Union{AbstractFormula,CellCo
         end
     end
 end
+# The style for `val` in a cell of style `style`, keeping its other formatting: a date
+# or time takes a date or time format if it has none, and a number or `Bool` loses a
+# date or time format, which would misdisplay it.
+function _style_for_value(ws::Worksheet, style::Integer, val)::UInt32
+    style == 0 && return id(default_cell_format(ws, val))
+    existing_style = CellDataFormat(style)
+    isa_dt = styles_is_datetime(get_workbook(ws), existing_style)
+    numfmt = if val isa Dates.Date
+        isa_dt ? nothing : DEFAULT_DATE_numFmtId
+    elseif val isa Dates.Time
+        isa_dt ? nothing : DEFAULT_TIME_numFmtId
+    elseif val isa Dates.DateTime
+        isa_dt ? nothing : DEFAULT_DATETIME_numFmtId
+    elseif val isa Float64 || val isa Int64
+        isa_dt ? DEFAULT_NUMBER_numFmtId : nothing
+    elseif val isa Bool
+        isa_dt ? DEFAULT_BOOL_numFmtId : nothing
+    else
+        nothing
+    end
+    isnothing(numfmt) && return style
+    return update_template_xf(ws, existing_style, ["numFmtId", "applyNumberFormat"], [string(numfmt), "1"]).id
+end
+
+# A value as a cell holds it: `missing` for none, an `Int64`, `Float64`, `Bool`,
+# `String`, date or time, or else its `string`. Excel has no NaN or Inf, so they are
+# written as text.
+_as_cell_value(::Union{Missing,Nothing}) = missing
+_as_cell_value(v::Union{Bool,String,Dates.Date,Dates.DateTime,Dates.Time}) = v
+_as_cell_value(v::Integer) = Int64(v)
+_as_cell_value(v::Real) = (f = Float64(v); isfinite(f) ? f : string(v))
+_as_cell_value(v::AbstractString) = String(v)
+_as_cell_value(v::CellImage) = v
+_as_cell_value(v) = string(v)
+
 function setdata!(ws::Worksheet, ref::AbstractString, value)
     # A string starting with `=` is stored as text, not as a formula: formulas are
     # set only with `setFormula`.

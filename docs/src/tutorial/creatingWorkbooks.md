@@ -11,6 +11,7 @@ making a workbook you can change, and of saving it. Most of the guides build on 
 | build a new file from an existing one, leaving that one unchanged | [`XLSX.opentemplate`](@ref) | [`XLSX.writexlsx`](@ref) |
 | change a file and save it in place, all in one block of code | [`XLSX.openxlsx`](@ref) with `mode="rw"` and `do` | saved automatically at the end of the block |
 | change a file over several steps, then decide where to save it | [`XLSX.openxlsx`](@ref) with `mode="rw"`, without `do` | [`XLSX.savexlsx`](@ref) or [`XLSX.writexlsx`](@ref) |
+| write a new file too large to hold in memory | [`XLSX.writetable`](@ref) with `streaming=true`, or [`XLSX.streamxlsx`](@ref) (see [Writing large files](@ref)) | written as it goes |
 | only read | [`XLSX.readxlsx`](@ref), or [`XLSX.openxlsx`](@ref) with the default `mode="r"` | — |
 
 A file opened read-only can't be changed. Trying to gives an error such as
@@ -121,6 +122,126 @@ io = IOBuffer()
 XLSX.writexlsx(io, xf)
 bytes = take!(io)                    # the .xlsx file's contents
 ```
+
+## Writing large files
+
+Every function above keeps the whole workbook in memory until it is saved, which takes
+several GiB for a sheet of a million rows. Streaming writes rows straight into the
+file instead, a chunk at a time, so memory stays about the same however many rows are
+written.
+
+To stream a whole table, give [`XLSX.writetable`](@ref) `streaming=true`. A table that
+can be read a row at a time, such as a vector of `NamedTuple`s, a database query or a
+`CSV.Rows`, is never held in memory as a whole:
+
+```jldoctest streaming; setup = :(import XLSX; using Dates)
+julia> data = (id=1:1000, value=(1:1000) ./ 8, when=[DateTime(2026, 1, 1) + Hour(i) for i in 1:1000]);
+
+julia> io = IOBuffer();
+
+julia> XLSX.writetable(io, data; streaming=true, as_table=true, table_name="Readings",
+                       freeze_header=true, column_widths=[6, 10, 18], column_formats=Dict(:value => "0.00"))
+
+julia> XLSX.readxlsx(seekstart(io))[1]["A1:C3"]
+3×3 Matrix{Any}:
+  "id"   "value"  "when"
+ 1      0.125     2026-01-01T01:00:00
+ 2      0.25      2026-01-01T02:00:00
+```
+
+To write rows as you produce them, use [`XLSX.streamxlsx`](@ref): add a sheet with
+[`XLSX.addsheet!`](@ref) and write its rows in order with [`XLSX.writerow!`](@ref).
+Adding the next sheet finishes the one before, and the file is finished when the `do`
+block ends:
+
+```jldoctest streaming
+julia> io = IOBuffer();
+
+julia> XLSX.streamxlsx(io) do s
+           sh = XLSX.addsheet!(s, "Data"; columns=["id", "name", "when"], freeze_header=true)
+           for i in 1:3
+               XLSX.writerow!(sh, (i, "item $i", Date(2026, 1, i)))
+           end
+       end
+
+julia> XLSX.readxlsx(seekstart(io))["Data"]["A1:C4"]
+4×3 Matrix{Any}:
+  "id"  "name"    "when"
+ 1      "item 1"  2026-01-01
+ 2      "item 2"  2026-01-02
+ 3      "item 3"  2026-01-03
+```
+
+Writing a million rows of 20 mixed columns this way needs about 160 MiB beyond the
+memory the data itself takes, where writing it through the cell cache needs about
+3.8 GiB, and it is faster too (see `bench/stream_write.jl` in the repository).
+
+Strings are written in each cell ("inline") by default. With `shared_strings=true`
+they go in one shared table, as Excel writes them. That makes a file of many repeated
+strings a little smaller, but keeps every different string in memory until the file is
+finished. Excel opens both, and stores strings its own way when it saves.
+
+A streamed sheet is written in one pass, so it has limits:
+
+- Rows are written in order, from row 1, each once. A row can't be read or changed
+  once written, nor can the file be opened until it is finished.
+- A sheet can have column widths, column number formats, a frozen header row and an
+  Excel Table, set when it is added. It can't have formulas, cell formatting, merged
+  cells, conditional formats, data validation, comments, images, charts or a totals
+  row. To add these, open the finished file with `mode="rw"` (which reads it into
+  memory) or write it the ordinary way.
+- With `writetable`, the table starts in cell A1 (no `anchor_cell`), and has no
+  `totals`.
+- When the number of rows isn't known in advance (with `streamxlsx`, or a table read
+  a row at a time whose length is unknown), the sheet's `<dimension>`, the range Excel
+  records as used, is left out. Excel and XLSX.jl work it out from the rows.
+
+## Document properties
+
+A workbook's title, author, tags and other properties, shown in Excel's
+*File → Info*, are set with [`XLSX.setDocumentProperties`](@ref) and read with
+[`XLSX.getDocumentProperties`](@ref):
+
+```jldoctest docprops; setup = :(import XLSX; using Dates)
+julia> xf = XLSX.newxlsx();
+
+julia> XLSX.setDocumentProperties(xf; title="Quarterly sales", creator="Finance team",
+                                      keywords="sales; Q3", company="Acme Ltd")
+
+julia> p = XLSX.getDocumentProperties(xf);
+
+julia> (p.title, p.creator, p.company)
+("Quarterly sales", "Finance team", "Acme Ltd")
+```
+
+The properties are `title`, `subject`, `creator` (Excel's Author), `keywords` (Tags),
+`description` (Comments), `lastModifiedBy`, `category`, `contentStatus` (Status),
+`company`, `manager`, and the dates `created` and `modified`, which are in UTC. Only
+those given are changed, and `""` removes one.
+
+Custom properties, from Excel's *Advanced Properties → Custom*, hold a string, number,
+`Bool` or date each:
+
+```jldoctest docprops
+julia> XLSX.setCustomProperty(xf, "Project", "Apollo")
+
+julia> XLSX.setCustomProperty(xf, "Approved", true)
+
+julia> XLSX.setCustomProperty(xf, "Due", Date(2026, 6, 30))
+
+julia> XLSX.getCustomProperty(xf, "approved")    # names ignore case, as in Excel
+true
+
+julia> collect(keys(XLSX.getCustomProperties(xf)))
+3-element Vector{String}:
+ "Project"
+ "Approved"
+ "Due"
+```
+
+[`XLSX.deleteCustomProperty`](@ref) deletes one. Properties other programs add, such as
+sensitivity labels, are kept as they are. XLSX.jl doesn't change `modified` or
+`lastModifiedBy` when it saves; set them if you need to.
 
 ## Where next
 

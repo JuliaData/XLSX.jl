@@ -71,8 +71,8 @@ julia> setFormula(s, "B2", "AND(ROUNDDOWN(A1,0)-TODAY()>(7-WEEKDAY(TODAY())),ROU
 Since `XLSX.jl` does not and cannot replicate all the functions built in to Excel, 
 setting a formula in a cell does not permit the cell's value to be re-calculated 
 within `XLSX.jl`. Instead, although the formula is properly added to the cell, the 
-value is set to `missing`. However, the saved `XLSXFile` is set to force Excel to 
-re-calculate on opening.
+value is set to `missing`, unless you give it (see [Cached values](@ref)). The saved
+`XLSXFile` is set to force Excel to re-calculate on opening.
 
 ```julia
 julia> using XLSX
@@ -115,6 +115,44 @@ julia> XLSX.getFormula(s, "B2")
 julia> XLSX.getFormula(s, "J10")
 "=I10+J9"
 ```
+
+## Cached values
+
+Excel saves the last value each formula calculated alongside it, and other programs
+(pandas, file previews, XLSX.jl itself) read that value rather than calculating the
+formula. If you know a formula's result, pass it as `value`, and it is saved as Excel
+would save it, so the cell reads as that value rather than `missing`:
+
+```jldoctest cached; setup = :(import XLSX; using Dates)
+julia> s = XLSX.newxlsx()[1];
+
+julia> s["A1:A3"] = [10, 20, 30];
+
+julia> XLSX.setFormula(s, "B1", "=SUM(A1:A3)"; value=60)
+"=SUM(A1:A3)"
+
+julia> s["B1"]
+60
+```
+
+`value` may be a number, string, `Bool`, `Date`, `DateTime` or `Time` (formatted as a
+date or time, as when written to a cell), or an error value such as
+[`XLSX.XL_NA`](@ref). For a range, give one value for every cell, or
+an array with the range's shape:
+
+```jldoctest cached
+julia> XLSX.setFormula(s, "C1:C3", "=A1*2"; value=[20, 40, 60]);
+
+julia> XLSX.setFormula(s, "D1:D3", "=A1/0"; value=XLSX.XL_DIV0);
+
+julia> s["C3"], XLSX.geterror(s, "D2")
+(60, "#DIV/0!")
+```
+
+XLSX.jl does not check the value against the formula, which it can't calculate. Excel
+still recalculates every formula when it opens the file, so a wrong value is shown
+only until then, and only by other programs. A workbook set to manual calculation
+keeps that setting, and Excel then recalculates only when asked (F9).
 
 ## Referenced formulas
 
@@ -334,6 +372,40 @@ named cell range, should it be necessary to use the `raw` keyword option describ
 
     ![Excel's message that it found a problem with some content in the file](../images/problemContent.png)
     ![Excel's report of the repairs it made to the file](../images/ExcelRepairs.png)
+
+## Ignoring error-checking warnings
+
+Excel marks cells it suspects with a green triangle: a number stored as text, a
+formula unlike its neighbours, a formula that leaves out cells beside its range,
+and so on. [`XLSX.setIgnoredErrors`](@ref) turns these warnings off for some cells,
+as Excel's *Ignore Error* does, which is useful when, for example, a column of
+codes is deliberately kept as text:
+
+![Two columns of the codes 007, 042, 100 and 315 kept as text. In the first, each cell has Excel's green error triangle in its corner; in the second, where numberStoredAsText is ignored, there are none](../images/ignoredErrors.png)
+
+```jldoctest ignored; setup = :(import XLSX)
+julia> s = XLSX.newxlsx()[1];
+
+julia> s["A1:A3"] = ["007", "042", "100"];
+
+julia> XLSX.setIgnoredErrors(s, "A1:A3"; numberStoredAsText=true)
+
+julia> XLSX.setIgnoredErrors(s, "A2"; evalError=true)
+
+julia> XLSX.getIgnoredErrors(s)
+2-element Vector{Pair{String, Vector{Symbol}}}:
+ "A1,A3" => [:numberStoredAsText]
+    "A2" => [:evalError, :numberStoredAsText]
+```
+
+The warnings are `evalError`, `twoDigitTextYear`, `numberStoredAsText`, `formula`,
+`formulaRange`, `unlockedFormula`, `emptyCellReference`, `listDataValidation` and
+`calculatedColumn`. Giving one as `false` shows it again. As Excel does, each cell is
+listed once, with all the warnings ignored in it, so ranges are split where the
+warnings of their cells differ. Whole columns (`"B:B"`) and rows reach the edges of
+the sheet. [`XLSX.getIgnoredErrors`](@ref) also gives one cell's warnings, and
+[`XLSX.removeIgnoredErrors`](@ref) shows all the warnings again, in a range or the
+whole sheet. The ranges move as rows and columns are inserted and deleted.
 
 ## See also
 

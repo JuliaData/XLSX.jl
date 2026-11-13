@@ -10,6 +10,20 @@ Guide: [Images](@ref).
 XLSX.addImage
 XLSX.getImages
 XLSX.deleteImage
+XLSX.CellImage
+XLSX.getCellImage
+XLSX.getCellImages
+```
+
+## Text boxes and shapes
+
+Guide: [Text boxes and shapes](../sheets/shapes.md).
+
+```@docs
+XLSX.addTextBox
+XLSX.addShape
+XLSX.getShapes
+XLSX.deleteShape
 ```
 
 ## Comment functions
@@ -21,8 +35,12 @@ XLSX.addComment
 XLSX.getComment
 XLSX.getComments
 XLSX.deleteComment
+XLSX.addThreadedComment
+XLSX.addThreadedReply
+XLSX.setThreadedCommentResolved
 XLSX.getThreadedComment
 XLSX.getThreadedComments
+XLSX.deleteThreadedComment
 ```
 
 ## Hyperlink functions

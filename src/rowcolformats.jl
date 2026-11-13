@@ -55,6 +55,7 @@ function _inherit_rows!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyle::
     rowattrs = Dict{String,String}()
     if !isnothing(attrs)
         haskey(attrs, "outlineLevel") && (rowattrs["outlineLevel"] = attrs["outlineLevel"])
+        isnothing(ht) || !haskey(attrs, "customHeight") || (rowattrs["customHeight"] = attrs["customHeight"])
         s = haskey(attrs, "s") ? restyle(parse(UInt32, attrs["s"])) : UInt32(0)
         s == 0 || (rowattrs["s"] = string(s); rowattrs["customFormat"] = "1")
     end

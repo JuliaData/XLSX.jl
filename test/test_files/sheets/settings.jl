@@ -203,6 +203,53 @@
         @test all(XLSX._excel_password_hash(p) == ref(p) for p in ("secret", "abcdefghijklmno", "~~~~~~~~~~~~~~~", "Pa55 w0rd!"))
     end
 
+    @testset "workbook protection" begin
+        wb_tags(xf) = [XLSX.localname(c) for c in XLSX.xml_elements(XLSX._workbook_root(xf))]
+        wp_atts(xf) = something(XLSX._workbook_protection_atts(xf), Pair{String,String}[])
+
+        # Excel's file, protected without a password: XLSX.jl puts the element back where Excel had it
+        ex = XLSX.openxlsx(joinpath(data_directory, "workbook_protected_excel.xlsx"); mode="rw")
+        excel_tags, excel_atts = wb_tags(ex), wp_atts(ex)
+        @test XLSX.getWorkbookProtection(ex) == (password=false, structure=true, windows=false)
+        @test XLSX.unprotectWorkbook(ex)
+        @test !XLSX.isWorkbookProtected(ex) && !("workbookProtection" in wb_tags(ex))
+        @test !XLSX.unprotectWorkbook(ex)
+        XLSX.protectWorkbook(ex)
+        @test wb_tags(ex) == excel_tags && wp_atts(ex) == excel_atts
+        @test excel_tags[findfirst(==("workbookProtection"), excel_tags) - 1] == "revisionPtr"   # after Excel's extensions
+
+        # Excel's own SHA-512 password is recognised
+        pw = XLSX.readxlsx(joinpath(data_directory, "workbook_password_excel.xlsx"))
+        @test XLSX.getWorkbookProtection(pw) == (password=true, structure=true, windows=false)
+
+        xf = three()
+        @test !XLSX.isWorkbookProtected(xf) && isnothing(XLSX.getWorkbookProtection(xf))
+        XLSX.protectWorkbook(xf; password="secret")
+        @test wp_atts(xf) == ["workbookPassword" => "DAA7", "lockStructure" => "1"]   # Excel's legacy hash
+        @test wb_tags(xf)[findfirst(==("workbookProtection"), wb_tags(xf)) + 1] == "bookViews"
+        XLSX.protectWorkbook(xf; windows=true)                                 # replaces the settings
+        @test XLSX.getWorkbookProtection(xf) == (password=false, structure=true, windows=true)
+        XLSX.protectWorkbook(xf; structure=false, windows=true)
+        @test XLSX.isWorkbookProtected(xf) && XLSX.getWorkbookProtection(xf).windows
+        @test count(==("workbookProtection"), wb_tags(xf)) == 1
+
+        XLSX.addsheet!(xf, "D")                                                # XLSX.jl isn't stopped
+        XLSX.protectSheet(xf["A"])
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getWorkbookProtection(r) == (password=false, structure=false, windows=true)
+        @test XLSX.isSheetProtected(r["A"])
+        @test XLSX.unprotectWorkbook(xf) && XLSX.isSheetProtected(xf["A"])    # sheets keep theirs
+
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; structure=false)
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; password="")
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; password="x"^16)
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(xf; password="pässword")
+        @test !XLSX.isWorkbookProtected(xf)                                   # nothing changed
+        @test_throws XLSX.XLSXError XLSX.protectWorkbook(r)
+        @test_throws XLSX.XLSXError XLSX.unprotectWorkbook(r)
+        SAVE_FILES && save_outfile(ex)
+    end
+
     @testset "page setup" begin
         xf = three()
         s = xf["A"]
@@ -328,6 +375,127 @@
         SAVE_FILES && save_outfile(xf)
     end
 
+    @testset "headers and footers" begin
+        xf = three()
+        s = xf["A"]
+        s[1, 1] = 1
+        @test isnothing(XLSX.getHeaderFooter(s))
+        XLSX.setHeaderFooter(s; header=(left="Left & text", center="Page &P of &N",
+                                        right=XLSX.headerFooterFont(name="Arial", bold=true, italic=true, size=14, color="FF0000") * "Red &D &T"),
+                                footer="&F &A &Z")
+        hf = XLSX.getHeaderFooter(s)
+        @test hf.header == (left="Left & text", center="Page &P of &N", right="&\"Arial,Bold Italic\"&14&KFF0000Red &D &T")
+        @test hf.footer == (left=nothing, center="&F &A &Z", right=nothing)            # a plain string is centred
+        @test all(isnothing, (hf.evenHeader, hf.evenFooter, hf.firstHeader, hf.firstFooter))
+        @test (hf.differentOddEven, hf.differentFirst, hf.scaleWithDoc, hf.alignWithMargins) == (false, false, true, true)
+        @test isempty(element_atts(xf, "headerFooter"))                                # defaults left unwritten, as Excel does
+        tags = sheet_tags(xf)
+        @test findfirst(==("headerFooter"), tags) == findfirst(==("pageMargins"), tags) + 1
+        XLSX.setPageSetup(s; orientation=:landscape)                                   # pageSetup goes between them
+        tags = sheet_tags(xf)
+        @test findfirst(==("headerFooter"), tags) == findfirst(==("pageSetup"), tags) + 1
+
+        XLSX.setHeaderFooter(s; evenHeader="Even &P", firstFooter=(right="First",), scaleWithDoc=false, alignWithMargins=false)
+        hf = XLSX.getHeaderFooter(s)
+        @test hf.differentOddEven && hf.differentFirst && !hf.scaleWithDoc && !hf.alignWithMargins
+        @test hf.evenHeader == (left=nothing, center="Even &P", right=nothing)
+        @test hf.firstFooter == (left=nothing, center=nothing, right="First")
+        @test hf.header.left == "Left & text"                                          # untouched
+
+        # the same XML as Excel writes for the same settings
+        ours = XLSX.first_element_with_tag(sheet_root(xf, "xl/worksheets/sheet1.xml"), "headerFooter")
+        ex = XLSX.readxlsx(joinpath(data_directory, "headerfooter_excel.xlsx"))
+        theirs = only(XLSX._sheet_top_elements(ex, XLSX._sheet_path(ex[1]), ("headerFooter",)))
+        @test XLSX._atts_vector(ours) == XLSX._atts_vector(theirs)
+        @test XLSX._header_footer_texts(ours) == XLSX._header_footer_texts(theirs)
+        @test [XLSX.localname(c) for c in XLSX.xml_elements(ours)] == [XLSX.localname(c) for c in XLSX.xml_elements(theirs)]
+        @test XLSX.getHeaderFooter(ex[1]) == hf                                        # read-only, from Excel's file
+
+        # a header read back can be set again as it is
+        c = xf["B"]
+        XLSX.setHeaderFooter(c; header=hf.header, footer=hf.footer)
+        @test XLSX.getHeaderFooter(c).header == hf.header
+
+        XLSX.setHeaderFooter(s; differentFirst=false, firstHeader="Kept")              # an explicit option wins
+        @test !XLSX.getHeaderFooter(s).differentFirst && XLSX.getHeaderFooter(s).firstHeader.center == "Kept"
+        XLSX.setHeaderFooter(s; evenHeader="")                                         # "" removes one, leaving even pages blank
+        hf = XLSX.getHeaderFooter(s)
+        @test isnothing(hf.evenHeader) && hf.differentOddEven
+        XLSX.setHeaderFooter(s; differentOddEven=false)
+        @test !XLSX.getHeaderFooter(s).differentOddEven
+        @test !haskey(element_atts(xf, "headerFooter"), "differentOddEven")
+        XLSX.setHeaderFooter(c; firstHeader="")                                         # a blank first page
+        @test XLSX.getHeaderFooter(c).differentFirst && isnothing(XLSX.getHeaderFooter(c).firstHeader)
+
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test XLSX.getHeaderFooter(r["A"]) == XLSX.getHeaderFooter(s)
+        @test XLSX.getHeaderFooter(XLSX.copysheet!(s, "Copy")) == XLSX.getHeaderFooter(s)
+        SAVE_FILES && save_outfile(xf)
+
+        @test XLSX.removeHeaderFooter(s)
+        @test isnothing(XLSX.getHeaderFooter(s)) && !("headerFooter" in sheet_tags(xf))
+        @test !XLSX.removeHeaderFooter(s)
+        XLSX.setHeaderFooter(c; header="", footer="", differentFirst=false)             # emptied, so removed
+        @test isnothing(XLSX.getHeaderFooter(c))
+    end
+
+    @testset "header and footer sections" begin
+        @test XLSX._header_footer_sections("&LLeft&CCentre&RRight") == ((left="Left", center="Centre", right="Right"), true)
+        @test XLSX._header_footer_sections("Plain") == ((left=nothing, center="Plain", right=nothing), false)
+        @test XLSX._header_footer_sections("R&&D &L x") == ((left=" x", center="R&&D ", right=nothing), true)
+        @test XLSX._header_footer_sections("&\"Calibri,Regular\"&Rx") == ((left=nothing, center="&\"Calibri,Regular\"", right="x"), true)
+        @test XLSX._header_footer_sections("&\"&L,Bold\"y") == ((left=nothing, center="&\"&L,Bold\"y", right=nothing), false)  # quoted
+        @test XLSX._header_footer_sections("a &") == ((left=nothing, center="a &", right=nothing), false)
+        @test XLSX._header_footer_sections("&Lé&Rü") == ((left="é", center=nothing, right="ü"), true)
+        @test XLSX._header_footer_text("&RA", :header) == "&RA"                         # Excel's own form is kept
+        @test XLSX._header_footer_text((right="A", left="B"), :header) == "&LB&RA"      # in Excel's order
+        @test XLSX._header_footer_text((left="", center=nothing, right="A"), :header) == "&RA"
+        @test XLSX._header_footer_text("", :header) == ""
+    end
+
+    @testset "header and footer codes" begin
+        @test XLSX.headerFooterField(:page) == "&P"
+        @test [XLSX.headerFooterField(f) for f in (:pages, :date, :time, :file, :path, :sheet)] == ["&N", "&D", "&T", "&F", "&Z", "&A"]
+        @test_throws XLSX.XLSXError XLSX.headerFooterField(:author)
+        @test XLSX.headerFooterFont() == ""
+        @test XLSX.headerFooterFont(name="Arial") == "&\"Arial,Regular\""
+        @test XLSX.headerFooterFont(bold=true) == "&\"-,Bold\""
+        @test XLSX.headerFooterFont(italic=true, size=9) == "&\"-,Italic\"&9"
+        @test XLSX.headerFooterFont(under="single", strike=true, vertAlign="subscript") == "&U&S&Y"
+        @test XLSX.headerFooterFont(under="double", vertAlign="superscript") == "&E&X"
+        @test XLSX.headerFooterFont(under="none", vertAlign="baseline") == ""
+        @test XLSX.headerFooterFont(color="red") == "&KFF0000"
+        @test XLSX.headerFooterFont(color=:accent2) == "&K05+000"
+        @test XLSX.headerFooterFont(color=XLSX.SchemeColor(:accent1; lumMod=75)) == "&K04-025"
+        @test XLSX.headerFooterFont(color=XLSX.SchemeColor(:accent1; lumMod=60, lumOff=40)) == "&K04+040"
+        @test_throws XLSX.XLSXError XLSX.headerFooterFont(name="A,B")
+        @test_throws XLSX.XLSXError XLSX.headerFooterFont(name="")
+        @test_throws XLSX.XLSXError XLSX.headerFooterFont(size=0)
+        @test_throws XLSX.XLSXError XLSX.headerFooterFont(under="triple")
+        @test_throws XLSX.XLSXError XLSX.headerFooterFont(vertAlign="up")
+        @test_throws XLSX.XLSXError XLSX.headerFooterFont(color="notacolour")
+    end
+
+    @testset "header and footer errors" begin
+        xf = three()
+        s = xf["A"]
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s)
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; heading="x")
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; header=1)
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; header=(middle="x",))
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; header=(left=1,))
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; header=(left="a&Rb",))      # a section code inside a section
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; scaleWithDoc=1)
+        XLSX.setHeaderFooter(s; header="x"^253)                                         # 255 with its "&C", Excel's limit
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; header="x"^254)
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(s; header=(left="x"^126, right="y"^126))   # 256, as in Excel
+        @test XLSX.getHeaderFooter(s).header.center == "x"^253                          # a failed call changes nothing
+
+        r = XLSX.readxlsx(IOBuffer(roundtrip_bytes(xf)))
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(r["A"]; header="x")
+        @test_throws XLSX.XLSXError XLSX.removeHeaderFooter(r["A"])
+    end
+
     @testset "chartsheets have no page setup or protection" begin
         xf = XLSX.newxlsx("data")
         xf["data"]["A1:A2"] = [1, 2]
@@ -338,6 +506,7 @@
         @test_throws XLSX.XLSXError XLSX.protectSheet(chs)
         @test_throws XLSX.XLSXError XLSX.setPageSetup(chs; orientation=:landscape)
         @test_throws XLSX.XLSXError XLSX.setPrintArea(chs, "A1:B2")
+        @test_throws XLSX.XLSXError XLSX.setHeaderFooter(chs; header="x")
     end
 
     @testset "cell protection" begin

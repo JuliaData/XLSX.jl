@@ -90,3 +90,34 @@ let
     end
     println("\nMedian times in milliseconds. Ratio < 1.0x = numerator version is faster.")
 end
+
+# ── Against Python's readers ──────────────────────────────────────────────────
+# external_read.jl's times for python-calamine, fastexcel and openpyxl reading the same
+# tables, beside the newest XLSX.jl version's `readtable`.
+
+import TOML
+let path = joinpath(RESULTS_DIR, "external.toml")
+    isfile(path) || return
+    ext = TOML.parsefile(path)
+    v = something(findlast(l -> haskey(all_results, l), first.(VERSIONS)) |> i -> isnothing(i) ? nothing : first(VERSIONS[i]), "")
+    isempty(v) && return
+    readers = ("calamine", "fastexcel", "openpyxl")
+    println("\n" * "="^60)
+    println("READING A TABLE: XLSX.jl $v AGAINST PYTHON'S READERS")
+    println("="^60)
+    vers = get(ext, "versions", Dict())
+    println("Python ", get(ext, "python", "?"), "; ", join(("$r $(get(vers, r, "?"))" for r in readers), ", "))
+    println(@sprintf("%-16s%14s", "fixture", "XLSX $v") * join(@sprintf("%14s%10s", r, "XLSX/" * first(r, 4)) for r in readers))
+    for fix in fixtures
+        haskey(ext, fix) && haskey(all_results[v], fix) && haskey(all_results[v][fix], "readtable") || continue
+        ours = median(all_results[v][fix]["readtable"]).time / 1e6
+        row = @sprintf("%-16s%12.1fms", fix, ours)
+        for r in readers
+            t = get(ext[fix], r, NaN)
+            row *= isnan(t) ? @sprintf("%14s%10s", "N/A", "N/A") : @sprintf("%12.1fms%9.2fx", t, ours / t)
+        end
+        println(row)
+    end
+    println("\nMedian times in milliseconds. XLSX/reader < 1.0x = XLSX.jl is faster. The Python",
+            "\nreaders are timed in Python itself; calamine and openpyxl read the whole sheet.")
+end

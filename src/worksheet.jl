@@ -119,7 +119,7 @@ function read_worksheet_dimension(xf::XLSXFile, relationship_id, name)::Union{No
             if XML.depth(c) == 2 && XML.nodetype(c) == XML.Element
                 lname = localname(c)
                 if lname == "dimension"
-                    ref_str = XML.get(c, "ref", nothing)
+                    ref_str = _cursor_attr(c, "ref")
                     if !isnothing(ref_str)
                         if is_valid_cellname(ref_str)
                             result = CellRange("$(ref_str):$(ref_str)")

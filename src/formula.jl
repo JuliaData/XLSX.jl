@@ -1,5 +1,3 @@
-include_dependency(joinpath(@__DIR__, "data", "metadata.xml"))
-const METADATA_XML_DATA = read(joinpath(@__DIR__, "data", "metadata.xml"))
 
 const RGX_FORMULA_SHEET_CELL = r"!\$?[A-Z]+\$?[0-9]" # to recognise sheetcell references like "otherSheet!A1"
 
@@ -407,6 +405,7 @@ function _repoint_sheet_xml_formulas!(ws::Worksheet, repoint)
     for c in XML.eachelement(ws_el)
         localname(c) in SHEET_XML_FORMULA_CONTAINERS && _rewrite_sheet_xml_formulas!(repoint, c)
     end
+    _drop_dead_sparkline_data!(ws_el)
     return nothing
 end
 
@@ -706,13 +705,7 @@ function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::Ab
     if !isnothing(spill) && (spill || !spill && iaf) || isnothing(spill) && iaf
         t = "array"
         ref = cellname(cellref) * ":" * cellname(cellref)
-        cm = "1"
-        if !haskey(xf.files, "xl/metadata.xml") # add metadata.xml on first use of a dynamicArray formula
-            xf.data["xl/metadata.xml"] = parse(String(copy(METADATA_XML_DATA)), XML.Node)
-            xf.files["xl/metadata.xml"] = true # set file as read
-            add_override!(xf, "/xl/metadata.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml")
-            rId = add_relationship!(get_workbook(xf), "metadata.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata")
-        end
+        cm = string(_dynamic_array_cm!(xf))
     end
     return formula, t, ref, cm
 end
@@ -790,10 +783,10 @@ function add_formula_to_cache(ws::Worksheet, ref::CellRef, f::AbstractFormula)
 end
 
 """
-    setFormula(ws::Worksheet, RefOrRange::AbstractString, formula::AbstractString; raw=false, spill=false)
-    setFormula(xf::XLSXFile,  RefOrRange::AbstractString, formula::AbstractString; raw=false, spill=false)
+    setFormula(ws::Worksheet, RefOrRange::AbstractString, formula::AbstractString; raw=false, spill=false, value=nothing)
+    setFormula(xf::XLSXFile,  RefOrRange::AbstractString, formula::AbstractString; raw=false, spill=false, value=nothing)
 
-    setFormula(sh::Worksheet, row, col, formula::AbstractString; raw=false, spill=false)
+    setFormula(sh::Worksheet, row, col, formula::AbstractString; raw=false, spill=false, value=nothing)
 
 Set the Excel formula to be used in the given cell or cell range.
 
@@ -804,8 +797,9 @@ formula is made by `XLSX.jl` and formulae are usually stored verbatim, as given.
 The exception is line breaks: Excel refuses a formula containing a carriage return,
 so `"\\r\\n"` and `"\\r"` are stored as `"\\n"` (as Excel itself does for Alt+Enter).
 
-Non-contiguous ranges are not supported by `setFormula`. Set the formula in 
-each cell or contiguous range separately.
+Non-contiguous ranges (`"A1:A3,C1"`, or a defined name for one) are not supported by
+`setFormula`, nor are rows or columns given as a vector or step range (`[1, 3]`,
+`1:2:9`): each gives an error. Set the formula in each cell or contiguous range separately.
 
 Use `raw=true` if entering a formula in xml-ready format to prevent any processing 
 by `setFormula`.
@@ -816,11 +810,21 @@ and `spill=false` to prevent it being treated as such. By default `spill=nothing
 
 Keyword options should be rarely needed - `setFormula` should handle most formulae.
 
-Since `XLSX.jl` does not and cannot replicate all the functions built in to Excel, 
-setting a formula in a cell does not permit the cell's value to be re-calculated 
-within `XLSX.jl`. Instead, although the formula is properly added to the cell, the 
-value is set to `missing`. However, the saved `XLSXFile` is set to force Excel to 
-re-calculate on opening. 
+Since `XLSX.jl` does not and cannot replicate all the functions built in to Excel,
+setting a formula in a cell does not permit the cell's value to be re-calculated
+within `XLSX.jl`. Instead, although the formula is properly added to the cell, the
+value is set to `missing`. However, the saved `XLSXFile` is set to force Excel to
+re-calculate on opening. A workbook set to manual calculation stays so, as Excel keeps
+it, and Excel then recalculates only when asked (F9).
+
+If you know the formula's result, give it as `value`: it is saved as the formula's
+cached value, as Excel saves the last value it calculated, so XLSX.jl and other programs
+that don't calculate formulas read it rather than `missing`. `value` may be a number,
+string, `Bool`, `Date`, `DateTime` or `Time` (which gives the cell a date or time
+format, as writing it to a cell does) or a [`CellErrorType`](@ref XLSX.CellErrorType)
+such as `XLSX.XL_NA`. For a range, give one value for every cell, or an array with the
+range's shape, read row by row. It isn't checked against the formula. Excel still
+recalculates on opening.
 
 If a cell spills but any of the cells in the spill range already contains a value, Excel will 
 show a `#SPILL` error.
@@ -853,6 +857,9 @@ julia> s["A1:J1"]=1
 
 julia> setFormula(s, "B2:J10", "=A2+B1") # adds formulae but cannot update calculated values
 "=A2+B1"
+
+julia> setFormula(s, "K1", "=SUM(A1:A10)"; value=10) # with the value Excel would calculate
+"=SUM(A1:A10)"
 
 julia> addsheet!(f, "trig functions")
 1×1 Worksheet: ["trig functions"](A1:A1) 
@@ -924,8 +931,8 @@ XLSX.setFormula(f[1], "G10", "_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x
     file.
 
 """
-setFormula(w, r, f::AbstractString; raw::Bool=false, spill::Union{Nothing,Bool}=nothing) = setFormula(w, r; val=f, raw=raw, spill=spill) # move formula to a kw to take advantage of cellformat-helpers functions
-setFormula(w, r, c, f::AbstractString; raw::Bool=false, spill::Bool=false) = setFormula(w, r, c; val=f, raw=raw, spill=spill) # move formula to a kw to take advantage of cellformat-helpers functions
+setFormula(w, r, f::AbstractString; raw::Bool=false, spill::Union{Nothing,Bool}=nothing, value=nothing) = setFormula(w, r; val=f, raw=raw, spill=spill, value=value) # move formula to a kw to take advantage of cellformat-helpers functions
+setFormula(w, r, c, f::AbstractString; raw::Bool=false, spill::Bool=false, value=nothing) = setFormula(w, r, c; val=f, raw=raw, spill=spill, value=value) # move formula to a kw to take advantage of cellformat-helpers functions
 setFormula(ws::Worksheet, ref::SheetCellRef; kw...) = do_sheet_names_match(ws, ref) && setFormula(ws, ref.cellref; kw...)
 setFormula(ws::Worksheet, rng::SheetCellRange; kw...) = do_sheet_names_match(ws, rng) && setFormula(ws, rng.rng; kw...)
 setFormula(ws::Worksheet, rng::SheetColumnRange; kw...) = do_sheet_names_match(ws, rng) && setFormula(ws, rng.colrng; kw...)
@@ -940,6 +947,11 @@ setFormula(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw.
 setFormula(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon(setFormula, ws, nothing, col; kw...)
 setFormula(ws::Worksheet, ::Colon, ::Colon; kw...) = setFormula(ws, :; kw...)
 setFormula(ws::Worksheet, ::Colon; kw...) = process_colon(setFormula, ws, nothing, nothing; kw...)
+setFormula(::Worksheet, rng::NonContiguousRange; kw...) = throw(XLSXError(
+    "`setFormula` can't set a formula in a non-contiguous range (`$rng`): set it in each cell or contiguous range separately."))
+const _FormulaRowsOrCols = Union{Integer,AbstractVector{<:Integer},Colon}
+setFormula(::Worksheet, row::_FormulaRowsOrCols, col::_FormulaRowsOrCols; kw...) = throw(XLSXError(
+    "`setFormula` takes rows and columns as an integer, a unit range or `:`, not `$(typeof(row))` and `$(typeof(col))`: set the formula in each contiguous range separately."))
 # Excel won't open a file with a carriage return in a formula (`&#13;` in `<f>`):
 # a line break in a formula is a bare LF, as Alt+Enter writes it.
 _formula_line_ends(f::AbstractString) = occursin('\r', f) ? replace(f, "\r\n" => "\n", '\r' => '\n') : f
@@ -947,12 +959,22 @@ _formula_line_ends(f::AbstractString) = occursin('\r', f) ? replace(f, "\r\n" =>
 # Non-contiguous ranges, and vectors or step ranges of rows or columns, aren't supported:
 # each would need its own handling, since the cellformat-helpers functions can't process
 # setFormula's keywords.
-function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Bool=false, spill::Union{Nothing,Bool}=nothing)
+function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Bool=false, spill::Union{Nothing,Bool}=nothing, value=nothing)
+    _require_writable(get_xlsxfile(ws), "set formula")
+    values = _formula_values(rng, value)   # checked before anything changes
+    f = _set_range_formula!(ws, rng, val, raw, spill)
+    isnothing(values) || foreach((c, v) -> _cache_formula_value!(ws, c, v), rng, values)
+    return f
+end
+function setFormula(ws::Worksheet, cellref::CellRef; val::AbstractString, raw::Bool=false, spill::Union{Nothing,Bool}=nothing, value=nothing)
+    _require_writable(get_xlsxfile(ws), "set formula")
+    v = _formula_value(value)
+    f = _set_cell_formula!(ws, cellref, val, raw, spill)
+    _cache_formula_value!(ws, cellref, v)
+    return f
+end
 
-    xf = get_xlsxfile(ws)
-
-    _require_writable(xf, "set formula")
-
+function _set_range_formula!(ws::Worksheet, rng::CellRange, val::AbstractString, raw::Bool, spill::Union{Nothing,Bool})
     val = _formula_line_ends(val)
 
     is_array = is_array_formula(val)
@@ -966,7 +988,7 @@ function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Boo
         for c in rng
             offset = (c.row_number - start.row_number, c.column_number - start.column_number)
             newval = shift_excel_references(val, offset)
-            f = setFormula(ws, c; val=newval, raw, spill)
+            f = _set_cell_formula!(ws, c, newval, raw, spill)
             first && (first = false; f1 = f) # return the formula from the first cell only
         end
         return f1
@@ -1002,13 +1024,9 @@ function setFormula(ws::Worksheet, rng::CellRange; val::AbstractString, raw::Boo
     end
     return f
 end
-function setFormula(ws::Worksheet, cellref::CellRef; val::AbstractString, raw::Bool=false, spill::Union{Nothing,Bool}=nothing)
+function _set_cell_formula!(ws::Worksheet, cellref::CellRef, val::AbstractString, raw::Bool, spill::Union{Nothing,Bool})
     # cell references in formulas have already been adjusted for offset in a range before here
-
     xf = get_xlsxfile(ws)
-
-    _require_writable(xf, "set formula")
-
     val = _formula_line_ends(val)
 
     c = getcell(ws, cellref)
@@ -1023,6 +1041,46 @@ function setFormula(ws::Worksheet, cellref::CellRef; val::AbstractString, raw::B
     c = getcell(ws, cellref)
     c.meta = cm == "" ? UInt16(0) : parse(UInt16, cm)
     return f
+end
+
+# The value `setFormula` caches for a formula, checked: `nothing` for none.
+_formula_value(::Nothing) = nothing
+_formula_value(v::CellErrorType) = v
+function _formula_value(v)
+    v isa Union{Real,AbstractString,Dates.Date,Dates.DateTime,Dates.Time,Missing} ||
+        throw(XLSXError("A formula's `value` must be a number, string, `Bool`, date, time or `CellErrorType` (such as `XL_NA`), got `$(typeof(v))`."))
+    v = _as_cell_value(v)
+    return v === missing ? nothing : v
+end
+
+# The values for each cell of `rng`, in the order `rng` iterates (row by row): one
+# value for every cell, or an array with the shape of `rng`.
+_formula_values(::CellRange, ::Nothing) = nothing
+function _formula_values(rng::CellRange, value)
+    v = _formula_value(value)
+    return isnothing(v) ? nothing : fill(v, length(rng))
+end
+function _formula_values(rng::CellRange, value::AbstractArray)
+    nrows, ncols = size(rng)
+    fits = size(value) == (nrows, ncols) ||
+           (value isa AbstractVector && 1 in (nrows, ncols) && length(value) == nrows * ncols)
+    fits || throw(XLSXError("`value` has size $(size(value)), but the range $rng is $nrows × $ncols: give one value, or an array of the range's shape."))
+    m = reshape(value, nrows, ncols)
+    return [_formula_value(m[r, c]) for r in 1:nrows for c in 1:ncols]   # row by row, as `rng` iterates
+end
+
+# Store `v` as the formula's cached result in the cell at `ref`, as Excel stores the
+# last value it calculated. A date or time is formatted as one, as when written to a cell.
+function _cache_formula_value!(ws::Worksheet, ref::CellRef, v)
+    isnothing(v) && return nothing
+    c = getcell(ws, ref)
+    if v isa CellErrorType
+        c.datatype, c.value = CT_ERROR, UInt64(v)
+        return nothing
+    end
+    c.datatype, c.value = xlsx_encode(ws, v)
+    c.style = _style_for_value(ws, c.style, v)
+    return nothing
 end
 
 """

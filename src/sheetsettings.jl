@@ -305,11 +305,11 @@ end
 
 # Excel's legacy password hash (ECMA-376 Part 4, 14.7.1), as 4 hex digits.
 function _excel_password_hash(password::AbstractString)::String
-    isascii(password) || throw(XLSXError("A sheet password must be ASCII text."))
+    isascii(password) || throw(XLSXError("A protection password must be ASCII text."))
     n = length(password)
     # The legacy hash uses only the first 15 characters, so a longer password would
     # unlock with its first 15 alone. Refuse it rather than mislead.
-    1 <= n <= 15 || throw(XLSXError("A sheet password must be from 1 to 15 characters long, the most Excel's legacy hash uses."))
+    1 <= n <= 15 || throw(XLSXError("A protection password must be from 1 to 15 characters long, the most Excel's legacy hash uses."))
     h = 0x0000
     for (i, c) in enumerate(password)
         v = UInt16(c)
@@ -325,6 +325,121 @@ end
 
 _xml_bool(atts::AbstractDict, k::AbstractString, default::Bool) =
     haskey(atts, k) ? atts[k] in ("1", "true") : default
+
+# ===========================================================================
+# Workbook protection
+# ===========================================================================
+
+"""
+    protectWorkbook(xf::XLSXFile; password=nothing, structure=true, windows=false)
+
+Protect a workbook's structure, as Excel's *Review → Protect Workbook* does, so that
+its sheets can't be added, deleted, moved, renamed, hidden or unhidden in Excel.
+
+- `password`, if given, must be typed in Excel to unprotect the workbook. As for
+  [`protectSheet`](@ref), it is stored as Excel's legacy hash, which Excel accepts but
+  which is easily broken, and must be ASCII text of at most 15 characters.
+- `structure`: lock the sheets. The default is `true`.
+- `windows`: lock the size and position of the workbook's windows. Only Excel for Mac
+  and older versions of Excel use this: Excel 365 for Windows neither shows nor applies it.
+
+Protecting a workbook that is already protected replaces its settings. Protection
+applies in Excel only: XLSX.jl can still add, delete and rename sheets in a protected
+workbook.
+
+The file must be open for writing (`mode="rw"`).
+
+# Examples
+```julia
+julia> XLSX.protectWorkbook(xf)
+
+julia> XLSX.protectWorkbook(xf; password="secret")
+```
+
+See also [`unprotectWorkbook`](@ref), [`isWorkbookProtected`](@ref) and
+[`getWorkbookProtection`](@ref).
+"""
+function protectWorkbook(xf::XLSXFile; password::Union{Nothing,AbstractString}=nothing,
+                         structure::Bool=true, windows::Bool=false)
+    _require_writable(xf, "protect the workbook")
+    structure || windows ||
+        throw(XLSXError("Nothing to protect: give `structure=true`, `windows=true` or both. To remove protection, use `unprotectWorkbook`."))
+    atts = Pair{String,String}[]
+    isnothing(password) || push!(atts, "workbookPassword" => _excel_password_hash(password))
+    structure && push!(atts, "lockStructure" => "1")
+    windows && push!(atts, "lockWindows" => "1")
+    _set_workbook_protection!(xf, atts)
+    return nothing
+end
+
+"""
+    unprotectWorkbook(xf::XLSXFile) -> Bool
+
+Remove a workbook's protection, whatever its password. Returns `false` if it wasn't
+protected. Sheets keep their own protection: see [`unprotectSheet`](@ref).
+
+The file must be open for writing (`mode="rw"`).
+"""
+function unprotectWorkbook(xf::XLSXFile)::Bool
+    _require_writable(xf, "unprotect the workbook")
+    isnothing(_workbook_protection_atts(xf)) && return false
+    _set_workbook_protection!(xf, nothing)
+    return true
+end
+
+"""
+    isWorkbookProtected(xf::XLSXFile) -> Bool
+
+Whether a workbook's structure or windows are protected. See [`protectWorkbook`](@ref).
+"""
+isWorkbookProtected(xf::XLSXFile)::Bool = !isnothing(getWorkbookProtection(xf))
+
+"""
+    getWorkbookProtection(xf::XLSXFile) -> Union{Nothing, NamedTuple}
+
+How a workbook is protected, or `nothing` if it isn't: a `NamedTuple` with `Bool` fields
+`password` (whether a password is needed to unprotect it), `structure` and `windows`, as
+the keywords of [`protectWorkbook`](@ref).
+
+# Examples
+```julia
+julia> XLSX.getWorkbookProtection(xf)
+(password = true, structure = true, windows = false)
+```
+"""
+function getWorkbookProtection(xf::XLSXFile)
+    atts = _workbook_protection_atts(xf)
+    isnothing(atts) && return nothing
+    d = Dict(atts)
+    structure, windows = _xml_bool(d, "lockStructure", false), _xml_bool(d, "lockWindows", false)
+    structure || windows || return nothing
+    return (password = haskey(d, "workbookPassword") || haskey(d, "workbookHashValue"),
+            structure = structure, windows = windows)
+end
+
+_workbook_root(xf::XLSXFile) = xml_root_element(xmlroot(xf, "xl/workbook.xml"))
+
+function _workbook_protection_atts(xf::XLSXFile)
+    for c in xml_elements(_workbook_root(xf))
+        localname(c) == "workbookProtection" && return _atts_vector(c)
+    end
+    return nothing
+end
+
+# Replace the workbook's `<workbookProtection>` with one with attributes `atts`, or
+# remove it if `atts` is `nothing`. Made just before the element the schema puts after
+# it, as Excel writes it: after `<workbookPr>` and the extensions Excel puts there.
+function _set_workbook_protection!(xf::XLSXFile, atts)
+    root = _workbook_root(xf)
+    chn = XML.children(root)
+    filter!(c -> !(XML.nodetype(c) == XML.Element && localname(c) == "workbookProtection"), chn)
+    isnothing(atts) && return nothing
+    after = WORKBOOK_ORDER[findfirst(==("workbookProtection"), WORKBOOK_ORDER)+1:end]
+    i = findfirst(c -> XML.nodetype(c) == XML.Element && localname(c) in after, chn)
+    el = _xml_element(something(_ns_prefix(XML.tag(root)), "") * "workbookProtection", atts)
+    insert!(chn, something(i, length(chn) + 1), el)
+    return nothing
+end
 
 # ===========================================================================
 # Page setup and printing
@@ -655,6 +770,306 @@ function removePrintTitles(ws::Worksheet)::Bool
 end
 
 # ===========================================================================
+# Headers and footers
+# ===========================================================================
+
+# The keywords for the six headers and footers, and their elements in the schema's order.
+const _HEADER_FOOTER_PARTS = (header = "oddHeader", footer = "oddFooter",
+                              evenHeader = "evenHeader", evenFooter = "evenFooter",
+                              firstHeader = "firstHeader", firstFooter = "firstFooter")
+# The options of `<headerFooter>` and their defaults, which Excel leaves unwritten.
+const _HEADER_FOOTER_FLAGS = (differentOddEven = false, differentFirst = false,
+                              scaleWithDoc = true, alignWithMargins = true)
+const _HEADER_FOOTER_SECTIONS = (left = 'L', center = 'C', right = 'R')
+const _HEADER_FOOTER_FIELDS = (page = "&P", pages = "&N", date = "&D", time = "&T",
+                               file = "&F", path = "&Z", sheet = "&A")
+const _HEADER_FOOTER_MAX = 255   # characters in one header or footer, codes included
+
+"""
+    setHeaderFooter(ws::Worksheet; header, footer, firstHeader, firstFooter, evenHeader, evenFooter,
+                    differentFirst, differentOddEven, scaleWithDoc, alignWithMargins)
+
+Set the headers and footers printed on a worksheet's pages, as Excel's *Page Setup →
+Header/Footer* does. Only the keywords given are changed.
+
+`header` and `footer` are printed on every page. Each is a `NamedTuple` of up to three
+sections, `left`, `center` and `right`, or a single string, which is centred:
+
+```julia
+XLSX.setHeaderFooter(sheet; header=(left="Sales", right="Page &P of &N"), footer="&F")
+```
+
+Each new value replaces the whole of that header or footer, and an empty string `""`
+removes it.
+
+The text may contain Excel's codes, which Excel replaces when it prints. The commonest
+are `&P` for the page number, `&N` for the number of pages, `&D` and `&T` for the date
+and time, `&F` and `&Z` for the file's name and folder, and `&A` for the sheet's name.
+[`headerFooterField`](@ref) gives these by name, and [`headerFooterFont`](@ref) gives the
+codes that change the font. Write `&&` for an ampersand.
+
+- `firstHeader`, `firstFooter`: printed on the first page instead. Giving either, even
+  as `""`, turns `differentFirst` on.
+- `evenHeader`, `evenFooter`: printed on even pages, while `header` and `footer` are
+  printed on odd ones. Giving either, even as `""`, turns `differentOddEven` on.
+- `differentFirst`, `differentOddEven`: whether the first page, and even pages, have
+  their own headers and footers, which are blank where none is given. Set them to
+  `false` to print `header` and `footer` on those pages again.
+- `scaleWithDoc`: scale the headers and footers with the sheet when it is printed at
+  another size. The default is `true`.
+- `alignWithMargins`: align the headers and footers with the page margins. The default
+  is `true`.
+
+A header or footer holds at most $_HEADER_FOOTER_MAX characters, counting its codes, as in Excel.
+Pictures in headers and footers aren't supported.
+
+The file must be open for writing (`mode="rw"`).
+
+# Examples
+```julia
+julia> XLSX.setHeaderFooter(sheet; header=(center = XLSX.headerFooterFont(bold=true, size=14) * "Quarterly report",),
+                                   footer=(left="&F", right="Page &P of &N"))
+
+julia> XLSX.setHeaderFooter(sheet; firstHeader="")   # no header on the first page
+```
+
+See also [`getHeaderFooter`](@ref), [`removeHeaderFooter`](@ref) and
+[`setPageMargins`](@ref), which sets the distance of headers and footers from the edge of the page.
+"""
+function setHeaderFooter(ws::Worksheet; kw...)
+    _require_writable(ws, "set headers and footers")
+    _require_worksheet(ws, "set headers and footers")
+    isempty(kw) && throw(XLSXError("Give the headers, footers or options to set as keywords, such as `header=\"Report\"`. To remove them all, use `removeHeaderFooter`."))
+    texts = Dict{String,String}()
+    flags = Dict{String,Bool}()
+    for (k, v) in kw
+        if haskey(_HEADER_FOOTER_PARTS, k)
+            isnothing(v) || (texts[_HEADER_FOOTER_PARTS[k]] = _header_footer_text(v, k))
+        elseif haskey(_HEADER_FOOTER_FLAGS, k)
+            v isa Bool || throw(XLSXError("`$k` must be `true` or `false`. Found `$(repr(v))`."))
+            flags[String(k)] = v
+        else
+            throw(XLSXError("Unknown keyword `$k`. Must be one of $(join((keys(_HEADER_FOOTER_PARTS)..., keys(_HEADER_FOOTER_FLAGS)...), ", "))."))
+        end
+    end
+    for (flag, parts) in (("differentFirst", ("firstHeader", "firstFooter")), ("differentOddEven", ("evenHeader", "evenFooter")))
+        any(p -> haskey(texts, p), parts) && get!(flags, flag, true)
+    end
+
+    old = _sheet_top_elements(get_xlsxfile(ws), _sheet_path(ws), ("headerFooter",))
+    current = isempty(old) ? Dict{String,String}() : _header_footer_texts(only(old))
+    merge!(current, texts)
+    pfx = something(_ns_prefix(XML.tag(_sheet_root(ws))), "")
+    kids = XML.Node[XML.Element(pfx * p, XML.Text(current[p])) for p in values(_HEADER_FOOTER_PARTS) if !isempty(get(current, p, ""))]
+    changes = [String(k) => (flags[String(k)] == d ? nothing : flags[String(k)] ? "1" : "0")
+               for (k, d) in pairs(_HEADER_FOOTER_FLAGS) if haskey(flags, String(k))]
+    _set_sheet_element!(ws, "headerFooter", changes; kids)
+    return nothing
+end
+
+_header_footer_text(v, k::Symbol) = throw(XLSXError(
+    "`$k` must be a string, or a `NamedTuple` of `left`, `center` and `right` sections. Found `$(repr(v))`."))
+function _header_footer_text(v::AbstractString, k::Symbol)::String
+    # text with no section codes is centred: Excel writes that as a centre section
+    isempty(v) || last(_header_footer_sections(v)) || (v = "&C" * v)
+    length(v) <= _HEADER_FOOTER_MAX ||
+        throw(XLSXError("`$k` is $(length(v)) characters long. Excel allows at most $_HEADER_FOOTER_MAX in a header or footer, codes included."))
+    return String(v)
+end
+function _header_footer_text(v::NamedTuple, k::Symbol)::String
+    for s in keys(v)
+        haskey(_HEADER_FOOTER_SECTIONS, s) ||
+            throw(XLSXError("Unknown section `$s` in `$k`. Must be one of $(join(keys(_HEADER_FOOTER_SECTIONS), ", "))."))
+    end
+    io = IOBuffer()
+    for (s, code) in pairs(_HEADER_FOOTER_SECTIONS)
+        text = get(v, s, nothing)
+        (isnothing(text) || text == "") && continue
+        text isa AbstractString || throw(XLSXError("The `$s` section of `$k` must be a string. Found `$(repr(text))`."))
+        last(_header_footer_sections(text)) &&
+            throw(XLSXError("The `$s` section of `$k` contains a section code (`&L`, `&C` or `&R`). Give each section by name instead."))
+        print(io, '&', code, text)
+    end
+    return _header_footer_text(String(take!(io)), k)
+end
+
+# The text of each header and footer in a `<headerFooter>`, by element name.
+_header_footer_texts(el::XML.Node) = Dict{String,String}(
+    localname(c) => join(XML.value(t) for t in XML.children(c) if XML.nodetype(t) == XML.Text)
+    for c in xml_elements(el))
+
+# A header's left, centre and right sections, each `nothing` if empty, and whether
+# it has any section codes. Every other code is kept as it is. Text before the first
+# section code is centred, as Excel centres it.
+function _header_footer_sections(text::AbstractString)
+    secs = Dict(c => IOBuffer() for c in values(_HEADER_FOOTER_SECTIONS))
+    cur, coded = 'C', false
+    i = firstindex(text)
+    while i <= lastindex(text)
+        c = text[i]
+        j = nextind(text, i)
+        stop = i
+        if c == '&' && j <= lastindex(text)
+            d = text[j]
+            if d in values(_HEADER_FOOTER_SECTIONS)
+                cur, coded = d, true
+                i = nextind(text, j)
+                continue
+            end
+            # a font, `&"Arial,Bold"`, runs to its closing quote; `&&` and other codes are two characters
+            stop = d == '"' ? something(findnext('"', text, nextind(text, j)), lastindex(text)) : j
+        end
+        print(secs[cur], SubString(text, i, stop))
+        i = nextind(text, stop)
+    end
+    section(c) = (s = String(take!(secs[c])); isempty(s) ? nothing : s)
+    return NamedTuple{keys(_HEADER_FOOTER_SECTIONS)}(map(section, values(_HEADER_FOOTER_SECTIONS))), coded
+end
+
+"""
+    getHeaderFooter(ws::Worksheet) -> Union{Nothing, NamedTuple}
+
+A worksheet's printed headers and footers, or `nothing` if it has none. The result is a
+`NamedTuple` with fields:
+
+- `header`, `footer`, `evenHeader`, `evenFooter`, `firstHeader` and `firstFooter`: each a
+  `NamedTuple` `(left, center, right)` of the sections' text, with Excel's codes such as
+  `&P` as they are, or `nothing` if the sheet has no such header or footer. An empty
+  section is `nothing`.
+- `differentOddEven`, `differentFirst`, `scaleWithDoc` and `alignWithMargins`: the options
+  described in [`setHeaderFooter`](@ref).
+
+Each header and footer can be given back to `setHeaderFooter` as it is.
+
+# Examples
+```julia
+julia> XLSX.getHeaderFooter(sheet).footer
+(left = "&F", center = nothing, right = "Page &P of &N")
+```
+"""
+function getHeaderFooter(ws::Worksheet)
+    els = _sheet_top_elements(get_xlsxfile(ws), _sheet_path(ws), ("headerFooter",))
+    isempty(els) && return nothing
+    el = only(els)
+    texts = _header_footer_texts(el)
+    parts = map(p -> isempty(get(texts, p, "")) ? nothing : first(_header_footer_sections(texts[p])), _HEADER_FOOTER_PARTS)
+    atts = Dict(_atts_vector(el))
+    flags = NamedTuple{keys(_HEADER_FOOTER_FLAGS)}(map(k -> _xml_bool(atts, String(k), _HEADER_FOOTER_FLAGS[k]), keys(_HEADER_FOOTER_FLAGS)))
+    return merge(parts, flags)
+end
+
+"""
+    removeHeaderFooter(ws::Worksheet) -> Bool
+
+Remove all of a worksheet's headers and footers and their options. Returns `false` if it
+had none.
+
+The file must be open for writing (`mode="rw"`).
+"""
+function removeHeaderFooter(ws::Worksheet)::Bool
+    _require_writable(ws, "remove headers and footers")
+    isempty(_sheet_top_elements(get_xlsxfile(ws), _sheet_path(ws), ("headerFooter",))) && return false
+    _set_sheet_element!(ws, "headerFooter", Pair{String,String}[]; replace=true, kids=XML.Node[])
+    return true
+end
+
+"""
+    headerFooterField(field::Symbol) -> String
+
+The code Excel replaces with `field` when it prints a header or footer:
+
+| `field`  | Code | Printed as                     |
+|:---------|:-----|:-------------------------------|
+| `:page`  | `&P` | the page number                |
+| `:pages` | `&N` | the number of pages            |
+| `:date`  | `&D` | the date it is printed         |
+| `:time`  | `&T` | the time it is printed         |
+| `:file`  | `&F` | the workbook's file name       |
+| `:path`  | `&Z` | the folder the workbook is in  |
+| `:sheet` | `&A` | the sheet's name               |
+
+# Examples
+```jldoctest; setup = :(import XLSX)
+julia> "Page " * XLSX.headerFooterField(:page) * " of " * XLSX.headerFooterField(:pages)
+"Page &P of &N"
+```
+
+See also [`setHeaderFooter`](@ref) and [`headerFooterFont`](@ref).
+"""
+function headerFooterField(field::Symbol)::String
+    haskey(_HEADER_FOOTER_FIELDS, field) ||
+        throw(XLSXError("Unknown header or footer field `:$field`. Must be one of $(join((":$k" for k in keys(_HEADER_FOOTER_FIELDS)), ", "))."))
+    return _HEADER_FOOTER_FIELDS[field]
+end
+
+"""
+    headerFooterFont(; name, bold, italic, under, strike, size, color, vertAlign) -> String
+
+The codes that change the font of the text that follows them in a header or footer.
+The keywords are those of [`setFont`](@ref):
+
+- `name::String`: the font's name. Without it, the font is unchanged.
+- `bold::Bool`, `italic::Bool`: make the text bold or italic.
+- `under::String`: `"single"` or `"double"` to underline the text.
+- `strike::Bool`: strike through the text.
+- `size::Integer`: the font's size in points, from 1 to 409.
+- `color`: the text's colour, which can be $COLOR_FORMS_DOC
+- `vertAlign::String`: `"superscript"` or `"subscript"`.
+
+The font applies to the rest of the section, or until another font is given.
+If the text after a `size` starts with a digit, separate them with a space, or Excel
+reads the digits as part of the size.
+
+# Examples
+```jldoctest; setup = :(import XLSX)
+julia> XLSX.headerFooterFont(name="Arial", bold=true, size=14)
+"&\\"Arial,Bold\\"&14"
+
+julia> XLSX.headerFooterFont(italic=true, color="red")
+"&\\"-,Italic\\"&KFF0000"
+```
+
+See also [`setHeaderFooter`](@ref) and [`headerFooterField`](@ref).
+"""
+function headerFooterFont(; name::Union{Nothing,AbstractString}=nothing, bold::Bool=false, italic::Bool=false,
+                          under::Union{Nothing,AbstractString}=nothing, strike::Bool=false,
+                          size::Union{Nothing,Integer}=nothing, color=nothing,
+                          vertAlign::Union{Nothing,AbstractString}=nothing)::String
+    io = IOBuffer()
+    if !isnothing(name) || bold || italic
+        isnothing(name) || (!isempty(name) && !any(in(",\""), name)) ||
+            throw(XLSXError("Invalid font name `$(repr(name))`: a header's font name can't be empty or contain a comma or a quote."))
+        style = bold && italic ? "Bold Italic" : bold ? "Bold" : italic ? "Italic" : "Regular"
+        print(io, "&\"", something(name, "-"), ',', style, '"')   # "-" keeps the current font
+    end
+    if !isnothing(size)
+        1 <= size <= 409 || throw(XLSXError("Invalid font `size` $size. Must be from 1 to 409."))
+        print(io, '&', size)
+    end
+    if !isnothing(under)
+        under in ("single", "double", "none") || throw(XLSXError("Invalid `under` `$(repr(under))`. Must be \"single\", \"double\" or \"none\"."))
+        under == "none" || print(io, under == "single" ? "&U" : "&E")
+    end
+    strike && print(io, "&S")
+    if !isnothing(vertAlign)
+        vertAlign in ("superscript", "subscript", "baseline") ||
+            throw(XLSXError("Invalid `vertAlign` `$(repr(vertAlign))`. Must be \"superscript\", \"subscript\" or \"baseline\"."))
+        vertAlign == "baseline" || print(io, vertAlign == "superscript" ? "&X" : "&Y")
+    end
+    isnothing(color) || print(io, _header_footer_color(color))
+    return String(take!(io))
+end
+
+# `&KRRGGBB` for a colour, or `&KTTSNNN` for a theme colour: theme index TT, then
+# its tint as a signed percentage.
+function _header_footer_color(color)::String
+    atts = Dict(_color_atts(color))
+    haskey(atts, "rgb") && return "&K" * last(atts["rgb"], 6)
+    tint = round(Int, 100 * parse(Float64, get(atts, "tint", "0")))
+    return "&K" * lpad(atts["theme"], 2, '0') * (tint < 0 ? '-' : '+') * lpad(abs(tint), 3, '0')
+end
+
+# ===========================================================================
 # Sheet XML helpers
 # ===========================================================================
 
@@ -693,15 +1108,16 @@ function _sheet_element_atts(ws::Worksheet, name::String)
 end
 
 # Change the attributes of the sheet's top-level element `name`, keeping its
-# children, or with `replace=true` set exactly `changes`. Made where the schema
-# puts it if missing, and removed if left with nothing.
-function _set_sheet_element!(ws::Worksheet, name::String, changes; replace::Bool=false)
+# children, or with `replace=true` set exactly `changes`. `kids`, if given,
+# replaces the children. Made where the schema puts it if missing, and removed
+# if left with nothing.
+function _set_sheet_element!(ws::Worksheet, name::String, changes; replace::Bool=false, kids=nothing)
     root = _sheet_root(ws)
     chn = XML.children(root)
     idx = findfirst(c -> localname(c) == name, chn)
     old = isnothing(idx) ? nothing : chn[idx]
     atts = _merge_atts(isnothing(old) || replace ? Pair{String,String}[] : _atts_vector(old), changes)
-    kids = isnothing(old) || replace ? XML.Node[] : collect(XML.children(old))
+    kids = !isnothing(kids) ? kids : isnothing(old) || replace ? XML.Node[] : collect(XML.children(old))
     if isempty(atts) && isempty(kids)
         isnothing(idx) || deleteat!(chn, idx)
     else

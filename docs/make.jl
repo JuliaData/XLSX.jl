@@ -29,6 +29,7 @@ makedocs(
             "Inserting and deleting rows and columns" => "sheets/insertDelete.md",
             "Hide and group rows/columns (outlines)" => "formatting/hideAndGroup.md",
             "Freeze and split panes" => "formatting/freezeAndSplitPanes.md",
+            "Zoom, gridlines and the view" => "formatting/sheetView.md",
         ],
         "Worksheets" => Any[
             "Managing worksheets" => "sheets/worksheets.md",
@@ -37,6 +38,7 @@ makedocs(
         ],
         "Images, comments and links" => Any[
             "Images" => "sheets/images.md",
+            "Text boxes and shapes" => "sheets/shapes.md",
             "Comments" => "sheets/comments.md",
             "Hyperlinks" => "sheets/hyperlinks.md",
         ],
@@ -46,6 +48,7 @@ makedocs(
             "Creating chartEx charts" => "charts/creatingChartEx.md",
             "Formatting charts" => "charts/formattingCharts.md",
             "Reading charts" => "charts/readingCharts.md",
+            "Sparklines" => "charts/sparklines.md",
             "Sheets with charts" => "charts/chartSheets.md",
             "Limitations" => "charts/chartLimitations.md",
         ],
@@ -71,6 +74,9 @@ makedocs(
     # External links are checked only when asked, as they depend on other sites being up:
     # the CI job "Documentation links" sets DOCUMENTER_LINKCHECK=true.
     linkcheck = get(ENV, "DOCUMENTER_LINKCHECK", "false") == "true",
+    # GitHub rate-limits (429) link checks from CI runners; links into this repo
+    # point at files we ship, so there is nothing to gain from checking them externally.
+    linkcheck_ignore = [r"^https://github\.com/JuliaData/XLSX\.jl/(blob|tree)/"],
 )
 deploydocs(
     repo = "github.com/JuliaData/XLSX.jl.git",

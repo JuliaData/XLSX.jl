@@ -252,7 +252,7 @@ function _get_ns_prefix_from_string(xml_str::Union{String,Nothing})::Union{Strin
     while XML.next!(c) !== nothing
         XML.nodetype(c) == XML.Element || continue
         # Found root element — scan its attributes for spreadsheet namespace
-        for (k, v) in XML.eachattribute(XML.LazyNode(c))
+        for (k, v) in XML.eachattribute!(c)
             v == "http://schemas.openxmlformats.org/spreadsheetml/2006/main" || continue
             # k is either "xmlns" (default ns) or "xmlns:prefix"
             k == "xmlns" && return nothing  # default namespace, no prefix
@@ -487,10 +487,15 @@ The `mode` argument controls how the file is opened. The following modes are all
 
     Using do-block syntax in "rw" mode will overwrite the file you read in with the modified data when the do block ends.
     If the do block throws an error, the file is not written and `source` is left unchanged.
-    Care is needed to ensure data are not inadvertantly overwritten, especially if the xlsx file contains any elements 
-    that `XLSX.jl` cannot process (such as charts, pivot tables, etc), but that would otherwise be preserved if not 
-    overwritten. You may avoid this risk by choosing to open files in "rw" mode without using do-block syntax, in which 
-    case it becomes necessary explicitly to write the `XLSXFile` out again, providing the option to write to another file name.
+    To keep the original, open the file in "rw" mode without a do block and write the `XLSXFile` to another
+    file name with [`writexlsx`](@ref).
+
+    Parts of the file that XLSX.jl doesn't model, such as pivot tables and their caches, slicers, timelines,
+    external links, custom XML and VBA projects, are kept as they are, but they are not updated: a pivot table
+    shows its old values until it is refreshed in Excel, and the cells and sheets they refer to are not changed
+    by [`insertRows`](@ref), [`renamesheet!`](@ref) and the like. When saving, the formula calculation chain
+    (`xl/calcChain.xml`) is dropped and the workbook is marked for Excel to recalculate on opening, as Excel
+    rebuilds the chain itself. A file in Strict Open XML is saved in the usual (Transitional) form.
 
     If `source` is an `IO`, its content is replaced in the same way, so it must be writable and seekable
     (e.g. `IOBuffer(bytes; read=true, write=true)`).

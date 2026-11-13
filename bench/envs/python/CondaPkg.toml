@@ -1,0 +1,8 @@
+# The Python readers external_read.jl times. CondaPkg installs them, with their own
+# Python, from conda-forge when the environment is first used.
+[deps]
+python = ">=3.11,<3.14"
+openpyxl = ""
+python-calamine = ""
+fastexcel = ""
+pyarrow = ""

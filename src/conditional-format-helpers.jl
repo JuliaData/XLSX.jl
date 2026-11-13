@@ -189,19 +189,7 @@ end
 function _x14_cf_block!(sheetdoc::XML.Node)
     blk = _x14_cf_block(sheetdoc)
     isnothing(blk) || return blk
-    i, j = get_idces(sheetdoc, "worksheet", "extLst")
-    if isnothing(j)
-        push!(sheetdoc[i], XML.Element("extLst"))   # `extLst` is last in `WORKSHEET_ORDER`
-        j = length(XML.children(sheetdoc[i]))
-    end
-    extlst = sheetdoc[i][j]
-    ext = _x14_cf_ext(extlst)
-    if isnothing(ext)
-        ext = XML.Element("ext")
-        ext["xmlns:x14"] = "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"
-        ext["uri"] = X14_CF_EXT_URI
-        push!(extlst, ext)
-    end
+    ext = _worksheet_ext!(xml_root_element(sheetdoc), X14_CF_EXT_URI)
     blk = XML.Element("x14:conditionalFormattings")
     push!(ext, blk)
     return blk

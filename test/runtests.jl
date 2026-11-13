@@ -91,6 +91,9 @@ testgroup("Files", [
     "file modes"              => "files/modes.jl",
     "FileIO"                  => "files/fileio.jl",
     "write and save"          => "files/write-save.jl",
+    "round-trip fidelity"     => "files/round-trip.jl",
+    "streaming writes"        => "files/streaming.jl",
+    "document properties"     => "files/docprops.jl",
     "read internals"          => "files/read-internals.jl",
     "differential reads"      => "files/differential.jl",
 ])
@@ -115,22 +118,32 @@ testgroup("Sheets", [
     "merged cells"            => "sheets/merge.jl",
     "hide and group"          => "sheets/hide-group.jl",
     "panes"                   => "sheets/panes.jl",
+    "sheet view"              => "sheets/sheet-view.jl",
     "sheet settings"          => "sheets/settings.jl",
 ])
 testgroup("Formatting", [
     "colors"                  => "formatting/colors.jl",
     "styles"                  => "formatting/styles.jl",
+    "displayed text"          => "formatting/display-text.jl",
+    "autofit columns"         => "formatting/autofit.jl",
+    "checkboxes"              => "formatting/checkboxes.jl",
     "conditional formats"     => "formatting/conditional.jl",
 ])
 testgroup("Features", [
     "AutoFilter"              => "features/autofilter.jl",
+    "filters and sorting"     => "features/filter-sort.jl",
     "data validation"         => "features/data-validation.jl",
     "hyperlinks"              => "features/hyperlinks.jl",
     "comments"                => "features/comments.jl",
+    "threaded comments"       => "features/threaded-comments.jl",
+    "ignored errors"          => "features/ignored-errors.jl",
+    "sparklines"              => "features/sparklines.jl",
 ])
 testgroup("Drawings", [
     "DrawingML"               => "drawings/drawingml.jl",
     "images"                  => "drawings/images.jl",
+    "text boxes and shapes"   => "drawings/shapes.jl",
+    "pictures in cells"       => "drawings/cell-images.jl",
     "deleting objects"        => "drawings/delete-objects.jl",
 ])
 testgroup("Charts", [

@@ -9,9 +9,9 @@ const builtinFormats = Dict(
     "3" => "#,##0",
     "4" => "#,##0.00",
     "5" => "\$#,##0_);(\$#,##0)",
-    "6" => "\$#,##0_);Red",
+    "6" => "\$#,##0_);[Red](\$#,##0)",
     "7" => "\$#,##0.00_);(\$#,##0.00)",
-    "8" => "\$#,##0.00_);Red",
+    "8" => "\$#,##0.00_);[Red](\$#,##0.00)",
     "9" => "0%",
     "10" => "0.00%",
     "11" => "0.00E+00",
@@ -27,12 +27,12 @@ const builtinFormats = Dict(
     "21" => "h:mm:ss",
     "22" => "m/d/yyyy h:mm",
     "37" => "#,##0_);(#,##0)",
-    "38" => "#,##0_);Red",
+    "38" => "#,##0_);[Red](#,##0)",
     "39" => "#,##0.00_);(#,##0.00)",
-    "40" => "#,##0.00_);Red",
+    "40" => "#,##0.00_);[Red](#,##0.00)",
     "45" => "mm:ss",
     "46" => "[h]:mm:ss",
-    "47" => "mmss.0",
+    "47" => "mm:ss.0",
     "48" => "##0.0E+0",
     "49" => "@"
 )
@@ -45,42 +45,6 @@ const builtinFormatNames = Dict(
     "LongDate" => 15,
     "Time" => 21,
     "Scientific" => 48
-)
-
-# Regex fragments for canonical tokens (from Claude)
-const LITERAL      = raw"\"[^\"]*\""       # quoted text (check first)
-const GENERAL      = raw"(?i:General)"     # the General format, as a section of a custom one
-const LOCALE       = raw"\[\$[^\]]*\]"     # currency symbol and/or locale, e.g. [$€-x-euro2], [$-409]
-const CONDITION    = raw"\[[<>=].+?\]"
-const COLOR        = raw"\[[A-Za-z]+\]"
-const DATETIME     = raw"(?:AM/PM|A/P|am/pm|a/p|d{1,4}|m{1,5}|y{2,4}|h{1,2}|s{1,2})"
-const DECIMAL      = raw"\.[0#?]+"         
-const EXPONENT     = raw"[0#?]+[eE][+-]?[0#?]+"
-const FRACTION     = raw"\?+/\?+"          # fraction with multiple ?
-const PERCENT      = raw"%"
-const ESCAPE       = raw"[\\!]."           # \x and !x both show x as it is
-const ALIGN        = raw"_."
-const FILL         = raw"\*."              
-const TEXTPLACE    = raw"@"
-const DIGIT        = raw"[0#?]"            # single digit placeholder
-const COMMA        = raw","                # thousand separator
-const PAREN        = raw"[\(\)]"
-const COLON        = raw":"                # time separator
-const SPACE        = raw" +"               # one or more spaces
-const DASH         = raw"-"                # minus/dash
-const CURRENCY     = raw"[\$£€¥₹]"
-const PLUS         = raw"\+"
-const SHOWN        = raw"[/.^&'~{}<>=]"    # other characters Excel shows without quotes (dd/mm/yyyy, dd.mm.yyyy)
-
-# Combine into a master regex - ORDER MATTERS!
-const RGX_FMT = Regex(
-    join([
-        LITERAL, GENERAL, LOCALE, CONDITION, COLOR, DATETIME,
-        DECIMAL, EXPONENT, FRACTION, PERCENT,
-        ESCAPE, ALIGN, FILL, TEXTPLACE,
-        DIGIT, COMMA, COLON, DASH, PAREN, SPACE,
-        CURRENCY, PLUS, SHOWN
-    ], "|")
 )
 
 const VALID_FILL_PATTERNS = (
@@ -244,42 +208,11 @@ end
 """
     is_valid_format(fmt::AbstractString) -> Bool
 
-Check if `fmt` is a syntactically valid Excel number format string.
+Whether `fmt` is a number format code Excel accepts: checked against Excel 365, which
+refuses, for example, an unclosed quote or bracket, more than four sections, a colour
+it doesn't know (`[Purple]`) or date codes mixed with digit placeholders (`0 h`).
 """
-function is_valid_format(fmt::AbstractString) # From Claude
-    # Split into up to 4 sections
-    sections = split(fmt, ';')
-    length(sections) > 4 && return false
-
-    for sec in sections
-        pos = 1
-        while pos <= lastindex(sec)
-            # Use SubString to match from current position
-            m = match(RGX_FMT, SubString(sec, pos))
-
-            # No token matches at this position
-            if m === nothing
-                return false
-            end
-
-            # Token must start at beginning of substring (offset should be 1)
-            if m.offset != 1
-                return false
-            end
-
-            # Zero-length matches are invalid (avoid infinite loops)
-            tok = m.match
-            if isempty(tok)
-                return false
-            end
-
-            # Advance by the number of characters in the match
-            pos = nextind(sec, pos, length(tok))
-        end
-    end
-
-    return true
-end
+is_valid_format(fmt::AbstractString) = !isnothing(_parse_numfmt(fmt; strict=true))
 
 function first2_after_colon(tag::AbstractString)
     parts = split(tag, ':', limit=2)

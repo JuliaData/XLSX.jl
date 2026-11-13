@@ -221,6 +221,7 @@ function setRowHeight(ws::Worksheet, rng::CellRange; height::Union{Nothing,Real}
     for r in top:bottom
         _ensure_cache_row!(ws, r)   # an empty row is written with just its height
         ws.cache.row_ht[r] = padded_height
+        _set_row_attr!(ws, Int(r), "customHeight", "1")   # set, so Excel doesn't fit it to the text
     end
 
     return 0

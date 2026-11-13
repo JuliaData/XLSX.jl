@@ -236,13 +236,19 @@ function _copy_sheet_drawing!(xl::XLSXFile, ws::Worksheet, new_ws::Worksheet, sh
     new_drawing_rels = _sheet_rels_path(new_drawing_path)
     xl.data[new_drawing_path]  = copynode(xl.data[drawing_path])
     xl.files[new_drawing_path] = true
-    xl.data[new_drawing_rels]  = copynode(xl.data[_sheet_rels_path(drawing_path)])
-    xl.files[new_drawing_rels] = true
+    # A drawing of shapes alone has no relationships, and Excel writes no part for them.
+    old_drawing_rels = _sheet_rels_path(drawing_path)
+    if haskey(xl.data, old_drawing_rels)
+        xl.data[new_drawing_rels]  = copynode(xl.data[old_drawing_rels])
+        xl.files[new_drawing_rels] = true
+    end
 
     # A chart part belongs to one drawing, unlike media, so the copy needs its own.
     # Clone each and repoint the copied rels at the clone; otherwise both sheets
     # render the same chart part and editing either changes both.
-    for n in elements_with_tag(xml_root_element(xl.data[new_drawing_rels]), "Relationship")
+    copied_rels = haskey(xl.data, new_drawing_rels) ?
+        elements_with_tag(xml_root_element(xl.data[new_drawing_rels]), "Relationship") : XML.Node[]
+    for n in copied_rels
         t = get_attr(n, "Type")
         (t == REL_CHART || t == REL_CHARTEX) || continue
         get_attr(n, "TargetMode") == "External" && continue

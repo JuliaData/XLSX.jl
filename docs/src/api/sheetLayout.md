@@ -7,6 +7,7 @@ Guide: [Column width and row height](../formatting/widthAndHeight.md).
 ```@docs
 XLSX.getColumnWidth
 XLSX.setColumnWidth
+XLSX.autofitColumns
 XLSX.getRowHeight
 XLSX.setRowHeight
 ```
@@ -49,6 +50,15 @@ XLSX.freezePanes
 XLSX.splitFreeze
 XLSX.splitPanes
 XLSX.removePanes
+```
+
+## Sheet view
+
+Guide: [Zoom, gridlines and the view](../formatting/sheetView.md).
+
+```@docs
+XLSX.setSheetView
+XLSX.getSheetView
 ```
 
 ## AutoFilter

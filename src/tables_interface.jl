@@ -83,7 +83,21 @@ function writetable(filename::Union{AbstractString,IO}, x; kw...)
     if !Tables.istable(x) && _is_sheet_spec_vector(x)
         return writetable(filename, _normalize_sheet_specs(x); kw...)
     end
+    if get(kw, :streaming, false) && Tables.istable(x) && !Tables.columnaccess(x)
+        return _stream_row_table(filename, x; kw...)   # read a row at a time
+    end
     return writetable(filename, _table_to_arrays(x)...; kw...)
+end
+
+# The options the multi-sheet `writetable` forms take, so streaming them refuses others.
+function _stream_sheets_options(; overwrite::Bool=false, as_table::Bool=false, table_style::Union{AbstractString,Nothing}=nothing)
+    return (; overwrite, as_table, table_style)
+end
+
+function _stream_row_table(filename::Union{AbstractString,IO}, x; overwrite::Bool=false, sheetname::AbstractString="",
+                           anchor_cell::Union{String,CellRef}=CellRef("A1"), totals=nothing, streaming::Bool=true, kw...)
+    _check_streaming_options(anchor_cell isa String ? CellRef(anchor_cell) : anchor_cell, totals)
+    return _stream_sheets(filename, [(sheetname, x)]; overwrite, kw...)
 end
 
 """
@@ -109,7 +123,11 @@ julia> XLSX.writetable("report.xlsx", "REPORT_A" => df1, :REPORT_B => df2;
            overwrite=true, as_table=true, table_style="TableStyleMedium2")
 ```
 """
-function writetable(filename::Union{AbstractString,IO}, tables::Vector{<:Pair}; kw...)
+function writetable(filename::Union{AbstractString,IO}, tables::Vector{<:Pair}; streaming::Bool=false, kw...)
+    if streaming   # each table read a row at a time where it allows
+        sheets = [(_sheetname_string(name), x) for (name, x) in tables]
+        return _stream_sheets(filename, sheets; table_name_from_sheet=true, _stream_sheets_options(; kw...)...)
+    end
     data = Tuple{String,Vector{Any},Vector{Symbol}}[
         (_sheetname_string(name), _table_to_arrays(x)...) for (name, x) in tables
     ]

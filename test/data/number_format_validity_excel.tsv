@@ -1,0 +1,64 @@
+# Whether Excel 365 accepts each format code as a cell's NumberFormat (set by COM, 2026-11-12).
+# verdict	code
+accepts	0.00E-00
+accepts	00.00E+00
+accepts	0.0E+0
+accepts	# ?/2
+accepts	# ?/4
+accepts	0/100
+accepts	e
+accepts	abc
+accepts	x0
+accepts	0x
+accepts	0.0c
+rejects	[Red
+rejects	0"
+rejects	0;0;0;0;0
+accepts	0;0;0;@
+rejects	\
+rejects	0_
+rejects	0*
+accepts	General
+accepts	general
+accepts	GENERAL
+accepts	[$-409]General
+accepts	yyyy-mm-dd
+accepts	YYYY-MM-DD
+accepts	hh:mm:ss AM/PM
+accepts	h:mm am/pm
+accepts	h:mm a/p
+accepts	[h]:mm
+accepts	[Red]0.00
+accepts	[Color12]0
+accepts	[Magenta]0
+rejects	[Purple]0
+accepts	[>100]0;[<0]-0;0
+accepts	0.0,,"M"
+accepts	#,##0
+accepts	0 "pcs"
+rejects	0 pcs
+accepts	0 p
+rejects	0 s
+rejects	0 h
+rejects	0 d
+rejects	0 m
+rejects	0 y
+accepts	0 a
+rejects	0 b
+rejects	0 g
+accepts	B1yyyy
+accepts	[DBNum1]0
+accepts	[$€-x-euro2] #,##0.00
+accepts	_(0_)
+accepts	* 0
+accepts	0%%
+accepts	0.00%
+accepts	@
+accepts	"text"
+accepts	""
+accepts	ffzz345
+accepts	dd/mm/yyyy zz
+accepts	zz
+accepts	0 zz
+accepts	0 f
+accepts	f0
