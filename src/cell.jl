@@ -195,14 +195,18 @@ _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 # The pieces of a `<c>` element, shared by `Cell(::LazyNode, …)` and the cursor walk in
 # `first_cache_fill!` so the two read cells identically.
 
-# `r`, `t`, `s`, `cm` and `vm` of a `<c>`, in one pass over its start tag.
-@inline function _cell_attributes(c::XML.LazyNode)
+# `r`, `t`, `s`, `cm` and `vm` of a `<c>`, in one pass over its start tag. On a cursor, the
+# attributes are read where it stands, so its next `next!` doesn't read them again.
+@inline _cell_attributes(c::XML.LazyNode) = _cell_attributes_from(XML.eachattribute(c))
+@inline _cell_attributes(c::XML.Cursor)   = _cell_attributes_from(XML.eachattribute!(c))
+
+@inline function _cell_attributes_from(attrs)
     ref_str::SubString{String} = SubString("")
     t::SubString{String}       = SubString("")
     s_str::SubString{String}   = SubString("")
     m_str::SubString{String}   = SubString("")
     vm_str::SubString{String}  = SubString("")
-    for (k, v) in XML.eachattribute(c)
+    for (k, v) in attrs
         if k == "r";      ref_str = v
         elseif k == "t";  t       = v
         elseif k == "s";  s_str   = v

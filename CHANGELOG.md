@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- Requires XML.jl v0.4.9. XLSX.jl calls `@for_each_child!` in place of `@for_each_child`, which XML.jl v0.4.9 deprecates and v0.5 removes, so it no longer warns under `Pkg.test` and precompiles and reads sheets under `--depwarn=error` [#496](https://github.com/JuliaData/XLSX.jl/issues/496) (Thanks to @mathieu17g for the report)
+- Reading a worksheet reads each `<row>` and `<c>`'s attributes once, where XML.jl's cursor stands (`XML.eachattribute!`, new in v0.4.9), rather than reading the tag again for each attribute: `readtable` is 8–13% faster and opening a file for editing 3–6% faster on the benchmark fixtures
+- Parts are saved without the line breaks and indentation XML.jl added between elements (`XML.write(…; pretty=false)`, new in v0.4.9). A part XLSX.jl reads and doesn't change, such as a chart, theme or styles part, is saved as Excel wrote it, bar the line end after its XML declaration, where it used to grow by up to 5%
+
 - Benchmarks: `bench/external_read.jl` times Python's readers, python-calamine, fastexcel and openpyxl, reading the same tables as `readtable`, in an optional environment of its own (`bench/envs/python`, whose CondaPkg installs a private Python), and `report.jl` shows them beside XLSX.jl's times. It isn't a test dependency. Measured on 2026-11-13, XLSX.jl reads a table 3 to 6 times as fast as openpyxl, and takes 1.5 to 2 times as long as python-calamine and 2.6 to 4 times as long as fastexcel
 
 - Docs: the warning on `openxlsx` about saving over the original in `mode="rw"` listed charts among the parts XLSX.jl can't process. It now says what the round-trip tests show: parts XLSX.jl doesn't model (pivot tables, slicers, timelines, external links, custom XML, VBA projects) are kept but not updated, the calculation chain is dropped for Excel to rebuild, and a Strict file is saved as Transitional. The tutorial and the Supported features page say the same

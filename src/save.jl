@@ -122,7 +122,7 @@ function _write_package!(xlsx::ZipArchives.ZipWriter, xf::XLSXFile; streamed=())
     for f in keys(xf.files)
         if !occursin(r"^xl/worksheets/[^/]+\.xml$|^xl/sharedStrings\.xml$", f)
             ZipArchives.zip_newfile(xlsx, f; compress=true)
-            xml_str = XML.write(xf.data[f]; indentsize=0)
+            xml_str = XML.write(xf.data[f]; pretty=false)
             write(xlsx, xml_str)
         end
     end
@@ -313,7 +313,7 @@ function _sheet_xml_frame(sheet::Worksheet, dimension::Union{Nothing,CellRange})
     end
 
     pfx = _prefix_colon(sheet)
-    empty_doc = XML.write(doc)
+    empty_doc = XML.write(doc; pretty=false)
 
     idx = findfirst("<$(pfx)sheetData/>", empty_doc)
     idx === nothing && throw(XLSXError("<$(pfx)sheetData/> placeholder not found when reconstructing worksheet '$(sheet.name)'"))
