@@ -74,6 +74,9 @@ makedocs(
     # External links are checked only when asked, as they depend on other sites being up:
     # the CI job "Documentation links" sets DOCUMENTER_LINKCHECK=true.
     linkcheck = get(ENV, "DOCUMENTER_LINKCHECK", "false") == "true",
+    # GitHub rate-limits (429) link checks from CI runners; links into this repo
+    # point at files we ship, so there is nothing to gain from checking them externally.
+    linkcheck_ignore = [r"^https://github\.com/JuliaData/XLSX\.jl/(blob|tree)/"],
 )
 deploydocs(
     repo = "github.com/JuliaData/XLSX.jl.git",
