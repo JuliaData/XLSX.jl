@@ -10,6 +10,10 @@ function stream_parts(bytes::Vector{UInt8})
     return Dict(n => zip_readentry(z, n, String) for n in zip_names(z))
 end
 
+# The created and modified times in docProps/core.xml are the time of writing, so two
+# writes a moment apart can differ there.
+mask_times(xml) = replace(xml, r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ" => "TIME")
+
 function stream_written(f)
     io = IOBuffer()
     f(io)
@@ -66,7 +70,7 @@ end
     streamed = stream_parts(stream_written(io -> XLSX.writetable(io, cols, names; streaming=true, shared_strings=true)))
     @test keys(cached) == keys(streamed)
     for (name, xml) in cached
-        @test streamed[name] == xml
+        @test mask_times(streamed[name]) == mask_times(xml)
     end
     @test occursin("<dimension ref=\"A1:D$(n + 1)\"/>", streamed["xl/worksheets/sheet1.xml"])
 
