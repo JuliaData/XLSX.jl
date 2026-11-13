@@ -278,6 +278,7 @@ end
 # Write one cell; `false` if the value leaves it empty.
 function _write_stream_cell!(sh::StreamSheet, ref::CellRef, v, styled::Bool)::Bool
     v === missing && return false
+    v isa CellImage && throw(XLSXError("Can't put a picture in cell $ref: a streamed sheet holds values only. Write it with `writetable` without `streaming=true`."))
     io, w = sh.io, sh.w
     style = styled ? _stream_style(sh, column_number(ref), v) : UInt32(0)
     if v isa String && !sh.shared_strings

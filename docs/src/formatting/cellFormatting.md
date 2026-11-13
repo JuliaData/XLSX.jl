@@ -415,6 +415,46 @@ julia> XLSX.setUniformStyle(s, "BB50,A1:CV100") # Or if I want to apply all form
 11
 ```
 
+## Checkboxes
+
+Excel 365 can show a checkbox in a cell, with *Insert → Checkbox*. The checkbox is part
+of the cell's format, and shows the cell's value: ticked for `TRUE`, clear for `FALSE`.
+Clicking it in Excel changes the value.
+
+![A task list whose Done column has checkboxes, two of them ticked](../images/checkboxes.png)
+
+[`XLSX.setCheckbox`](@ref) adds checkboxes to cells. An empty cell is given the value
+`false`; a cell that holds `true` or `false` keeps it. Tick a checkbox by writing `true`
+to its cell, and read whether it's ticked as you read any value:
+
+```jldoctest checkboxes; setup = :(import XLSX)
+julia> s = XLSX.newxlsx()[1];
+
+julia> s["B1", dim=1] = ["Book the venue", "Send invitations", "Order catering"];
+
+julia> XLSX.setCheckbox(s, "A1:A3")
+
+julia> s["A2"] = true;
+
+julia> s["A2"], s["A3"]
+(true, false)
+
+julia> [c.cell for c in XLSX.getCheckboxes(s) if c.checked]   # the ticked ones
+1-element Vector{String}:
+ "A2"
+
+julia> XLSX.hasCheckbox(s, "A3"), XLSX.hasCheckbox(s, "B1")
+(true, false)
+```
+
+A cell holding anything other than `TRUE` or `FALSE`, such as text, keeps its value,
+and Excel shows that value instead of a box until the cell holds `TRUE` or `FALSE`, as
+it does for a checkbox added in Excel.
+
+The cells' other formatting is kept, and a font, fill or border set later keeps the
+checkbox. [`XLSX.removeCheckbox`](@ref) takes checkboxes away, leaving the values.
+Checkboxes need Excel 365; older versions of Excel show `TRUE` and `FALSE`.
+
 ## Rich text formats
 
 Text in a cell can have font formats applied to any substring element as in this example:

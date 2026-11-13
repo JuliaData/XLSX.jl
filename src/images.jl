@@ -61,8 +61,8 @@ empty_drawing_doc() = XML.Document(
 # ===========================================================================
 
 """
-    addImage(s::Worksheet, ref::AbstractString, image::Union{AbstractString, IOBuffer}; size::Union{Nothing, Tuple{<:Integer, <:Integer}}=nothing)
-    addImage(s::Worksheet, row::Integer, col::Integer, image::Union{AbstractString, IOBuffer}; size::Union{Nothing, Tuple{<:Integer, <:Integer}}=nothing)
+    addImage(s::Worksheet, ref::AbstractString, image::Union{AbstractString, IOBuffer}; size=nothing, inCell=false, alt="")
+    addImage(s::Worksheet, row::Integer, col::Integer, image::Union{AbstractString, IOBuffer}; size=nothing, inCell=false, alt="")
 
 
 Insert an image into a worksheet at the given cell reference. The image "floats" above the 
@@ -88,9 +88,16 @@ Supported formats (auto-detected): PNG, JPEG, GIF.
 
 # Keyword Arguments
 
-`size`: provide the desired size of the image as a tuple of integers: `(width_px, height_px)`. 
-If `nothing` (default), the image's native pixel size is used. Ignored if `ref` is a cell range. 
+`size`: provide the desired size of the image as a tuple of integers: `(width_px, height_px)`.
+If `nothing` (default), the image's native pixel size is used. Ignored if `ref` is a cell range.
 Actual size will snap to the nearest cell boundaries.
+
+`inCell`: if `true`, place the picture in the cell `ref`, as Excel's *Place in Cell* does,
+instead of floating it over the grid. The picture becomes the cell's value and sizes
+itself to the cell; `ref` must be a single cell and `size` is not allowed. The same as
+`s[ref] = CellImage(image; alt)`: see [`CellImage`](@ref) and [`getCellImage`](@ref).
+
+`alt`: a picture in a cell's alternative text, which a screen reader reads out.
 
 # Return Value
 
@@ -126,6 +133,12 @@ Insert with explicit size:
 info = XLSX.addImage(sheet, "A1", "icon.png"; size=(128, 128))
 ```
 
+Place a picture in a cell:
+
+```julia
+info = XLSX.addImage(sheet, "B2", "logo.png"; inCell=true, alt="Company logo")
+```
+
 !!! note
 
     When a specified `size` is used or when the image's native pixel size 
@@ -153,7 +166,11 @@ function addImage(
     cellref::Union{CellRef, CellRange},
     image::Union{AbstractString, IOBuffer};
     size::Union{Nothing, Tuple{<:Integer,<:Integer}} = nothing,
+    inCell::Bool = false,
+    alt::AbstractString = "",
 )
+    inCell && return _add_image_in_cell!(s, cellref, image, size, alt)
+    isempty(alt) || throw(XLSXError("`alt` is for a picture in a cell: give `inCell=true` too."))
     xf         = get_xlsxfile(s)
     sheet_path = get_relationship_target_by_id("xl", get_workbook(s), s.relationship_id)
 
@@ -169,6 +186,17 @@ function addImage(
         from       = string(CellRef(row,    col)),
         to         = string(CellRef(row_to, col_to)),
     )
+end
+
+# A picture placed in one cell, as `addImage(...; inCell=true)` puts it.
+function _add_image_in_cell!(s::Worksheet, cellref, image, size, alt)
+    cellref isa CellRef || throw(XLSXError("A picture is placed in one cell, such as `B2`. Found `$cellref`."))
+    isnothing(size) || throw(XLSXError("A picture in a cell takes the cell's size: leave out `size`, or set the cell's size with `setColumnWidth` and `setRowHeight`."))
+    _require_writable(s, "put a picture in a cell")
+    _require_worksheet(s, "put a picture in a cell")
+    vm, media_name = _add_cell_image!(get_xlsxfile(s), CellImage(image; alt))
+    _set_rich_value_cell!(s, cellref, vm)
+    return (sheet = s.name, media_name = media_name, from = string(cellref), to = string(cellref))
 end
 
 # ===========================================================================
@@ -551,8 +579,9 @@ end
     deleteImage(s::Worksheet, image::ImageInfo) -> Int
 
 Delete the images whose top-left corner is in cell `ref` (`"B3"`, or a `CellRef`),
-or the image `image` returned by [`getImages`](@ref). Returns how many were
-deleted: 0 if there were none.
+and the picture in that cell if it holds one (see [`CellImage`](@ref)), or the image
+`image` returned by [`getImages`](@ref). Returns how many were deleted: 0 if there
+were none. A cell whose picture is deleted is left empty, with its format.
 
 The picture file goes too, unless another image in the workbook shows it. The
 cells under the image are not changed.
@@ -574,7 +603,10 @@ function deleteImage(s::Worksheet, ref::AbstractString)
     is_valid_cellname(ref) || throw(XLSXError("Give the cell an image's top-left corner is in, such as `B3`. Found `$ref`."))
     return deleteImage(s, CellRef(ref))
 end
-deleteImage(s::Worksheet, ref::CellRef) = _delete_images!(s, img -> img.from == string(ref))
+function deleteImage(s::Worksheet, ref::CellRef)
+    n = _delete_images!(s, img -> img.from == string(ref))
+    return n + _delete_cell_image!(s, ref)
+end
 function deleteImage(s::Worksheet, image::ImageInfo)
     image.sheet == s.name || throw(XLSXError("The image is on sheet `$(image.sheet)`, not `$(s.name)`."))
     return _delete_images!(s, img -> img == image)

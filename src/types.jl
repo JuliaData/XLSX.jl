@@ -281,6 +281,33 @@ end
     CT_TIME = 6
     CT_DATETIME = 7
     CT_ERROR = 8
+    CT_RICHVALUE = 9   # a rich value, such as a picture in the cell: `value` is its `vm` index
+end
+
+"""
+    CellImage
+
+A picture in a cell, as Excel's *Place in Cell* puts one there: the cell's value is the
+picture, which sizes itself to the cell. Write one with `sheet[ref] = CellImage(...)` or
+[`addImage`](@ref)`(...; inCell=true)`, and read one with [`getCellImage`](@ref).
+
+    CellImage(image; alt="")
+
+`image` is a file path or an `IOBuffer` holding a PNG, JPEG or GIF picture. `alt` is
+its alternative text, which a screen reader reads out.
+
+Fields:
+- `bytes::Vector{UInt8}`: the picture's file
+- `format::Symbol`: `:png`, `:jpeg` or `:gif`
+- `alt::String`: its alternative text, or `""`
+- `url::Union{Nothing,String}`: for a picture an `IMAGE` formula fetched from the web,
+  its address. `bytes` then holds the copy Excel saved, if any.
+"""
+struct CellImage
+    bytes::Vector{UInt8}
+    format::Symbol
+    alt::String
+    url::Union{Nothing,String}
 end
 
 """

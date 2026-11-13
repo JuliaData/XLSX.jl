@@ -538,7 +538,7 @@ function encode(d::CellValueType)
         return "n"
     elseif d == CT_BOOL
         return "b"
-    elseif d == CT_ERROR
+    elseif d == CT_ERROR || d == CT_RICHVALUE
         return "e"
     elseif d == CT_EMPTY
         return ""
@@ -613,6 +613,11 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
             _write_number(row_node, w, cell.meta)
             write(row_node, "\"")
         end
+        if cell.datatype == CT_RICHVALUE
+            write(row_node, " vm=\"")
+            _write_number(row_node, w, Int64(cell.value))
+            write(row_node, "\"")
+        end
 
         has_formula = cell.formula
         is_raw = _is_raw_value_type(cell.datatype)
@@ -621,6 +626,9 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         if cell.datatype == CT_ERROR
             v_other = encode(reinterpret(CellErrorType, cell.value))
             has_value = !isempty(v_other)
+        elseif cell.datatype == CT_RICHVALUE   # what programs without rich values show
+            v_other = "#VALUE!"
+            has_value = true
         elseif !is_raw && cell.datatype != CT_EMPTY
             v_other = getdata(ws, cell)
             has_value = !ismissing(v_other) && v_other != ""

@@ -8,7 +8,7 @@
     @test Int64(XLSX.getcell(s, "E1").value) == 5
     @test Int64(XLSX.getcell(s, "F1").value) == 6
     @test Int64(XLSX.getcell(s, "G1").value) == 7
-    @test Int64(XLSX.getcell(s, "H1").value) == 3
+    @test XLSX.geterror(s, "H1") == "#VALUE!"   # a rich error (#SPILL!), kept as a rich value
 
     XLSX.writexlsx("mytest.xlsx", f, overwrite=true)
     SAVE_FILES && save_outfile("mytest.xlsx")
@@ -22,7 +22,7 @@
     @test Int64(XLSX.getcell(s, "E1").value) == 5
     @test Int64(XLSX.getcell(s, "F1").value) == 6
     @test Int64(XLSX.getcell(s, "G1").value) == 7
-    @test Int64(XLSX.getcell(s, "H1").value) == 3
+    @test XLSX.geterror(s, "H1") == "#VALUE!"   # a rich error (#SPILL!), kept as a rich value
 
     isfile("mytest.xlsx") && rm("mytest.xlsx")
 

@@ -20,7 +20,7 @@ function target_cell_ref_from_offset(anchor_cell::CellRef, offset::Integer, dim:
     return target_cell_ref_from_offset(row_number(anchor_cell), column_number(anchor_cell), offset, dim)
 end
 
-const ALLOWED_TYPES = Union{Number,String,Bool,Dates.Date,Dates.Time,Dates.DateTime,Missing,Nothing}
+const ALLOWED_TYPES = Union{Number,String,Bool,Dates.Date,Dates.Time,Dates.DateTime,Missing,Nothing,CellImage}
 function process_vector(col) # Convert any disallowed types to strings. #239.
     if eltype(col) <: ALLOWED_TYPES
         # Case 1: All elements are of allowed types

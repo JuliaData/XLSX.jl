@@ -10,6 +10,9 @@ Guide: [Images](@ref).
 XLSX.addImage
 XLSX.getImages
 XLSX.deleteImage
+XLSX.CellImage
+XLSX.getCellImage
+XLSX.getCellImages
 ```
 
 ## Text boxes and shapes

@@ -558,7 +558,7 @@ end
 # is mutable, so would be allocated).
 function _cursor_cell_contents(c::XML.Cursor, attrs::Tuple, ws::Worksheet, wb::Workbook, sst_pfx::String,
                                local_formulas::Dict{SheetCellRef,AbstractFormula}, load_formulas::Bool)
-    ref, ref_str, t, _, num_style, _ = attrs
+    ref, ref_str, t, _, num_style, _, vm = attrs
     datatype = CT_EMPTY
     value    = UInt64(0)
     formula  = false
@@ -587,6 +587,7 @@ function _cursor_cell_contents(c::XML.Cursor, attrs::Tuple, ws::Worksheet, wb::W
             XML.skip_element!(child)
         end
     end
+    datatype, value = _rich_value(datatype, value, vm)
     return datatype, value, formula
 end
 

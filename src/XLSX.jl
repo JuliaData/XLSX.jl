@@ -61,7 +61,7 @@ export
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet,
     addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
-    addImage, deleteImage, addTextBox, addShape, deleteShape,
+    addImage, deleteImage, CellImage, addTextBox, addShape, deleteShape,
     addComment, deleteComment,
     addHyperlink, deleteHyperlink,
     addDataValidation, deleteDataValidation,
@@ -85,6 +85,7 @@ export
     setSheetVisibility, setTabColor, removeTabColor,
     setDocumentProperties, setCustomProperty, deleteCustomProperty,
     protectSheet, unprotectSheet, setCellProtection, protectWorkbook, unprotectWorkbook,
+    setCheckbox, removeCheckbox,
     setIgnoredErrors, removeIgnoredErrors,
     addSparklines, deleteSparklines,
     setPageSetup, setPageMargins, setPrintOptions, setPrintArea, removePrintArea, setPrintTitles, removePrintTitles,
@@ -104,7 +105,7 @@ export
            isSheetProtected, getSheetProtection, getCellProtection, isWorkbookProtected, getWorkbookProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles, getHeaderFooter, getSheetView,
            getDocumentProperties, getCustomProperty, getCustomProperties,
-           getIgnoredErrors, getSparklines, getShapes,
+           getIgnoredErrors, getSparklines, getShapes, getCellImage, getCellImages, getCheckboxes, hasCheckbox,
            getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -173,6 +174,8 @@ include("autofilter.jl")
 include("sheetsettings.jl")
 include("ignorederrors.jl")
 include("sparklines.jl")
+include("richvalues.jl")
+include("checkboxes.jl")
 include("save.jl")
 include("docprops.jl")
 include("setdata.jl")

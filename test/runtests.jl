@@ -125,6 +125,7 @@ testgroup("Formatting", [
     "styles"                  => "formatting/styles.jl",
     "displayed text"          => "formatting/display-text.jl",
     "autofit columns"         => "formatting/autofit.jl",
+    "checkboxes"              => "formatting/checkboxes.jl",
     "conditional formats"     => "formatting/conditional.jl",
 ])
 testgroup("Features", [
@@ -139,6 +140,7 @@ testgroup("Drawings", [
     "DrawingML"               => "drawings/drawingml.jl",
     "images"                  => "drawings/images.jl",
     "text boxes and shapes"   => "drawings/shapes.jl",
+    "pictures in cells"       => "drawings/cell-images.jl",
     "deleting objects"        => "drawings/delete-objects.jl",
 ])
 testgroup("Charts", [

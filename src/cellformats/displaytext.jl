@@ -697,6 +697,7 @@ function _cell_text(ws::Worksheet, cell::AbstractCell; for_width::Bool=false,
     dt = cell.datatype
     dt == CT_EMPTY && return ""
     dt == CT_ERROR && return get_error_string(cell.value)
+    dt == CT_RICHVALUE && return ""   # a picture shows no text
     wb = get_workbook(ws)
     v = if dt == CT_STRING
         sst_unformatted_string(wb, reinterpret(Int64, cell.value))

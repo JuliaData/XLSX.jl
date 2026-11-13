@@ -32,6 +32,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Number formats | *Home → Number* | [`XLSX.getFormat`](@ref), [`XLSX.getText`](@ref) (the text shown) | [`XLSX.setFormat`](@ref), [`XLSX.setUniformFormat`](@ref) | — | [Number formats](@ref) |
 | Rich text (mixed formats in one cell) | selecting part of the text | [`XLSX.getRichTextString`](@ref) | [`XLSX.RichTextString`](@ref), StyledStrings.jl | — | [Rich text formats](@ref) |
 | Conditional formatting | *Home → Conditional Formatting* | [`XLSX.getConditionalFormats`](@ref) | [`XLSX.setConditionalFormat`](@ref), [`XLSX.setColoredDataBars`](@ref) (experimental) | [`XLSX.clearConditionalFormats`](@ref) | [Conditional formats](formatting/conditionalFormatting.md) |
+| Checkboxes in cells (Excel 365) | *Insert → Checkbox* | [`XLSX.getCheckboxes`](@ref), [`XLSX.hasCheckbox`](@ref) | [`XLSX.setCheckbox`](@ref) | [`XLSX.removeCheckbox`](@ref) | [Checkboxes](@ref) |
 | Merged cells | *Home → Merge & Center* | [`XLSX.getMergedCells`](@ref), [`XLSX.isMergedCell`](@ref), [`XLSX.getMergedBaseCell`](@ref) | [`XLSX.mergeCells`](@ref) | [`XLSX.removeMergedCells`](@ref) | [Merged cells](formatting/mergedCells.md) |
 | Column widths and row heights | *Home → Format* | [`XLSX.getColumnWidth`](@ref), [`XLSX.getRowHeight`](@ref) | [`XLSX.setColumnWidth`](@ref), [`XLSX.setRowHeight`](@ref), [`XLSX.autofitColumns`](@ref) | — | [Column width and row height](formatting/widthAndHeight.md) |
 
@@ -53,6 +54,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Chartsheets | *Move Chart → New sheet* | [`getCharts`](@ref XLSX.Charts.getCharts) | [`addChart`](@ref XLSX.Charts.addChart) given the file | [`XLSX.deletesheet!`](@ref) | [Sheets with charts](charts/chartSheets.md) |
 | Sparklines | *Insert → Sparklines* | [`XLSX.getSparklines`](@ref) | [`XLSX.addSparklines`](@ref) | [`XLSX.deleteSparklines`](@ref) | [Sparklines](charts/sparklines.md) |
 | Images (PNG, JPEG, GIF) | *Insert → Pictures* | [`XLSX.getImages`](@ref) | [`XLSX.addImage`](@ref) | [`XLSX.deleteImage`](@ref) | [Images](@ref) |
+| Pictures in cells (Excel 365) | *Insert → Pictures → Place in Cell* | [`XLSX.getCellImage`](@ref), [`XLSX.getCellImages`](@ref) | [`XLSX.CellImage`](@ref) written to a cell, [`XLSX.addImage`](@ref) with `inCell=true` | [`XLSX.deleteImage`](@ref) | [Pictures in cells](@ref) |
 | Text boxes and shapes | *Insert → Text Box*, *Insert → Shapes* | [`XLSX.getShapes`](@ref) | [`XLSX.addTextBox`](@ref), [`XLSX.addShape`](@ref) | [`XLSX.deleteShape`](@ref) | [Text boxes and shapes](sheets/shapes.md) |
 | Hyperlinks | *Insert → Link* | [`XLSX.getHyperlink`](@ref), [`XLSX.getHyperlinks`](@ref) | [`XLSX.addHyperlink`](@ref) (single cells) | [`XLSX.deleteHyperlink`](@ref) | [Hyperlinks](@ref) |
 | Comments (notes) | *Review → Notes* | [`XLSX.getComment`](@ref), [`XLSX.getComments`](@ref) | [`XLSX.addComment`](@ref) | [`XLSX.deleteComment`](@ref) | [Comments](@ref) |

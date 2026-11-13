@@ -82,10 +82,14 @@ iserror(s::Worksheet, r, c) = iserror(getcell(s, r, c))
 iserror(c::AbstractVector) = collect(iserror.(c))
 iserror(c::AbstractMatrix) = collect(iserror.(c))
 iserror(c::AbstractVector{<:AbstractMatrix}) = [collect(iserror.(M)) for M in c]
-@inline iserror(c::Cell) = c.datatype == CT_ERROR
+# A rich value, such as a picture in the cell, is the error `#VALUE!` to a program that
+# doesn't know rich values, and is stored as one.
+@inline iserror(c::Cell) = c.datatype == CT_ERROR || c.datatype == CT_RICHVALUE
 @inline iserror(::EmptyCell) = false
 
-getval(x) = hasproperty(x, :datatype) && x.datatype == CT_ERROR && hasproperty(x, :value) ? x.value : nothing
+getval(x) = !hasproperty(x, :datatype) ? nothing :
+            x.datatype == CT_ERROR ? x.value :
+            x.datatype == CT_RICHVALUE ? UInt64(XL_VALUE) : nothing
 
 """
     geterror(s::Worksheet, ref::AbstractString)
@@ -191,24 +195,33 @@ _extra_attrs(d::Dict) = isempty(d) ? nothing : d
 # The pieces of a `<c>` element, shared by `Cell(::LazyNode, …)` and the cursor walk in
 # `first_cache_fill!` so the two read cells identically.
 
-# `r`, `t`, `s` and `cm` of a `<c>`, in one pass over its start tag.
+# `r`, `t`, `s`, `cm` and `vm` of a `<c>`, in one pass over its start tag.
 @inline function _cell_attributes(c::XML.LazyNode)
     ref_str::SubString{String} = SubString("")
     t::SubString{String}       = SubString("")
     s_str::SubString{String}   = SubString("")
     m_str::SubString{String}   = SubString("")
+    vm_str::SubString{String}  = SubString("")
     for (k, v) in XML.eachattribute(c)
         if k == "r";      ref_str = v
         elseif k == "t";  t       = v
         elseif k == "s";  s_str   = v
         elseif k == "cm"; m_str   = v
+        elseif k == "vm"; vm_str  = v
         end
     end
     ref = CellRef(ref_str)
     style, num_style = _parse_style(s_str)
     meta = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
-    return ref, ref_str, t, style, num_style, meta
+    vm = isempty(vm_str) ? UInt32(0) : parse(UInt32, vm_str)
+    return ref, ref_str, t, style, num_style, meta, vm
 end
+
+# A cell holding a rich value (`vm`), such as a picture, has the error `#VALUE!` for
+# programs that don't know rich values. It is kept as the rich value, so that it's
+# written back.
+@inline _rich_value(datatype::CellValueType, value::UInt64, vm::UInt32) =
+    vm > 0 && datatype == CT_ERROR ? (CT_RICHVALUE, UInt64(vm)) : (datatype, value)
 
 # The text of a `<v>` that isn't a single text or CDATA node: its first text or CDATA
 # child, if any. Warns (once) when it has children but no text.
@@ -257,7 +270,7 @@ function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
               load_formulas::Bool=true)::Union{Cell,EmptyCell}
     wb = get_workbook(ws)
     @assert localname(c) == "c" "`Cell` expects a `c` (cell) XML node."
-    ref, ref_str, t, style, num_style, meta = _cell_attributes(c)
+    ref, ref_str, t, style, num_style, meta, vm = _cell_attributes(c)
     datatype = CT_EMPTY
     value    = UInt64(0)
     formula  = false
@@ -280,6 +293,7 @@ function Cell(c::XML.LazyNode, ws::Worksheet, sst_pfx::String,
             formula = true
         end
     end
+    datatype, value = _rich_value(datatype, value, vm)
     return Cell(ref, value, style, meta, datatype, formula)
 end
 
@@ -525,6 +539,7 @@ function _cell_value(ws::Worksheet, dt::CellValueType, v::UInt64, cell=nothing)
     # Fast path for common non-date types — avoids fetching workbook date mode
     dt == CT_EMPTY  && return missing
     dt == CT_ERROR  && return missing
+    dt == CT_RICHVALUE && return missing   # a picture isn't data: see `getCellImage`
     if dt == CT_STRING
         s = sst_unformatted_string(ws, reinterpret(Int64, v))
         return isempty(s) ? missing : s

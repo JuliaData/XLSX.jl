@@ -225,6 +225,7 @@ _as_cell_value(v::Union{Bool,String,Dates.Date,Dates.DateTime,Dates.Time}) = v
 _as_cell_value(v::Integer) = Int64(v)
 _as_cell_value(v::Real) = (f = Float64(v); isfinite(f) ? f : string(v))
 _as_cell_value(v::AbstractString) = String(v)
+_as_cell_value(v::CellImage) = v
 _as_cell_value(v) = string(v)
 
 function setdata!(ws::Worksheet, ref::AbstractString, value)

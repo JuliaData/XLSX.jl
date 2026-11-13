@@ -97,21 +97,28 @@ function _set_cell_protection!(ws::Worksheet, parts::Vector; locked::Union{Nothi
     parts = Any[_clip_to_dimension(ws, p) for p in parts]
     isnothing(locked) && isnothing(hidden) && return nothing
 
-    wb = get_workbook(ws)
-    allXfNodes = get_cellXfs_nodes(wb)
-    new_style = Dict{Int,Int}()   # each style used, and its protected version
+    allXfNodes = get_cellXfs_nodes(get_workbook(ws))
+    _restyle_cells!(ws, parts) do style
+        _protected_style(ws, allXfNodes, style, locked, hidden)
+    end
+    return nothing
+end
+
+# Give each cell of `parts` (cells and ranges) the style `restyle` returns for its
+# style, called once for each style. An empty cell is made first, holding `empty`:
+# `missing` for a format without a value.
+function _restyle_cells!(restyle::Function, ws::Worksheet, parts::Vector; empty=missing)
+    new_style = Dict{Int,Int}()   # each style used, and its new version
     for p in parts
         rng = p isa CellRef ? CellRange(p, p) : p
         for r in row_number(rng.start):row_number(rng.stop), c in column_number(rng.start):column_number(rng.stop)
             ref = CellRef(r, c)
             cell = getcell(ws, ref)
-            if cell isa EmptyCell   # a cell with a format and no value
-                ws[ref] = missing
+            if cell isa EmptyCell || (!ismissing(empty) && cell.datatype == CT_EMPTY)
+                ws[ref] = empty
                 cell = getcell(ws, ref)
             end
-            cell.style = get!(new_style, Int(cell.style)) do
-                _protected_style(ws, allXfNodes, Int(cell.style), locked, hidden)
-            end
+            cell.style = get!(() -> restyle(Int(cell.style)), new_style, Int(cell.style))
         end
     end
     return nothing

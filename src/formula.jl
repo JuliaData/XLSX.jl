@@ -1,5 +1,3 @@
-include_dependency(joinpath(@__DIR__, "data", "metadata.xml"))
-const METADATA_XML_DATA = read(joinpath(@__DIR__, "data", "metadata.xml"))
 
 const RGX_FORMULA_SHEET_CELL = r"!\$?[A-Z]+\$?[0-9]" # to recognise sheetcell references like "otherSheet!A1"
 
@@ -707,13 +705,7 @@ function process_dynamic_array_functions(xf::XLSXFile, cellref::CellRef, val::Ab
     if !isnothing(spill) && (spill || !spill && iaf) || isnothing(spill) && iaf
         t = "array"
         ref = cellname(cellref) * ":" * cellname(cellref)
-        cm = "1"
-        if !haskey(xf.files, "xl/metadata.xml") # add metadata.xml on first use of a dynamicArray formula
-            xf.data["xl/metadata.xml"] = parse(String(copy(METADATA_XML_DATA)), XML.Node)
-            xf.files["xl/metadata.xml"] = true # set file as read
-            add_override!(xf, "/xl/metadata.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml")
-            rId = add_relationship!(get_workbook(xf), "metadata.xml", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata")
-        end
+        cm = string(_dynamic_array_cm!(xf))
     end
     return formula, t, ref, cm
 end
