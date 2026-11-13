@@ -74,16 +74,26 @@ function _next_row!(c::XML.Cursor)::Bool
     return false
 end
 
+# The value of the attribute `key` of the element the cursor is on, or `nothing`. The
+# first read of the element's attributes is where the cursor stands, so its next
+# `next!` doesn't read them again.
+@inline function _cursor_attr(c::XML.Cursor, key::String)::Union{Nothing,SubString{String}}
+    for (k, v) in XML.eachattribute!(c)
+        k == key && return v
+    end
+    return nothing
+end
+
 # The `r` of the `<row>` the cursor is on.
 function _row_number(c::XML.Cursor, wsname::String)::Int
-    r = XML.get(c, "r", nothing)
+    r = _cursor_attr(c, "r")
     r === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $wsname."))
     return parse(Int, r)
 end
 
 # The `ht` of the `<row>` the cursor is on.
 function _row_height(c::XML.Cursor)::Union{Nothing,Float64}
-    ht = XML.get(c, "ht", nothing)
+    ht = _cursor_attr(c, "ht")
     return isnothing(ht) ? nothing : parse(Float64, ht)
 end
 
@@ -97,7 +107,7 @@ function _cursor_rowcells!(rowcells::Dict{Int,Cell}, c::XML.Cursor, ws::Workshee
                            cols::Union{Nothing,UnitRange{Int}} = nothing)::Tuple{Int,Int,Int}
     sst_count = 0
     col_min, col_max = typemax(Int), 0
-    XML.@for_each_child c child begin
+    XML.@for_each_child! c child begin
         if XML.nodetype(child) == XML.Element && localname(child) == "c"
             col = isnothing(cols) ? 0 : _cell_column(child)
             if isnothing(cols) || col in cols
@@ -118,10 +128,9 @@ end
 
 # The column of the `<c>` the cursor is on, from its `r` attribute alone.
 function _cell_column(c::XML.Cursor)::Int
-    for (k, v) in XML.eachattribute(XML.LazyNode(c))
-        k == "r" && return _ref_column_number(v)
-    end
-    throw(XLSXError("Invalid cell reference ``."))
+    r = _cursor_attr(c, "r")
+    r === nothing && throw(XLSXError("Invalid cell reference ``."))
+    return _ref_column_number(r)
 end
 
 # Creates an iterator for row elements in the Worksheet's XML: one cursor walks
@@ -438,21 +447,24 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
                 unhandled = _EMPTY_ROW_ATTRS
                 row_ht    = nothing
             end
-            r_val = XML.get(c2, "r", nothing)
-            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
-            row_num = parse(Int, r_val)
-            ht_val  = XML.get(c2, "ht", nothing)
-            row_ht  = isnothing(ht_val) ? nothing : parse(Float64, ht_val)
-
-            let ln = XML.LazyNode(c2)
-                for (k, v) in XML.eachattribute(ln)
-                    k in handled_attributes && continue
+            # All of the row's attributes in one pass, where the cursor stands.
+            r_val  = nothing
+            ht_val = nothing
+            for (k, v) in XML.eachattribute!(c2)
+                if k == "r"
+                    r_val = v
+                elseif k == "ht"
+                    ht_val = v
+                elseif !(k in handled_attributes)
                     if unhandled === _EMPTY_ROW_ATTRS
                         unhandled = Dict{String,String}()
                     end
                     unhandled[String(k)] = String(v)
                 end
             end
+            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
+            row_num = parse(Int, r_val)
+            row_ht  = isnothing(ht_val) ? nothing : parse(Float64, ht_val)
 
         elseif d == 3 && nt == XML.Element && localname(c2) == "c"
             # Read in the same walk as its children, so its bytes are tokenized once (#462).
@@ -547,7 +559,7 @@ end
 # after the cell, so the caller's next `next!` yields it.
 function _cursor_cell(c::XML.Cursor, ws::Worksheet, wb::Workbook, sst_pfx::String,
                       local_formulas::Dict{SheetCellRef,AbstractFormula}, load_formulas::Bool)::Cell
-    attrs = _cell_attributes(XML.LazyNode(c))
+    attrs = _cell_attributes(c)
     datatype, value, formula = _cursor_cell_contents(c, attrs, ws, wb, sst_pfx, local_formulas, load_formulas)
     ref, _, _, style, _, meta = attrs
     return Cell(ref, value, style, meta, datatype, formula)
@@ -563,7 +575,7 @@ function _cursor_cell_contents(c::XML.Cursor, attrs::Tuple, ws::Worksheet, wb::W
     value    = UInt64(0)
     formula  = false
     done     = false            # an inline string's `<is>` has been read: ignore the rest
-    XML.@for_each_child c child begin
+    XML.@for_each_child! c child begin
         if XML.nodetype(child) == XML.Element
             tag = localname(child)
             if done
@@ -626,16 +638,14 @@ function _read_cells(ws::Worksheet,
         d = XML.depth(c)
         d == 1 && continue
         if d == 2 && XML.nodetype(c) == XML.Element && localname(c) == "row"
-            r_val = XML.get(c, "r", nothing)
-            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
-            row = parse(Int, r_val)
+            row = _row_number(c, ws.name)
             !isnothing(stop_after) && row > stop_after && break
             row_min = min(row_min, row); row_max = max(row_max, row)
             in_rows = _selects(rows, row)
             # Nothing to decode or measure in this row's cells.
             !in_rows && !track_bounds && XML.skip_element!(c)
         elseif d == 3 && XML.nodetype(c) == XML.Element && localname(c) == "c"
-            col = _ref_column_number(XML.get(c, "r", ""))
+            col = _ref_column_number(something(_cursor_attr(c, "r"), ""))
             col_min = min(col_min, col); col_max = max(col_max, col)
             if in_rows && _selects(cols, col)
                 push!(cells, _cursor_cell(c, ws, wb, sst_pfx, local_formulas, load_formulas))

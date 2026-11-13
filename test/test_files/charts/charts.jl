@@ -407,12 +407,11 @@
             XLSX.writexlsx(tmp, f; overwrite=true)
 
             part = "xl/charts/chart1.xml"
-            # XML.jl pretty-prints where Excel writes a single line; the CRLF after the
-            # declaration differs too. Both are cosmetic — XML ignores inter-tag
-            # whitespace — so compare with it collapsed rather than byte for byte.
-            strip_ws(s) = replace(s, r">\s+<" => "><")
-            @test strip_ws(String(zip_readentry(ZipReader(read(original)), part))) ==
-                strip_ws(String(zip_readentry(ZipReader(read(tmp)), part)))
+            # Byte for byte, but for the line end after the declaration: Excel writes
+            # CRLF, XML.jl LF.
+            crlf_decl(s) = replace(s, "?>\r\n" => "?>\n"; count=1)
+            @test crlf_decl(String(zip_readentry(ZipReader(read(original)), part))) ==
+                String(zip_readentry(ZipReader(read(tmp)), part))
 
             g = XLSX.readxlsx(tmp)
             c = XLSX.Charts.getCharts(g)[1]

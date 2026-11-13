@@ -252,7 +252,7 @@ function _get_ns_prefix_from_string(xml_str::Union{String,Nothing})::Union{Strin
     while XML.next!(c) !== nothing
         XML.nodetype(c) == XML.Element || continue
         # Found root element — scan its attributes for spreadsheet namespace
-        for (k, v) in XML.eachattribute(XML.LazyNode(c))
+        for (k, v) in XML.eachattribute!(c)
             v == "http://schemas.openxmlformats.org/spreadsheetml/2006/main" || continue
             # k is either "xmlns" (default ns) or "xmlns:prefix"
             k == "xmlns" && return nothing  # default namespace, no prefix
