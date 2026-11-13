@@ -138,6 +138,7 @@ testgroup("Features", [
 testgroup("Drawings", [
     "DrawingML"               => "drawings/drawingml.jl",
     "images"                  => "drawings/images.jl",
+    "text boxes and shapes"   => "drawings/shapes.jl",
     "deleting objects"        => "drawings/delete-objects.jl",
 ])
 testgroup("Charts", [

@@ -12,6 +12,17 @@ XLSX.getImages
 XLSX.deleteImage
 ```
 
+## Text boxes and shapes
+
+Guide: [Text boxes and shapes](../sheets/shapes.md).
+
+```@docs
+XLSX.addTextBox
+XLSX.addShape
+XLSX.getShapes
+XLSX.deleteShape
+```
+
 ## Comment functions
 
 Guide: [Comments](@ref).

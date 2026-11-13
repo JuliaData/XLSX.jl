@@ -38,6 +38,7 @@ makedocs(
         ],
         "Images, comments and links" => Any[
             "Images" => "sheets/images.md",
+            "Text boxes and shapes" => "sheets/shapes.md",
             "Comments" => "sheets/comments.md",
             "Hyperlinks" => "sheets/hyperlinks.md",
         ],

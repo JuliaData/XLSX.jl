@@ -53,6 +53,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Chartsheets | *Move Chart → New sheet* | [`getCharts`](@ref XLSX.Charts.getCharts) | [`addChart`](@ref XLSX.Charts.addChart) given the file | [`XLSX.deletesheet!`](@ref) | [Sheets with charts](charts/chartSheets.md) |
 | Sparklines | *Insert → Sparklines* | [`XLSX.getSparklines`](@ref) | [`XLSX.addSparklines`](@ref) | [`XLSX.deleteSparklines`](@ref) | [Sparklines](charts/sparklines.md) |
 | Images (PNG, JPEG, GIF) | *Insert → Pictures* | [`XLSX.getImages`](@ref) | [`XLSX.addImage`](@ref) | [`XLSX.deleteImage`](@ref) | [Images](@ref) |
+| Text boxes and shapes | *Insert → Text Box*, *Insert → Shapes* | [`XLSX.getShapes`](@ref) | [`XLSX.addTextBox`](@ref), [`XLSX.addShape`](@ref) | [`XLSX.deleteShape`](@ref) | [Text boxes and shapes](sheets/shapes.md) |
 | Hyperlinks | *Insert → Link* | [`XLSX.getHyperlink`](@ref), [`XLSX.getHyperlinks`](@ref) | [`XLSX.addHyperlink`](@ref) (single cells) | [`XLSX.deleteHyperlink`](@ref) | [Hyperlinks](@ref) |
 | Comments (notes) | *Review → Notes* | [`XLSX.getComment`](@ref), [`XLSX.getComments`](@ref) | [`XLSX.addComment`](@ref) | [`XLSX.deleteComment`](@ref) | [Comments](@ref) |
 | Threaded comments | *Review → New Comment* | [`XLSX.getThreadedComment`](@ref), [`XLSX.getThreadedComments`](@ref) | — | — | [Threaded comments](@ref) |
@@ -79,7 +80,8 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Writing threaded comments | They can be read. Write a note with [`XLSX.addComment`](@ref) instead. |
 | Creating region map charts, and some chart subtypes | See the charts [Limitations](charts/chartLimitations.md). |
 | Hyperlinks on a range of cells | They can be read and deleted, but [`XLSX.addHyperlink`](@ref) adds links to single cells. |
-| Pivot tables, slicers, shapes and text boxes | No functions to create or edit them. |
+| Pivot tables and slicers | No functions to create or edit them. |
+| Shapes filled with pictures, connectors, grouped shapes and SmartArt | [`XLSX.addShape`](@ref) adds single preset shapes with text, fill and border. |
 | Pictures in headers and footers | [`XLSX.setHeaderFooter`](@ref) sets their text, fields and fonts only. |
 | Password-encrypted files | To read an encrypted file, decrypt it first with [XLSXDecrypt.jl](https://github.com/TimG1964/XLSXDecrypt.jl). |
 | VBA macros | Not created or edited. |

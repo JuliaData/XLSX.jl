@@ -61,7 +61,7 @@ export
     writexlsx, savexlsx,
     Worksheet, sheetnames, sheetcount, hassheet,
     addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
-    addImage, deleteImage,
+    addImage, deleteImage, addTextBox, addShape, deleteShape,
     addComment, deleteComment,
     addHyperlink, deleteHyperlink,
     addDataValidation, deleteDataValidation,
@@ -104,7 +104,7 @@ export
            isSheetProtected, getSheetProtection, getCellProtection, isWorkbookProtected, getWorkbookProtection,
            getPageSetup, getPageMargins, getPrintOptions, getPrintArea, getPrintTitles, getHeaderFooter, getSheetView,
            getDocumentProperties, getCustomProperty, getCustomProperties,
-           getIgnoredErrors, getSparklines,
+           getIgnoredErrors, getSparklines, getShapes,
            getFormat, getFont, getBorder, getFill, getAlignment, getText,
            DataTable, Table, TableStyleInfo, table, tables,
            getDefinedNames, getAllDefinedNames,
@@ -187,6 +187,7 @@ include("fileArray.jl")
 
 # Charts depends on the core and must load after it; the core never refers to Charts.
 include("charts/Charts.jl")
+include("textboxes.jl")   # uses the DrawingML layer in Charts
 
 # Names released as `XLSX.x` before the sub-module existed.
 using .Charts: AbstractChart, Chart, ChartEx, ChartRef, ChartSeries,
