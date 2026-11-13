@@ -130,9 +130,11 @@ testgroup("Formatting", [
 ])
 testgroup("Features", [
     "AutoFilter"              => "features/autofilter.jl",
+    "filters and sorting"     => "features/filter-sort.jl",
     "data validation"         => "features/data-validation.jl",
     "hyperlinks"              => "features/hyperlinks.jl",
     "comments"                => "features/comments.jl",
+    "threaded comments"       => "features/threaded-comments.jl",
     "ignored errors"          => "features/ignored-errors.jl",
     "sparklines"              => "features/sparklines.jl",
 ])

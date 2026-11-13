@@ -39,11 +39,24 @@ julia> link.location, link.display, link.url
 ```
 
 [`XLSX.deleteHyperlink`](@ref) removes a link and returns `true` if there was
-one. The cell keeps its value and formatting.
+one. The cell keeps its value and formatting. Given a range, it removes every
+link that overlaps it.
 
-Adding a link to a cell that has one replaces it. Excel can also put one link on
-a range of cells. XLSX.jl reads and deletes such links, but adds links to single
-cells only.
+Adding a link to a cell that has one replaces it.
+
+## A link on a range of cells
+
+A link can cover a range, so that clicking any of its cells follows it. As Excel
+does, the text goes in the range's top-left cell, if that is empty, and every
+empty cell in the range gets the link font:
+
+```julia
+XLSX.addHyperlink(sheet, "B5:D5"; url="https://example.com/report", display="Full report")
+```
+
+[`XLSX.getHyperlink`](@ref) returns the range's link for any of its cells, with
+the range as its `ref`. A link may not overlap another: delete the other one
+first.
 
 !!! note "Links into the workbook"
 

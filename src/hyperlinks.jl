@@ -31,7 +31,8 @@ const HyperlinkInfo = NamedTuple{
     addHyperlink(s::Worksheet, ref; url=nothing, location=nothing, display=nothing, tooltip=nothing)
     addHyperlink(s::Worksheet, row::Integer, col::Integer; kw...)
 
-Make a single cell a hyperlink. Give exactly one of `url` or `location`:
+Make a cell, or a range of cells such as `"A1:C3"`, a hyperlink. Give exactly
+one of `url` or `location`:
 
 - `url`: an address outside the workbook, such as a web page
   (`"https://julialang.org"`), an email address (`"mailto:someone@example.com"`)
@@ -44,14 +45,15 @@ If the cell is empty, its value is set to `display` (or to the `url` or
 as Excel does when you insert a link. A cell that already holds a value keeps its
 value and its formatting.
 
+A range has one link, which works from any of its cells. As Excel does, the text
+goes in the range's top-left cell, if that cell is empty, and every empty cell in
+the range gets the blue, underlined font.
+
 `tooltip` is the text Excel shows when the mouse is over the link. `display` is
 also stored with the link itself.
 
-If the cell already has a hyperlink, it is replaced.
-
-Hyperlinks can only be added to a single cell. Giving a cell range is an error.
-Adding a hyperlink to a cell inside a range that already has one is also an
-error. Delete the range's link first.
+If the cell or range already has a hyperlink of its own, it is replaced. A
+hyperlink may not overlap another one: delete the other link first.
 
 # Return Value
 
@@ -64,15 +66,17 @@ than `sheet` and `ref` is a `String` or `nothing`.
 XLSX.addHyperlink(sheet, "A1"; url="https://julialang.org", display="Julia")
 XLSX.addHyperlink(sheet, "A2"; url="mailto:team@example.com", tooltip="Email the team")
 XLSX.addHyperlink(sheet, 3, 1; location="Summary!B2", display="Go to summary")
+XLSX.addHyperlink(sheet, "C1:E2"; url="https://example.com/report", display="Full report")
 ```
 
 See also [`getHyperlink`](@ref), [`getHyperlinks`](@ref), [`deleteHyperlink`](@ref).
 """
 addHyperlink(s::Worksheet, row::Integer, col::Integer; kw...) = addHyperlink(s, CellRef(row, col); kw...)
-addHyperlink(s::Worksheet, ref::AbstractString; kw...) = addHyperlink(s, _hyperlink_cellref(ref); kw...)
+addHyperlink(s::Worksheet, ref::AbstractString; kw...) = addHyperlink(s, _hyperlink_ref(ref); kw...)
+addHyperlink(s::Worksheet, ref::CellRef; kw...) = addHyperlink(s, CellRange(ref, ref); kw...)
 function addHyperlink(
     s::Worksheet,
-    ref::CellRef;
+    rng::CellRange;
     url::Union{Nothing,AbstractString} = nothing,
     location::Union{Nothing,AbstractString} = nothing,
     display::Union{Nothing,AbstractString} = nothing,
@@ -90,13 +94,13 @@ function addHyperlink(
 
     xf         = get_xlsxfile(s)
     sheet_path = _sheet_path(s)
-    r          = string(ref)
+    r          = _hyperlink_refstring(rng)
 
     for n in _hyperlink_nodes(xf, sheet_path)
         n_ref = get_attr(n, "ref")
         n_ref == r && continue   # replaced below
-        ref in _hyperlink_range(n_ref) &&
-            throw(XLSXError("Cell `$r` is inside the hyperlink on `$n_ref`. Delete that hyperlink first."))
+        intersects(rng, _hyperlink_range(n_ref)) &&
+            throw(XLSXError("`$r` overlaps the hyperlink on `$n_ref`. Delete that hyperlink first."))
     end
     _delete_hyperlink_node!(xf, sheet_path, r)
 
@@ -114,10 +118,7 @@ function addHyperlink(
     isnothing(display) || (el["display"] = display)
     push!(_ensure_hyperlinks_element!(sheet_root), el)
 
-    if getcell(s, ref) isa EmptyCell
-        s[ref] = something(display, target)
-        setFont(s, ref; color=HYPERLINK_FONT_COLOR, under="single")
-    end
+    _hyperlink_cell_text!(s, rng, something(display, target))
 
     return HyperlinkInfo((s.name, r, _str_or_nothing(url), _str_or_nothing(location),
                           _str_or_nothing(display), _str_or_nothing(tooltip)))
@@ -141,7 +142,11 @@ The file doesn't need to be opened for writing.
 See also [`addHyperlink`](@ref), [`getHyperlinks`](@ref).
 """
 getHyperlink(s::Worksheet, row::Integer, col::Integer) = getHyperlink(s, CellRef(row, col))
-getHyperlink(s::Worksheet, ref::AbstractString) = getHyperlink(s, _hyperlink_cellref(ref))
+function getHyperlink(s::Worksheet, ref::AbstractString)
+    rng = _hyperlink_ref(ref)
+    rng.start == rng.stop || throw(XLSXError("`getHyperlink` reads one cell, not a range: `$ref`. Use `getHyperlinks` for every link."))
+    return getHyperlink(s, rng.start)
+end
 function getHyperlink(s::Worksheet, ref::CellRef)::Union{Nothing,HyperlinkInfo}
     for h in getHyperlinks(s)
         ref in _hyperlink_range(h.ref) && return h
@@ -184,34 +189,60 @@ end
     deleteHyperlink(s::Worksheet, ref)
     deleteHyperlink(s::Worksheet, row::Integer, col::Integer)
 
-Remove the hyperlink on the given cell. Return `true` if a hyperlink was removed
-and `false` if the cell had none. If the cell is part of a link on a range of
-cells, the link is removed from the whole range.
+Remove the hyperlink on the given cell, or every hyperlink that overlaps the
+given range (`"A1:C3"`). Return `true` if a hyperlink was removed and `false` if
+there was none. A link on a range of cells is removed from its whole range.
 
 The cell's value and formatting are left as they are.
 
 See also [`addHyperlink`](@ref).
 """
 deleteHyperlink(s::Worksheet, row::Integer, col::Integer) = deleteHyperlink(s, CellRef(row, col))
-deleteHyperlink(s::Worksheet, ref::AbstractString) = deleteHyperlink(s, _hyperlink_cellref(ref))
-function deleteHyperlink(s::Worksheet, ref::CellRef)::Bool
+deleteHyperlink(s::Worksheet, ref::AbstractString) = deleteHyperlink(s, _hyperlink_ref(ref))
+deleteHyperlink(s::Worksheet, ref::CellRef) = deleteHyperlink(s, CellRange(ref, ref))
+function deleteHyperlink(s::Worksheet, rng::CellRange)::Bool
     _require_writable(s, "delete a hyperlink")
     _require_worksheet(s, "delete a hyperlink")
     xf         = get_xlsxfile(s)
     sheet_path = _sheet_path(s)
-    for n in _hyperlink_nodes(xf, sheet_path)
-        n_ref = get_attr(n, "ref")
-        ref in _hyperlink_range(n_ref) || continue
-        return _delete_hyperlink_node!(xf, sheet_path, n_ref)
-    end
-    return false
+    refs = [get_attr(n, "ref") for n in _hyperlink_nodes(xf, sheet_path)
+            if intersects(rng, _hyperlink_range(get_attr(n, "ref")))]
+    foreach(r -> _delete_hyperlink_node!(xf, sheet_path, r), refs)
+    return !isempty(refs)
 end
 
 # ===========================================================================
 # Helpers
 # ===========================================================================
 
-_hyperlink_cellref(ref::AbstractString)::CellRef = _single_cellref(ref, "Hyperlinks")
+# A cell (`"B2"`) or a range of cells (`"A1:C3"`), as a range.
+function _hyperlink_ref(ref::AbstractString)::CellRange
+    is_valid_cellname(ref) && return CellRange(CellRef(ref), CellRef(ref))
+    is_valid_cellrange(ref) && return CellRange(ref)
+    throw(XLSXError("Invalid cell or range reference: `$ref`."))
+end
+
+# A one-cell range is written as the cell, as Excel writes it.
+_hyperlink_refstring(rng::CellRange)::String = rng.start == rng.stop ? string(rng.start) : string(rng)
+
+# Give the link's text to the range's top-left cell, if it is empty, and the
+# link font to every empty cell in the range, as Excel does. Cells holding a
+# value keep it and their formatting.
+function _hyperlink_cell_text!(s::Worksheet, rng::CellRange, text::AbstractString)
+    font_of = Dict{UInt32,UInt32}()   # each empty cell's style, and that style with the link font
+    for ref in [ref for ref in rng if getcell(s, ref) isa EmptyCell]
+        s[ref] = ref == rng.start ? text : missing
+        cell = getcell(s, ref)
+        old = cell.style
+        if haskey(font_of, old)
+            cell.style = font_of[old]
+        else
+            setFont(s, ref; color=HYPERLINK_FONT_COLOR, under="single")
+            font_of[old] = getcell(s, ref).style
+        end
+    end
+    return nothing
+end
 
 _hyperlink_range(ref::AbstractString)::CellRange =
     is_valid_cellname(ref) ? CellRange(CellRef(ref), CellRef(ref)) : CellRange(ref)

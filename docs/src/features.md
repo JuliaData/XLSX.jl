@@ -20,7 +20,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Formulas, with their cached values | formula bar | [`XLSX.getFormula`](@ref), `sheet["A1"]` for the value | [`XLSX.setFormula`](@ref), with `value` | — | [Using Formulas](formulae/formulas.md) |
 | Named ranges | *Formulas → Name Manager* | [`XLSX.getDefinedNames`](@ref), [`XLSX.getAllDefinedNames`](@ref) | [`XLSX.addDefinedName`](@ref) | [`XLSX.deleteDefinedName`](@ref), [`XLSX.deleteAllDefinedNames`](@ref) | [Named ranges](formulae/namedRanges.md) |
 | Data validation and drop-downs | *Data → Data Validation* | [`XLSX.getDataValidations`](@ref), [`XLSX.getDataValidation`](@ref) | [`XLSX.addDataValidation`](@ref) | [`XLSX.deleteDataValidation`](@ref) | [Data validation](sheets/dataValidation.md) |
-| AutoFilter buttons | *Data → Filter* | [`XLSX.getAutoFilter`](@ref) | [`XLSX.setAutoFilter`](@ref) | [`XLSX.removeAutoFilter`](@ref) | [Filtering](sheets/autoFilter.md) |
+| AutoFilter buttons, filter criteria and sorting | *Data → Filter*, *Data → Sort* | [`XLSX.getAutoFilter`](@ref) | [`XLSX.setAutoFilter`](@ref), with `filters` and `sort` | [`XLSX.removeAutoFilter`](@ref) | [Filtering](sheets/autoFilter.md) |
 | Error values (`#N/A`, `#DIV/0!`, …) | — | [`XLSX.iserror`](@ref), [`XLSX.geterror`](@ref) | — | — | [Error Values](@ref) (API) |
 | Ignoring error-checking warnings | green triangle → *Ignore Error* | [`XLSX.getIgnoredErrors`](@ref) | [`XLSX.setIgnoredErrors`](@ref) | [`XLSX.removeIgnoredErrors`](@ref) | [Ignoring error-checking warnings](@ref) |
 
@@ -56,9 +56,9 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Images (PNG, JPEG, GIF) | *Insert → Pictures* | [`XLSX.getImages`](@ref) | [`XLSX.addImage`](@ref) | [`XLSX.deleteImage`](@ref) | [Images](@ref) |
 | Pictures in cells (Excel 365) | *Insert → Pictures → Place in Cell* | [`XLSX.getCellImage`](@ref), [`XLSX.getCellImages`](@ref) | [`XLSX.CellImage`](@ref) written to a cell, [`XLSX.addImage`](@ref) with `inCell=true` | [`XLSX.deleteImage`](@ref) | [Pictures in cells](@ref) |
 | Text boxes and shapes | *Insert → Text Box*, *Insert → Shapes* | [`XLSX.getShapes`](@ref) | [`XLSX.addTextBox`](@ref), [`XLSX.addShape`](@ref) | [`XLSX.deleteShape`](@ref) | [Text boxes and shapes](sheets/shapes.md) |
-| Hyperlinks | *Insert → Link* | [`XLSX.getHyperlink`](@ref), [`XLSX.getHyperlinks`](@ref) | [`XLSX.addHyperlink`](@ref) (single cells) | [`XLSX.deleteHyperlink`](@ref) | [Hyperlinks](@ref) |
+| Hyperlinks | *Insert → Link* | [`XLSX.getHyperlink`](@ref), [`XLSX.getHyperlinks`](@ref) | [`XLSX.addHyperlink`](@ref) | [`XLSX.deleteHyperlink`](@ref) | [Hyperlinks](@ref) |
 | Comments (notes) | *Review → Notes* | [`XLSX.getComment`](@ref), [`XLSX.getComments`](@ref) | [`XLSX.addComment`](@ref) | [`XLSX.deleteComment`](@ref) | [Comments](@ref) |
-| Threaded comments | *Review → New Comment* | [`XLSX.getThreadedComment`](@ref), [`XLSX.getThreadedComments`](@ref) | — | — | [Threaded comments](@ref) |
+| Threaded comments | *Review → New Comment* | [`XLSX.getThreadedComment`](@ref), [`XLSX.getThreadedComments`](@ref) | [`XLSX.addThreadedComment`](@ref), [`XLSX.addThreadedReply`](@ref), [`XLSX.setThreadedCommentResolved`](@ref) | [`XLSX.deleteThreadedComment`](@ref) | [Threaded comments](@ref) |
 
 ### Worksheets, protection and printing
 
@@ -78,10 +78,8 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 | Feature | Notes |
 |:--------|:------|
 | Calculating formulas | [`XLSX.setFormula`](@ref) writes the formula, and Excel recalculates it when the file is opened. Its value reads as `missing` until then, unless you give the value yourself: see [Cached values](@ref). |
-| Sorting data, or setting filter criteria | [`XLSX.setAutoFilter`](@ref) adds the filter buttons only. Sort the data in Julia before writing it. |
-| Writing threaded comments | They can be read. Write a note with [`XLSX.addComment`](@ref) instead. |
+| Filtering by colour or by icon | [`XLSX.setAutoFilter`](@ref) filters by values, conditions, top or bottom items, the average and dates. |
 | Creating region map charts, and some chart subtypes | See the charts [Limitations](charts/chartLimitations.md). |
-| Hyperlinks on a range of cells | They can be read and deleted, but [`XLSX.addHyperlink`](@ref) adds links to single cells. |
 | Pivot tables and slicers | No functions to create or edit them. |
 | Shapes filled with pictures, connectors, grouped shapes and SmartArt | [`XLSX.addShape`](@ref) adds single preset shapes with text, fill and border. |
 | Pictures in headers and footers | [`XLSX.setHeaderFooter`](@ref) sets their text, fields and fonts only. |

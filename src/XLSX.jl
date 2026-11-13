@@ -63,6 +63,7 @@ export
     addsheet!, renamesheet!, copysheet!, deletesheet!, movesheet!,
     addImage, deleteImage, CellImage, addTextBox, addShape, deleteShape,
     addComment, deleteComment,
+    addThreadedComment, addThreadedReply, setThreadedCommentResolved, deleteThreadedComment,
     addHyperlink, deleteHyperlink,
     addDataValidation, deleteDataValidation,
     # Cells & data
@@ -168,9 +169,11 @@ include("conditionalformats/databar.jl")
 include("conditionalformats/clear.jl")
 include("images.jl")
 include("comments.jl")
+include("threadedcomments.jl")
 include("hyperlinks.jl")
 include("datavalidation.jl")
 include("autofilter.jl")
+include("filtersort.jl")
 include("sheetsettings.jl")
 include("ignorederrors.jl")
 include("sparklines.jl")

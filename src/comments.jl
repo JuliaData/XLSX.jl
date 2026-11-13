@@ -11,8 +11,9 @@
 # form controls that must survive untouched. Only note shapes are added or
 # removed, by string surgery.
 #
-# Threaded comments (Excel 365) are not written. A cell that already has one is
-# refused rather than silently desynchronised from its legacy fallback note.
+# Threaded comments (Excel 365) are in threadedcomments.jl. Their cells also have
+# a note, which Excel shows to older versions; `addComment` and `deleteComment`
+# refuse those cells, so a thread and its note can't disagree.
 # ===========================================================================
 
 const REL_COMMENTS =
@@ -77,10 +78,9 @@ XLSX.addComment(sheet, 5, 2, "Line one\\nLine two"; visible=true)
 
 !!! note
 
-    Excel 365 also has *threaded comments*. These are not written by XLSX.jl;
-    read them with [`getThreadedComments`](@ref).
-    Every version of Excel shows the notes written here. Trying to replace or
-    delete a threaded comment that already exists in a file throws an error.
+    Excel 365 also has *threaded comments*: see [`addThreadedComment`](@ref).
+    Every version of Excel shows the notes written here. A cell has either a note
+    or a threaded comment, so a cell with a thread is refused.
 
 See also [`getComment`](@ref), [`getComments`](@ref), [`deleteComment`](@ref).
 """
@@ -106,17 +106,23 @@ function addComment(
     sheet_path = _sheet_path(s)
     r          = string(ref)
     _refuse_threaded(xf, sheet_path, r)
+    _put_note!(xf, sheet_path, ref, author, text; width, height, visible)
+    return CommentInfo((s.name, r, String(author), String(text)))
+end
 
+# Write the note on `ref`: its text in the comments part and its box in the VML
+# drawing. `uid` marks the note Excel keeps for a threaded comment, with that id.
+function _put_note!(xf::XLSXFile, sheet_path::String, ref::CellRef, author::AbstractString, text::AbstractString;
+                    width::Integer=144, height::Integer=79, visible::Bool=false, uid=nothing)
     comments_path = ensure_comments!(xf, sheet_path)
-    _set_comment_xml!(xf, comments_path, r, author, text)
+    _set_comment_xml!(xf, comments_path, string(ref), author, text; uid)
 
     vml_path = ensure_legacy_vml!(xf, sheet_path)
     vml      = _vml_string(xf, vml_path)
     vml      = _remove_note_shape(vml, row_number(ref) - 1, column_number(ref) - 1)
     vml      = _add_note_shape(xf, vml, ref; width, height, visible)
     xf.binary_data[vml_path] = Vector{UInt8}(codeunits(vml))
-
-    return CommentInfo((s.name, r, String(author), String(text)))
+    return nothing
 end
 
 """
@@ -173,110 +179,6 @@ function getComments(xf::XLSXFile)::Vector{CommentInfo}
     return reduce(vcat, (getComments(getsheet(wb, i)) for i in 1:sheetcount(wb)); init=CommentInfo[])
 end
 
-# ===========================================================================
-# Threaded comments (read only)
-# ===========================================================================
-
-const REL_PERSON = "http://schemas.microsoft.com/office/2017/10/relationships/person"
-
-const ThreadedReply = NamedTuple{(:author, :text, :date), Tuple{String, String, Union{Nothing,Dates.DateTime}}}
-
-const ThreadedCommentInfo = NamedTuple{
-    (:sheet, :ref, :author, :text, :date, :resolved, :replies),
-    Tuple{String, String, String, String, Union{Nothing,Dates.DateTime}, Bool, Vector{ThreadedReply}},
-}
-
-"""
-    getThreadedComments(s::Worksheet) -> Vector{NamedTuple}
-    getThreadedComments(xf::XLSXFile) -> Vector{NamedTuple}
-
-Return the threaded comments (Excel 365's comments, as opposed to notes) on a
-worksheet, or in every worksheet of a workbook: one `NamedTuple` per thread,
-`(sheet, ref, author, text, date, resolved, replies)`. `author` is the person's
-display name, `date` a `DateTime` (or `nothing` if the file gives none), and
-`resolved` whether the thread is marked resolved. `replies` holds the replies, in
-order, each as `(author, text, date)`.
-
-Threaded comments can be read from any file, but not changed. [`getComment`](@ref)
-returns, for a cell with a threaded comment, the note Excel stores alongside it for
-older versions of Excel.
-
-See also [`getThreadedComment`](@ref).
-"""
-function getThreadedComments(s::Worksheet)::Vector{ThreadedCommentInfo}
-    is_chartsheet(get_workbook(s), s.name) && return ThreadedCommentInfo[]
-    xf = get_xlsxfile(s)
-    people = _threaded_comment_people(xf)
-    out = ThreadedCommentInfo[]
-    for (_, path) in _sheet_rel_targets(xf, _sheet_path(s), REL_THREADED_COMMENT)
-        _part_exists(xf, path) || continue
-        nodes = elements_with_tag(xml_root_element(get_xml_data(xf, path)), "threadedComment")
-        replies = Dict{String,Vector{ThreadedReply}}()
-        for n in nodes
-            parent = get_attr(n, "parentId", "")
-            isempty(parent) && continue
-            push!(get!(Vector{ThreadedReply}, replies, parent),
-                  ThreadedReply((get(people, get_attr(n, "personId"), ""), _threaded_text(n), _threaded_date(n))))
-        end
-        for n in nodes
-            isempty(get_attr(n, "parentId", "")) || continue
-            push!(out, ThreadedCommentInfo((s.name, get_attr(n, "ref"), get(people, get_attr(n, "personId"), ""),
-                                            _threaded_text(n), _threaded_date(n), get_attr(n, "done", "0") in ("1", "true"),
-                                            get(replies, get_attr(n, "id"), ThreadedReply[]))))
-        end
-    end
-    return out
-end
-
-function getThreadedComments(xf::XLSXFile)::Vector{ThreadedCommentInfo}
-    wb = get_workbook(xf)
-    return reduce(vcat, (getThreadedComments(getsheet(wb, i)) for i in 1:sheetcount(wb)); init=ThreadedCommentInfo[])
-end
-
-"""
-    getThreadedComment(s::Worksheet, ref) -> Union{Nothing, NamedTuple}
-    getThreadedComment(s::Worksheet, row::Integer, col::Integer) -> Union{Nothing, NamedTuple}
-
-Return the threaded comment on the given cell, as [`getThreadedComments`](@ref)
-does, or `nothing` if the cell has none.
-"""
-getThreadedComment(s::Worksheet, row::Integer, col::Integer) = getThreadedComment(s, CellRef(row, col))
-getThreadedComment(s::Worksheet, ref::AbstractString) = getThreadedComment(s, _comment_cellref(ref))
-function getThreadedComment(s::Worksheet, ref::CellRef)::Union{Nothing,ThreadedCommentInfo}
-    r = string(ref)
-    i = findfirst(c -> c.ref == r, getThreadedComments(s))
-    return isnothing(i) ? nothing : getThreadedComments(s)[i]
-end
-
-_part_exists(xf::XLSXFile, path::String) = haskey(xf.data, path) || get(xf.files, path, false)
-
-# The workbook's people (who wrote threaded comments): id => display name.
-function _threaded_comment_people(xf::XLSXFile)::Dict{String,String}
-    wb = get_workbook(xf)
-    has_relationship_by_type(wb, REL_PERSON) || return Dict{String,String}()
-    path = get_relationship_target_by_type("xl", wb, REL_PERSON)
-    _part_exists(xf, path) || return Dict{String,String}()
-    return Dict(get_attr(p, "id") => get_attr(p, "displayName")
-                for p in elements_with_tag(xml_root_element(get_xml_data(xf, path)), "person"))
-end
-
-function _threaded_text(n::XML.Node)::String
-    t = first_element_with_tag(n, "text")
-    isnothing(t) && return ""
-    return something(XML.is_simple_value(t), join((something(XML.value(c), "") for c in XML.children(t)), ""))
-end
-
-function _threaded_date(n::XML.Node)::Union{Nothing,Dates.DateTime}
-    d = get_attr(n, "dT", "")
-    isempty(d) && return nothing
-    d = rstrip(d, 'Z')
-    m = match(r"^(.*T\d\d:\d\d:\d\d)(?:\.(\d+))?$", d)
-    isnothing(m) && return nothing
-    t = tryparse(Dates.DateTime, m[1])
-    (isnothing(t) || isnothing(m[2])) && return t
-    return t + Dates.Millisecond(round(Int, parse(Float64, "0." * m[2]) * 1000))
-end
-
 """
     deleteComment(s::Worksheet, ref)
     deleteComment(s::Worksheet, row::Integer, col::Integer)
@@ -293,9 +195,14 @@ function deleteComment(s::Worksheet, ref::CellRef)::Bool
     _require_worksheet(s, "delete a comment")
     xf         = get_xlsxfile(s)
     sheet_path = _sheet_path(s)
-    r          = string(ref)
-    _refuse_threaded(xf, sheet_path, r)
+    _refuse_threaded(xf, sheet_path, string(ref))
+    return _remove_note!(xf, sheet_path, ref)
+end
 
+# Remove the note on `ref`, its box, and the parts if it was the sheet's last.
+# Return whether there was one.
+function _remove_note!(xf::XLSXFile, sheet_path::String, ref::CellRef)::Bool
+    r = string(ref)
     comments_path = _comments_path(xf, sheet_path)
     isnothing(comments_path) && return false
     root = xml_root_element(get_xml_data(xf, comments_path))
@@ -380,7 +287,7 @@ function _refuse_threaded(xf::XLSXFile, sheet_path::String, ref::String)
         haskey(xf.data, path) || continue
         root = xml_root_element(get_xml_data(xf, path))
         any(n -> get_attr(n, "ref") == ref, elements_with_tag(root, "threadedComment")) &&
-            throw(XLSXError("Cell $ref has a threaded comment, which XLSX.jl cannot change. Edit it in Excel."))
+            throw(XLSXError("Cell $ref has a threaded comment. Change it with `addThreadedReply` or `deleteThreadedComment`."))
     end
     return nothing
 end
@@ -440,7 +347,8 @@ function _comment_text(c::XML.Node)::String
     return String(take!(io))
 end
 
-function _set_comment_xml!(xf::XLSXFile, path::String, ref::String, author::AbstractString, text::AbstractString)
+function _set_comment_xml!(xf::XLSXFile, path::String, ref::String, author::AbstractString, text::AbstractString;
+                           uid=nothing)
     root = xml_root_element(get_xml_data(xf, path))
     pfx  = _root_prefix(root)
     tag(name) = prefixed_tag(pfx, name)
@@ -464,22 +372,25 @@ function _set_comment_xml!(xf::XLSXFile, path::String, ref::String, author::Abst
         insert!(XML.children(root), j + 1, list)
     end
 
-    # Excel's own note font: Tahoma 9pt in the "comment text" indexed colour.
-    # Child order follows CT_RPrElt.
-    comment = XML.Element(tag("comment"),
-        XML.Element(tag("text"),
-            XML.Element(tag("r"),
-                XML.Element(tag("rPr"),
-                    XML.Element(tag("rFont"); val="Tahoma"),
-                    XML.Element(tag("family"); val="2"),
-                    XML.Element(tag("color"); indexed="81"),
-                    XML.Element(tag("sz"); val="9"),
-                ),
-                XML.Element(tag("t"), XML.Text(String(text)); var"xml:space"="preserve"),
-            ),
-        );
-        ref = ref, authorId = string(id - 1),
-    )
+    t = XML.Element(tag("t"), XML.Text(String(text)); var"xml:space"="preserve")
+    if isnothing(uid)
+        # Excel's own note font: Tahoma 9pt in the "comment text" indexed colour.
+        # Child order follows CT_RPrElt.
+        rpr = XML.Element(tag("rPr"),
+            XML.Element(tag("rFont"); val="Tahoma"),
+            XML.Element(tag("family"); val="2"),
+            XML.Element(tag("color"); indexed="81"),
+            XML.Element(tag("sz"); val="9"),
+        )
+        comment = XML.Element(tag("comment"), XML.Element(tag("text"), XML.Element(tag("r"), rpr, t));
+                              ref = ref, authorId = string(id - 1))
+    else
+        # A thread's note, as Excel writes it: plain text, tied to the thread by its id.
+        xr = _ignorable_ns!(root, "xr", NS_XR)
+        comment = XML.Element(tag("comment"), XML.Element(tag("text"), t);
+                              ref = ref, authorId = string(id - 1), shapeId = "0")
+        comment["$xr:uid"] = uid
+    end
 
     kids = XML.children(list)
     i = findfirst(c -> XML.nodetype(c) == XML.Element && localname(c) == "comment" && get_attr(c, "ref") == ref, kids)

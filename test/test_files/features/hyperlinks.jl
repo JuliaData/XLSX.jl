@@ -22,8 +22,8 @@
             SAVE_FILES && save_outfile(xf)
         end
         xf, s = fresh()
-        @test_throws XLSX.XLSXError XLSX.addHyperlink(s, "A1:B2"; url=URL)
         @test_throws XLSX.XLSXError XLSX.addHyperlink(s, "notacell"; url=URL)
+        @test_throws XLSX.XLSXError XLSX.getHyperlink(s, "A1:B2")
         @test isnothing(XLSX.getHyperlink(s, "A1"))
         @test isempty(XLSX.getHyperlinks(s))
     end
@@ -120,16 +120,49 @@
     end
 
     @testset "a link on a range of cells" begin
-        # Excel can write a link covering a range; XLSX.jl reads and deletes one.
         xf, s = fresh()
-        XLSX.addHyperlink(s, "C1"; location="Data!A1")
+        s["D2"] = 7
+        info = XLSX.addHyperlink(s, "C1:D2"; url=URL, display="Julia", tooltip="tip")
+        @test info.ref == "C1:D2"
         block = XLSX.first_element_with_tag(XLSX.xml_root_element(xf.data["xl/worksheets/sheet1.xml"]), "hyperlinks")
-        only(XLSX.elements_with_tag(block, "hyperlink"))["ref"] = "C1:D2"
-        @test XLSX.getHyperlink(s, "D2").ref == "C1:D2"
+        @test only(XLSX.elements_with_tag(block, "hyperlink"))["ref"] == "C1:D2"   # one link, as Excel writes it
+        @test length(rels(xf, "xl/worksheets/_rels/sheet1.xml.rels")) == 1
+        @test XLSX.getHyperlink(s, "D2") == info
         @test isnothing(XLSX.getHyperlink(s, "E2"))
+
+        # As Excel does: the text in the top-left cell, the link font on the empty cells
+        @test s["C1"] == "Julia"
+        @test ismissing(s["D1"]) && ismissing(s["C2"])
+        @test s["D2"] == 7
+        for ref in ("C1", "D1", "C2")
+            @test haskey(XLSX.getFont(s, ref).font, "u")
+        end
+        @test XLSX.getcell(s, "D1").style == XLSX.getcell(s, "C2").style
+        @test isnothing(XLSX.getFont(s, "D2")) || !haskey(XLSX.getFont(s, "D2").font, "u")   # a value keeps its format
+
+        # Overlapping links are refused; the same range is replaced
         @test_throws XLSX.XLSXError XLSX.addHyperlink(s, "D1"; url=URL)
+        @test_throws XLSX.XLSXError XLSX.addHyperlink(s, "B2:C3"; url=URL)
+        XLSX.addHyperlink(s, "C1:D2"; location="Data!A1")
+        @test XLSX.getHyperlinks(s) == [(sheet="Data", ref="C1:D2", url=nothing, location="Data!A1", display=nothing, tooltip=nothing)]
+        @test isempty(rels(xf, "xl/worksheets/_rels/sheet1.xml.rels"))
+        @test s["C1"] == "Julia"   # no longer empty
+
+        # By CellRange, and a one-cell range is written as the cell
+        @test XLSX.addHyperlink(s, XLSX.CellRange("F1:F3"); url=URL).ref == "F1:F3"
+        @test XLSX.addHyperlink(s, "H1:H1"; url=URL).ref == "H1"
+        @test XLSX.getHyperlink(s, "F2").ref == "F1:F3"
+
+        # Deleting by a cell removes the whole range's link; by a range, every link it overlaps
         @test XLSX.deleteHyperlink(s, "D2")
+        @test [h.ref for h in XLSX.getHyperlinks(s)] == ["F1:F3", "H1"]
+        @test !XLSX.deleteHyperlink(s, "A5:B9")
+        @test XLSX.deleteHyperlink(s, "F1:H3")
         @test isempty(XLSX.getHyperlinks(s))
+
+        XLSX.addHyperlink(s, "A10:B11"; url=URL)
+        @test XLSX.getHyperlink(roundtrip(xf)["Data"], "B11").ref == "A10:B11"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "round trip, read-only, with and without the cache" begin

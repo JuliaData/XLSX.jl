@@ -35,8 +35,12 @@ XLSX.addComment
 XLSX.getComment
 XLSX.getComments
 XLSX.deleteComment
+XLSX.addThreadedComment
+XLSX.addThreadedReply
+XLSX.setThreadedCommentResolved
 XLSX.getThreadedComment
 XLSX.getThreadedComments
+XLSX.deleteThreadedComment
 ```
 
 ## Hyperlink functions

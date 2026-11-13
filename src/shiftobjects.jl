@@ -19,7 +19,7 @@
 # Comments (notes) are in the comments part, by cell, with a box in the sheet's VML
 # drawing whose `<x:Row>`/`<x:Column>` name the cell and whose `<x:Anchor>` places
 # it. A comment on a deleted cell is deleted. Threaded comments (Excel 365) are
-# moved, but one on a deleted cell is refused: XLSX.jl can't change them.
+# moved, but one on a deleted cell is refused: delete it with `deleteThreadedComment`.
 # ===========================================================================
 
 # Where a marker in 1-based row (column) `p` goes: its new row (column), and
@@ -108,7 +108,7 @@ end
 # --- comments
 
 # Comments on the cells edit `e` deletes. A threaded one is refused, before
-# anything changes: XLSX.jl can't change them.
+# anything changes, so a conversation isn't lost by accident.
 function _comments_deleted_by(ws::Worksheet, e::RowColEdit)::Vector{CellRef}
     e.count < 0 || return CellRef[]
     xf = get_xlsxfile(ws)
@@ -117,7 +117,7 @@ function _comments_deleted_by(ws::Worksheet, e::RowColEdit)::Vector{CellRef}
         haskey(xf.data, path) || continue
         for n in elements_with_tag(xml_root_element(get_xml_data(xf, path)), "threadedComment")
             isnothing(_shift_cellref(CellRef(get_attr(n, "ref")), e)) &&
-                throw(XLSXError("Cannot delete cell $(get_attr(n, "ref")) on sheet `$(ws.name)`: it has a threaded comment, which XLSX.jl cannot change. Delete it in Excel first."))
+                throw(XLSXError("Cannot delete cell $(get_attr(n, "ref")) on sheet `$(ws.name)`: it has a threaded comment. Delete it first with `deleteThreadedComment`."))
         end
     end
     comments_path = _comments_path(xf, sheet_path)

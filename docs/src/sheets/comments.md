@@ -48,24 +48,39 @@ XLSX.deleteComment(sheet, "B3")   # true
 
 Excel 365 also has *threaded comments*, which hold a conversation: a comment and
 its replies, each with its author and date, and the thread can be marked
-resolved. [`XLSX.getThreadedComments`](@ref) and
-[`XLSX.getThreadedComment`](@ref) read them:
+resolved. [`XLSX.addThreadedComment`](@ref) starts a thread on a cell and
+[`XLSX.addThreadedReply`](@ref) adds to it. [`XLSX.setThreadedCommentResolved`](@ref)
+marks a thread resolved, or reopens it with `false`:
 
 ```julia
+XLSX.addThreadedComment(sheet, "B3", "Is this right?"; author="Ana")
+XLSX.addThreadedReply(sheet, "B3", "Yes, checked."; author="Ben")
+XLSX.setThreadedCommentResolved(sheet, "B3")
+```
+
+Each `author` becomes one of the workbook's people, which Excel shows by name.
+The date of each comment is the time it was added, in UTC, unless `date` gives
+another. [`XLSX.getThreadedComments`](@ref) and [`XLSX.getThreadedComment`](@ref)
+read the threads back:
+
+```jldoctest threads; setup = :(import XLSX; sheet = XLSX.newxlsx("Summary")[1]; XLSX.addThreadedComment(sheet, "B3", "Is this right?"; author="Ana"); XLSX.addThreadedReply(sheet, "B3", "Yes, checked."; author="Ben"); XLSX.setThreadedCommentResolved(sheet, "B3"))
 julia> t = XLSX.getThreadedComment(sheet, "B3");
 
 julia> t.author, t.text, t.resolved
-("Ana", "Is this right?", false)
+("Ana", "Is this right?", true)
 
 julia> [(r.author, r.text) for r in t.replies]
 1-element Vector{Tuple{String, String}}:
  ("Ben", "Yes, checked.")
 ```
 
-XLSX.jl reads threaded comments but doesn't write them. For a cell that has one,
-`getComment` returns the plain note Excel stores alongside it for older versions
-of Excel. Replacing or deleting a threaded comment throws an error rather than
-leaving the two out of step.
+[`XLSX.deleteThreadedComment`](@ref) removes a thread with all its replies.
+
+A cell has either a note or a thread, not both. For a cell with a thread, Excel
+also stores a note holding the conversation as text, for versions of Excel
+without threads. XLSX.jl writes that note too, and keeps it up to date as replies
+are added. `getComment` returns it, but `addComment` and `deleteComment` refuse a
+cell with a thread, so that the two can't get out of step.
 
 ## See also
 
