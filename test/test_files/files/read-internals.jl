@@ -335,6 +335,93 @@ end
     end
 end
 
+# A read-only file fills each sheet's cache, and loads the shared strings, on first
+# read. Reading its sheets from several tasks at once must give what reading them one
+# by one gives, with each sheet filled once and every stub swapped in.
+@testset "first reads from several tasks at once" begin
+    # Every cell's value, by row and column.
+    sheet_values(ws) = Dict((XLSX.row_number(c), XLSX.column_number(c)) => XLSX.getdata(ws, c)
+                            for r in XLSX.eachrow(ws) for c in values(r.rowcells))
+    for file in ("general.xlsx", "strict.xlsx", "book_1904_ptbr.xlsx", "TestData.xlsx", "Bom - issue243.xlsx")
+        path = joinpath(data_directory, file)
+        wb = XLSX.get_workbook(XLSX.readxlsx(path))
+        names = [s.name for s in wb.sheets if !XLSX.is_chartsheet(wb, s.name)]
+        xf = XLSX.readxlsx(path)
+        expected = Dict(n => sheet_values(xf[n]) for n in names)
+
+        xf = XLSX.readxlsx(path)
+        @test !(@atomic XLSX.get_sst(XLSX.get_workbook(xf)).is_loaded)
+        # Two tasks for each sheet, so that some sheets are filled while another task waits.
+        tasks = [Threads.@spawn((n, sheet_values(xf[n]), XLSX.eachrow(xf[n]))) for n in names for _ in 1:2]
+        results = fetch.(tasks)
+        @test all(isequal(v, expected[n]) for (n, v, _) in results)   # cells may hold `missing`
+        for n in names                        # each sheet filled once: both tasks got its cache
+            caches = [c for (m, _, c) in results if m == n]
+            @test all(c -> c === xf[n].cache, caches)
+            @test xf[n].cache.is_full && !xf[n].cache.dirty
+        end
+        @test isempty(xf.sheet_stubs)
+    end
+end
+
+# A formula's text result (`t="str"`) or an inline string not in the shared string
+# table is added to it as the sheet is read. "rw" fills its sheets in parallel; the
+# strings are still added in workbook order, so the indices are those of filling one
+# sheet after another, whichever fill finishes first.
+@testset "new shared strings get the same indices" begin
+    # Every string cell's raw index and text, sheet by sheet.
+    function string_cells(xf)
+        wb = XLSX.get_workbook(xf)
+        [(ws.name, c.ref, c.value, XLSX.sst_unformatted_string(wb, reinterpret(Int64, c.value)))
+         for ws in wb.sheets if !XLSX.is_chartsheet(wb, ws.name)
+         for r in XLSX.eachrow(ws) for c in values(r.rowcells) if c.datatype == XLSX.CT_STRING]
+    end
+    path = joinpath(data_directory, "general.xlsx")   # new strings on `named_ranges` and `named_ranges_2`
+    expected = sort(string_cells(XLSX.readxlsx(path)))   # "r": filled in workbook order as read
+    sst_size = length(XLSX.get_sst(XLSX.get_workbook(XLSX.openxlsx(path; mode = "rw"))))
+    @test any(e -> e[4] == "out there in the cold", expected) && any(e -> e[4] == "Hey You", expected)
+    @test all(e -> reinterpret(Int64, e[3]) < XLSX._PENDING_SST_BASE, expected)
+    for _ in 1:50
+        xf = XLSX.openxlsx(path; mode = "rw")
+        @test sort(string_cells(xf)) == expected
+        @test length(XLSX.get_sst(XLSX.get_workbook(xf))) == sst_size
+    end
+    @test XLSX._FILLS_COLLECTING[] == 0
+
+    # A workbook with no table: the strings make one once the fill is done.
+    xf = XLSX.newxlsx()
+    s = xf[1]
+    s["A1"] = 1
+    XLSX.writexlsx("no_sst.xlsx", xf; overwrite = true)
+    bytes = read("no_sst.xlsx")
+    zr = ZipReader(bytes)
+    out = IOBuffer()
+    ZipWriter(out) do w
+        for n in zip_names(zr)
+            occursin("sharedStrings", n) && continue
+            data = zip_readentry(zr, n, String)
+            if n == "xl/worksheets/sheet1.xml"
+                data = replace(data, r"<sheetData>.*</sheetData>"s =>
+                    "<sheetData><row r=\"1\"><c r=\"A1\" t=\"str\"><f>\"a\"&amp;\"b\"</f><v>ab</v></c>" *
+                    "<c r=\"B1\" t=\"inlineStr\"><is><t>inline</t></is></c><c r=\"C1\" t=\"str\"><f>A1</f><v>ab</v></c></row></sheetData>")
+            elseif n == "xl/_rels/workbook.xml.rels"
+                data = replace(data, r"<Relationship [^>]*sharedStrings[^>]*/>" => "")
+            elseif n == "[Content_Types].xml"
+                data = replace(data, r"<Override [^>]*sharedStrings[^>]*/>" => "")
+            end
+            zip_newfile(w, n; compress = true)
+            write(w, data)
+        end
+    end
+    book = take!(out)
+    for open in (b -> XLSX.readxlsx(IOBuffer(b)), b -> XLSX.openxlsx(IOBuffer(b); mode = "rw"))
+        xf = open(book)
+        @test xf[1]["A1"] == "ab" && xf[1]["B1"] == "inline" && xf[1]["C1"] == "ab"
+        @test XLSX.get_sst(XLSX.get_workbook(xf)).unformatted == ["ab", "inline"]
+    end
+    rm("no_sst.xlsx")
+end
+
 # The cache fill reads each `<c>` in the same cursor walk as its children (#462). It
 # must build exactly the cells `Cell(::LazyNode, …)` builds from the same XML.
 

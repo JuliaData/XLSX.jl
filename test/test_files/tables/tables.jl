@@ -789,6 +789,56 @@ end
         # was an UndefVarError (`ws` in the message)
         @test_throws XLSX.XLSXError XLSX.ordinal_sheet_number(XLSX.get_workbook(sh), "nope")
     end
+
+    @testset "typed column builders match infer_eltype" begin
+        # A typed column must end as a `Vector{Any}` of the same values would after
+        # `infer_eltype` and `convert`: same element type, values and value types.
+        function check_builder(vals)
+            col = XLSX._new_column(true)
+            for v in vals
+                col = XLSX._push_column!(col, v)
+            end
+            got = XLSX._finish_column(col)
+            anyv = Any[vals...]
+            T = XLSX.infer_eltype(anyv)
+            want = T === Any ? anyv : convert(Vector{T}, anyv)
+            return eltype(got) == eltype(want) && isequal(got, want) &&
+                   all(typeof(a) == typeof(b) for (a, b) in zip(got, want))
+        end
+        d, dt, tm = Dates.Date(2024, 1, 2), Dates.DateTime(2024, 1, 2, 3), Dates.Time(4, 5)
+        cases = [
+            Any[1.5, 2.5], Any[missing, 1.5], Any[1.5, missing], Any[missing, missing], Any[],
+            Any["a", missing, "b"], Any[1, 2], Any[1, 2.5], Any[1, 2.5, "x"], Any[true, 1], Any[true, false],
+            Any[d, dt], Any[d, missing, dt], Any[tm, 1.5], Any[1, 2.5, "a", true, d],
+            Any[missing, 1, 2.5, "a", true, d, dt, tm], Any[Int32(1), 2], Any[Int32(1), "a"],
+            Any[missing, missing, 1.5, 2.5, "a"], Any["a", 1, missing, 2.5],
+        ]
+        for vals in cases
+            @test check_builder(vals)
+        end
+        # Mixed values are kept as read, not promoted on the way to `Any`
+        col = XLSX._new_column(true)
+        for v in (1, 2.5, "x")
+            col = XLSX._push_column!(col, v)
+        end
+        @test XLSX._finish_column(col)[1] === 1
+        # A column that is already typed right is returned, not copied
+        col = XLSX._push_column!(XLSX._push_column!(XLSX._new_column(true), missing), 1.5)
+        @test XLSX._finish_column(col) === col
+        # infer_eltypes=false columns are `Vector{Any}` throughout
+        col = XLSX._new_column(false)
+        @test XLSX._push_column!(col, 1.5) === col && eltype(col) == Any
+
+        # End to end, through both gettable loops
+        io = IOBuffer()
+        XLSX.writetable(io, Any[[1, 2.5, 3], [1.5, missing, 2.5], Any["a", 1, true]], ["n", "m", "x"])
+        bytes = take!(io)
+        for stop in (nothing, r -> false), infer in (true, false)
+            t = XLSX.readtable(IOBuffer(bytes), "Sheet1"; infer_eltypes=infer, stop_in_row_function=stop)
+            @test eltype.(t.data) == (infer ? [Float64, Union{Missing,Float64}, Any] : [Any, Any, Any])
+            @test isequal(t.data[3], Any["a", 1, true]) && t.data[3][2] isa Int64
+        end
+    end
 end
 
 @testset "writetable" begin

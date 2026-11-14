@@ -19,9 +19,70 @@ function _axis_node(c::Chart, root::XML.Node, ax::ChartAxis)
     throw(XLSXError("Chart `$(c.name)` has no axis with axId $(ax.axid)."))
 end
 
+_axis_node(c::Chart, root::XML.Node, sel::Symbol) = _axis_node(c, root, _resolve_axis(c, root, sel))
+
 # The axis's node in the current part, for getters. Setters call _axis_node with
 # the root they will rebuild instead.
-_axnode(c::Chart, ax::ChartAxis) = _axis_node(c, chart_root(c), ax)
+_axnode(c::Chart, ax::AxisRef) = _axis_node(c, chart_root(c), ax)
+
+const _AXIS_PLACES = (:x, :y, :x2, :y2, :z)
+
+_axis_list(root::XML.Node) =
+    [parse_chart_axis(el) for el in _plotarea_children(root) if localname(el) in AXIS_TAGS]
+
+_axis_desc(ax::ChartAxis) =
+    "$(ax.kind) at $(something(ax.pos, "?")), axId $(something(ax.axid, "?"))" *
+    (ax.deleted ? " (deleted)" : "")
+
+# Resolve a selector to one axis of `root`; see getChartAxis(c, ::Symbol).
+function _resolve_axis(c::Chart, root::XML.Node, sel::Symbol)::ChartAxis
+    axes = _axis_list(root)
+    if haskey(AXIS_ROLES, sel)
+        tag  = AXIS_ROLES[sel]
+        hits = [ax for ax in axes if String(ax.kind) == tag]
+        length(hits) == 1 && return only(hits)
+        throw(XLSXError(isempty(hits) ?
+            "Chart `$(c.name)` has no :$sel axis." :
+            "Chart `$(c.name)` has $(length(hits)) :$sel axes (" *
+            join(_axis_desc.(hits), "; ") * "), so `:$sel` is ambiguous. " *
+            "Name the axis by where it is drawn instead: `:x`, `:y`, `:x2` or `:y2`."))
+    end
+    sel in _AXIS_PLACES || throw(XLSXError(
+        "Unknown axis `:$sel`. Use one of " * join((":$s" for s in _AXIS_PLACES), ", ") *
+        ", or an axis kind: :category, :value, :date, :series."))
+    isempty(axes) && throw(XLSXError(
+        "Chart `$(c.name)` has no axes" *
+        (any(n -> localname(n) in ("pieChart", "pie3DChart", "doughnutChart", "ofPieChart"),
+             _group_nodes(root)) ? "; pie and doughnut charts have none." : ".")))
+
+    # Each distinct set of axes the groups plot against, in document order: the
+    # first is the primary pair, the next the secondary.
+    sets = Vector{Int}[]
+    for g in _group_nodes(root)
+        ids = _group_axids(g)
+        isempty(ids) || any(s -> issetequal(s, ids), sets) || push!(sets, ids)
+    end
+    secondary = sel in (:x2, :y2)
+    k = secondary ? 2 : 1
+    length(sets) >= k || throw(XLSXError(
+        "Chart `$(c.name)` has no secondary axes, so it has no `:$sel` axis."))
+    mine = [ax for ax in axes if ax.axid in sets[k]]
+
+    if sel === :z
+        hits = [ax for ax in mine if ax.kind === :serAx]
+        isempty(hits) && throw(XLSXError(
+            "Chart `$(c.name)` has no depth axis (`c:serAx`); only 3-D charts have one."))
+    else
+        flat  = [ax for ax in mine if ax.kind !== :serAx]
+        horiz = sel in (:x, :x2)
+        hits  = [ax for ax in flat if (ax.pos in (:b, :t)) == horiz && !isnothing(ax.pos)]
+    end
+    length(hits) == 1 || throw(XLSXError(
+        "Chart `$(c.name)` has no single $(sel === :z ? "depth" : (sel in (:x, :x2) ? "horizontal" : "vertical")) " *
+        "axis among its $(secondary ? "secondary" : "primary") axes (" *
+        join(_axis_desc.(mine), "; ") * "). Pick one from `getChartAxes(c)`."))
+    return only(hits)
+end
 
 # c:axId and c:crossAx carry unsigned 32-bit values, which Excel writes near the
 # top of the range. Parse to Int (64-bit on every platform we support) rather
@@ -54,9 +115,11 @@ so this returns a vector rather than one axis.
 
 Axes with `c:delete val="1"` are included. Excel does not draw them, but they
 remain in the XML and remain formattable — check `ax.deleted` to skip them.
+
+To pick out one axis, [`getChartAxis`](@ref)`(c, :x)` and `:y` are usually
+simpler: they name an axis by where it is drawn, as Excel's menus do.
 """
-getChartAxes(c::Chart)::Vector{ChartAxis} =
-    [parse_chart_axis(el) for el in _plotarea_children(chart_root(c)) if localname(el) in AXIS_TAGS]
+getChartAxes(c::Chart)::Vector{ChartAxis} = _axis_list(chart_root(c))
 
 function getChartAxes(c::Chart, role::Symbol)::Vector{ChartAxis}
     haskey(AXIS_ROLES, role) || throw(XLSXError(
@@ -67,18 +130,53 @@ function getChartAxes(c::Chart, role::Symbol)::Vector{ChartAxis}
 end
 
 """
+    getChartAxis(c::Chart, which::Symbol) -> ChartAxis
     getChartAxis(c::Chart, axid::Integer) -> ChartAxis
 
-The axis with `c:axId` equal to `axid`. This is the identifier chart groups and
-`c:crossAx` use, so it is how you get from a series group, or from one axis, to
-its partner.
+One axis of `c`. With a Symbol, the axis is named by where it is drawn, as
+Excel's menus name it:
+
+| `which` | axis                                                     |
+|:--------|:---------------------------------------------------------|
+| `:x`    | primary horizontal                                       |
+| `:y`    | primary vertical                                         |
+| `:x2`   | secondary horizontal                                     |
+| `:y2`   | secondary vertical                                       |
+| `:z`    | depth (`c:serAx`), on a 3-D chart                        |
+
+The primary axes are the ones the first chart group plots against, and the
+secondary axes those of the next group with axes of its own. Within each pair,
+the horizontal axis is the one at the bottom or top (`c:axPos` `:b` or `:t`).
+So `:y` is the category axis of a horizontal bar chart, and the `:x` and `:y`
+of a scatter chart are both value axes. On a combo chart, Excel draws the
+secondary horizontal axis as deleted, so `:x2` finds an axis with
+`ax.deleted` set.
+
+`which` can also be an axis kind, `:category`, `:value`, `:date` or `:series`,
+when the chart has exactly one axis of that kind. A scatter or combo chart has
+two value axes, so `:value` is ambiguous there and throws.
+
+Every function documented as taking `ax` accepts one of these Symbols in its
+place, resolved against the chart as it is at the time of the call:
+
+    setAxisTitleText(c, :x, "Month")
+    setAxisTitleText(c, :y, "Revenue (£m)")
+
+With an Integer, the axis whose `c:axId` is `axid`. This is the identifier
+chart groups and `c:crossAx` use, so it is how you get from a series group, or
+from one axis, to its partner. It is Excel's identifier, not a position.
 """
+getChartAxis(c::Chart, which::Symbol)::ChartAxis = _resolve_axis(c, chart_root(c), which)
+
 function getChartAxis(c::Chart, axid::Integer)::ChartAxis
     axes = getChartAxes(c)
     i = findfirst(ax -> ax.axid == axid, axes)
     isnothing(i) && throw(XLSXError(
         "Chart `$(c.name)` has no axis with axId $axid. Found: " *
-        join((string(something(ax.axid, "?")) for ax in axes), ", ") * "."))
+        join((string(something(ax.axid, "?")) for ax in axes), ", ") * ". " *
+        "An axId is Excel's identifier for an axis, not its position: use " *
+        "`getChartAxis(c, :x)` or `:y` to name an axis by where it is drawn, " *
+        "or `getChartAxes(c)[i]` for the i-th."))
     return axes[i]
 end
 
@@ -89,7 +187,7 @@ Fill and line for the axis itself (`c:spPr`) — the axis line and its tick mark
 `nothing` means no `c:spPr` was written, so Excel takes the formatting from the
 chart style. Gridlines are separate; see [`getAxisGridlines`](@ref).
 """
-getAxisShapeProps(c::Chart, ax::ChartAxis) = parse_drawing_shape_props(_wb(c), _axnode(c, ax))
+getAxisShapeProps(c::Chart, ax::AxisRef) = parse_drawing_shape_props(_wb(c), _axnode(c, ax))
 
 """
     getAxisTextProps(c::Chart, ax::ChartAxis) -> Union{Nothing,DrawingText}
@@ -97,7 +195,7 @@ getAxisShapeProps(c::Chart, ax::ChartAxis) = parse_drawing_shape_props(_wb(c), _
 Text body for the axis tick labels (`c:txPr`). `nothing` means none was written.
 The axis title's text is separate; see [`getAxisTitleText`](@ref).
 """
-getAxisTextProps(c::Chart, ax::ChartAxis)  = parse_drawing_text(_wb(c), _axnode(c, ax))
+getAxisTextProps(c::Chart, ax::AxisRef)  = parse_drawing_text(_wb(c), _axnode(c, ax))
 
 """
     getAxisTitleRef(c::Chart, ax::ChartAxis) -> Union{Nothing,String}
@@ -108,7 +206,7 @@ The formula behind an axis title that references a cell, as written
 absent title. Excel writes a `cx:` formula as a hidden `_xlchart.*` defined
 name; [`getAxisTitleRange`](@ref) resolves it.
 """
-function getAxisTitleRef(c::Chart, ax::ChartAxis)
+function getAxisTitleRef(c::Chart, ax::AxisRef)
     tx = first_element_with_tag(first_element_with_tag(_axnode(c, ax), "title"), "tx")
     sr = first_element_with_tag(tx, "strRef")
     return isnothing(sr) ? nothing : child_text(sr, "f")
@@ -122,7 +220,7 @@ The cell an axis title is bound to, resolved — through a defined name where th
 formula is one. `nothing` for a typed or absent title. See
 [`getAxisTitleRef`](@ref) for the formula as written.
 """
-getAxisTitleRange(c::Chart, ax::ChartAxis) = _title_range(c.package, getAxisTitleRef(c, ax))
+getAxisTitleRange(c::Chart, ax::AxisRef) = _title_range(c.package, getAxisTitleRef(c, ax))
 
 """
     getAxisTitle(c::Chart, ax::ChartAxis) -> Union{Nothing,String}
@@ -132,7 +230,7 @@ An axis title's text as plain text, as [`getChartTitle`](@ref) gives the chart
 title's: the typed text, or for a title bound to a cell, the text cached when
 the file was saved. `nothing` where the axis has no title text.
 """
-getAxisTitle(c::Chart, ax::ChartAxis) = parse_chart_title(_axnode(c, ax))
+getAxisTitle(c::Chart, ax::AxisRef) = parse_chart_title(_axnode(c, ax))
 
 """
     getAxisTitleText(c::Chart, ax::ChartAxis) -> Union{Nothing,DrawingText}
@@ -141,7 +239,7 @@ The axis title's text body (`c:title/c:tx/c:rich`). `nothing` means no title
 element, or a title that references a cell rather than carrying literal text —
 `c:tx/c:strRef` — which this does not resolve.
 """
-function getAxisTitleText(c::Chart, ax::ChartAxis)
+function getAxisTitleText(c::Chart, ax::AxisRef)
     tx = first_element_with_tag(first_element_with_tag(_axnode(c, ax), "title"), "tx")
     return parse_drawing_text(_wb(c), tx; tag="rich")
 end
@@ -155,7 +253,7 @@ bound title has. `nothing` means the axis has no title, or the title has no
 `c:txPr`. Contrast [`getAxisTitleText`](@ref), the literal text in
 `c:tx/c:rich`, and [`getAxisTextProps`](@ref), the tick labels' formatting.
 """
-getAxisTitleTextProps(c::Chart, ax::ChartAxis) =
+getAxisTitleTextProps(c::Chart, ax::AxisRef) =
     parse_drawing_text(_wb(c), first_element_with_tag(_axnode(c, ax), "title"))
 
 """
@@ -169,7 +267,7 @@ no `c:spPr` means gridlines are drawn with inherited formatting, and comes back
 as a `DrawingShapeProps` with every field absent — so `isnothing` answers "are
 there gridlines?" and the returned value answers "how are they formatted?".
 """
-getAxisGridlines(c::Chart, ax::ChartAxis; minor::Bool=false) =
+getAxisGridlines(c::Chart, ax::AxisRef; minor::Bool=false) =
     _optional_spPr(c, _axnode(c, ax), minor ? "minorGridlines" : "majorGridlines")
 
 # Checks the kind the axis has now, not when `ax` was read: Excel keeps the axId
@@ -185,7 +283,7 @@ end
 
 The axis that `ax` crosses (`c:crossAx`). `nothing` if unwritten or dangling.
 """
-function getAxisPartner(c::Chart, ax::ChartAxis)
+function getAxisPartner(c::Chart, ax::AxisRef)
     cross = _axis_id(_axnode(c, ax), "crossAx")
     isnothing(cross) && return nothing
     axes = getChartAxes(c)
@@ -222,7 +320,7 @@ end
 The format code from `c:numFmt/@formatCode`. Ignored by Excel when
 [`getAxisNumberFormatLinked`](@ref) is `true`.
 """
-getAxisNumberFormatCode(c::Chart, ax::ChartAxis) =
+getAxisNumberFormatCode(c::Chart, ax::AxisRef) =
     _attr(first_element_with_tag(_axnode(c, ax), "numFmt"), "formatCode")
 
 """
@@ -232,7 +330,7 @@ getAxisNumberFormatCode(c::Chart, ax::ChartAxis) =
 source cells and ignores the axis's own format code. `nothing` means no
 `c:numFmt` element was written.
 """
-function getAxisNumberFormatLinked(c::Chart, ax::ChartAxis)
+function getAxisNumberFormatLinked(c::Chart, ax::AxisRef)
     el = first_element_with_tag(_axnode(c, ax), "numFmt")
     isnothing(el) && return nothing
     return _attr(el, "sourceLinked") in ("1", "true")
@@ -243,21 +341,21 @@ end
 
 `c:majorTickMark` — `:cross`, `:in`, `:out` or `:none`.
 """
-getAxisMajorTickMark(c::Chart, ax::ChartAxis) = _axis_sym(_axnode(c, ax), "majorTickMark")
+getAxisMajorTickMark(c::Chart, ax::AxisRef) = _axis_sym(_axnode(c, ax), "majorTickMark")
 
 """
     getAxisMinorTickMark(c::Chart, ax::ChartAxis) -> Union{Nothing,Symbol}
 
 `c:minorTickMark` — `:cross`, `:in`, `:out` or `:none`.
 """
-getAxisMinorTickMark(c::Chart, ax::ChartAxis) = _axis_sym(_axnode(c, ax), "minorTickMark")
+getAxisMinorTickMark(c::Chart, ax::AxisRef) = _axis_sym(_axnode(c, ax), "minorTickMark")
 
 """
     getAxisTickLabelPos(c::Chart, ax::ChartAxis) -> Union{Nothing,Symbol}
 
 `c:tickLblPos` — `:high`, `:low`, `:nextTo` or `:none`.
 """
-getAxisTickLabelPos(c::Chart, ax::ChartAxis)  = _axis_sym(_axnode(c, ax), "tickLblPos")
+getAxisTickLabelPos(c::Chart, ax::AxisRef)  = _axis_sym(_axnode(c, ax), "tickLblPos")
 
 """
     getAxisOrientation(c::Chart, ax::ChartAxis) -> Union{Nothing,Symbol}
@@ -268,7 +366,7 @@ plotted in reverse order.
 Throws if the axis has no `c:scaling`: the schema requires it, so its absence
 means a malformed chart part rather than an inherited value.
 """
-getAxisOrientation(c::Chart, ax::ChartAxis) = _axis_sym(_axis_scaling(_axnode(c, ax)), "orientation")
+getAxisOrientation(c::Chart, ax::AxisRef) = _axis_sym(_axis_scaling(_axnode(c, ax)), "orientation")
 
 """
     getAxisMin(c::Chart, ax::ChartAxis) -> Union{Nothing,Float64}
@@ -276,21 +374,21 @@ getAxisOrientation(c::Chart, ax::ChartAxis) = _axis_sym(_axis_scaling(_axnode(c,
 Fixed lower bound from `c:scaling/c:min`. `nothing` means Excel scales the axis
 automatically, which is the usual case; a value means the user fixed the bound.
 """
-getAxisMin(c::Chart, ax::ChartAxis)     = _scaling_num(_axis_scaling(_axnode(c, ax)), "min")
+getAxisMin(c::Chart, ax::AxisRef)     = _scaling_num(_axis_scaling(_axnode(c, ax)), "min")
 
 """
     getAxisMax(c::Chart, ax::ChartAxis) -> Union{Nothing,Float64}
 
 Fixed upper bound from `c:scaling/c:max`. `nothing` means automatic.
 """
-getAxisMax(c::Chart, ax::ChartAxis)     = _scaling_num(_axis_scaling(_axnode(c, ax)), "max")
+getAxisMax(c::Chart, ax::AxisRef)     = _scaling_num(_axis_scaling(_axnode(c, ax)), "max")
 
 """
     getAxisLogBase(c::Chart, ax::ChartAxis) -> Union{Nothing,Float64}
 
 `c:scaling/c:logBase`. `nothing` means a linear axis.
 """
-getAxisLogBase(c::Chart, ax::ChartAxis) = _scaling_num(_axis_scaling(_axnode(c, ax)), "logBase")
+getAxisLogBase(c::Chart, ax::AxisRef) = _scaling_num(_axis_scaling(_axnode(c, ax)), "logBase")
 
 # c:scaling is required by the schema, so a missing one is a malformed part,
 # not an absent-means-inherit case.
@@ -312,7 +410,7 @@ partner: `:autoZero`, `:min` or `:max`. Mutually exclusive with
 Excel's "Horizontal axis crosses: At maximum category", set in the category
 axis's pane, is stored on the value axis.
 """
-getAxisCrosses(c::Chart, ax::ChartAxis)       = _axis_sym(_axnode(c, ax), "crosses")
+getAxisCrosses(c::Chart, ax::AxisRef)       = _axis_sym(_axnode(c, ax), "crosses")
 
 """
     getAxisCrossesAt(c::Chart, ax::ChartAxis) -> Union{Nothing,Float64}
@@ -320,7 +418,7 @@ getAxisCrosses(c::Chart, ax::ChartAxis)       = _axis_sym(_axnode(c, ax), "cross
 Where this axis crosses its partner, as a value on the partner's scale
 (`c:crossesAt`). Mutually exclusive with [`getAxisCrosses`](@ref).
 """
-getAxisCrossesAt(c::Chart, ax::ChartAxis)     = _axis_num(_axnode(c, ax), "crossesAt")
+getAxisCrossesAt(c::Chart, ax::AxisRef)     = _axis_num(_axnode(c, ax), "crossesAt")
 
 """
     getAxisMajorUnit(c::Chart, ax::ChartAxis) -> Union{Nothing,Float64}
@@ -328,7 +426,7 @@ getAxisCrossesAt(c::Chart, ax::ChartAxis)     = _axis_num(_axnode(c, ax), "cross
 Interval between major ticks and gridlines (`c:majorUnit`). `nothing` means
 Excel chooses automatically. Value and date axes only.
 """
-function getAxisMajorUnit(c::Chart, ax::ChartAxis)
+function getAxisMajorUnit(c::Chart, ax::AxisRef)
     n = _axnode(c, ax)
     _require_kind(n, (:valAx, :dateAx), "majorUnit")
     return _axis_num(n, "majorUnit")
@@ -339,7 +437,7 @@ end
 
 Interval between minor ticks (`c:minorUnit`). Value and date axes only.
 """
-function getAxisMinorUnit(c::Chart, ax::ChartAxis)
+function getAxisMinorUnit(c::Chart, ax::AxisRef)
     n = _axnode(c, ax)
     _require_kind(n, (:valAx, :dateAx), "minorUnit")
     return _axis_num(n, "minorUnit")
@@ -351,7 +449,7 @@ end
 `c:lblAlgn` — `:ctr` (centre), `:l` (left) or `:r` (right). Category and date
 axes only.
 """
-function getAxisLabelAlign(c::Chart, ax::ChartAxis)
+function getAxisLabelAlign(c::Chart, ax::AxisRef)
     n = _axnode(c, ax)
     _require_kind(n, (:catAx, :dateAx), "lblAlgn")
     return _axis_sym(n, "lblAlgn")
@@ -363,7 +461,7 @@ end
 `c:lblOffset` — distance of the labels from the axis, as a percentage between 0
 and 1000. Category and date axes only.
 """
-function getAxisLabelOffset(c::Chart, ax::ChartAxis)
+function getAxisLabelOffset(c::Chart, ax::AxisRef)
     n = _axnode(c, ax)
     _require_kind(n, (:catAx, :dateAx), "lblOffset")
     return _int_val(n, "lblOffset")
@@ -376,7 +474,7 @@ Whether multi-level category labels are shown. This inverts the XML: the
 element is `c:noMultiLvlLbl`, so `val="1"` means labels are *not* multi-level
 and this returns `false`. Category and date axes only.
 """
-function getAxisMultiLevelLabels(c::Chart, ax::ChartAxis)
+function getAxisMultiLevelLabels(c::Chart, ax::AxisRef)
     n = _axnode(c, ax)
     _require_kind(n, (:catAx, :dateAx), "noMultiLvlLbl")
     v = _bool_val(n, "noMultiLvlLbl")
@@ -389,7 +487,7 @@ end
 `c:crossBetween` — `:between` if the partner axis crosses between categories,
 `:midCat` if it crosses at their midpoints. Value axes only.
 """
-function getAxisCrossBetween(c::Chart, ax::ChartAxis)
+function getAxisCrossBetween(c::Chart, ax::AxisRef)
     n = _axnode(c, ax)
     _require_kind(n, (:valAx,), "crossBetween")
     return _axis_sym(n, "crossBetween")
@@ -397,7 +495,7 @@ end
 
 # ── Axis setters ──────────────────────────────────────────────────────────────
 
-function _axis_path(c::Chart, root::XML.Node, ax::ChartAxis)
+function _axis_path(c::Chart, root::XML.Node, ax::AxisRef)
     el  = _axis_node(c, root, ax)
     tag = String(localname(el))
     key = (NS_C, tag)
@@ -413,7 +511,7 @@ end
 Apply `f(el, key, pfx)` to the axis element and rebuild the chart part once.
 `key` is the axis's schema key, for `insert_child` on the axis.
 """
-function _set_axis(c::Chart, ax::ChartAxis, f)
+function _set_axis(c::Chart, ax::AxisRef, f)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
     steps, key, _ = _axis_path(c, root, ax)
@@ -438,7 +536,7 @@ removes the element.
 `:low` keeps a category axis's labels at the edge of the plot area when the
 value axis has negative values, rather than beside the zero line.
 """
-setAxisTickLabelPos(c::Chart, ax::ChartAxis, pos::Symbol) =
+setAxisTickLabelPos(c::Chart, ax::AxisRef, pos::Symbol) =
     _set_axis(c, ax, (el, key, pfx) ->
         _with_val(el, key, pfx, "tickLblPos", _check_sym(pos, _AX_TICK_LBL_POS, "tick label position")))
 
@@ -459,7 +557,7 @@ might not allow.
 
 Throws if the axis has no `c:scaling`; see [`getAxisOrientation`](@ref).
 """
-function setAxisScaling(c::Chart, ax::ChartAxis;
+function setAxisScaling(c::Chart, ax::AxisRef;
                         orientation = nothing, min = nothing, max = nothing)
     all(isnothing, (orientation, min, max)) && return c
     o  = isnothing(orientation) ? nothing : _check_sym(orientation, _AX_ORIENTATIONS, "axis orientation")
@@ -485,7 +583,7 @@ Fix the axis's lower bound (`c:scaling/c:min`) at `value`, a finite `Real` in
 the axis's own units; `:inherit` returns it to automatic. See
 [`setAxisScaling`](@ref) to set both bounds at once.
 """
-setAxisMin(c::Chart, ax::ChartAxis, v) = setAxisScaling(c, ax; min = v)
+setAxisMin(c::Chart, ax::AxisRef, v) = setAxisScaling(c, ax; min = v)
 
 """
     setAxisMax(c, ax, value) -> Chart
@@ -494,7 +592,7 @@ Fix the axis's upper bound (`c:scaling/c:max`) at `value`, a finite `Real` in
 the axis's own units; `:inherit` returns it to automatic. See
 [`setAxisScaling`](@ref) to set both bounds at once.
 """
-setAxisMax(c::Chart, ax::ChartAxis, v) = setAxisScaling(c, ax; max = v)
+setAxisMax(c::Chart, ax::AxisRef, v) = setAxisScaling(c, ax; max = v)
 
 """
     setAxisOrientation(c, ax, orientation) -> Chart
@@ -506,7 +604,7 @@ the element.
 Reversing a bar chart's category axis moves the value axis to the other end;
 [`setAxisCrosses`](@ref)`(c, valax, :max)` moves it back.
 """
-setAxisOrientation(c::Chart, ax::ChartAxis, o::Symbol) = setAxisScaling(c, ax; orientation = o)
+setAxisOrientation(c::Chart, ax::AxisRef, o::Symbol) = setAxisScaling(c, ax; orientation = o)
 
 """
     setAxisCrosses(c, ax, rule) -> Chart
@@ -518,7 +616,7 @@ schema allows one or the other. `:inherit` removes `c:crosses` only.
 Excel's "Horizontal axis crosses: At maximum category", set in the category
 axis's pane, is written on the *value* axis: `setAxisCrosses(c, valax, :max)`.
 """
-function setAxisCrosses(c::Chart, ax::ChartAxis, rule::Symbol)
+function setAxisCrosses(c::Chart, ax::AxisRef, rule::Symbol)
     v = _check_sym(rule, _AX_CROSSES, "crossing rule")
     return _set_axis(c, ax, (el, key, pfx) ->
         v === :inherit ? remove_child(el, "crosses") :
@@ -532,7 +630,7 @@ Set where this axis crosses its partner as a value on the partner's scale
 (`c:crossesAt`) — `value` is a finite `Real`. Removes any `c:crosses`.
 `:inherit` removes `c:crossesAt` only.
 """
-function setAxisCrossesAt(c::Chart, ax::ChartAxis, value)
+function setAxisCrossesAt(c::Chart, ax::AxisRef, value)
     v = _finite(value, "An axis crossing")
     return _set_axis(c, ax, (el, key, pfx) ->
         v === :inherit ? remove_child(el, "crossesAt") :
@@ -549,7 +647,7 @@ source cells (`sourceLinked="0"`), without which Excel ignores the code.
 
 A two-section code such as `"0%;0%"` shows negative values without a minus sign.
 """
-function setAxisNumberFormatCode(c::Chart, ax::ChartAxis, code)
+function setAxisNumberFormatCode(c::Chart, ax::AxisRef, code)
     return _set_axis(c, ax, (el, key, pfx) ->
         code === :inherit ? remove_child(el, "numFmt") :
             insert_child(el, key, XML.Element(prefixed_tag(pfx[NS_C], "numFmt");
@@ -562,7 +660,7 @@ end
 Set `c:numFmt/@sourceLinked`, keeping the current format code, or `"General"` if
 none was written.
 """
-function setAxisNumberFormatLinked(c::Chart, ax::ChartAxis, linked::Bool)
+function setAxisNumberFormatLinked(c::Chart, ax::AxisRef, linked::Bool)
     return _set_axis(c, ax, (el, key, pfx) -> begin
         code = something(_attr(first_element_with_tag(el, "numFmt"), "formatCode"), "General")
         insert_child(el, key, XML.Element(prefixed_tag(pfx[NS_C], "numFmt");
@@ -582,7 +680,7 @@ _tick_mark(m::Symbol) = _check_sym(get(_TICK_MARK_ALIASES, m, m), _TICK_MARKS, "
 Set the axis's major tick marks (`c:majorTickMark`): `:out`, `:in`, `:cross` or
 `:none`, or Excel's `:outside` and `:inside`. `:inherit` removes the element.
 """
-function setAxisMajorTickMark(c::Chart, ax::ChartAxis, m::Symbol)
+function setAxisMajorTickMark(c::Chart, ax::AxisRef, m::Symbol)
     v = _tick_mark(m)
     return _set_axis(c, ax, (el, key, pfx) -> _with_val(el, key, pfx, "majorTickMark", v))
 end
@@ -592,7 +690,7 @@ end
 
 As [`setAxisMajorTickMark`](@ref), for `c:minorTickMark`.
 """
-function setAxisMinorTickMark(c::Chart, ax::ChartAxis, m::Symbol)
+function setAxisMinorTickMark(c::Chart, ax::AxisRef, m::Symbol)
     v = _tick_mark(m)
     return _set_axis(c, ax, (el, key, pfx) -> _with_val(el, key, pfx, "minorTickMark", v))
 end
@@ -605,7 +703,7 @@ gridline element's presence is the switch, so `false` removes it rather than
 writing an "off" value; a newly shown set takes its line from the chart style.
 A keyword left unspecified is left alone.
 """
-function setAxisGridlines(c::Chart, ax::ChartAxis; major = nothing, minor = nothing)
+function setAxisGridlines(c::Chart, ax::AxisRef; major = nothing, minor = nothing)
     all(isnothing, (major, minor)) && return c
     for v in (major, minor)
         v isa Union{Nothing,Bool} || throw(XLSXError("Gridlines are `true` or `false`; got $(repr(v))."))
@@ -631,10 +729,10 @@ Set one text property of the axis's tick labels (`c:txPr` on the axis).
 
 $(_DOC_TEXT_FIELD_ARG)
 """
-setAxisTextProp(c::Chart, ax::ChartAxis, field::Symbol, value) =
+setAxisTextProp(c::Chart, ax::AxisRef, field::Symbol, value) =
     _set_axis(c, ax, (el, key, pfx) -> _txpr_with_run_prop(el, key, field, value, pfx))
 
-_axis_steps(c::Chart, ax::ChartAxis) = root -> first(_axis_path(c, root, ax))
+_axis_steps(c::Chart, ax::AxisRef) = root -> first(_axis_path(c, root, ax))
 
 """
     setAxisLine(c, ax; color, width, dash, cap, compound, join, miterLimit) -> Chart
@@ -652,7 +750,7 @@ $(_DOC_LINE_KWS) A keyword left unspecified is left alone.
     valax = first(getChartAxes(c, :value))
     setAxisLine(c, valax; color = "gray", width = 0.75, dash = :sysDash)
 """
-function setAxisLine(c::Chart, ax::ChartAxis;
+function setAxisLine(c::Chart, ax::AxisRef;
                      color = nothing, width = nothing, dash = nothing, cap = nothing,
                      compound = nothing, join = nothing, miterLimit = nothing)
     kw = (; color, width, dash, cap, compound, join, miterLimit)
@@ -660,7 +758,7 @@ function setAxisLine(c::Chart, ax::ChartAxis;
     return _set_shape_under(c, _axis_steps(c, ax), _ln_setter(kw))
 end
 
-setAxisLine(c::Chart, ax::ChartAxis, what::Symbol) =
+setAxisLine(c::Chart, ax::AxisRef, what::Symbol) =
     _set_shape_under(c, _axis_steps(c, ax), _line_instruction(what))
 
 """
@@ -673,7 +771,7 @@ Value and date axes only.
 Ticks start at the axis minimum, so a minimum that is a multiple of the unit
 puts a tick at zero.
 """
-function setAxisMajorUnit(c::Chart, ax::ChartAxis, v)
+function setAxisMajorUnit(c::Chart, ax::AxisRef, v)
     s = _positive(v, "A major unit")
     return _set_axis(c, ax, (el, key, pfx) -> begin
         _require_kind(el, (:valAx, :dateAx), "majorUnit")
@@ -687,7 +785,7 @@ end
 As [`setAxisMajorUnit`](@ref), for the interval between minor ticks
 (`c:minorUnit`).
 """
-function setAxisMinorUnit(c::Chart, ax::ChartAxis, v)
+function setAxisMinorUnit(c::Chart, ax::AxisRef, v)
     s = _positive(v, "A minor unit")
     return _set_axis(c, ax, (el, key, pfx) -> begin
         _require_kind(el, (:valAx, :dateAx), "minorUnit")

@@ -779,6 +779,10 @@ struct ChartAxis
     raw::Union{Nothing,XML.Node}
 end
 
+# What the `(c, ax)` functions take: an axis as read, or a selector such as `:y`
+# that getChartAxis(c, ::Symbol) resolves against the current part.
+const AxisRef = Union{ChartAxis,Symbol}
+
 """
     ChartGroup
 

@@ -167,7 +167,7 @@ end
 
 function generate_sst_xml_string(wb::Workbook)::String
     sst = wb.sst
-    !sst.is_loaded && throw(XLSXError("Can't generate XML string from a Shared String Table that is not loaded."))
+    !(@atomic sst.is_loaded) && throw(XLSXError("Can't generate XML string from a Shared String Table that is not loaded."))
 
     pfx = get_prefix("xl/sharedStrings.xml", get_xlsxfile(wb))
     pfx_c = isempty(pfx) ? "" : "$(pfx):"      # "x:" or ""

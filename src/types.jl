@@ -663,9 +663,10 @@ mutable struct Worksheet
     sst_count::Int
     next_cf_priority::Union{Int, Nothing}
     tables_cache::Union{Vector{Table}, Nothing}   # nothing until first access to `tables(ws)`
+    const fill_lock::ReentrantLock   # held while the cache is filled on first read (`eachrow`)
 
     function Worksheet(package::MSOfficePackage, sheetId::Int, relationship_id::String, name::String, dimension::Union{Nothing, CellRange}, visibility::Symbol)
-        return new(package, sheetId, relationship_id, name, dimension, visibility, nothing, 0, nothing, 0, nothing, nothing)
+        return new(package, sheetId, relationship_id, name, dimension, visibility, nothing, 0, nothing, 0, nothing, nothing, ReentrantLock())
     end
 end
 
@@ -686,7 +687,9 @@ mutable struct SharedStringTable
     rich::Dict{Int64, String}       # 0-based index => raw `<si>` XML
     index::Dict{String, Int64}      # plain text => 0-based index
     rich_index::Dict{String, Int64} # raw `<si>` XML => 0-based index
-    is_loaded::Bool
+    # Atomic: a read-only file loads its table on the first string read, and sheets
+    # may be read from several tasks at once (see `sst_unformatted_string`).
+    @atomic is_loaded::Bool
 end
 
 const ValidRichTextAttributes = [:bold, :italic, :under, :strike, :vertAlign, :color, :size, :name]
@@ -924,6 +927,9 @@ mutable struct XLSXFile <: MSOfficePackage
     is_writable::Bool
     template_type::TemplateType
     uuid_rng::Random.Xoshiro
+    # Held while `data` and `sheet_stubs` are read or changed by a sheet's first read
+    # (`eachrow`), so that sheets can be read from several tasks at once.
+    const parts_lock::ReentrantLock
 
     function XLSXFile(source::Union{AbstractString, IO}, use_cache::Bool, is_writable::Bool, load_formulas::Bool=true)
         check_for_xlsx_file_format(source)
@@ -940,7 +946,8 @@ mutable struct XLSXFile <: MSOfficePackage
             Vector{Relationship}(),
             is_writable,
             NotATemplate,
-            Random.Xoshiro(2468)
+            Random.Xoshiro(2468),
+            ReentrantLock()
         )
         xl.workbook.package = xl
         return xl
@@ -1011,12 +1018,19 @@ struct TableRow
     cell_values::Vector{CellConcreteType}
 end
 
-struct TableRowIteratorState{S}
+# `R` is the type of the rows the sheet's row iterator gives (`_row_type`), so that a
+# row taken from the state has a known type.
+struct TableRowIteratorState{S, R<:AbstractSheetRow}
     table_row_index::Int
     sheet_row_index::Int
     sheet_row_iterator_state::S
     missing_rows::Int # number of completely empty rows between the last row and the current row
-    row_pending::Union{Nothing, AbstractSheetRow} # if the last row was empty, this is the row that was pending to be returned
+    row_pending::Union{Nothing, R} # if the last row was empty, this is the row that was pending to be returned
+
+    # Built with both parameters given (`_table_state`): `R` can't be told from a `nothing`
+    TableRowIteratorState{S,R}(table_row_index::Int, sheet_row_index::Int, sheet_row_iterator_state,
+                               missing_rows::Int, row_pending) where {S, R<:AbstractSheetRow} =
+        new{S,R}(table_row_index, sheet_row_index, sheet_row_iterator_state, missing_rows, row_pending)
 end
 
 struct XLSXTableRow

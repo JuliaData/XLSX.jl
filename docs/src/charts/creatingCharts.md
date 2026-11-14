@@ -45,6 +45,21 @@ julia> XLSX.writexlsx("revenue.xlsx", f)
 bottom-right corners on the sheet. `title` is `nothing` for the title Excel
 generates itself, a string for typed text, or `false` for no title at all.
 
+`xtitle` and `ytitle` title the horizontal and vertical axes:
+
+```julia
+julia> c = addChart(ws, :column; anchor = "D2:K17", title = "Revenue",
+                    xtitle = "Region", ytitle = "£m");
+```
+
+Like `title`, each can be rich text or a cell reference instead of a string.
+They mean the axes as drawn, so on a `:bar` chart, whose bars run sideways,
+`ytitle` names the categories. To title an axis later, or one these don't reach,
+such as a combo chart's secondary axis, use [`setAxisTitleText`](@ref):
+`setAxisTitleText(c, :y2, "Margin")`. See
+[Axes and gridlines](formattingCharts.md#Axes-and-gridlines) for the names an
+axis can be given.
+
 A chart is created empty because a `c:` chart part is valid with no series, so
 `addChart` and `addSeries` can be separate steps. That is not true of the `cx:`
 schema, where the data block is required.

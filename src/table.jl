@@ -297,7 +297,40 @@ end
 
 # Columns holding a `<c>` (present, even if empty), in order.
 _present_columns(r::SheetRow) = sort(collect(keys(r.rowcells)))
-_present_columns(r::ValueRow) = [r.firstcol + i - 1 for i in eachindex(r.values) if r.values[i] !== _ABSENT]
+_present_columns(r::ValueRow) = [r.firstcol + i - 1 for i in eachindex(r.kinds) if r.kinds[i] != _KIND_ABSENT]
+
+# `gettable`'s push of a cached cell's value (`_push_row_cell!(::Vector, ::ValueRow, …)`
+# does the same for value rows): converted as `getdata` converts it, and reaching
+# `_push_column!` as its concrete type, so that it isn't boxed.
+function _push_row_cell!(col::Vector, ws::Worksheet, r::SheetRow, column::Int, ms::Set{String})
+    cell = getcell(r, column)
+    cell isa Cell || return _push_column!(col, missing)   # an `EmptyCell`, as `getdata` reads it
+    return @inline _with_cell_value(x -> _push_column!(col, _apply_missing_strings(x, ms)),
+                            ws, cell.datatype, cell.value, cell)
+end
+
+# `_push_row_cell!` for a column held as `Any`. A call on it would be dispatched at run
+# time, which boxes its arguments, the row among them, for every cell: so the usual
+# column types are tested for here, each branch a call the compiler resolves.
+@inline function _push_any_column!(col, ws::Worksheet, r::AbstractSheetRow, column::Int, ms::Set{String})
+    col isa Vector{Float64}                       && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{Union{Missing,Float64}}        && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{String}                        && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{Union{Missing,String}}         && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{Int64}                         && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{Dates.Date}                    && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{Dates.DateTime}                && return _push_row_cell!(col, ws, r, column, ms)
+    col isa Vector{Any}                           && return _push_row_cell!(col, ws, r, column, ms)
+    return _push_row_cell!(col, ws, r, column, ms)
+end
+
+# Push a row's values to the columns, a function barrier so that the row's type is known.
+function _push_row!(data::Vector{Any}, ws::Worksheet, r::AbstractSheetRow, sheet_columns::Vector{Int}, ms::Set{String})
+    for ci in eachindex(data)
+        data[ci] = _push_any_column!(data[ci], ws, r, sheet_columns[ci], ms)
+    end
+    return nothing
+end
 
 # The header label for `column`: "#Empty" for an absent cell, else the value as text.
 _push_header_label!(labels::Vector{String}, sheet::Worksheet, r::SheetRow, column::Int) =
@@ -400,6 +433,17 @@ Base.eltype(::TableRowIterator) = TableRow
 @inline _should_stop(itr::TableRowIterator, row::TableRow) =
     !isnothing(itr.stop_in_row_function) && itr.stop_in_row_function(row)
 
+# The rows a sheet row iterator gives.
+_row_type(::Type{<:SheetRowIterator}) = AbstractSheetRow
+_row_type(::Type{<:WorksheetCache}) = SheetRow
+_row_type(::Type{<:SheetRowStreamIterator}) = SheetRow
+_row_type(::Type{ValueRowIterator}) = ValueRow
+
+# A table read's state, typed by the rows of `itr`'s sheet.
+_table_state(itr::TableRowIterator{I}, table_row_index::Int, sheet_row_index::Int, sheet_row_state::S,
+             missing_rows::Int, row_pending) where {I,S} =
+    TableRowIteratorState{S,_row_type(I)}(table_row_index, sheet_row_index, sheet_row_state, missing_rows, row_pending)
+
 # Handles a gap between expected and actual row numbers.
 # Returns: (nothing, state) to emit a missing row, :skip to continue past the gap, or
 # nothing to stop.
@@ -407,7 +451,7 @@ function _handle_gap(itr::TableRowIterator, table_row_index::Int, expected_row::
     itr.stop_in_empty_row && return nothing
     itr.keep_empty_rows || return :skip
 
-    newstate = TableRowIteratorState(
+    newstate = _table_state(itr,
         table_row_index, expected_row,
         sheet_row_iterator_state,
         actual_row - expected_row - 1,
@@ -447,7 +491,7 @@ function _table_start(itr::TableRowIterator)
     isnothing(next) && return nothing
 
     sheet_row, sheet_row_state = next
-    return TableRowIteratorState(0, itr.first_data_row - 1, sheet_row_state, 0, sheet_row)
+    return _table_state(itr, 0, itr.first_data_row - 1, sheet_row_state, 0, sheet_row)
 end
 
 # One step of a table read: `(sheet_row, state)` for the next table row — `sheet_row`
@@ -462,7 +506,7 @@ function _table_step(itr::TableRowIterator, state::TableRowIteratorState)
     # Emit any pending missing rows before advancing to the next sheet row
     if state.missing_rows > 0
         @assert itr.keep_empty_rows "Inconsistent state: missing_rows > 0 but keep_empty_rows=false"
-        newstate = TableRowIteratorState(
+        newstate = _table_state(itr,
             table_row_index,
             state.sheet_row_index + 1,
             state.sheet_row_iterator_state,
@@ -498,7 +542,7 @@ function _table_step(itr::TableRowIterator, state::TableRowIteratorState)
     isnothing(result) && return nothing
     sheet_row, sheet_row_iterator_state = result
 
-    return sheet_row, TableRowIteratorState(table_row_index, row_number(sheet_row), sheet_row_iterator_state, 0, nothing)
+    return sheet_row, _table_state(itr, table_row_index, row_number(sheet_row), sheet_row_iterator_state, 0, nothing)
 end
 
 function Base.iterate(itr::TableRowIterator)
@@ -520,7 +564,11 @@ function Base.iterate(itr::TableRowIterator, state::TableRowIteratorState)
     return table_row, newstate
 end
 
-function infer_eltype(v::Vector{Any})
+infer_eltype(v::Vector{Any}) = _infer_values_eltype(v)
+
+# The element type `infer_eltype` gives a `Vector{Any}` of `v`'s values, for a vector of
+# any element type: `gettable` builds typed columns, and must infer exactly as before.
+function _infer_values_eltype(v::AbstractVector)
     isempty(v) && return Any
     hasmissing = false
     t = Any
@@ -573,48 +621,83 @@ function check_table_data_dimension(data::Vector)
     end
 end
 
+# Typed column builders for `gettable`. A column starts with no element type and widens,
+# by copying, to the Union of the types of the values pushed so far, up to
+# `_MAX_COLUMN_TYPES` of them, then to `Any`. Values are kept as read, not converted, so
+# that a column ending up as `Any` holds them unchanged, as a `Vector{Any}` built from the
+# start would; `_finish_column` then infers and converts exactly as `infer_eltype` does.
+# This keeps numbers unboxed and saves the copy inference used to make of every column.
+const _MAX_COLUMN_TYPES = 4
+
+_new_column(infer_eltypes::Bool) = infer_eltypes ? Vector{Union{}}() : Any[]
+
+# Push `x` to `col`, returning the column it went into: `col`, or a wider copy of it.
+@inline function _push_column!(col::Vector{T}, x::S) where {T,S}
+    S <: T || return _widen_column!(col, x)
+    push!(col, x)
+    return col
+end
+
+function _widen_column!(col::Vector{T}, x::S) where {T,S}
+    W = S <: CellConcreteType && _column_type_count(T) < _MAX_COLUMN_TYPES ? Union{T,S} : Any
+    wide = Vector{W}(undef, length(col))
+    copyto!(wide, col)
+    push!(wide, x)
+    return wide
+end
+
+# The number of cell value types a column's element type has collected (only cell value
+# types are collected: any other widens to `Any`).
+const _CELL_CONCRETE_TYPES = (String, Missing, Float64, Int64, Bool, Dates.Date, Dates.Time, Dates.DateTime)
+_column_type_count(T::Type) = count(t -> t <: T, _CELL_CONCRETE_TYPES)
+
+# The column `infer_eltypes=true` returns: its values with `infer_eltype`'s element type.
+function _finish_column(col::Vector{T}) where {T}
+    E = _infer_values_eltype(col)
+    return E === T ? col : convert(Vector{E}, col)
+end
+
+# `gettable`'s read of the rows straight into the columns: the rows `iterate` would give,
+# without building a `TableRow` (and its vector) for each one. A function of its own, so
+# that the state, whose type `_table_start` can't infer, has a known type in the loop.
+function _gettable_rows!(data::Vector{Any}, itr::TableRowIterator, state::TableRowIteratorState)
+    ws = get_worksheet(itr)
+    sheet_columns = [table_column_to_sheet_column_number(itr.index, ci) for ci in eachindex(data)]
+    while true
+        step = _table_step(itr, state)
+        isnothing(step) && break
+        sheet_row, state = step
+        if isnothing(sheet_row)
+            for ci in eachindex(data)
+                data[ci] = _push_column!(data[ci], missing)
+            end
+        else
+            _push_row!(data, ws, sheet_row, sheet_columns, itr.missing_strings)
+        end
+    end
+    return nothing
+end
+
 function gettable(itr::TableRowIterator; infer_eltypes::Bool=true)::DataTable
     column_labels = get_column_labels(itr)
     columns_count = table_columns_count(itr)
-    data = Vector{Any}([Vector{Any}() for _ in 1:columns_count])
+    data = Any[_new_column(infer_eltypes) for _ in 1:columns_count]
 
     if isnothing(itr.stop_in_row_function)
-        # Straight into the columns: the rows `iterate` would give, without building a
-        # `TableRow` (and its vector) for each one.
-        ws = get_worksheet(itr)
-        sheet_columns = [table_column_to_sheet_column_number(itr.index, ci) for ci in 1:columns_count]
         state = _table_start(itr)
-        while !isnothing(state)
-            step = _table_step(itr, state)
-            isnothing(step) && break
-            sheet_row, state = step
-            if isnothing(sheet_row)
-                for ci in 1:columns_count
-                    push!(data[ci], missing)
-                end
-            else
-                for ci in 1:columns_count
-                    val = _row_value(ws, sheet_row, sheet_columns[ci])
-                    push!(data[ci], _apply_missing_strings(val, itr.missing_strings))
-                end
-            end
-        end
+        isnothing(state) || _gettable_rows!(data, itr, state)
     else
         # The callback needs each `TableRow`
         for r in itr
             for (ci, cv) in enumerate(r)
-                push!(data[ci], cv)
+                data[ci] = _push_column!(data[ci], cv)
             end
         end
     end
 
     if infer_eltypes
         for i in eachindex(data)
-            col = data[i]
-            T = infer_eltype(col)
-            if T !== Any
-                data[i] = convert(Vector{T}, col)
-            end
+            data[i] = _finish_column(data[i])
         end
     end
 

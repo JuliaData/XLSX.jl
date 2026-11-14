@@ -226,7 +226,8 @@ function remove_formatting(code)
 end
 
 function styles_is_datetime(wb::Workbook, index::Integer)::Bool
-    haskey(wb.buffer_styles_is_datetime, index) && return wb.buffer_styles_is_datetime[index]
+    known = get(wb.buffer_styles_is_datetime, index, nothing)   # one lookup: read once per cell
+    known === nothing || return known
     lock(wb.styles_lock) do
         if !haskey(wb.buffer_styles_is_datetime, index)
             isdatetime = false
@@ -275,7 +276,8 @@ end
 styles_is_datetime(ws::Worksheet, index) = styles_is_datetime(get_workbook(ws), index)
 
 function styles_is_float(wb::Workbook, index::Integer)::Bool
-    haskey(wb.buffer_styles_is_float, index) && return wb.buffer_styles_is_float[index]
+    known = get(wb.buffer_styles_is_float, index, nothing)
+    known === nothing || return known
     lock(wb.styles_lock) do
         if !haskey(wb.buffer_styles_is_float, index)
             isfloat = false
