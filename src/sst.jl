@@ -209,7 +209,8 @@ needs_preserve(s::AbstractString) =
     !isempty(s) && (isspace(first(s)) || isspace(last(s))) || contains(s, '\n') || contains(s, "  ")
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
-function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int
+# Int64, not Int: a fill's placeholder index is over 2^62, past a 32-bit Int.
+function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int64
     text = String(str_unformatted)
     pending = _pending_strings()
     isnothing(pending) || return _locked_index_or_pend!(wb, pending, (false, text))
