@@ -13,7 +13,9 @@ documented" means the project's documentation and public API don't mention the f
 It may still exist in a form they don't describe. In short:
 
 - **python-calamine** and **fastexcel** only read. They read more file formats than
-  XLSX.jl and read faster, but they can't write files or read formatting, formulas or objects.
+  XLSX.jl, but they can't write files or read formatting, formulas or objects. On tables,
+  XLSX.jl's `readtable` is faster than python-calamine and about as fast as fastexcel
+  (see [Speed](#Speed)).
 - **openpyxl** reads and writes `.xlsx` files, as XLSX.jl does, with a similar range of
   features, but it is much slower to read.
 - **XLSX.jl** reads and writes `.xlsx` files, edits them in place, and covers formatting,
