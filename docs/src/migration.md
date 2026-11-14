@@ -62,6 +62,23 @@ validations and sheet-scoped defined names holding a formula. For example,
 `=Sheet1!A1` on `Sheet1` becomes `=Copy!A1` on the copy. References to other
 sheets are unchanged.
 
+### Built-in number formats 6, 8, 38, 40 and 47 use Excel's codes (v0.13.4)
+
+[`XLSX.getFormat`](@ref) gives these built-in formats the codes Excel gives
+them: `$#,##0_);[Red]($#,##0)` and the like for 6, 8, 38 and 40, and
+`mm:ss.0` for 47. It used to give `Red` without brackets and `mmss.0`. Code
+that compared against the old codes should compare against Excel's.
+[`XLSX.setFormat`](@ref) given one of Excel's codes now uses the built-in
+format, where it used to add a custom one.
+
+### `setFormat` checks format codes as Excel does (v0.13.4)
+
+[`XLSX.setFormat`](@ref) accepts the number format codes Excel accepts and
+refuses the ones Excel refuses. It now accepts codes it used to refuse, such
+as `0.0E-0`, `# ?/4` and `[Color12]`. It refuses codes it used to accept, such
+as an unknown colour (`[Purple]`) or a date code among digit placeholders
+(`0 h`), with an [`XLSX.XLSXError`](@ref).
+
 ## Migrating from v0.12 to v0.13
 
 Chart code moved to the `XLSX.Charts` sub-module (`using XLSX, XLSX.Charts`).
