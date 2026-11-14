@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+- **Fix:** functions that take a sheet name, a cell reference or a text keyword accept any `AbstractString`, not just a `String`, so a name made with `strip`, `split` or `first(name, 31)` works [#498](https://github.com/JuliaData/XLSX.jl/issues/498) (Thanks to @mcvmcv for the report). A `SubString` used to throw a `MethodError` (or a `TypeError` for a keyword). Affected:
+  - **Sheet names:** `addsheet!`, `renamesheet!`, `copysheet!`, `newxlsx`, `xf[name]`, `readdata`, `readtable`, `readto`, `readtransposedtable`, `writetable(...; sheetname)`, the `sheetname` of `addChart` and `addChartEx`, and the streaming `addsheet!`
+  - **`(xf, "Sheet!A1")` forms:** `setFont`, `setFill`, `setBorder`, `setAlignment`, `setFormat`, the `setUniform*` setters, `setColumnWidth`, `setRowHeight`, `mergeCells`, `setConditionalFormat`, `addDataValidation` and `setFormula`
+  - **Getters, in both forms:** `getFont`, `getFill`, `getBorder`, `getAlignment`, `getFormat`, `getText`, `getColumnWidth`, `getRowHeight`, `isMergedCell`, `getMergedBaseCell`, `getFormula` and `getRichTextString`
+  - **Text keywords:** `setFont`'s `name`, `under` and `vertAlign`, `setFill`'s `pattern`, `setAlignment`'s `horizontal` and `vertical`, `setFormat`'s `format`, a conditional format's number `format`, `setColoredDataBars`'s keywords, and `writetable`'s `anchor_cell`
+  - **Other:** a text or formula value for `addDefinedName`, a dynamic-array formula (`=SORT(...)`) for `setFormula`, `column_labels` with `normalizenames=true`, `first_column` given as a letter, and `RichTextRun`
+
+  A `RichTextString` or a StyledStrings `styled"…"` string is used as its plain text. Before, `renamesheet!` with a `SubString` failed after it had renamed the sheet in `workbook.xml`, leaving the `Worksheet` with its old name; and `addsheet!` and `copysheet!` failed after adding the new sheet's part and relationship
+
 - Requires XML.jl v0.4.9. XLSX.jl calls `@for_each_child!` in place of `@for_each_child`, which XML.jl v0.4.9 deprecates and v0.5 removes, so it no longer warns under `Pkg.test` and precompiles and reads sheets under `--depwarn=error` [#496](https://github.com/JuliaData/XLSX.jl/issues/496) (Thanks to @mathieu17g for the report)
 - Reading a worksheet reads each `<row>` and `<c>`'s attributes once, where XML.jl's cursor stands (`XML.eachattribute!`, new in v0.4.9), rather than reading the tag again for each attribute: `readtable` is 8–13% faster and opening a file for editing 3–6% faster on the benchmark fixtures
 - Parts are saved without the line breaks and indentation XML.jl added between elements (`XML.write(…; pretty=false)`, new in v0.4.9). A part XLSX.jl reads and doesn't change, such as a chart, theme or styles part, is saved as Excel wrote it, bar the line end after its XML declaration, where it used to grow by up to 5%

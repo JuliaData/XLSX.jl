@@ -428,6 +428,9 @@ function styles_add_cell_attribute(wb::Workbook, new_att::XML.Node, att::String)
 
     return existing_elements_count # turns out this is the new index (because it's zero-based)
 end
+# Any AbstractString (a SubString, a RichTextString, ...) is converted once here (#498).
+process_sheetcell(f::Function, xl::XLSXFile, sheetcell::AbstractString; kw...) =
+    process_sheetcell(f, xl, String(sheetcell); kw...)
 function process_sheetcell(f::Function, xl::XLSXFile, sheetcell::String; kw...)
     if is_workbook_defined_name(xl, sheetcell)
         v = get_defined_name_value(xl.workbook, sheetcell)
@@ -464,6 +467,8 @@ function process_sheetcell(f::Function, xl::XLSXFile, sheetcell::String; kw...)
     return newid
 end
 function process_ranges(f::Function, ws::Worksheet, ref_or_rng::AbstractString; kw...)
+    # A plain String for the defined-name lookups: a RichTextString hashes differently (#498).
+    ref_or_rng = String(ref_or_rng)
     # Moved the tests for defined names to be first in case a name looks like a column name (e.g. "ID")
     if is_worksheet_defined_name(ws, ref_or_rng)
         v = get_defined_name_value(ws, ref_or_rng)
@@ -568,8 +573,8 @@ function process_cellranges(f::Function, ws::Worksheet, rng::CellRange; kw...)::
     end
     return newid
 end
-function process_get_sheetcell(f::Function, xl::XLSXFile, sheetcell::String; kw...)
-    ref = SheetCellRef(sheetcell)
+function process_get_sheetcell(f::Function, xl::XLSXFile, sheetcell::AbstractString; kw...)
+    ref = SheetCellRef(String(sheetcell))
     !hassheet(xl, ref.sheet) && throw(XLSXError("Sheet $(ref.sheet) not found."))
     ws = getsheet(xl, ref.sheet)
     return f(ws, ref.cellref; kw...)
@@ -587,6 +592,7 @@ function process_get_cellref(f::Function, ws::Worksheet, cellref::CellRef; kw...
     return f(wb, cell_style; kw...)
 end
 function process_get_cellname(f::Function, ws::Worksheet, ref_or_rng::AbstractString; kw...)
+    ref_or_rng = String(ref_or_rng)   # as in process_ranges (#498)
     if is_workbook_defined_name(get_workbook(ws), ref_or_rng)
         wb = get_workbook(ws)
         v = get_defined_name_value(wb, ref_or_rng)
@@ -1165,7 +1171,7 @@ function _percell_address_methods(F::Symbol, ranges::Bool)
         ((:(ws::Worksheet), :(rng::CellRange)),       :(process_cellranges($F, ws, rng; kw...)), :Int),
         ((:(ws::Worksheet), :(colrng::ColumnRange)),  :(process_columnranges($F, ws, colrng; kw...)), :Int),
         ((:(ws::Worksheet), :(rowrng::RowRange)),     :(process_rowranges($F, ws, rowrng; kw...)), :Int),
-        ((:(xl::XLSXFile), :(sheetcell::String)),     :(process_sheetcell($F, xl, sheetcell; kw...)), :Int),
+        ((:(xl::XLSXFile), :(sheetcell::AbstractString)), :(process_sheetcell($F, xl, sheetcell; kw...)), :Int),
     ])
     return ms
 end

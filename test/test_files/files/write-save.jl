@@ -184,6 +184,7 @@ end
             error("boom")
         end
         @test XLSX.readxlsx("rw_throw.xlsx")[1]["A2"] == 1
+        SAVE_FILES && save_outfile("rw_throw.xlsx")
     end
     @testset "sheet names are unique ignoring case" begin
         f = XLSX.newxlsx("Sheet1")

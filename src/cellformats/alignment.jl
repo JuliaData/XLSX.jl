@@ -56,9 +56,9 @@ julia> getAlignment(xf, "Sheet1!A1")
 ```
 """
 function getAlignment end
-getAlignment(xl::XLSXFile, sheetcell::String)::Union{Nothing,CellAlignment} = process_get_sheetcell(getAlignment, xl, sheetcell)
+getAlignment(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,CellAlignment} = process_get_sheetcell(getAlignment, xl, sheetcell)
 getAlignment(ws::Worksheet, cellref::CellRef)::Union{Nothing,CellAlignment} = process_get_cellref(getAlignment, ws, cellref)
-getAlignment(ws::Worksheet, cr::String) = process_get_cellname(getAlignment, ws, cr)
+getAlignment(ws::Worksheet, cr::AbstractString) = process_get_cellname(getAlignment, ws, cr)
 getAlignment(ws::Worksheet, row::Integer, col::Integer) = getAlignment(ws, CellRef(row, col))
 
 function getAlignment(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellAlignment}

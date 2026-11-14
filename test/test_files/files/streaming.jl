@@ -67,7 +67,9 @@ end
     cols = Any[collect(1:n), collect(1:n) ./ 7, ["s$(i % 40)" for i in 1:n], [isodd(i) for i in 1:n]]
     names = ["a", "b", "c", "d"]
     cached = stream_parts(stream_written(io -> XLSX.writetable(io, cols, names)))
-    streamed = stream_parts(stream_written(io -> XLSX.writetable(io, cols, names; streaming=true, shared_strings=true)))
+    streamed_bytes = stream_written(io -> XLSX.writetable(io, cols, names; streaming=true, shared_strings=true))
+    SAVE_FILES && save_outfile(IOBuffer(streamed_bytes))
+    streamed = stream_parts(streamed_bytes)
     @test keys(cached) == keys(streamed)
     for (name, xml) in cached
         @test mask_times(streamed[name]) == mask_times(xml)
@@ -146,6 +148,7 @@ end
     rows = [(id=i, name="n$i", when=Date(2026, 1, i)) for i in 1:20]
     # a vector of NamedTuples is read a row at a time, its length known
     streamed = stream_written(io -> XLSX.writetable(io, rows; streaming=true, sheetname="Rows", as_table=true, table_name="RowTable"))
+    SAVE_FILES && save_outfile(IOBuffer(streamed))
     t = XLSX.readtable(IOBuffer(streamed), "Rows")
     @test t.column_labels == [:id, :name, :when]
     @test t.data == Any[1:20, ["n$i" for i in 1:20], [Date(2026, 1, i) for i in 1:20]]
@@ -222,6 +225,7 @@ end
     for streaming in (false, true)
         bytes = stream_written(io -> XLSX.writetable(io, Any[[1, 2], [0.5, 0.25]], ["a", "b"]; streaming,
                                                      column_widths=20, column_formats=Dict(:b => "0.0%"), freeze_header=true))
+        SAVE_FILES && save_outfile(IOBuffer(bytes))
         xf = XLSX.openxlsx(IOBuffer(bytes); mode="rw")
         @test XLSX.getColumnWidth(xf[1], "A1") ≈ 20 atol=1
         @test XLSX.getColumnWidth(xf[1], "B1") ≈ 20 atol=1
@@ -233,4 +237,5 @@ end
     @test_throws XLSX.XLSXError XLSX.writetable!(xf[1], Any[[1]], ["a"]; write_columnnames=false, freeze_header=true)
     XLSX.writetable!(xf[1], Any[[1, 2]], ["a"]; anchor_cell=XLSX.CellRef("B3"), freeze_header=true, column_widths=[15])
     @test XLSX.getColumnWidth(xf[1], "B3") ≈ 15 atol=1
+    SAVE_FILES && save_outfile(xf)
 end

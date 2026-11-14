@@ -382,7 +382,7 @@ function get_new_dx(wb::Workbook, dx::AbstractDict{String,<:AbstractDict{String}
 
         elseif k == "format"
             if haskey(v, "format")
-                new_formatId = get_new_formatId(wb, v["format"])
+                new_formatId = get_new_formatId(wb, String(v["format"]))   # any AbstractString (#498)
                 push!(new_dx, XML.Element("numFmt"; numFmtId=string(new_formatId), formatCode=styles_numFmt_formatCode(wb, new_formatId)))
             end
         end

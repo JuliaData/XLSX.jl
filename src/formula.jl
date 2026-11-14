@@ -931,8 +931,8 @@ XLSX.setFormula(f[1], "G10", "_xlfn.GROUPBY(E1:E151,A1:D151,_xlfn.LAMBDA(_xlpm.x
     file.
 
 """
-setFormula(w, r, f::AbstractString; raw::Bool=false, spill::Union{Nothing,Bool}=nothing, value=nothing) = setFormula(w, r; val=f, raw=raw, spill=spill, value=value) # move formula to a kw to take advantage of cellformat-helpers functions
-setFormula(w, r, c, f::AbstractString; raw::Bool=false, spill::Bool=false, value=nothing) = setFormula(w, r, c; val=f, raw=raw, spill=spill, value=value) # move formula to a kw to take advantage of cellformat-helpers functions
+setFormula(w, r, f::AbstractString; raw::Bool=false, spill::Union{Nothing,Bool}=nothing, value=nothing) = setFormula(w, r; val=String(f), raw=raw, spill=spill, value=value) # move formula to a kw to take advantage of cellformat-helpers functions
+setFormula(w, r, c, f::AbstractString; raw::Bool=false, spill::Bool=false, value=nothing) = setFormula(w, r, c; val=String(f), raw=raw, spill=spill, value=value) # move formula to a kw to take advantage of cellformat-helpers functions
 setFormula(ws::Worksheet, ref::SheetCellRef; kw...) = do_sheet_names_match(ws, ref) && setFormula(ws, ref.cellref; kw...)
 setFormula(ws::Worksheet, rng::SheetCellRange; kw...) = do_sheet_names_match(ws, rng) && setFormula(ws, rng.rng; kw...)
 setFormula(ws::Worksheet, rng::SheetColumnRange; kw...) = do_sheet_names_match(ws, rng) && setFormula(ws, rng.colrng; kw...)
@@ -940,7 +940,7 @@ setFormula(ws::Worksheet, rng::SheetRowRange; kw...) = do_sheet_names_match(ws, 
 setFormula(ws::Worksheet, colrng::ColumnRange; kw...) = process_columnranges(setFormula, ws, colrng; kw...)
 setFormula(ws::Worksheet, rowrng::RowRange; kw...) = process_rowranges(setFormula, ws, rowrng; kw...)
 setFormula(ws::Worksheet, ref_or_rng::AbstractString; kw...) = process_ranges(setFormula, ws, ref_or_rng; kw...)
-setFormula(xl::XLSXFile, sheetcell::String; kw...) = process_sheetcell(setFormula, xl, sheetcell; kw...)
+setFormula(xl::XLSXFile, sheetcell::AbstractString; kw...) = process_sheetcell(setFormula, xl, sheetcell; kw...)
 setFormula(ws::Worksheet, row::Integer, col::Integer; kw...) = setFormula(ws, CellRef(row, col); kw...)
 setFormula(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, col::Union{Integer,UnitRange{<:Integer}}; kw...) = setFormula(ws, CellRange(CellRef(first(row), first(col)), CellRef(last(row), last(col))); kw...)
 setFormula(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw...) = process_colon(setFormula, ws, row, nothing; kw...)
@@ -1130,8 +1130,8 @@ julia> XLSX.getFormula(s, XLSX.CellRef("B1"); get_external_refs=true)
 ```
 
 """
-getFormula(ws::Worksheet, cr::String; kw...) = process_get_cellname(getFormula, ws, cr; kw...)
-getFormula(xl::XLSXFile, sheetcell::String; kw...) = process_get_sheetcell(getFormula, xl, sheetcell; kw...)
+getFormula(ws::Worksheet, cr::AbstractString; kw...) = process_get_cellname(getFormula, ws, cr; kw...)
+getFormula(xl::XLSXFile, sheetcell::AbstractString; kw...) = process_get_sheetcell(getFormula, xl, sheetcell; kw...)
 getFormula(ws::Worksheet, row::Integer, col::Integer; kw...) = getFormula(ws, CellRef(row, col); kw...)
 function getFormula(ws::Worksheet, cellref::CellRef; get_external_refs::Bool=false)
     xf = get_xlsxfile(ws)

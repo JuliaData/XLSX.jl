@@ -95,8 +95,8 @@ function _stream_sheets_options(; overwrite::Bool=false, as_table::Bool=false, t
 end
 
 function _stream_row_table(filename::Union{AbstractString,IO}, x; overwrite::Bool=false, sheetname::AbstractString="",
-                           anchor_cell::Union{String,CellRef}=CellRef("A1"), totals=nothing, streaming::Bool=true, kw...)
-    _check_streaming_options(anchor_cell isa String ? CellRef(anchor_cell) : anchor_cell, totals)
+                           anchor_cell::Union{AbstractString,CellRef}=CellRef("A1"), totals=nothing, streaming::Bool=true, kw...)
+    _check_streaming_options(anchor_cell isa AbstractString ? CellRef(String(anchor_cell)) : anchor_cell, totals)
     return _stream_sheets(filename, [(sheetname, x)]; overwrite, kw...)
 end
 

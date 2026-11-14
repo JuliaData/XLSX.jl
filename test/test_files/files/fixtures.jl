@@ -369,10 +369,16 @@ end
         @test !any(endswith("/"), keys(xf.binary_data))
         io = IOBuffer()
         XLSX.writexlsx(io, xf)
-        xf2 = XLSX.readxlsx(IOBuffer(take!(io)))
+        bytes = take!(io)
+        xf2 = XLSX.readxlsx(IOBuffer(bytes))
+        # openpyxl declares `xmlns:r` on each <sheet>: the rewritten sheets still need it,
+        # or Excel refuses the file (the `r:` of `r:id` is undeclared)
+        wbxml = ZipArchives.zip_readentry(ZipArchives.ZipReader(bytes), "xl/workbook.xml", String)
+        @test occursin(r"<workbook [^>]*xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"", wbxml)
         @test XLSX.sheetnames(xf2) == ["Sheet", "Test1"]
         @test xf2["Test1"]["A1"] == "One"
         @test xf2["Test1"]["A2"] == 1
+        SAVE_FILES && save_outfile(xf)
     end
 end
 
@@ -383,4 +389,5 @@ end
     @test xf["Sheet1"]["A2"] == 1
 
     @test collect(keys(xf.binary_data)) == ["xl/printerSettings/printerSettings1.bin"]
+    SAVE_FILES && save_outfile(xf)
 end

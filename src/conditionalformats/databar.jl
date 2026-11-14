@@ -294,14 +294,17 @@ function setColoredDataBars(ws::Worksheet, rng::CellRange;
                             colors=["green", "red"],
                             breaks=nothing,
                             gte::Union{Bool,AbstractVector{Bool}}=true,
-                            showVal::Union{Nothing,String}=nothing,
-                            direction::Union{Nothing,String}=nothing,
-                            min_type::Union{Nothing,String}=nothing,
-                            min_val::Union{Nothing,String}=nothing,
-                            max_type::Union{Nothing,String}=nothing,
-                            max_val::Union{Nothing,String}=nothing,
+                            showVal::Union{Nothing,AbstractString}=nothing,
+                            direction::Union{Nothing,AbstractString}=nothing,
+                            min_type::Union{Nothing,AbstractString}=nothing,
+                            min_val::Union{Nothing,AbstractString}=nothing,
+                            max_type::Union{Nothing,AbstractString}=nothing,
+                            max_val::Union{Nothing,AbstractString}=nothing,
                             clear::Bool=true)
 
+    # any AbstractString, e.g. a SubString (#498)
+    showVal, direction, min_type, min_val, max_type, max_val =
+        _str_or_nothing.((showVal, direction, min_type, min_val, max_type, max_val))
     _check_cf_areas(ws, rng)
     
     clear && clearConditionalFormats(ws, rng)

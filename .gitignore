@@ -9,4 +9,7 @@ docs/Manifest.toml
 bench/fixtures/
 bench/results/
 test/data/output_files/
+# scratch files from running a test file directly at the repo root
+/*.xlsx
+/*.xlsm
 bench/envs/python/.CondaPkg/

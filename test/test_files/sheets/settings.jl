@@ -148,6 +148,7 @@
         @test XLSX.getSheetVisibility(r["Trend"]) == :hidden
         @test XLSX.removeTabColor(chs)
         @test isnothing(XLSX.getTabColor(chs))
+        SAVE_FILES && save_outfile(xf)
     end
 
     sheet_xml(bytes, n=1) = entry(bytes, "xl/worksheets/sheet$n.xml")

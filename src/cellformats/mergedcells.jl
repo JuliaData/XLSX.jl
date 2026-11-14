@@ -89,8 +89,8 @@ julia> XLSX.isMergedCell(sh, XLSX.CellRef("A1"), mc)
 ```
 """
 function isMergedCell end
-isMergedCell(xl::XLSXFile, sheetcell::String; kw...)::Bool = process_get_sheetcell(isMergedCell, xl, sheetcell; kw...)
-isMergedCell(ws::Worksheet, cr::String; kw...)::Bool = process_get_cellname(isMergedCell, ws, cr; kw...)
+isMergedCell(xl::XLSXFile, sheetcell::AbstractString; kw...)::Bool = process_get_sheetcell(isMergedCell, xl, sheetcell; kw...)
+isMergedCell(ws::Worksheet, cr::AbstractString; kw...)::Bool = process_get_cellname(isMergedCell, ws, cr; kw...)
 isMergedCell(ws::Worksheet, row::Integer, col::Integer; kw...) = isMergedCell(ws, CellRef(row, col); kw...)
 function isMergedCell(ws::Worksheet, cellref::CellRef; mergedCells::Union{Vector{CellRange},Nothing,Missing}=missing)::Bool
 
@@ -153,8 +153,8 @@ julia> XLSX.getMergedBaseCell(sh, 2, 2)
 ```
 """
 function getMergedBaseCell end
-getMergedBaseCell(xl::XLSXFile, sheetcell::String; kw...) = process_get_sheetcell(getMergedBaseCell, xl, sheetcell; kw...)
-getMergedBaseCell(ws::Worksheet, cr::String; kw...) = process_get_cellname(getMergedBaseCell, ws, cr; kw...)
+getMergedBaseCell(xl::XLSXFile, sheetcell::AbstractString; kw...) = process_get_sheetcell(getMergedBaseCell, xl, sheetcell; kw...)
+getMergedBaseCell(ws::Worksheet, cr::AbstractString; kw...) = process_get_cellname(getMergedBaseCell, ws, cr; kw...)
 getMergedBaseCell(ws::Worksheet, row::Integer, col::Integer; kw...) = getMergedBaseCell(ws, CellRef(row, col); kw...)
 function getMergedBaseCell(ws::Worksheet, cellref::CellRef; mergedCells::Union{Vector{CellRange},Nothing,Missing}=missing)
 

@@ -254,8 +254,8 @@ julia> getFont(sh, 1, 1)
 ```
 """
 function getFont end
-getFont(ws::Worksheet, cr::String) = process_get_cellname(getFont, ws, cr)
-getFont(xl::XLSXFile, sheetcell::String)::Union{Nothing,CellFont} = process_get_sheetcell(getFont, xl, sheetcell)
+getFont(ws::Worksheet, cr::AbstractString) = process_get_cellname(getFont, ws, cr)
+getFont(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,CellFont} = process_get_sheetcell(getFont, xl, sheetcell)
 getFont(ws::Worksheet, cellref::CellRef)::Union{Nothing,CellFont} = process_get_cellref(getFont, ws, cellref)
 getFont(ws::Worksheet, row::Integer, col::Integer) = getFont(ws, CellRef(row, col))
 getDefaultFont(ws::Worksheet) = getFont(get_workbook(ws), styles_cell_xf(get_workbook(ws), 0))

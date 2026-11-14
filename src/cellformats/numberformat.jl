@@ -34,9 +34,9 @@ julia> getFormat(sh, 1, 1)
 ```
 """
 function getFormat end
-getFormat(xl::XLSXFile, sheetcell::String)::Union{Nothing,CellFormat} = process_get_sheetcell(getFormat, xl, sheetcell)
+getFormat(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,CellFormat} = process_get_sheetcell(getFormat, xl, sheetcell)
 getFormat(ws::Worksheet, cellref::CellRef)::Union{Nothing,CellFormat} = process_get_cellref(getFormat, ws, cellref)
-getFormat(ws::Worksheet, cr::String) = process_get_cellname(getFormat, ws, cr)
+getFormat(ws::Worksheet, cr::AbstractString) = process_get_cellname(getFormat, ws, cr)
 getFormat(ws::Worksheet, row::Integer, col::Integer) = getFormat(ws, CellRef(row, col))
 
 function getFormat(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFormat}

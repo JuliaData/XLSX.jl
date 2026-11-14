@@ -630,6 +630,7 @@ end
         XLSX.writexlsx(io, xf)
         names = [(m[1], m[2]) for m in eachmatch(r"<definedName name=\"([^\"]+)\"(?: localSheetId=\"(\d+)\")?", block(take!(io)))]
         @test names == [("_xlnm._FilterDatabase", "0"), ("_xlnm._FilterDatabase", "1"), ("Alpha", "1"), ("alpha", nothing), ("zeta", nothing)]
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "hidden survives a round trip" begin
@@ -836,13 +837,11 @@ end
         @test !haskey(wb.workbook_names, "_xlchart.v1.0")
         @test !any(k -> last(k) == "own", keys(wb.worksheet_names))
 
-        mktempdir() do dir
-            p = joinpath(dir, "deleted.xlsx")
-            XLSX.writexlsx(p, f)
-            g = XLSX.readxlsx(p)
-            @test only(XLSX.getDefinedNames(g[1])).value == "=#REF!"
-            @test Dict(dn.name => dn.value for dn in XLSX.getDefinedNames(g))["wb"] == "=#REF!"
-        end
+        p = "deleted_sheet_names.xlsx"
+        XLSX.writexlsx(p, f; overwrite=true)
+        g = XLSX.readxlsx(p)
+        @test only(XLSX.getDefinedNames(g[1])).value == "=#REF!"
+        @test Dict(dn.name => dn.value for dn in XLSX.getDefinedNames(g))["wb"] == "=#REF!"
         SAVE_FILES && save_outfile(f)
     end
     @testset "quoteit" begin

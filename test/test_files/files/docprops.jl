@@ -74,6 +74,7 @@
         r = roundtrip(xf)
         @test XLSX.getCustomProperties(r) == XLSX.getCustomProperties(xf)
         @test XLSX.getDocumentProperties(r) == XLSX.getDocumentProperties(xf)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "other programs' properties are kept" begin
@@ -95,6 +96,7 @@
         @test XLSX.getCustomProperty(r, "Reviewers") == ["A", "B"]      # a list is read as a vector
         @test XLSX.getCustomProperty(r, "New") == 1
         @test last(XLSX.xml_elements(root(r, "docProps/custom.xml")))["pid"] == "22"        # after the highest pid
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "a file without the parts" begin
@@ -111,6 +113,7 @@
         r = roundtrip(xf)
         @test XLSX.getDocumentProperties(r).title == "T" && XLSX.getDocumentProperties(r).company == "C"
         @test count(rr -> rr.Type in (XLSX._CORE_PART.rel, XLSX._APP_PART.rel), r.relationships) == 2
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "dates" begin
@@ -143,5 +146,6 @@
         @test_throws XLSX.XLSXError XLSX.setDocumentProperties(r; title="T")
         @test_throws XLSX.XLSXError XLSX.setCustomProperty(r, "x", 1)
         @test_throws XLSX.XLSXError XLSX.deleteCustomProperty(r, "x")
+        SAVE_FILES && save_outfile(xf)
     end
 end

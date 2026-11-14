@@ -54,9 +54,9 @@ julia> getBorder(xf, "Sheet1!A1")
 ```
 """
 function getBorder end
-getBorder(xl::XLSXFile, sheetcell::String)::Union{Nothing,CellBorder} = process_get_sheetcell(getBorder, xl, sheetcell)
+getBorder(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,CellBorder} = process_get_sheetcell(getBorder, xl, sheetcell)
 getBorder(ws::Worksheet, cellref::CellRef)::Union{Nothing,CellBorder} = process_get_cellref(getBorder, ws, cellref)
-getBorder(ws::Worksheet, cr::String) = process_get_cellname(getBorder, ws, cr)
+getBorder(ws::Worksheet, cr::AbstractString) = process_get_cellname(getBorder, ws, cr)
 getBorder(ws::Worksheet, row::Integer, col::Integer) = getBorder(ws, CellRef(row, col))
 getDefaultBorders(ws::Worksheet) = getBorder(get_workbook(ws), styles_cell_xf(get_workbook(ws), 0))
 function getBorder(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellBorder}
@@ -204,7 +204,7 @@ function _setBorder(ws::Worksheet, rng::RowRange; spec::BorderSpec)::Int
     return process_rowranges(_setBorder, ws, rng; spec)
 end
 
-function _setBorder(xl::XLSXFile, sheetcell::String; spec::BorderSpec)::Int
+function _setBorder(xl::XLSXFile, sheetcell::AbstractString; spec::BorderSpec)::Int
     _check_outside_conflict(spec)
     if isnothing(spec.outside)
         return process_sheetcell(_setBorder, xl, sheetcell; spec)

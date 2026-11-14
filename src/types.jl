@@ -188,16 +188,16 @@ end
 function FontSpec(caller::Symbol;
     bold::Union{Nothing,Bool}=nothing,
     italic::Union{Nothing,Bool}=nothing,
-    under::Union{Nothing,String}=nothing,
+    under::Union{Nothing,AbstractString}=nothing,
     strike::Union{Nothing,Bool}=nothing,
     size::Union{Nothing,Real}=nothing,
     color::Union{Nothing,CellColor}=nothing,
-    name::Union{Nothing,String}=nothing,
-    vertAlign::Union{Nothing,String}=nothing,
+    name::Union{Nothing,AbstractString}=nothing,
+    vertAlign::Union{Nothing,AbstractString}=nothing,
     kw...
 )
     _check_keywords(caller, FontSpec, kw)
-    return FontSpec(bold, italic, under, strike, size, color, name, vertAlign)
+    return FontSpec(bold, italic, _str_or_nothing(under), strike, size, color, _str_or_nothing(name), _str_or_nothing(vertAlign))
 end
 
 struct FillSpec
@@ -206,13 +206,13 @@ struct FillSpec
     bgColor::Union{Nothing,CellColor}
 end
 function FillSpec(caller::Symbol;
-    pattern::Union{Nothing,String}=nothing,
+    pattern::Union{Nothing,AbstractString}=nothing,
     fgColor::Union{Nothing,CellColor}=nothing,
     bgColor::Union{Nothing,CellColor}=nothing,
     kw...
 )
     _check_keywords(caller, FillSpec, kw)
-    return FillSpec(pattern, fgColor, bgColor)
+    return FillSpec(_str_or_nothing(pattern), fgColor, bgColor)
 end
 
 struct AlignmentSpec
@@ -224,8 +224,8 @@ struct AlignmentSpec
     rotation::Union{Nothing,Int}
 end
 function AlignmentSpec(caller::Symbol;
-    horizontal::Union{Nothing,String}=nothing,
-    vertical::Union{Nothing,String}=nothing,
+    horizontal::Union{Nothing,AbstractString}=nothing,
+    vertical::Union{Nothing,AbstractString}=nothing,
     wrapText::Union{Nothing,Bool}=nothing,
     shrink::Union{Nothing,Bool}=nothing,
     indent::Union{Nothing,Int}=nothing,
@@ -233,15 +233,15 @@ function AlignmentSpec(caller::Symbol;
     kw...
 )
     _check_keywords(caller, AlignmentSpec, kw)
-    return AlignmentSpec(horizontal, vertical, wrapText, shrink, indent, rotation)
+    return AlignmentSpec(_str_or_nothing(horizontal), _str_or_nothing(vertical), wrapText, shrink, indent, rotation)
 end
 
 struct FormatSpec
     format::Union{Nothing,String}
 end
-function FormatSpec(caller::Symbol; format::Union{Nothing,String}=nothing, kw...)
+function FormatSpec(caller::Symbol; format::Union{Nothing,AbstractString}=nothing, kw...)
     _check_keywords(caller, FormatSpec, kw)
-    return FormatSpec(format)
+    return FormatSpec(_str_or_nothing(format))
 end
 
 struct BorderSpec
@@ -692,13 +692,14 @@ end
 const ValidRichTextAttributes = [:bold, :italic, :under, :strike, :vertAlign, :color, :size, :name]
 
 """
-    RichTextRun(text::String, pairs::Union{Nothing,Vector{Pair{Symbol,Any}}}=nothing)     -> RichTextRun
-    RichTextRun(text::String)                                                             -> RichTextRun
+    RichTextRun(text::AbstractString, pairs::Union{Nothing,Vector{Pair{Symbol,Any}}}=nothing) -> RichTextRun
+    RichTextRun(text::AbstractString)                                                         -> RichTextRun
 
 Create an instance of a RichTextRun, representing a formatted substring element (run) to form part 
 of a RichTextString. Each RichTextRun defines none, one or several font attributes to apply to its text.
 
-- `text` specifies the text of the run's substring element.
+- `text` specifies the text of the run's substring element. Any `AbstractString` is accepted
+  and used as plain text, so the formatting of a `RichTextString` or a styled string is not kept.
 - `pairs` is a vector of formatting attributes to apply to `text` (default = `nothing`).
 
 Valid attributes that can be defined in `pairs` are:

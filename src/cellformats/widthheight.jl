@@ -61,7 +61,7 @@ for f in (:setColumnWidth, :setRowHeight)
         $f(ws::Worksheet, rowrng::RowRange; kw...)::Int = process_rowranges($f, ws, rowrng; kw...)
         $f(ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int = process_ncranges($f, ws, ncrng; kw...)
         $f(ws::Worksheet, ref_or_rng::AbstractString; kw...)::Int = process_ranges($f, ws, ref_or_rng; kw...)
-        $f(xl::XLSXFile, sheetcell::String; kw...)::Int = process_sheetcell($f, xl, sheetcell; kw...)
+        $f(xl::XLSXFile, sheetcell::AbstractString; kw...)::Int = process_sheetcell($f, xl, sheetcell; kw...)
         $f(ws::Worksheet, row::Union{Integer,UnitRange{<:Integer}}, ::Colon; kw...) = process_colon($f, ws, row, nothing; kw...)
         $f(ws::Worksheet, ::Colon, col::Union{Integer,UnitRange{<:Integer}}; kw...) = process_colon($f, ws, nothing, col; kw...)
         $f(ws::Worksheet, ::Colon, ::Colon; kw...) = process_colon($f, ws, nothing, nothing; kw...)
@@ -117,8 +117,8 @@ julia> XLSX.getColumnWidth(sh, 1, 6)
 ```
 """
 function getColumnWidth end
-getColumnWidth(xl::XLSXFile, sheetcell::String)::Union{Nothing,Float64} = process_get_sheetcell(getColumnWidth, xl, sheetcell)
-getColumnWidth(ws::Worksheet, cr::String) = process_get_cellname(getColumnWidth, ws, cr)
+getColumnWidth(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,Float64} = process_get_sheetcell(getColumnWidth, xl, sheetcell)
+getColumnWidth(ws::Worksheet, cr::AbstractString) = process_get_cellname(getColumnWidth, ws, cr)
 getColumnWidth(ws::Worksheet, row::Integer, col::Integer) = getColumnWidth(ws, CellRef(row, col))
 function getColumnWidth(ws::Worksheet, cellref::CellRef)::Union{Nothing,Real}
     # May be better if column width were part of ws.cache?
@@ -256,8 +256,8 @@ julia> XLSX.getRowHeight(sh, 1, 6)
 ```
 """
 function getRowHeight end
-getRowHeight(xl::XLSXFile, sheetcell::String)::Union{Nothing,Real} = process_get_sheetcell(getRowHeight, xl, sheetcell)
-getRowHeight(ws::Worksheet, cr::String) = process_get_cellname(getRowHeight, ws, cr)
+getRowHeight(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,Real} = process_get_sheetcell(getRowHeight, xl, sheetcell)
+getRowHeight(ws::Worksheet, cr::AbstractString) = process_get_cellname(getRowHeight, ws, cr)
 getRowHeight(ws::Worksheet, row::Integer, col::Integer) = getRowHeight(ws, CellRef(row, col))
 function getRowHeight(ws::Worksheet, cellref::CellRef)::Union{Nothing,Real}
 

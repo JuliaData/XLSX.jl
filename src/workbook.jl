@@ -71,9 +71,12 @@ finds a sheet named `Data`.
 hassheet(wb::Workbook, sheetname::AbstractString)::Bool = !isnothing(_sheet_index(wb, sheetname))
 
 # The position of the sheet named `sheetname`, matched without regard to case as Excel
-# does, or `nothing`. A quoted name (`'My Sheet'`) is unquoted first.
-_sheet_index(wb::Workbook, sheetname::AbstractString) =
-    findfirst(s -> _same_sheetname(s.name, unquoteit(sheetname)), wb.sheets)
+# does, or `nothing`. A quoted name (`'My Sheet'`) is unquoted first. Any AbstractString
+# is compared as a plain String: a styled string never equals one (#498).
+function _sheet_index(wb::Workbook, sheetname::AbstractString)
+    name = unquoteit(String(sheetname))
+    return findfirst(s -> _same_sheetname(s.name, name), wb.sheets)
+end
 
 @inline hassheet(xl::XLSXFile, sheetname::AbstractString) = hassheet(xl.workbook, sheetname)
 
@@ -90,7 +93,7 @@ Count the number of sheets in the Workbook.
 @inline isdate1904(wb::Workbook)::Bool = wb.date1904
 @inline isdate1904(xf::XLSXFile)::Bool = isdate1904(get_workbook(xf))
 
-function getsheet(wb::Workbook, sheetname::String)::Worksheet
+function getsheet(wb::Workbook, sheetname::AbstractString)::Worksheet
     i = _sheet_index(wb, sheetname)
     isnothing(i) && throw(XLSXError("$(get_xlsxfile(wb).source) does not have a Worksheet named `$sheetname`."))
     return wb.sheets[i]
@@ -101,7 +104,7 @@ function getsheet(wb::Workbook, sheet_index::Int)::Worksheet
         throw(XLSXError("$(get_xlsxfile(wb).source) has no sheet $sheet_index: it has $(length(wb.sheets)) sheet(s)."))
     return wb.sheets[sheet_index]
 end
-@inline getsheet(xl::XLSXFile, sheetname::String)::Worksheet = getsheet(xl.workbook, sheetname)
+@inline getsheet(xl::XLSXFile, sheetname::AbstractString)::Worksheet = getsheet(xl.workbook, sheetname)
 @inline getsheet(xl::XLSXFile, sheet_index::Int)::Worksheet = getsheet(xl.workbook, sheet_index)
 
 function _print_sheet_table(io::IO, wb::Workbook)
@@ -158,6 +161,7 @@ end
 @inline Base.getindex(xl::XLSXFile, i::Integer) = getsheet(xl, i)
 
 function Base.getindex(xl::XLSXFile, s::AbstractString)
+    s = String(s)   # any AbstractString, e.g. a SubString (#498)
     if hassheet(xl, s)
         return getsheet(xl, s)
     else
@@ -714,6 +718,7 @@ addDefinedName(ws::Worksheet, name::AbstractString, value::Union{Integer,Float64
 addDefinedName(xf::XLSXFile, name::AbstractString, value::DefinedNameRangeTypes; absolute::Union{Bool,Vector{Bool}}=true) = addDefName(xf, name, value; absolute)
 addDefinedName(ws::Worksheet, name::AbstractString, value::DefinedNameRangeTypes; absolute::Union{Bool,Vector{Bool}}=true) = addDefName(ws, name, value; absolute)
 function addDefinedName(xf::XLSXFile, name::AbstractString, value::AbstractString; absolute=true)
+    name, value = String(name), String(value)   # any AbstractString, e.g. a SubString (#498)
     if value == ""
         throw(XLSXError("Defined name value cannot be an empty string."))
     end
@@ -730,6 +735,7 @@ function addDefinedName(xf::XLSXFile, name::AbstractString, value::AbstractStrin
     end
 end
 function addDefinedName(ws::Worksheet, name::AbstractString, value::AbstractString; absolute=true)
+    name, value = String(name), String(value)   # any AbstractString, e.g. a SubString (#498)
     if value == ""
         throw(XLSXError("Defined name value cannot be an empty string."))
     end

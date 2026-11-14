@@ -121,6 +121,7 @@
         f = XLSX.openxlsx(IOBuffer(bytes); mode="rw")
         @test XLSX.removeAutoFilter(f["Data"])
         @test !occursin("_FilterDatabase", workbook_xml(roundtrip_bytes(f)))
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "sheet operations" begin

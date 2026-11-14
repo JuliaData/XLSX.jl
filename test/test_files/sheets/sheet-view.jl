@@ -39,6 +39,7 @@
         @test XLSX.getSheetView(s).zoom == 100 && !haskey(sheet_view(xf, s), "view")
 
         @test XLSX.getSheetView(roundtrip(xf)[1]) == XLSX.getSheetView(s)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "selection" begin
@@ -59,6 +60,7 @@
         XLSX.setSheetView(s; selection="picked")
         @test XLSX.getSheetView(s).selection == "D4:E5"
         @test XLSX.getSheetView(roundtrip(xf)[1]).selection == "D4:E5"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "with panes" begin
@@ -90,6 +92,7 @@
         XLSX.freezePanes(t; nrows=1)
         @test !haskey(sheet_view(xf, t), "topLeftCell") && XLSX.getSheetView(t).zoom == 90
         @test XLSX.getSheetView(t).topLeftCell == XLSX.CellRef("A2")
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "as Excel writes it" begin
@@ -111,6 +114,7 @@
             @test view_xml(ex, ex[n]) == view_xml(xf, xf[n])
         end
         @test XLSX.getSheetView(ex["pagebreak"]).zoom == 60
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "errors" begin

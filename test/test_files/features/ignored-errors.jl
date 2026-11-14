@@ -78,6 +78,7 @@
         @test !("ignoredErrors" in [XLSX.localname(c) for c in XLSX.xml_elements(XLSX._sheet_root(s))])
         XLSX.setIgnoredErrors(s, "A1"; formula=false)                                 # nothing to change
         @test isempty(XLSX.getIgnoredErrors(s))
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "inserting and deleting rows and columns" begin
@@ -98,6 +99,7 @@
         XLSX.deleteColumns(s, 2)
         @test isempty(XLSX.getIgnoredErrors(s))
         @test !("ignoredErrors" in [XLSX.localname(c) for c in XLSX.xml_elements(XLSX._sheet_root(s))])
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "range arithmetic" begin
