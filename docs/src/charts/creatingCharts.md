@@ -76,10 +76,20 @@ schema, where the data block is required.
 | Line with markers | `:lineMarkers` | `:stackedLineMarkers` | `:percentStackedLineMarkers` |
 | Area | `:area` | `:stackedArea` | `:percentStackedArea` |
 
-and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`, and
-`:combo`, a column and a line chart in one; see [Combo charts](#Combo-charts).
+![The fifteen chart kinds in the table above, each titled with its kind and laid out in the same grid, as Excel draws them in a workbook made by XLSX.newxlsx](../images/chartKinds.png)
 
-![Every chart kind addChart creates, each titled with its kind, from :column to :combo, as Excel draws them in a workbook made by XLSX.newxlsx](../images/chartKinds.png)
+and these:
+
+| | | |
+| --- | --- | --- |
+| Pie | `:pie` | `:doughnut` |
+| XY | `:scatter` | `:bubble` |
+| Radar | `:radar` | `:filledRadar` |
+| Combo | `:combo` | |
+
+`:combo` is a column and a line chart in one; see [Combo charts](#Combo-charts).
+
+![The other seven chart kinds, each titled with its kind and laid out in the same grid as the table above: pie and doughnut, scatter and bubble, radar and filled radar, then combo](../images/chartKindsOther.png)
 
 Each comes from a chart part Excel itself wrote, kept verbatim in the package,
 so a created chart is what Excel would have produced for that kind — including
