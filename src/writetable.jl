@@ -281,7 +281,7 @@ julia> XLSX.writetable("table.xlsx", columns, colnames;
 
 See also: [`XLSX.writetable!`](@ref), [`XLSX.addtable!`](@ref), [`XLSX.settotals!`](@ref).
 """
-function writetable(filename::Union{AbstractString,IO}, data, columnnames; overwrite::Bool=false, sheetname::AbstractString="", anchor_cell::Union{String,CellRef}=CellRef("A1"),
+function writetable(filename::Union{AbstractString,IO}, data, columnnames; overwrite::Bool=false, sheetname::AbstractString="", anchor_cell::Union{AbstractString,CellRef}=CellRef("A1"),
     as_table::Bool=false, table_name::AbstractString="", table_style::Union{AbstractString,Nothing}=nothing,
     totals::Union{Nothing,AbstractVector{<:Pair}}=nothing, streaming::Bool=false, layout...
 )
@@ -290,8 +290,8 @@ function writetable(filename::Union{AbstractString,IO}, data, columnnames; overw
         isfile(filename) && throw(XLSXError("$filename already exists."))
     end
 
-    if isa(anchor_cell, String)
-        anchor_cell = CellRef(anchor_cell)
+    if isa(anchor_cell, AbstractString)
+        anchor_cell = CellRef(String(anchor_cell))
     end
 
     if streaming

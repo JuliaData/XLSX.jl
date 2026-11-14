@@ -871,6 +871,7 @@
             xml = XLSX.XML.write(C.chart_root(x))
             @test occursin("!\$B\$2:\$B\$3</cx:f>", xml) && occursin("!\$A\$2:\$A\$3</cx:f>", xml)
             @test occursin("<cx:v>North</cx:v>", xml)
+            SAVE_FILES && save_outfile(xf)
         end
 
         @testset "cx: chart kind templates match Excel" begin

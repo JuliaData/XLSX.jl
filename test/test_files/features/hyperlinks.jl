@@ -191,6 +191,7 @@
         r = roundtrip(xf2)
         @test [h.ref for h in XLSX.getHyperlinks(r)] == ["A2", "B5"]
         @test XLSX.getHyperlink(r["Data"], "B5").url == "https://example.com"
+        SAVE_FILES && save_outfile(xf2)
     end
 
     @testset "copysheet! gives the copy its own relationships" begin

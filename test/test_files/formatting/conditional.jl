@@ -2943,6 +2943,7 @@
         XLSX.setConditionalFormat(s, "A1:A5", :iconSet; iconset="Custom", reverse="true",
             min_type="num", min_val="1", max_type="num", max_val="5", icon_list=icons)
         @test icons == [1, 2, 3]
+        SAVE_FILES && save_outfile(xf)
     end
 
     # The rule-based setters read their keywords the same way.
@@ -2955,6 +2956,7 @@
         @test length(XLSX.getConditionalFormats(s)) == 2
         @test_throws XLSX.XLSXError XLSX.setConditionalFormat(s, "A1:A5", :cellIs; value=3)
         @test_throws XLSX.XLSXError XLSX.setConditionalFormat(s, "A1:A5", :timePeriod; operator=7)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "every setCf* setter accepts the same target forms" begin

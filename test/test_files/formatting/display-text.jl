@@ -52,6 +52,7 @@ end
     @test_throws XLSX.XLSXError XLSX.setFormat(s, "A3"; format="0 h")
     @test_throws XLSX.XLSXError XLSX.setFormat(s, "A3"; format="0;0;0;0;0")
     @test_throws XLSX.XLSXError XLSX.setFormat(s, "A3"; format="\"open")
+    SAVE_FILES && save_outfile(f)
 end
 
 @testset "built-in formats" begin
@@ -70,6 +71,7 @@ end
     s["A3"] = 0.001                              # the value first: a number loses a date format
     XLSX.setFormat(s, "A3"; format="47")
     @test XLSX.getText(s, "A3") == "01:26.4"
+    SAVE_FILES && save_outfile(f)
 end
 
 @testset "getText" begin

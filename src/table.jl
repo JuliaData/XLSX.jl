@@ -71,6 +71,7 @@ const RESERVED = Set(["local", "global", "export", "let",
     "return", "using", "baremodule", "macro", "finally",
     "module", "elseif", "end", "quote", "do"])
 normalizename(name::Symbol) = name
+normalizename(name::AbstractString) = normalizename(String(name))   # e.g. a SubString label (#498)
 function normalizename(name::String)::Symbol
     uname = strip(Unicode.normalize(name))
     id = Base.isidentifier(uname) ? uname : map(c->Base.is_id_char(c) ? c : '_', uname)
@@ -815,7 +816,7 @@ end
 
 # Validates and coerces first_column to Int or nothing.
 function _parse_first_column(first_column)
-    first_column isa String && return decode_column_number(first_column)
+    first_column isa AbstractString && return decode_column_number(String(first_column))
     (first_column isa Integer || isnothing(first_column)) && return first_column
     throw(XLSXError("first_column must be an integer column number or a column string like \"A\", \"B\", etc."))
 end

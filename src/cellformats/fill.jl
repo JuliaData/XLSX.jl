@@ -63,9 +63,9 @@ julia> getFill(xf, "Sheet1!A1")
 ```
 """
 function getFill end
-getFill(xl::XLSXFile, sheetcell::String)::Union{Nothing,CellFill} = process_get_sheetcell(getFill, xl, sheetcell)
+getFill(xl::XLSXFile, sheetcell::AbstractString)::Union{Nothing,CellFill} = process_get_sheetcell(getFill, xl, sheetcell)
 getFill(ws::Worksheet, cellref::CellRef)::Union{Nothing,CellFill} = process_get_cellref(getFill, ws, cellref)
-getFill(ws::Worksheet, cr::String) = process_get_cellname(getFill, ws, cr)
+getFill(ws::Worksheet, cr::AbstractString) = process_get_cellname(getFill, ws, cr)
 getFill(ws::Worksheet, row::Integer, col::Integer) = getFill(ws, CellRef(row, col))
 getDefaultFill(ws::Worksheet) = getFill(get_workbook(ws), styles_cell_xf(get_workbook(ws), 0))
 

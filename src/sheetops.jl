@@ -15,6 +15,7 @@ See also [`addsheet!`](@ref), [`copysheet!`](@ref), [`deletesheet!`](@ref), [`mo
 """
 function renamesheet!(ws::Worksheet, name::AbstractString)
 
+    name = String(name)   # accept any AbstractString, e.g. a SubString (#498)
     xf = get_xlsxfile(ws)
 
     # no-op if the name has not changed
@@ -369,6 +370,7 @@ function _register_sheet!(wb::Workbook, xdoc::XML.Node, name::AbstractString;
     xf = get_xlsxfile(wb)
     _require_writable(xf, "add a sheet")
 
+    name = String(name)   # accept any AbstractString, e.g. a SubString (#498)
     new_name = name
     existing = sheetnames(wb)
     i = 1

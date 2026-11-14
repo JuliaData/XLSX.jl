@@ -64,6 +64,7 @@
         XLSX.setCheckbox(xf, "Sheet1!D1")
         @test XLSX.hasCheckbox(s, "D1")
         @test length(XLSX.elements_with_tag(XLSX.xml_root_element(XLSX.get_xml_data(xf, XLSX._workbook_part(xf, XLSX.REL_FEATURE_BAG))), "bag")) == 4
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "removing" begin
@@ -84,6 +85,7 @@
         XLSX.setCheckbox(s, 4, 2)
         XLSX.removeCheckbox(xf, "Sheet1!B4")
         @test !XLSX.hasCheckbox(s, "B4")
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "in Excel's file" begin
@@ -97,5 +99,6 @@
         ro = XLSX.readxlsx(excel_file)
         @test_throws XLSX.XLSXError XLSX.setCheckbox(ro[1], "A1")
         @test_throws XLSX.XLSXError XLSX.removeCheckbox(ro[1], "A1")
+        SAVE_FILES && save_outfile(ex)
     end
 end

@@ -752,7 +752,7 @@ See also [`XLSX.autofitColumns`](@ref), which sizes columns to these texts, and
 [`XLSX.setFormat`](@ref).
 """
 function getText end
-getText(xl::XLSXFile, sheetcell::String) = process_get_sheetcell(getText, xl, sheetcell)
-getText(ws::Worksheet, cr::String) = process_get_cellname(getText, ws, cr)
+getText(xl::XLSXFile, sheetcell::AbstractString) = process_get_sheetcell(getText, xl, sheetcell)
+getText(ws::Worksheet, cr::AbstractString) = process_get_cellname(getText, ws, cr)
 getText(ws::Worksheet, row::Integer, col::Integer) = getText(ws, CellRef(row, col))
 getText(ws::Worksheet, ref::CellRef)::String = _cell_text(ws, getcell(ws, ref))

@@ -2405,6 +2405,7 @@ writing a number into a cell carrying a date/time format.
             setone(s, other; other_kws...)
             setuniform(s, target...; kws...)
             @test attribute(s, "A1") == attribute(s, other)
+            SAVE_FILES && save_outfile(f)
         end
     end
 
@@ -2421,6 +2422,7 @@ writing a number into a cell carrying a date/time format.
         s["A1:C3"] = 1
         XLSX.setUniformAlignment(s, [2], :; horizontal="right")
         @test [horizontal(s, c) for c in ("A1", "A2", "C2", "A3")] == [nothing, "right", "right", nothing]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "setters in a family accept the same target forms" begin
@@ -2471,6 +2473,7 @@ writing a number into a cell carrying a date/time format.
         @test_throws XLSX.XLSXError XLSX.setUniformBorder(s, "A1:B2"; outside=["style" => "thin"])
         @test XLSX.setBorder(s, "A1:C3"; outside=["style" => "thin"]) == -1
         @test XLSX.getBorder(s, "A1").border["top"]["style"] == "thin"
+        SAVE_FILES && save_outfile(f)
     end
 end
 

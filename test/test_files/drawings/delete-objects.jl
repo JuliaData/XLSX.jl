@@ -118,6 +118,7 @@
         @test isempty(names())                                                # its hidden names went
         @test isnothing(element(xf, "drawing"))
         @test isempty(XLSX.Charts.getCharts(roundtrip(xf)))
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "deleteChart: refusals" begin

@@ -447,6 +447,7 @@ end
         f = XLSX.newxlsx(); s = f[1]
         XLSX.setFormula(s, "G1", "=1+GROUPBY(E1:E9,A1:D9,SUM)")
         @test XLSX.get_formula_from_cache(s, XLSX.CellRef("G1")).formula == "=1+_xlfn.GROUPBY(E1:E9,A1:D9,_xleta.SUM)"
+        SAVE_FILES && save_outfile(f)
     end
     @testset "overwriting the master of a wide shared formula" begin
         f = XLSX.newxlsx(); s = f[1]
@@ -558,6 +559,7 @@ end
         @test XLSX.geterror(r, "G3") == "#DIV/0!"
         @test r["H2"] == 2
         @test vec(r["I1:I3"]) == [7, 7, 7]
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "a cell's format" begin
@@ -571,6 +573,7 @@ end
         @test XLSX.getFormat(s, "B1").format["numFmt"]["formatCode"] == "0.00"
         @test s["B2"] == Date(2026, 1, 1)
         @test haskey(XLSX.getFont(s, "B2").font, "b")                   # still bold
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "bad values" begin

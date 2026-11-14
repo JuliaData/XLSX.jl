@@ -154,6 +154,7 @@ testgroup("Charts", [
     "chart imports"           => "charts/imports.jl",
 ])
 testgroup("Quality", [
+    "string argument types"   => "quality/string-types.jl",
     "Aqua"                    => "quality/aqua.jl",
 ])
 

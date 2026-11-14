@@ -198,7 +198,7 @@ end
         # Reads that cross cache blocks, from views, and from several tasks at once.
         blk = XLSX.FILEARRAY_BLOCK
         bytes = rand(UInt8, 2blk + 12345)
-        tmp = tempname()
+        tmp = "filearray_blocks.bin"
         write(tmp, bytes)
         fa = XLSX.FileArray(tmp)
         @test length(fa) == length(bytes)
@@ -238,7 +238,7 @@ end
                            ("stream", p -> XLSX.openxlsx(p; enable_cache=false) do xf
                                for _ in XLSX.eachrow(xf[1]) end
                            end))
-            p = tempname() * ".xlsx"
+            p = "not_held_open.xlsx"
             cp(joinpath(data_directory, "general.xlsx"), p)
             GC.enable(false)
             try

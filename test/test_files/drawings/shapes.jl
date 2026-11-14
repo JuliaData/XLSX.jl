@@ -64,6 +64,7 @@
         @test length(XLSX.getImages(s)) == 1 && length(XLSX.getShapes(s)) == 5     # each sees its own
         r = roundtrip(xf)
         @test XLSX.getShapes(r[1]) == XLSX.getShapes(s)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "deleting" begin
@@ -81,6 +82,7 @@
         XLSX.addShape(s, "C3", :rect)
         @test XLSX.deleteShape(s, "C3") == 1
         @test isnothing(XLSX._drawing_path_for_sheet(xf, XLSX._sheet_path(s)))     # the empty drawing goes
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "rows, columns and sheets" begin
@@ -101,6 +103,7 @@
 
         ex = excel("shapes_excel.xlsx")                    # Excel writes no relationships for a drawing of shapes alone
         @test XLSX.getShapes(XLSX.copysheet!(ex[1], "Copy")) == XLSX.getShapes(ex[1])
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "errors" begin

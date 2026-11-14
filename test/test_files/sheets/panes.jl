@@ -76,6 +76,7 @@
         doc2 = XML.write(XLSX.get_worksheet_xml_document(s2))
 
         @test doc1 == doc2
+        SAVE_FILES && save_outfile(f2)
     end
 
     @testset "idempotency" begin
@@ -89,6 +90,7 @@
         second_write = XML.write(XLSX.get_worksheet_xml_document(s))
 
         @test first_write == second_write
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "splitFreeze uses frozenSplit state" begin
@@ -160,6 +162,7 @@
 
         @test sheetView_after["tabSelected"] == "1"
         @test sheetView_after["workbookViewId"] == "0"
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "creates sheetViews from scratch when entirely absent" begin

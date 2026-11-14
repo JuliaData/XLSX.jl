@@ -1181,5 +1181,6 @@ end
         XLSX.writexlsx(p, xf2; overwrite=true)
         @test XLSX.readtable(p, "data").column_labels == [:h]
         isfile(p) && rm(p)
+        SAVE_FILES && save_outfile(xf2)
     end
 end

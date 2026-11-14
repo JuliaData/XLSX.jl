@@ -77,6 +77,7 @@
         XLSX.deleteColumns(s, 1)
         @test s.sst_count == 1
         @test roundtrip(xf)["Data"][1, 1] == "d"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "formulas" begin
@@ -787,5 +788,6 @@
         c = XLSX.Charts.addChart(xf, :line; sheetname="Trend")
         XLSX.Charts.addSeries(c, "data!A1:A2")
         @test_throws XLSX.XLSXError XLSX.insertRows(xf["Trend"], 1)
+        SAVE_FILES && save_outfile(xf)
     end
 end

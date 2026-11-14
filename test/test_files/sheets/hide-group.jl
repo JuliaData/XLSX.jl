@@ -238,6 +238,7 @@
         XLSX.setRowHidden(f[1], 2; hidden=false)
         @test !XLSX.isRowHidden(f[1], 2)
         @test XLSX.getColumnOutlineLevel(f[1], "C") == 1
+        SAVE_FILES && save_outfile(f)
     end
 
     @testset "sheet operations" begin

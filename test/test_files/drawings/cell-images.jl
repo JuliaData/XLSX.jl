@@ -43,6 +43,7 @@
         end
         @test occursin(r"<c r=\"B5\" t=\"e\" vm=\"5\"><f>_xlfn\.IMAGE", sheet_xml(r))   # an IMAGE formula's too
         @test occursin("<c r=\"D2\" t=\"n\" cm=\"1\">", sheet_xml(r))
+        SAVE_FILES && save_outfile(ex)
     end
 
     @testset "as Excel writes them" begin
@@ -133,6 +134,7 @@
         s["C2"] = XLSX.CellImage(png)
         s["C2"] = missing
         @test isempty(XLSX.getCellImages(roundtrip(xf)[1]))   # an unused rich value: Excel drops it when it saves
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "tables and sheet edits" begin
@@ -148,5 +150,6 @@
         XLSX.deleteRows(s, 2)
         @test isempty(XLSX.getCellImages(s))
         @test_throws XLSX.XLSXError XLSX.writetable(IOBuffer(), [[XLSX.CellImage(png)]], ["p"]; streaming=true)
+        SAVE_FILES && save_outfile(xf)
     end
 end

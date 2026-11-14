@@ -112,6 +112,7 @@
         @test hidden(s, rows) == collect(2:12)
         XLSX.setAutoFilter(s, "A1:A12"; filters=[1 => :M11])
         @test hidden(s, rows) == [2, 3, 4, 11, 12]   # November only
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "values and conditions" begin
@@ -159,6 +160,7 @@
         @test hidden(s, rows) == collect(rows)
         @test occursin("""<top10 val="2"/>""", af_xml(xf))
         @test XLSX._wildcard_match("a.b(c)", "A.B(C)") && !XLSX._wildcard_match("a.b", "axb")
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "columns and errors" begin
@@ -227,6 +229,7 @@
         @test occursin("xr:uid=", af_xml(xf))   # Excel's other attributes kept
         r = roundtrip(xf)
         @test XLSX.getAutoFilter(r[1]) == XLSX.CellRange(rng)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "sorting as Excel sorts" begin
@@ -318,6 +321,7 @@
         XLSX.setFormula(s, "B2:B5", "=A2*2")
         @test_throws XLSX.XLSXError XLSX.setAutoFilter(s, "A1:B4"; sort=1)
         @test [s[r, 1] for r in 2:5] == [3, 1, 2, 5]   # nothing moved
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "what can't be sorted" begin

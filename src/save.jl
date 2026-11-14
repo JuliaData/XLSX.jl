@@ -805,6 +805,9 @@ function update_workbook_xml!(xl::XLSXFile) # Need to update <sheets> and <defin
     #update sheets
 
     i, j = get_idces(wbdoc, "workbook", "sheets")
+    # The new <sheet> elements use `r:id`. Some writers (openpyxl) declare `xmlns:r` on
+    # each <sheet> instead of the root, so the old declarations go with the old elements.
+    haskey(something(XML.attributes(wbdoc[i]), Dict()), "xmlns:r") || (wbdoc[i]["xmlns:r"] = NS_R)
     sheets_element = XML.Element("$(pfx)sheets")
     for s in wb.sheets
         sheet_element = XML.Element("$(pfx)sheet"; name=s.name)

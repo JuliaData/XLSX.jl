@@ -566,6 +566,12 @@ _to_pairs(t::Tuple{Vararg{Pair}}) =
 
 RichTextRun(text::String, atts) = RichTextRun(text, _to_pairs(atts))
 
+# Any other AbstractString (a SubString, ...) is converted to plain text first (#498):
+# the formatting of a RichTextString or a styled string is not kept.
+RichTextRun(text::AbstractString) = RichTextRun(String(text))
+RichTextRun(text::AbstractString, atts) = RichTextRun(String(text), atts)
+RichTextString(text::AbstractString, runs::Vector{RichTextRun}) = RichTextString(String(text), runs)
+
 """
     getRichTextString(ws::Worksheet, cr::String)                 -> Union{RichTextString, Nothing}
     getRichTextString(xl::XLSXFile, sheetcell::String)           -> Union{RichTextString, Nothing}
@@ -658,8 +664,8 @@ true
 ```
 
 """
-getRichTextString(ws::Worksheet, cr::String) = process_get_cellname(getRichTextString, ws, cr)
-getRichTextString(xl::XLSXFile, sheetcell::String) = process_get_sheetcell(getRichTextString, xl, sheetcell)
+getRichTextString(ws::Worksheet, cr::AbstractString) = process_get_cellname(getRichTextString, ws, cr)
+getRichTextString(xl::XLSXFile, sheetcell::AbstractString) = process_get_sheetcell(getRichTextString, xl, sheetcell)
 getRichTextString(ws::Worksheet, row::Integer, col::Integer) = getRichTextString(ws, CellRef(row, col))
 function getRichTextString(s::Worksheet, c::CellRef)::Union{RichTextString, Nothing}
     cell = getcell(s, c)

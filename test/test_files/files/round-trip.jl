@@ -87,6 +87,7 @@
         @test r["Data"]["Z1"] == "edited"
         @test length(XLSX.getSparklines(r["Data"])) == 1 && length(XLSX.getShapes(r["Data"])) == 1
         @test XLSX.getComment(r["Data"], "H2").text == "a note"
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "calculation settings" begin
@@ -112,6 +113,7 @@
         @test [m[1] for m in eachmatch(r"<vt:lpstr>([^<]*)</vt:lpstr>", match(r"<TitlesOfParts>.*</TitlesOfParts>"s, a).match)] ==
               ["Plan1", "Nova"]
         @test occursin(r"<vt:i4>2</vt:i4>", a)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "row heights" begin
@@ -128,6 +130,7 @@
         @test occursin(r"<row r=\"2\"[^>]* ht=\"30.2109375\"[^>]* customHeight=\"1\"", x)
         @test occursin(r"<row r=\"3\"[^>]* customHeight=\"1\"", x)
         @test !occursin(r"<row r=\"1\"[^>]*customHeight", x)
+        SAVE_FILES && save_outfile(xf)
     end
 
     @testset "every fixture keeps its parts" begin
