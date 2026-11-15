@@ -85,8 +85,10 @@ end
 end
 
 # The `r` of the `<row>` the cursor is on.
-function _row_number(c::XML.Cursor, wsname::String)::Int
-    r = _cursor_attr(c, "r")
+_row_number(c::XML.Cursor, wsname::String)::Int = _row_number_from(_cursor_attr(c, "r"), wsname)
+
+# A row number from the text of `<row r>` (`nothing` when absent); shared with the byte scanner.
+function _row_number_from(r::Union{Nothing,SubString{String}}, wsname::String)::Int
     r === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $wsname."))
     return parse(Int, r)
 end
@@ -344,22 +346,33 @@ end
 
 """
 function eachrow(ws::Worksheet) :: SheetRowIterator
-    if is_cache_enabled(ws)
-        if ws.cache === nothing
-            target_file = get_relationship_target_by_id("xl", get_workbook(ws), ws.relationship_id)
-            xf = get_xlsxfile(ws)
-            raw = xf.data[target_file]
-            raw isa String || throw(XLSXError("Expected raw XML string for $target_file, got parsed node."))
-            lznode = parse(raw, XML.LazyNode)
-            first_cache_fill!(ws, lznode)
-            # swap back to the stub made at open, or make one if there isn't one
-            stripped = pop!(xf.sheet_stubs, target_file, nothing)
-            isnothing(stripped) && ((stripped, _) = splitNode(raw, "sheetData"))
-            xf.data[target_file] = stripped
+    is_cache_enabled(ws) || return SheetRowStreamIterator(ws)
+    ws.cache === nothing && _lazy_cache_fill!(ws)
+    return ws.cache
+end
+
+# Fills a read-only sheet's cache on its first read. Sheets of one file may be read
+# from several tasks at once: each sheet is filled once, under its own lock, and the
+# file's parts are read and changed under the file's lock. `first_cache_fill!` sets
+# `ws.cache` only once it is complete, so a task that finds it set can use it at once.
+function _lazy_cache_fill!(ws::Worksheet)
+    lock(ws.fill_lock) do
+        ws.cache === nothing || return nothing   # filled by another task while this one waited
+        wb = get_workbook(ws)
+        xf = get_xlsxfile(ws)
+        target_file = get_relationship_target_by_id("xl", wb, ws.relationship_id)
+        raw = lock(xf.parts_lock) do
+            # Cells read on several threads at once must only ever read these buffers.
+            _prefill_style_buffers!(wb)
+            xf.data[target_file]
         end
-        return ws.cache
-    else
-        return SheetRowStreamIterator(ws)
+        raw isa String || throw(XLSXError("Expected raw XML string for $target_file, got parsed node."))
+        first_cache_fill!(ws, parse(raw, XML.LazyNode))
+        # swap back to the stub made at open, or make one if there isn't one
+        stripped = lock(() -> pop!(xf.sheet_stubs, target_file, nothing), xf.parts_lock)
+        isnothing(stripped) && ((stripped, _) = splitNode(raw, "sheetData"))
+        lock(() -> (xf.data[target_file] = stripped), xf.parts_lock)
+        return nothing
     end
 end
 
@@ -386,66 +399,114 @@ function _find_sheetdata(doc::XML.LazyNode, wsname::String)::XML.LazyNode
     end
     throw(XLSXError("No `sheetData` node found in worksheet $wsname."))
 end
-# Push a row read by `first_cache_fill!` into the cache, with its unhandled
-# attributes, and if `track`, widen `bounds` (row_min, row_max, col_min, col_max) to it.
-@inline function _push_filled_row!(ws::Worksheet, unhandled_attributes::Dict{Int,Dict{String,String}}, row_num::Int,
-                                   row_ht, rowcells::Dict{Int,Cell}, unhandled::Dict{String,String},
-                                   track::Bool, bounds::NTuple{4,Int})::NTuple{4,Int}
-    !isempty(unhandled) && (unhandled_attributes[row_num] = unhandled)
-    push_sheetrow!(ws.cache, SheetRow(ws, row_num, row_ht, rowcells))
-    track || return bounds
-    row_min, row_max, col_min, col_max = bounds
+# What a cache fill gathers as it reads a sheet's rows, for `first_cache_fill!`: the
+# cursor walk (`_cursor_fill_rows!`) and the byte scanner (`_scan_fill_rows!`,
+# src/valuescan.jl) push rows through it alike.
+mutable struct _CacheFill
+    ws::Worksheet
+    cache::WorksheetCache{SheetRowStreamIterator}   # becomes `ws.cache` once complete
+    wb::Workbook
+    sst_pfx::String
+    load_formulas::Bool
+    local_formulas::Dict{SheetCellRef,AbstractFormula}   # merged into the workbook's at the end
+    unhandled_attributes::Dict{Int,Dict{String,String}}
+    track::Bool                  # derive the sheet's bounds: it records no dimension
+    bounds::NTuple{4,Int}        # row_min, row_max, col_min, col_max
+    expected_cols::Int           # a size hint for each row's cells
+    sst_total::Int
+    pending::_PendingStrings     # strings not yet in the table (src/sst.jl)
+end
+
+function _CacheFill(ws::Worksheet)
+    dim = ws.dimension
+    expected_cols = isnothing(dim) ? 16 : column_number(dim.stop) - column_number(dim.start) + 1
+    return _CacheFill(ws, WorksheetCache(ws), get_workbook(ws), get_sst_prefix(ws), get_xlsxfile(ws).load_formulas,
+                      Dict{SheetCellRef,AbstractFormula}(), Dict{Int,Dict{String,String}}(),
+                      isnothing(dim), (typemax(Int), 0, typemax(Int), 0), expected_cols, 0, _PendingStrings())
+end
+
+# A row's attributes the cache reads itself; the others are kept as the file has them
+# (`customHeight` among them).
+const _HANDLED_ROW_ATTRIBUTES = ("r", "spans", "ht")
+
+@inline function _new_rowcells(fill::_CacheFill)
+    rowcells = Dict{Int,Cell}()
+    sizehint!(rowcells, fill.expected_cols)
+    return rowcells
+end
+
+# Push a row into the cache, with its unhandled attributes, and widen the bounds to it.
+function _push_filled_row!(fill::_CacheFill, row_num::Int, row_ht::Union{Nothing,Float64},
+                           rowcells::Dict{Int,Cell}, unhandled::Dict{String,String})
+    ws = fill.ws
+    !isempty(unhandled) && (fill.unhandled_attributes[row_num] = unhandled)
+    push_sheetrow!(fill.cache, SheetRow(ws, row_num, row_ht, rowcells))
+    fill.track || return nothing
+    row_min, row_max, col_min, col_max = fill.bounds
     row_min = min(row_min, row_num); row_max = max(row_max, row_num)
     for col in keys(rowcells)
         col_min = min(col_min, col); col_max = max(col_max, col)
     end
-    return (row_min, row_max, col_min, col_max)
+    fill.bounds = (row_min, row_max, col_min, col_max)
+    return nothing
 end
 
-function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
-    handled_attributes = Set{String}(["r", "spans", "ht"])   # `customHeight` is kept as the file has it
-    unhandled_attributes = Dict{Int,Dict{String,String}}()
-    sst_pfx = get_sst_prefix(ws)
-    wb = get_workbook(ws)
-    load_formulas = get_xlsxfile(ws).load_formulas
-    local_formulas = Dict{SheetCellRef, AbstractFormula}()  # ← local dict
+# Put a cell read into its row, counting it if it holds a shared string (a repeated
+# column counts each time it is read).
+@inline function _add_filled_cell!(fill::_CacheFill, rowcells::Dict{Int,Cell}, cell::Cell)
+    fill.sst_total += cell.datatype == CT_STRING ? 1 : 0
+    # a string not yet in the table: its index is given when the strings are committed
+    cell.datatype == CT_STRING && _is_pending_index(cell.value) && push!(fill.pending.cells, cell)
+    rowcells[column_number(cell)] = cell
+    return nothing
+end
 
-    if ws.cache === nothing
-        ws.cache = WorksheetCache(ws)
-    else
-        throw(XLSXError("Expecting empty cache but cache not empty!"))
+# `_CACHE_SCAN` (src/valuescan.jl) chooses the byte scanner; it hands a sheet it can't
+# step over back to the cursor walk, which then reads it from the start.
+#
+# The strings the sheet holds that the table doesn't are added at the end, before the
+# cache is set. With `defer_strings`, they are left for the caller to add, with
+# `_commit_pending_strings!`, once it has filled other sheets: the cache is set holding
+# placeholders, so no one may read it until then. Returns the strings.
+function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode; defer_strings::Bool=false)::_PendingStrings
+    ws.cache === nothing || throw(XLSXError("Expecting empty cache but cache not empty!"))
+    sheetdata = _find_sheetdata(lznode, ws.name)
+    fill = _CacheFill(ws)
+    scanned = _CACHE_SCAN[] && try
+        _collecting_strings(() -> _scan_fill_rows!(fill, sheetdata), fill.pending)
+        true
+    catch e
+        e isa _ScanFallback || rethrow()
+        false
     end
+    if !scanned
+        # outside the `catch`, so that an error here isn't shown as caused by the hand-back.
+        # A new fill: the scanner's strings are dropped with its cells.
+        fill = _CacheFill(ws)
+        _collecting_strings(() -> _cursor_fill_rows!(fill, sheetdata), fill.pending)
+    end
+    defer_strings || _commit_pending_strings!(fill.wb, fill.pending)
+    _finish_cache_fill!(fill)
+    return fill.pending
+end
 
-    sheetdata_lazy = _find_sheetdata(lznode, ws.name)
-
-    sst_total = 0
-    rowcells  = Dict{Int,Cell}()
+# Read `<sheetData>`'s rows into the cache with a cursor.
+function _cursor_fill_rows!(fill::_CacheFill, sheetdata::XML.LazyNode)
+    ws = fill.ws
+    rowcells  = _new_rowcells(fill)
     row_num   = nothing
-
-    # Derive the sheet bounds from the rows as they are pushed, but only for a
-    # sheet with no recorded dimension.
-    track = isnothing(ws.dimension)
-    bounds = (typemax(Int), 0, typemax(Int), 0)   # row_min, row_max, col_min, col_max
     row_ht    = nothing
     unhandled = _EMPTY_ROW_ATTRS
-
-    # Pre-compute expected column count from sheet dimension for Dict sizehint
-    dim = ws.dimension
-    expected_cols = isnothing(dim) ? 16 :
-        XLSX.column_number(dim.stop) - XLSX.column_number(dim.start) + 1
-
-    c2 = XML.Cursor(sheetdata_lazy)
+    c2 = XML.Cursor(sheetdata)
     while XML.next!(c2) !== nothing
         d  = XML.depth(c2)
         nt = XML.nodetype(c2)
 
         if d == 2 && nt == XML.Element && localname(c2) == "row"
             if !isnothing(row_num)
-                bounds = _push_filled_row!(ws, unhandled_attributes, row_num, row_ht, rowcells, unhandled, track, bounds)
-                rowcells  = Dict{Int,Cell}()
-                sizehint!(rowcells, expected_cols)
+                _push_filled_row!(fill, row_num, row_ht, rowcells, unhandled)
+                rowcells  = _new_rowcells(fill)
                 unhandled = _EMPTY_ROW_ATTRS
-                row_ht    = nothing
             end
             # All of the row's attributes in one pass, where the cursor stands.
             r_val  = nothing
@@ -455,40 +516,38 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
                     r_val = v
                 elseif k == "ht"
                     ht_val = v
-                elseif !(k in handled_attributes)
-                    if unhandled === _EMPTY_ROW_ATTRS
-                        unhandled = Dict{String,String}()
-                    end
+                elseif !(k in _HANDLED_ROW_ATTRIBUTES)
+                    unhandled === _EMPTY_ROW_ATTRS && (unhandled = Dict{String,String}())
                     unhandled[String(k)] = String(v)
                 end
             end
-            r_val === nothing && throw(XLSXError("Row without 'r' attribute in worksheet $(ws.name)."))
-            row_num = parse(Int, r_val)
+            row_num = _row_number_from(r_val, ws.name)
             row_ht  = isnothing(ht_val) ? nothing : parse(Float64, ht_val)
 
         elseif d == 3 && nt == XML.Element && localname(c2) == "c"
             # Read in the same walk as its children, so its bytes are tokenized once (#462).
-            cell = _cursor_cell(c2, ws, wb, sst_pfx, local_formulas, load_formulas)
-            sst_total += cell.datatype == CT_STRING ? 1 : 0
-            rowcells[column_number(cell)] = cell
+            cell = _cursor_cell(c2, ws, fill.wb, fill.sst_pfx, fill.local_formulas, fill.load_formulas)
+            _add_filled_cell!(fill, rowcells, cell)
 
         elseif nt == XML.Element && (d == 2 || d == 3)   # anything else in a row, or in <sheetData>
             XML.skip_element!(c2)
         end
     end
+    isnothing(row_num) || _push_filled_row!(fill, row_num, row_ht, rowcells, unhandled)
+    return nothing
+end
 
-    if !isnothing(row_num)
-        bounds = _push_filled_row!(ws, unhandled_attributes, row_num, row_ht, rowcells, unhandled, track, bounds)
-    end
-
-    row_min, row_max, col_min, col_max = bounds
-    if track && col_max > 0 && isnothing(ws.dimension)
+# The sheet's bounds, string count, unhandled row attributes and formulas, once its rows are in.
+function _finish_cache_fill!(fill::_CacheFill)
+    ws, wb, local_formulas = fill.ws, fill.wb, fill.local_formulas
+    row_min, row_max, col_min, col_max = fill.bounds
+    if fill.track && col_max > 0 && isnothing(ws.dimension)
         set_dimension!(ws, CellRange(CellRef(row_min, col_min), CellRef(row_max, col_max)))
     end
 
-    ws.sst_count = sst_total
-    ws.unhandled_attributes = isempty(unhandled_attributes) ? nothing : unhandled_attributes
-    
+    ws.sst_count = fill.sst_total
+    ws.unhandled_attributes = isempty(fill.unhandled_attributes) ? nothing : fill.unhandled_attributes
+
     # Update next_formula_id from this sheet's own formulas — all of them are in
     # `local_formulas`, so there is no need to scan the whole workbook's under the lock.
     max_id = -1
@@ -504,7 +563,11 @@ function first_cache_fill!(ws::Worksheet, lznode::XML.LazyNode)
         end
     end
 
-    ws.cache.is_full = true
+    # Sorted now, so that reading the cache never changes it, and set last, complete:
+    # a task that finds `ws.cache` set uses it without the sheet's fill lock.
+    cache = ensure_sorted!(fill.cache)
+    cache.is_full = true
+    ws.cache = cache
 end
 
 # Materialise specific rows from a worksheet.xml file into SheetRows
@@ -587,11 +650,11 @@ function _cursor_cell_contents(c::XML.Cursor, attrs::Tuple, ws::Worksheet, wb::W
                     done = true
                 end
             elseif tag == "v"
-                sv = XML.is_simple_value(child)
-                isnothing(sv) && (sv = _v_text_fallback(XML.LazyNode(child), ref_str))
-                if !isnothing(sv) && !isempty(sv)
+                found, sv = _cursor_v_text(child, ref_str)   # leaves the cursor past `<v>`
+                if found && !isempty(sv)
                     datatype, value = process_tv(wb, t, sv, num_style)
                 end
+                continue
             elseif tag == "f"
                 load_formulas && _record_formula!(wb, ws, ref, XML.LazyNode(child), local_formulas)
                 formula = true

@@ -67,7 +67,7 @@ Like `setSeriesLine`, each also takes `:none` for a line that draws nothing and
 ```julia
 julia> setPlotAreaLine(c; color = "000000");
 
-julia> setAxisLine(c, getChartAxes(c, :value)[1]; color = "000000", width = 1);
+julia> setAxisLine(c, :y; color = "000000", width = 1);
 ```
 
 ![Two column charts side by side. Left, Excel's default formatting. Right, the first series filled red with a dotted black outline, and a black border round the plot area](../images/chartFormat_fill.png)
@@ -360,7 +360,7 @@ that applies either way.
 ```julia
 julia> setChartTitleText(c, "Revenue by region");
 
-julia> setAxisTitleText(c, getChartAxes(c, :value)[1], "£m");
+julia> setAxisTitleText(c, :y, "£m");
 ```
 
 A title these create is written with `c:overlay` off, as Excel writes every
@@ -414,7 +414,7 @@ title, not cell Q1.
 ```julia
 julia> setChartTitleText(c, CellRef("A1"));
 
-julia> setAxisTitleText(c, getChartAxes(c, :value)[1], SheetCellRef("Data!B1"));
+julia> setAxisTitleText(c, :y, SheetCellRef("Data!B1"));
 
 julia> getChartTitleRef(c)
 "Sheet1!\$A\$1"
@@ -485,7 +485,28 @@ does this.
 
 ## Axes and gridlines
 
-Axis appearance splits the same way: [`getAxisShapeProps`](@ref) for the axis
+Every axis function takes the axis as its second argument. The simplest way to
+name it is by where it is drawn, as Excel's menus do: `:x` and `:y` for the
+primary horizontal and vertical axes, `:x2` and `:y2` for the secondary ones, and
+`:z` for the depth axis of a 3-D chart.
+
+```julia
+julia> setAxisTitleText(c, :x, "Month");
+
+julia> setAxisTitleText(c, :y, "Revenue (£m)");
+
+julia> setAxisTitleTextProp(c, :y, :size, 12);
+```
+
+"Horizontal" and "vertical" mean as drawn, so `:y` is the category axis of a
+horizontal bar chart, and both `:x` and `:y` are value axes on a scatter chart.
+An axis kind, such as `:value` or `:category`, works too, as long as the chart
+has only one axis of that kind. A combo or scatter chart has two value axes, so
+there `:value` throws an error that lists them. [`getChartAxis`](@ref) gives the
+[`ChartAxis`](@ref XLSX.Charts.ChartAxis) a Symbol stands for, and
+[`getChartAxes`](@ref) lists them all.
+
+Axis appearance splits the same way as a series': [`getAxisShapeProps`](@ref) for the axis
 line, [`getAxisTextProps`](@ref) for the tick labels,
 [`getAxisGridlines`](@ref) for the gridlines:
 
@@ -554,7 +575,7 @@ on the partner's scale. So Excel's "Horizontal axis crosses: At maximum
 category", set in the category axis's pane, is written on the value axis:
 
 ```julia
-julia> catax = getChartAxes(c, :category)[1];
+julia> catax = getChartAxis(c, :category);
 
 julia> setAxisOrientation(c, catax, :maxMin);          # first category at the top
 

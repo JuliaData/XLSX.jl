@@ -45,6 +45,21 @@ julia> XLSX.writexlsx("revenue.xlsx", f)
 bottom-right corners on the sheet. `title` is `nothing` for the title Excel
 generates itself, a string for typed text, or `false` for no title at all.
 
+`xtitle` and `ytitle` title the horizontal and vertical axes:
+
+```julia
+julia> c = addChart(ws, :column; anchor = "D2:K17", title = "Revenue",
+                    xtitle = "Region", ytitle = "£m");
+```
+
+Like `title`, each can be rich text or a cell reference instead of a string.
+They mean the axes as drawn, so on a `:bar` chart, whose bars run sideways,
+`ytitle` names the categories. To title an axis later, or one these don't reach,
+such as a combo chart's secondary axis, use [`setAxisTitleText`](@ref):
+`setAxisTitleText(c, :y2, "Margin")`. See
+[Axes and gridlines](formattingCharts.md#Axes-and-gridlines) for the names an
+axis can be given.
+
 A chart is created empty because a `c:` chart part is valid with no series, so
 `addChart` and `addSeries` can be separate steps. That is not true of the `cx:`
 schema, where the data block is required.
@@ -61,10 +76,20 @@ schema, where the data block is required.
 | Line with markers | `:lineMarkers` | `:stackedLineMarkers` | `:percentStackedLineMarkers` |
 | Area | `:area` | `:stackedArea` | `:percentStackedArea` |
 
-and `:pie`, `:doughnut`, `:scatter`, `:bubble`, `:radar` and `:filledRadar`, and
-`:combo`, a column and a line chart in one; see [Combo charts](#Combo-charts).
+![The fifteen chart kinds in the table above, each titled with its kind and laid out in the same grid, as Excel draws them in a workbook made by XLSX.newxlsx](../images/chartKinds.png)
 
-![Every chart kind addChart creates, each titled with its kind, from :column to :combo, as Excel draws them in a workbook made by XLSX.newxlsx](../images/chartKinds.png)
+and these:
+
+| | | |
+| --- | --- | --- |
+| Pie | `:pie` | `:doughnut` |
+| XY | `:scatter` | `:bubble` |
+| Radar | `:radar` | `:filledRadar` |
+| Combo | `:combo` | |
+
+`:combo` is a column and a line chart in one; see [Combo charts](#Combo-charts).
+
+![The other seven chart kinds, each titled with its kind and laid out in the same grid as the table above: pie and doughnut, scatter and bubble, radar and filled radar, then combo](../images/chartKindsOther.png)
 
 Each comes from a chart part Excel itself wrote, kept verbatim in the package,
 so a created chart is what Excel would have produced for that kind — including

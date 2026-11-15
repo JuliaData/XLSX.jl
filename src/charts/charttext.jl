@@ -448,19 +448,20 @@ _run_prop_pairs(p::DrawingRunProps) =
                      for f in fieldnames(DrawingRunProps) if f !== :raw && !isnothing(getfield(p, f))]
 
 """
-    setAxisTitleText(c, ax::ChartAxis, text) -> Chart
-    setAxisTitleText(c, ax::ChartAxis, ref::Union{CellRef,SheetCellRef}) -> Chart
+    setAxisTitleText(c, ax, text) -> Chart
+    setAxisTitleText(c, ax, ref::Union{CellRef,SheetCellRef}) -> Chart
 
 Replace an axis title's text and all its formatting, or bind it to a cell. `ax`
-is an axis from [`getChartAxes`](@ref) or [`getChartAxis`](@ref). `text` is as
-for [`setChartTitleText`](@ref): a string, a `DrawingText`, or a
+names the axis by where it is drawn, `:x`, `:y`, `:x2` or `:y2` (see
+[`getChartAxis`](@ref)), or is a `ChartAxis` from [`getChartAxes`](@ref). `text`
+is as for [`setChartTitleText`](@ref): a string, a `DrawingText`, or a
 `RichTextString` or styled string, which keeps its run formatting. A `CellRef`
 or `SheetCellRef` binds the title, and a bound title can't carry rich text.
 
 A title created here gets `c:overlay val="0"`, as Excel writes on every title
 it creates, so it sits beside the plot area rather than over it.
 """
-function setAxisTitleText(c::Chart, ax::ChartAxis, text::DrawingText)
+function setAxisTitleText(c::Chart, ax::AxisRef, text::DrawingText)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
     steps, _, _ = _axis_path(c, root, ax)
@@ -470,10 +471,10 @@ function setAxisTitleText(c::Chart, ax::ChartAxis, text::DrawingText)
     return c
 end
 
-setAxisTitleText(c::Chart, ax::ChartAxis, text::AbstractString) =
+setAxisTitleText(c::Chart, ax::AxisRef, text::AbstractString) =
     setAxisTitleText(c, ax, DrawingText(text))
 
-function setAxisTitleText(c::Chart, ax::ChartAxis, ref::Union{CellRef,SheetCellRef})
+function setAxisTitleText(c::Chart, ax::AxisRef, ref::Union{CellRef,SheetCellRef})
     strref, cellrich = _title_ref(c, ref)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
@@ -578,15 +579,15 @@ function setChartTitleTextProp(c::Chart, field::Symbol, value)
 end
 
 """
-    setAxisTitleTextProp(c, ax::ChartAxis, field, value) -> Chart
+    setAxisTitleTextProp(c, ax, field, value) -> Chart
 
 Set one text property of an axis title, as [`setChartTitleTextProp`](@ref)
-does for the chart title. `ax` is an axis from [`getChartAxes`](@ref) or
-[`getChartAxis`](@ref).
+does for the chart title. `ax` is as for [`setAxisTitleText`](@ref): `:x`,
+`:y`, `:x2` or `:y2`, or a `ChartAxis`.
 
 $(_DOC_TEXT_FIELD_ARG)
 """
-function setAxisTitleTextProp(c::Chart, ax::ChartAxis, field::Symbol, value)
+function setAxisTitleTextProp(c::Chart, ax::AxisRef, field::Symbol, value)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
     axn  = _axis_node(c, root, ax)

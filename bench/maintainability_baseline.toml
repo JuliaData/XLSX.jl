@@ -2,8 +2,8 @@
 asserts = 3
 bare_catch = 0
 commented_out_code = 0
-duplicated_lines = 1248
-functions_over_100 = 5
+duplicated_lines = 0
+functions_over_100 = 1
 inline_guards = 0
-largest_file_lines = 2973
+largest_file_lines = 1867
 something_wrong = 0

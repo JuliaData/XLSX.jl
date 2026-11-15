@@ -2065,4 +2065,148 @@
         @test C.getLabelFlag(pie, 1, :percent) === true
         SAVE_FILES && save_outfile(xf)
     end
+
+    @testset "axes named by where they are drawn" begin
+        C = XLSX.Charts
+        xf = XLSX.newxlsx()
+        ws = xf[1]
+        ws["A1"] = ["" "North" "South"; 2 4 7; 3 5 8; 4 6 9; 5 7 10]
+        chart(kind, row) = (c = C.addChart(ws, kind; anchor = "F$(20row):M$(20row + 15)");
+                            C.addSeries(c, "B2:B5"; categories = "A2:A5", name_ref = "B1"); c)
+        place(c, s) = (a = C.getChartAxis(c, s); (a.kind, a.pos))
+
+        # Issue #502: the axis titles of a line chart, as the reporter wrote them.
+        line = chart(:line, 1)
+        @test place(line, :x) == (:catAx, :b)
+        @test place(line, :y) == (:valAx, :l)
+        C.setAxisTitleText(line, :x, "X Label")
+        C.setAxisTitleText(line, :y, "Y Value")
+        C.setAxisTitleTextProp(line, :y, :size, 12)
+        @test C.getAxisTitle(line, :x) == "X Label"
+        @test C.getAxisTitle(line, only(C.getChartAxes(line, :value))) == "Y Value"
+        @test C.default_run_props(C.getAxisTitleTextProps(line, :y)).size ≈ 12.0
+        @test C.getChartAxis(line, :value) == C.getChartAxis(line, :y)    # one value axis: unambiguous
+
+        # A setter taking a Symbol resolves it against the part as it is then.
+        C.setAxisMin(line, :y, 0)
+        @test C.getAxisMin(line, :y) == 0
+
+        # Horizontal bars put the category axis on the left, so it is :y.
+        @test place(chart(:bar, 2), :y) == (:catAx, :l)
+
+        # Both axes of a scatter chart are value axes, told apart by position.
+        sc = chart(:scatter, 3)
+        @test place(sc, :x) == (:valAx, :b) && place(sc, :y) == (:valAx, :l)
+        err = try C.getChartAxis(sc, :value); nothing catch e; e end
+        @test err isa XLSX.XLSXError && occursin("`:x`", err.msg) && occursin("ambiguous", err.msg)
+
+        # A combo chart's line is on secondary axes; the horizontal one is deleted.
+        combo = C.addChart(ws, :combo; anchor = "F80:M95")
+        C.addSeries(combo, "B2:B5"; categories = "A2:A5", group = :column)
+        C.addSeries(combo, "C2:C5"; categories = "A2:A5", group = :line)
+        @test place(combo, :y) == (:valAx, :l)
+        @test place(combo, :y2) == (:valAx, :r)
+        @test C.getChartAxis(combo, :x2).deleted && !C.getChartAxis(combo, :x).deleted
+        C.setAxisTitleText(combo, :y2, "Secondary")
+        @test C.getAxisTitle(combo, C.getSeriesAxes(combo, 2)[2]) == "Secondary"
+
+        # The Excel-built combo agrees.
+        app = C.getCharts(XLSX.readxlsx(joinpath(data_directory, "chart_appearance.xlsx")))[1]
+        @test [C.getChartAxis(app, s).axid for s in (:x, :y, :x2, :y2)] ==
+              [612078287, 460195247, 1926562432, 1773317264]
+        @test C.getAxisTitle(app, :y2) == "Secondary"
+
+        # A 3-D chart's depth axis is :z, and is not mistaken for :x though it
+        # too sits at the bottom. No fixture has one, so add a c:serAx by hand.
+        d3 = chart(:line, 5)
+        xml = XML.write(C.chart_root(d3))
+        p = match(r"<(\w+):valAx>", xml)[1]
+        ids = [m[1] for m in eachmatch(r"<\w+:axId val=\"(\d+)\"", xml)]
+        xml = replace(xml,
+            Regex("(<$p:axId val=\"$(ids[2])\"/>)(\\s*</$p:lineChart>)") =>
+                SubstitutionString("\\1<$p:axId val=\"9\"/>\\2"),
+            "</$p:valAx>" => "</$p:valAx><$p:serAx><$p:axId val=\"9\"/><$p:scaling>" *
+                "<$p:orientation val=\"minMax\"/></$p:scaling><$p:delete val=\"0\"/>" *
+                "<$p:axPos val=\"b\"/><$p:crossAx val=\"$(ids[2])\"/></$p:serAx>")
+        C.set_chart_root!(d3, XLSX.xml_root_element(parse(xml, XML.Node)))
+        @test length(C.getChartAxes(d3)) == 3
+        @test place(d3, :z) == (:serAx, :b)
+        @test place(d3, :x) == (:catAx, :b)
+
+        # What can't be resolved says why.
+        msg(f) = (try f(); "" catch e; e.msg end)
+        @test occursin("no secondary axes", msg(() -> C.getChartAxis(line, :y2)))
+        @test occursin("3-D", msg(() -> C.getChartAxis(line, :z)))
+        @test occursin("Unknown axis", msg(() -> C.getChartAxis(line, :up)))
+        @test occursin("not its position", msg(() -> C.getChartAxis(line, 1)))
+        pie = C.addChart(ws, :pie; anchor = "F100:M115")
+        C.addSeries(pie, "B2:B5"; categories = "A2:A5")
+        @test occursin("pie and doughnut", msg(() -> C.setAxisTitleText(pie, :x, "No")))
+
+        # The titles survive a save.
+        tmp = "axes_by_place.xlsx"
+        try
+            XLSX.writexlsx(tmp, xf; overwrite = true)
+            back = C.getCharts(XLSX.readxlsx(tmp))
+            l = only(x for x in back if C.getChartType(x) === :lineChart &&
+                                        C.getAxisTitle(x, :x) == "X Label")
+            @test C.getAxisTitle(l, :y) == "Y Value"
+        finally
+            isfile(tmp) && rm(tmp)
+        end
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "addChart's xtitle and ytitle" begin
+        C = XLSX.Charts
+        xf = XLSX.newxlsx()
+        ws = xf[1]
+        ws["A1"] = ["" "North" "South"; 2 4 7; 3 5 8; 4 6 9; 5 7 10]
+
+        c = C.addChart(ws, :line; anchor = "F2:M18", title = "Sales", xtitle = "Month", ytitle = "£m")
+        @test C.getChartTitle(c) == "Sales"
+        @test C.getAxisTitle(c, :x) == "Month" && C.getAxisTitle(c, :y) == "£m"
+
+        # As drawn: a bar chart's ytitle names the categories.
+        b = C.addChart(ws, :bar; anchor = "F20:M36", xtitle = "£m", ytitle = "Region")
+        @test C.getAxisTitle(b, C.getChartAxis(b, :category)) == "Region"
+        @test C.getAxisTitle(b, C.getChartAxis(b, :value)) == "£m"
+
+        # Either alone; a combo chart's titles go on its primary axes.
+        cb = C.addChart(ws, :combo; anchor = "F38:M54", ytitle = "Units")
+        @test C.getAxisTitle(cb, :y) == "Units"
+        @test isnothing(C.getAxisTitle(cb, :x)) && isnothing(C.getAxisTitle(cb, :y2))
+
+        # Rich text keeps its runs; a cell reference binds the title.
+        rt = XLSX.RichTextString(XLSX.RichTextRun("CO"), XLSX.RichTextRun("2", [:vertAlign => "subscript"]))
+        r = C.addChart(ws, :scatter; anchor = "F56:M72", xtitle = XLSX.CellRef("B1"), ytitle = rt)
+        @test C.getAxisTitleRef(r, :x) == "Sheet1!\$B\$1"
+        @test C.getAxisTitle(r, :x) == "North"
+        @test length(C.getAxisTitleText(r, :y).paragraphs[1].runs) == 2
+
+        # Refused before anything is added to the workbook.
+        n = length(C.getCharts(ws))
+        @test_throws XLSX.XLSXError C.addChart(ws, :pie; anchor = "F74:M90", xtitle = "No")
+        @test_throws XLSX.XLSXError C.addChart(ws, :doughnut; anchor = "F74:M90", ytitle = "No")
+        @test_throws XLSX.XLSXError C.addChart(ws, :line; anchor = "F74:M90",
+                                               ytitle = XLSX.SheetCellRef("Nowhere!A1"))
+        @test length(C.getCharts(ws)) == n
+        @test_throws TypeError C.addChart(ws, :line; anchor = "F74:M90", xtitle = false)
+
+        # On a chartsheet, as on a worksheet.
+        cs = C.addChart(xf, :column; xtitle = "Region", ytitle = XLSX.SheetCellRef("Sheet1!C1"))
+        @test C.getAxisTitle(cs, :x) == "Region" && C.getAxisTitle(cs, :y) == "South"
+        @test_throws XLSX.XLSXError C.addChart(xf, :column; ytitle = XLSX.CellRef("C1"))   # names no sheet
+        @test XLSX.sheetcount(xf) == 2
+
+        # A styled string keeps its styling when the axis is named by a Symbol.
+        @static if VERSION >= v"1.11-"
+            C.setAxisTitleText(c, :y, styled"{bold:Revenue} £m")
+            @test C.getAxisTitle(c, :y) == "Revenue £m"
+            @test C.getAxisTitleText(c, :y).paragraphs[1].runs[1].props.bold === true
+            s = C.addChart(ws, :line; anchor = "F92:M108", xtitle = styled"{italic:Month}")
+            @test C.getAxisTitleText(s, :x).paragraphs[1].runs[1].props.italic === true
+        end
+        SAVE_FILES && save_outfile(xf)
+    end
 end

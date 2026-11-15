@@ -12,7 +12,8 @@ Conventions shared by the functions:
 
 - `i` is a series' position, counting from 1 in [`getChartSeries`](@ref) order, and
   `point` a data point's position in the series, also from 1.
-- `ax` is a `ChartAxis` from [`getChartAxes`](@ref) or [`getChartAxis`](@ref), and `g` a
+- `ax` is an axis: `:x`, `:y`, `:x2`, `:y2` or `:z` by where it is drawn (see
+  [`getChartAxis`](@ref)), or a `ChartAxis` from [`getChartAxes`](@ref); `g` is a
   `ChartGroup` from [`getChartGroups`](@ref). On a `ChartEx`, an axis is named by its `id`
   from [`getChartAxisIds`](@ref).
 - Setters return the chart. Most take `:inherit` to remove a setting so it is inherited

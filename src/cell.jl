@@ -214,6 +214,13 @@ _extra_attrs(d::Dict) = isempty(d) ? nothing : d
         elseif k == "vm"; vm_str  = v
         end
     end
+    return _cell_attribute_values(ref_str, t, s_str, m_str, vm_str)
+end
+
+# The decoded `_cell_attributes` from the texts of `r`, `t`, `s`, `cm` and `vm` (empty when
+# absent); shared with the byte scanner (src/valuescan.jl).
+@inline function _cell_attribute_values(ref_str::SubString{String}, t::SubString{String}, s_str::SubString{String},
+                                        m_str::SubString{String}, vm_str::SubString{String})
     ref = CellRef(ref_str)
     style, num_style = _parse_style(s_str)
     meta = isempty(m_str) ? UInt32(0) : parse(UInt32, m_str)
@@ -240,11 +247,37 @@ function _v_text_fallback(v::XML.LazyNode, ref_str::AbstractString)
             break
         end
     end
-    if isnothing(sv) && has_children
-        @warn "Could not read value of cell $ref_str: `<v>` element has no text content. Treating as empty." maxlog=1
-    end
+    isnothing(sv) && has_children && _warn_v_without_text(ref_str)
     return sv
 end
+
+# `(found, text)` for the `<v>` the cursor is on: its text as `is_simple_value` or else
+# `_v_text_fallback` reads it, its first text or CDATA child. Read in passing, with the
+# cursor left at the end of `<v>`, rather than by reading `<v>` again and then skipping
+# it. (A flag beside a `SubString`, not a `Union` with `nothing`, which would be boxed.)
+function _cursor_v_text(c::XML.Cursor, ref_str::AbstractString)
+    sv = SubString("")
+    found = false
+    has_children = false
+    XML.@for_each_child! c child begin
+        has_children = true
+        nt = XML.nodetype(child)
+        if !found && (nt === XML.Text || nt === XML.CData)
+            v = XML.value(child)
+            if v !== nothing
+                sv = v isa SubString{String} ? v : SubString(String(v))
+                found = true
+            end
+        elseif nt === XML.Element
+            XML.skip_element!(child)
+        end
+    end
+    !found && has_children && _warn_v_without_text(ref_str)
+    return found, sv
+end
+
+@noinline _warn_v_without_text(ref_str) =
+    @warn "Could not read value of cell $ref_str: `<v>` element has no text content. Treating as empty." maxlog=1
 
 # (datatype, value) of an inline string `<is>`, or `nothing` when it has no text.
 function _inline_string(wb::Workbook, is::XML.LazyNode, sst_pfx::String)
@@ -539,24 +572,27 @@ getdata(ws::Worksheet, cell::Cell) = _cell_value(ws, cell.datatype, cell.value, 
 
 # The Julia value of a cell from its datatype and raw value. Shared by `getdata` and
 # the value-only rows `readtable` reads (src/valuerows.jl), so both convert alike.
-function _cell_value(ws::Worksheet, dt::CellValueType, v::UInt64, cell=nothing)
+_cell_value(ws::Worksheet, dt::CellValueType, v::UInt64, cell=nothing) = _with_cell_value(identity, ws, dt, v, cell)
+
+# `f` applied to the Julia value of a cell, given as its concrete type in each branch: so
+# `gettable` can push a number to a typed column without boxing it.
+@inline function _with_cell_value(f, ws::Worksheet, dt::CellValueType, v::UInt64, cell=nothing)
     # Fast path for common non-date types — avoids fetching workbook date mode
-    dt == CT_EMPTY  && return missing
-    dt == CT_ERROR  && return missing
-    dt == CT_RICHVALUE && return missing   # a picture isn't data: see `getCellImage`
+    dt == CT_FLOAT  && return f(reinterpret(Float64, v))
+    dt == CT_INT    && return f(reinterpret(Int64, v))
     if dt == CT_STRING
         s = sst_unformatted_string(ws, reinterpret(Int64, v))
-        return isempty(s) ? missing : s
+        return isempty(s) ? f(missing) : f(s)
     end
-    dt == CT_BOOL   && return v != 0
-    dt == CT_INT    && return reinterpret(Int64, v)
-    dt == CT_FLOAT  && return reinterpret(Float64, v)
+    dt == CT_BOOL   && return f(v != 0)
+    # Empty, an error, or a rich value (a picture isn't data: see `getCellImage`)
+    (dt == CT_EMPTY || dt == CT_ERROR || dt == CT_RICHVALUE) && return f(missing)
 
     # Date types require workbook date mode — fetch only when needed
     is1904 = isdate1904(get_workbook(ws))
-    dt == CT_DATE     && return excel_value_to_date(reinterpret(Int64, v), is1904)
-    dt == CT_DATETIME && return excel_value_to_datetime(reinterpret(Float64, v), is1904)
-    dt == CT_TIME     && return excel_value_to_time(reinterpret(Float64, v))
+    dt == CT_DATE     && return f(excel_value_to_date(reinterpret(Int64, v), is1904))
+    dt == CT_DATETIME && return f(excel_value_to_datetime(reinterpret(Float64, v), is1904))
+    dt == CT_TIME     && return f(excel_value_to_time(reinterpret(Float64, v)))
 
     throw(XLSXError(isnothing(cell) ? "Couldn't parse data of type $dt." : "Couldn't parse data for $cell."))
 end

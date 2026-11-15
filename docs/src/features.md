@@ -2,7 +2,8 @@
 
 This page lists the Excel features XLSX.jl works with, the functions for each, and
 where each is documented. The second table lists features XLSX.jl doesn't create or
-edit, so you needn't search for them.
+edit, so you needn't search for them. [Compared with Python's readers](comparison.md) sets
+these features beside those of python-calamine, fastexcel and openpyxl.
 
 Functions that add, change or remove something need a file opened with `mode="rw"`,
 or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any file.

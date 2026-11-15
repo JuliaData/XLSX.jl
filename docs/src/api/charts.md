@@ -31,7 +31,7 @@ repeat them.
 | `c`          | a chart, from [`getCharts`](@ref), [`getChart`](@ref), [`addChart`](@ref) or [`addChartEx`](@ref) |
 | `i`          | a series' position, counting from 1, in the order [`getChartSeries`](@ref) returns them   |
 | `point`      | a data point's position in its series, counting from 1                                    |
-| `ax`         | a [`ChartAxis`](@ref), from [`getChartAxes`](@ref) or [`getChartAxis`](@ref)              |
+| `ax`         | an axis: `:x`, `:y`, `:x2`, `:y2` or `:z` by where it is drawn (see [`getChartAxis`](@ref)), or a [`ChartAxis`](@ref) from [`getChartAxes`](@ref) |
 | `g`          | a [`ChartGroup`](@ref), from [`getChartGroups`](@ref)                                      |
 | `id`         | on a `ChartEx`, an axis's `id`, from [`getChartAxisIds`](@ref) — not a position           |
 | `pareto`     | on a `ChartEx`, `true` to act on a Pareto chart's line rather than its bars               |

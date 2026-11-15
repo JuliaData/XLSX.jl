@@ -5,6 +5,7 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Supported features" => "features.md",
+        "Compared with Python's readers" => "comparison.md",
         "Getting started" => Any[
             "XLSX Tutorial" => "tutorial/XLSXtutorial.md",
             "Creating and editing workbooks" => "tutorial/creatingWorkbooks.md",

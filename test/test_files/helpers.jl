@@ -125,11 +125,14 @@ const _DIFF_WBRELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 const _DIFF_STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="14" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1"/></cellXfs></styleSheet>"""
 
-function _diff_build_xlsx(rows_xml::AbstractString, sst::Vector{String})::Vector{UInt8}
+# A one-sheet workbook with `rows_xml` in its `<sheetData>`, or with the whole worksheet
+# XML `sheet_xml` when given.
+function _diff_build_xlsx(rows_xml::AbstractString, sst::Vector{String};
+                          sheet_xml::Union{Nothing,String} = nothing)::Vector{UInt8}
     sst_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" *
         "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"$(length(sst))\" uniqueCount=\"$(length(sst))\">" *
         join(isempty(s) ? "<si><t/></si>" : "<si><t xml:space=\"preserve\">$s</t></si>" for s in sst) * "</sst>"
-    sheet_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" *
+    sheet_xml = !isnothing(sheet_xml) ? sheet_xml : "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" *
         "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" " *
         "xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\">" *
         "<sheetData>$rows_xml</sheetData></worksheet>"

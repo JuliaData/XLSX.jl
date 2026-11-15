@@ -179,7 +179,7 @@ function _title_from_template(t::XML.Node, paras::Vector{Vector{XML.Node}})
 end
 
 """
-    addChart(ws::Worksheet, kind::Symbol; anchor, title=nothing) -> Chart
+    addChart(ws::Worksheet, kind::Symbol; anchor, title=nothing, xtitle=nothing, ytitle=nothing) -> Chart
 
 Add an empty chart of `kind` to `ws`, covering the cells in `anchor` (a range
 such as `"F2:M18"`). Add data with [`addSeries`](@ref).
@@ -205,16 +205,32 @@ the formatting Excel gives a new title, as does a styled string from
 StyledStrings.jl (Julia 1.11 and later). A `CellRef` or `SheetCellRef` binds the
 title to that cell, as [`setChartTitleText`](@ref) does; a string is always
 typed text, never read as a cell reference.
+
+`xtitle` and `ytitle` title the horizontal and vertical axes, as
+[`setAxisTitleText`](@ref)`(c, :x, xtitle)` and `(c, :y, ytitle)` do, and take the
+same values as `title` except `false`. They are the axes as drawn, so on a
+`:bar` chart `ytitle` names the categories. Pie and doughnut charts have no axes,
+and on a `:combo` chart they title the primary axes; the line's own axis is
+`:y2`.
+
+# Example
+
+    c = addChart(ws, :line; anchor = "G1:O25", title = "Sales",
+                 xtitle = "Month", ytitle = "Revenue (£m)")
 """
 function addChart(ws::Worksheet, kind::Symbol;
                   anchor::Union{AbstractString,CellRange},
-                  title::Union{Nothing,Bool,AbstractString,CellRef,SheetCellRef} = nothing)::Chart
-    title = _chart_title(title)
-    k    = _check_chart_args(kind, title)
-    _check_title_ref(get_xlsxfile(ws), ws.name, title)
+                  title::Union{Nothing,Bool,AbstractString,CellRef,SheetCellRef} = nothing,
+                  xtitle::Union{Nothing,AbstractString,CellRef,SheetCellRef} = nothing,
+                  ytitle::Union{Nothing,AbstractString,CellRef,SheetCellRef} = nothing)::Chart
+    title, xtitle, ytitle = _chart_title(title), _chart_title(xtitle), _chart_title(ytitle)
+    k    = _check_chart_args(kind, title, xtitle, ytitle)
+    for t in (title, xtitle, ytitle)
+        _check_title_ref(get_xlsxfile(ws), ws.name, t)
+    end
     path = _add_chart_part!(ws, _chart_shell(CHART_KIND_TEMPLATES[k.template]; title = _shell_title(title)),
                             k.style; anchor = anchor isa CellRange ? anchor : CellRange(anchor))
-    return _bind_title(getChart(ws, path), title)
+    return _axis_titles(_bind_title(getChart(ws, path), title), xtitle, ytitle)
 end
 
 # The `title` keyword as the chart is built from it. The StyledStrings extension
@@ -238,33 +254,48 @@ build_absolute_anchor(content::XML.Node)::XML.Node =
         content,
         XML.Element("xdr:clientData"))
 
-function _check_chart_args(kind::Symbol, title)
+function _check_chart_args(kind::Symbol, title, xtitle = nothing, ytitle = nothing)
     haskey(C_KINDS, kind) || throw(XLSXError(
         "Unknown chart kind `:$kind`. Use one of " * join((":$k" for k in keys(C_KINDS)), ", ") * "."))
     title === true && throw(XLSXError(
         "`title` is a string, a cell reference, `nothing` for Excel's automatic title, or `false` for none."))
+    kind in (:pie, :doughnut) && !(isnothing(xtitle) && isnothing(ytitle)) && throw(XLSXError(
+        "A `:$kind` chart has no axes, so it takes no `xtitle` or `ytitle`."))
     return C_KINDS[kind]
 end
 
+# The `xtitle` and `ytitle` keywords, once the chart exists.
+function _axis_titles(c::Chart, xtitle, ytitle)
+    isnothing(xtitle) || setAxisTitleText(c, :x, xtitle)
+    isnothing(ytitle) || setAxisTitleText(c, :y, ytitle)
+    return c
+end
+
 """
-    addChart(xf::XLSXFile, kind::Symbol; sheetname="", title=nothing) -> Chart
+    addChart(xf::XLSXFile, kind::Symbol; sheetname="", title=nothing,
+             xtitle=nothing, ytitle=nothing) -> Chart
 
 Add an empty chart of `kind` on a new chartsheet, placed after the existing
 sheets. `sheetname` defaults to `Chart1`, `Chart2`, … as Excel names them. See
-the worksheet method for `kind` and `title`. A title bound to a cell must name
-its sheet — a `SheetCellRef`, not a `CellRef` — since a chartsheet has no cells.
+the worksheet method for `kind`, `title`, `xtitle` and `ytitle`. A title bound to
+a cell must name its sheet — a `SheetCellRef`, not a `CellRef` — since a
+chartsheet has no cells.
 """
 function addChart(xf::XLSXFile, kind::Symbol; sheetname::AbstractString = "",
-                  title::Union{Nothing,Bool,AbstractString,CellRef,SheetCellRef} = nothing)::Chart
-    title = _chart_title(title)
-    k  = _check_chart_args(kind, title)
-    _check_title_ref(xf, nothing, title)                     # before the sheet exists
+                  title::Union{Nothing,Bool,AbstractString,CellRef,SheetCellRef} = nothing,
+                  xtitle::Union{Nothing,AbstractString,CellRef,SheetCellRef} = nothing,
+                  ytitle::Union{Nothing,AbstractString,CellRef,SheetCellRef} = nothing)::Chart
+    title, xtitle, ytitle = _chart_title(title), _chart_title(xtitle), _chart_title(ytitle)
+    k  = _check_chart_args(kind, title, xtitle, ytitle)
+    for t in (title, xtitle, ytitle)
+        _check_title_ref(xf, nothing, t)                     # before the sheet exists
+    end
     ws = _register_sheet!(get_workbook(xf), parse(CHARTSHEET_TEMPLATE, XML.Node), sheetname;
                           dir = "xl/chartsheets", reltype = REL_CHARTSHEET,
                           mime = MIME_CHARTSHEET, default_name = "Chart")
     path = _add_chart_part!(ws, _chart_shell(CHART_KIND_TEMPLATES[k.template]; title = _shell_title(title)),
                             k.style; anchor = nothing)
-    return _bind_title(getChart(xf, path), title)
+    return _axis_titles(_bind_title(getChart(xf, path), title), xtitle, ytitle)
 end
 
 # The c:f text for a resolved reference: sheet-qualified and absolute, as a chart

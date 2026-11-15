@@ -4,8 +4,8 @@ Value rows: the row source behind `readtable` (#462).
 `readtable` owns the `XLSXFile` it opens and drops it on return, so filling the
 worksheet cache (a `Cell` per cell, a `Dict` per row) only to read each value back out
 is wasted work. Instead, `readtable` reads the target sheet's XML in one cursor pass
-into `ValueRow`s: per row, the decoded value of each cell in the requested columns, and
-nothing else.
+into `ValueRow`s: per row, each cell in the requested columns decoded to its type and raw
+value, as a `Cell` holds them, and nothing else.
 
 Design — one row source, one table reader:
   - Everything about the *table* stays in the shared code in table.jl: header and
@@ -37,6 +37,10 @@ through the cache path again; or delete this file, its include, and the branches
 switch both ways (test/test_files/files/differential.jl), and compare `ValueRow`s with
 `SheetRow`s row by row, so the two paths can't drift apart unnoticed.
 
+The rows are read with an `XML.Cursor` here, or by default with the byte scanner in
+src/valuescan.jl, which makes the same `ValueRow`s faster and hands anything unusual back
+to XML.jl (`ValueRowIterator`'s `scan`).
+
 `ValueRowIterator` is internal to `readtable`: its state is a mutable cursor, so a
 state can be advanced only once (as `TableRowIterator` does), and each `iterate(itr)`
 starts a fresh pass over the sheet XML.
@@ -45,6 +49,8 @@ starts a fresh pass over the sheet XML.
 # Marks a column with no `<c>` in the row, as distinct from a present, empty cell.
 struct _AbsentCell end
 const _ABSENT = _AbsentCell()
+# The same in a row's `kinds`, where a present cell has its `CellValueType`.
+const _KIND_ABSENT = 0xff
 
 # The formulas argument of `_cursor_cell_contents` for a read that doesn't load formulas: never written.
 const _NO_FORMULAS = Dict{SheetCellRef,AbstractFormula}()
@@ -52,11 +58,15 @@ const _NO_FORMULAS = Dict{SheetCellRef,AbstractFormula}()
 # Thrown when `<row r>` values aren't ascending; `readtable` then uses the cache path.
 struct _RowsNotAscending <: Exception end
 
+# Each cell is kept as a `Cell` keeps it, its `CellValueType` and raw `UInt64`, and made
+# a Julia value only when read: so no value is boxed, and `gettable` pushes numbers
+# straight into typed columns (`_push_row_cell!`).
 struct ValueRow <: AbstractSheetRow
     ws::Worksheet
     row::Int
-    firstcol::Int              # column of values[1]
-    values::Vector{Any}        # decoded values by column from `firstcol`; `_ABSENT` where no `<c>`
+    firstcol::Int              # column of kinds[1] and raws[1]
+    kinds::Vector{UInt8}       # each cell's `CellValueType` by column from `firstcol`; `_KIND_ABSENT` where no `<c>`
+    raws::Vector{UInt64}       # each cell's raw value, as in a `Cell`
     has_cells::Bool            # any `<c>` at all, in any column (`!isempty` of a `SheetRow`)
 end
 
@@ -66,16 +76,18 @@ struct ValueRowIterator <: SheetRowIterator
     cols::Union{Nothing,UnitRange{Int}}  # columns to decode; `nothing` = every column
     sst_pfx::String
     last_state::Base.RefValue{Any}       # the state of the latest `iterate`, for `_check_rows_ascending!`
+    scan::Bool                           # read with the byte scanner (src/valuescan.jl), not a cursor
 end
 
-ValueRowIterator(ws::Worksheet, xml::String, cols::Union{Nothing,UnitRange{Int}}) =
-    ValueRowIterator(ws, xml, cols, get_sst_prefix(ws), Ref{Any}(nothing))
+ValueRowIterator(ws::Worksheet, xml::String, cols::Union{Nothing,UnitRange{Int}}, scan::Bool=_READTABLE_SCAN[]) =
+    ValueRowIterator(ws, xml, cols, get_sst_prefix(ws), Ref{Any}(nothing), scan)
 
 mutable struct _ValueRowState{C}
     cursor::C
     at_row::Bool       # the cursor is on a `<row>` not yet read
     last_row::Int
     done::Bool         # the end of the sheet was reached
+    width::Int         # cells in the last row read, to size the next (all-columns mode)
 end
 
 Base.IteratorSize(::Type{ValueRowIterator}) = Base.SizeUnknown()
@@ -86,31 +98,49 @@ Base.eltype(::Type{ValueRowIterator}) = ValueRow
 @inline row_number(r::ValueRow) = r.row
 Base.isempty(r::ValueRow) = !r.has_cells
 
-# The value at `column`: `missing` when absent, empty, or outside the decoded columns.
-@inline function _value_or_absent(r::ValueRow, column::Int)
+# The index in `kinds` and `raws` of a present cell at `column`, or 0.
+@inline function _cell_index(r::ValueRow, column::Int)
     i = column - r.firstcol + 1
-    return 1 <= i <= length(r.values) ? r.values[i] : _ABSENT
+    return 1 <= i <= length(r.kinds) && r.kinds[i] != _KIND_ABSENT ? i : 0
+end
+
+# The value at `column`, or `_ABSENT` when it has no `<c>` or is outside the decoded columns.
+function _value_or_absent(r::ValueRow, column::Int)
+    i = _cell_index(r, column)
+    return i == 0 ? _ABSENT : _cell_value(r.ws, CellValueType(r.kinds[i]), r.raws[i])
 end
 function getdata(r::ValueRow, column::Int)
     v = _value_or_absent(r, column)
     return v === _ABSENT ? missing : v
 end
 
+# `gettable`'s push of the value at `column`, `missing_strings` applied, to the typed
+# column `col`; returns the column it went into (see `_push_column!`). Each kind of value
+# reaches `_push_column!` as its concrete type, so none is boxed.
+function _push_row_cell!(col::Vector, ::Worksheet, r::ValueRow, column::Int, ms::Set{String})
+    i = _cell_index(r, column)
+    i == 0 && return _push_column!(col, missing)
+    return @inline _with_cell_value(x -> _push_column!(col, _apply_missing_strings(x, ms)),
+                            r.ws, CellValueType(r.kinds[i]), r.raws[i])
+end
+
 # The same iterator, decoding only `cr`'s columns.
-_narrow(itr::ValueRowIterator, cr::ColumnRange) = ValueRowIterator(itr.ws, itr.xml, cr.start:cr.stop, itr.sst_pfx, Ref{Any}(nothing))
+_narrow(itr::ValueRowIterator, cr::ColumnRange) =
+    ValueRowIterator(itr.ws, itr.xml, cr.start:cr.stop, itr.sst_pfx, Ref{Any}(nothing), itr.scan)
 
 # A state at the start of `<sheetData>`; finds it as `first_cache_fill!` does, with the
 # same error if there is none.
 function _value_row_start(itr::ValueRowIterator)
     sheetdata_lazy = _find_sheetdata(parse(itr.xml, XML.LazyNode), itr.ws.name)
-    return _ValueRowState(XML.Cursor(sheetdata_lazy), false, 0, false)
+    return _ValueRowState(XML.Cursor(sheetdata_lazy), false, 0, false, 0)
 end
 
-Base.iterate(itr::ValueRowIterator) = iterate(itr, _value_row_start(itr))
+Base.iterate(itr::ValueRowIterator) =
+    itr.scan ? iterate(itr, _scan_start(itr)) : iterate(itr, _value_row_start(itr))
 
 # Check the whole sheet's rows are ascending before reading any (see `_check_rows_ascending!`).
 function _check_all_rows_ascending(itr::ValueRowIterator)
-    itr.last_state[] = _value_row_start(itr)
+    itr.last_state[] = itr.scan ? _scan_start(itr) : _value_row_start(itr)
     _check_rows_ascending!(itr)
     return nothing
 end
@@ -136,8 +166,7 @@ function Base.iterate(itr::ValueRowIterator, st::_ValueRowState)
     st.last_row = row
 
     cols = itr.cols
-    firstcol = isnothing(cols) ? 1 : first(cols)
-    values = isnothing(cols) ? Any[] : Any[_ABSENT for _ in cols]
+    firstcol, kinds, raws = _new_row_cells(cols, st.width)
     has_cells = false
 
     while XML.next!(c) !== nothing
@@ -161,7 +190,7 @@ function Base.iterate(itr::ValueRowIterator, st::_ValueRowState)
                 if isnothing(cols) || col in cols
                     # `<f>` is ignored: readtable reads values only
                     datatype, value, _ = _cursor_cell_contents(c, attrs, ws, wb, itr.sst_pfx, _NO_FORMULAS, false)
-                    _set_value!(values, firstcol, col, _cell_value(ws, datatype, value))
+                    _set_cell!(kinds, raws, firstcol, col, datatype, value)
                 else
                     XML.skip_element!(c)
                 end
@@ -171,20 +200,32 @@ function Base.iterate(itr::ValueRowIterator, st::_ValueRowState)
         end
     end
 
-    return ValueRow(ws, row, firstcol, values, has_cells), st
+    st.width = length(kinds)
+    return ValueRow(ws, row, firstcol, kinds, raws, has_cells), st
 end
 
-# Store `v` for `col`, growing `values` (all-columns mode starts empty, from column 1).
-@inline function _set_value!(values::Vector{Any}, firstcol::Int, col::Int, v)
+# The first column, kinds and raws of a new row: the requested columns, all absent, or
+# (all-columns mode) empty from column 1 with room for `width` cells.
+function _new_row_cells(cols::Union{Nothing,UnitRange{Int}}, width::Int)
+    isnothing(cols) && return 1, sizehint!(UInt8[], width), sizehint!(UInt64[], width)
+    return first(cols), fill(_KIND_ABSENT, length(cols)), zeros(UInt64, length(cols))
+end
+
+# Store the cell `(dt, v)` for `col`, growing the row (all-columns mode starts empty, from
+# column 1).
+@inline function _set_cell!(kinds::Vector{UInt8}, raws::Vector{UInt64}, firstcol::Int, col::Int,
+                            dt::CellValueType, v::UInt64)
     i = col - firstcol + 1
-    if i > length(values)
-        n = length(values)
-        resize!(values, i)
+    if i > length(kinds)
+        n = length(kinds)
+        resize!(kinds, i)
+        resize!(raws, i)
         for k in n+1:i
-            values[k] = _ABSENT
+            kinds[k] = _KIND_ABSENT
         end
     end
-    values[i] = v
+    kinds[i] = UInt8(dt)
+    raws[i] = v
     return nothing
 end
 
@@ -203,9 +244,10 @@ end
 # them: check their `r` numbers, skipping each row's contents undecoded. Throws
 # `_RowsNotAscending` (so `readtable` falls back to the cache) if they aren't. Rows
 # without a readable `r` aren't validated here: they're outside the read area.
-function _check_rows_ascending!(itr::ValueRowIterator)
-    st = itr.last_state[]
-    (st === nothing || st.done) && return nothing
+_check_rows_ascending!(itr::ValueRowIterator) = _check_rows_ascending!(itr, itr.last_state[])
+_check_rows_ascending!(::ValueRowIterator, ::Nothing) = nothing
+function _check_rows_ascending!(::ValueRowIterator, st::_ValueRowState)
+    st.done && return nothing
     c = st.cursor
     last = st.last_row
     pending = st.at_row                  # the cursor is already on an unread `<row>`
@@ -229,4 +271,50 @@ function _check_rows_ascending!(itr::ValueRowIterator)
     end
     st.done = true
     return nothing
+end
+
+# `readtable` (without `table_name`) through value rows. Falls back to the cache path
+# for a chartsheet, a sheet not held as XML text, or rows out of ascending order;
+# results are the same as `gettable` on the cache except that invalid cells outside the
+# returned area aren't decoded, so they raise no error (see src/valuerows.jl). The rows
+# are read by the byte scanner, or by a cursor where it hands the sheet back (src/valuescan.jl).
+function _readtable_value_rows(source, sheet, cols; infer_eltypes::Bool, kw...)
+    xf = open_or_read_xlsx(source, true, true, false; target_sheet=sheet, load_formulas=false,
+                           split_sheets=false)
+    ws = getsheet(xf, sheet)
+    wb = get_workbook(xf)
+    cache_path() = isnothing(cols) ? gettable(ws; infer_eltypes, kw...) : gettable(ws, cols; infer_eltypes, kw...)
+    is_chartsheet(wb, ws.name) && return cache_path()
+    raw = get(xf.data, get_relationship_target_by_id("xl", wb, ws.relationship_id), nothing)
+    raw isa String || return cache_path()
+    # The byte scanner first (src/valuescan.jl), then the cursor for markup it hands back.
+    for scan in (_READTABLE_SCAN[] ? (true, false) : (false,))
+        try
+            return _readtable_value_rows(ws, raw, cols, scan; infer_eltypes, kw...)
+        catch e
+            e isa _ScanFallback && continue
+            e isa _RowsNotAscending && break
+            rethrow()
+        end
+    end
+    return cache_path()
+end
+
+# `readtable` of `ws`, held as `raw` XML, through value rows read by the byte scanner
+# (`scan`) or a cursor.
+function _readtable_value_rows(ws::Worksheet, raw::String, cols, scan::Bool; infer_eltypes::Bool, kw...)
+    # A `stop_in_row_function` sees rows as they're read, so check the row order (and
+    # that the scanner can step over every row) first: a fallback after it had been
+    # called would call it on rows twice.
+    get(kw, :stop_in_row_function, nothing) === nothing ||
+        _check_all_rows_ascending(ValueRowIterator(ws, raw, nothing, scan))
+    itr = if isnothing(cols)
+        _eachtablerow(ws, ValueRowIterator(ws, raw, nothing, scan); kw...)
+    else
+        cr = convert(ColumnRange, cols)
+        _eachtablerow(ws, ValueRowIterator(ws, raw, cr.start:cr.stop, scan), cr; kw...)
+    end
+    t = gettable(itr; infer_eltypes)
+    _check_rows_ascending!(itr.itr)    # the rows after the table, too
+    return t
 end

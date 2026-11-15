@@ -117,3 +117,48 @@ end
     itr = XLSX.eachrow(sh)
     @test XLSX.is_cache_enabled(XLSX.get_workbook(xf)) == XLSX.is_cache_enabled(itr) == XLSX.is_cache_enabled(xf)
 end
+
+@testset "reading <v> in passing" begin
+    # `_cursor_v_text` must read each `<v>` as `is_simple_value`, or else
+    # `_v_text_fallback`, read it before: the first text or CDATA child.
+    function old_v_text(xml)                             # as `_cursor_cell_contents` read it
+        c = XML.Cursor(xml)
+        XML.next!(c)                                     # on <v>
+        sv = XML.is_simple_value(c)
+        return isnothing(sv) ? XLSX._v_text_fallback(XML.LazyNode(c), "A1") : sv
+    end
+    function new_v_text(xml)
+        c = XML.Cursor("<c>" * xml * "<f>after</f></c>")
+        XML.next!(c); XML.next!(c)                       # on <v>
+        found, sv = XLSX._cursor_v_text(c, "A1")
+        XML.next!(c)                                     # the cursor goes on past `<v>`
+        return (found ? sv : nothing), XML.tag(c)
+    end
+    for xml in ["<v>1.5</v>", "<v>  7 </v>", "<v>a&amp;b</v>", "<v><![CDATA[x<y]]></v>",
+                "<v></v>", "<v/>", "<v t=\"x\">3</v>", "<v>2<b>9</b>4</v>", "<v><b>9</b>4</v>",
+                "<v><!-- note -->5</v>"]
+        sv, next_tag = new_v_text(xml)
+        @test isequal(sv, old_v_text(xml))
+        @test next_tag == "f"
+    end
+    # Children but no text: nothing read (it warns, as before, but only once a session)
+    @test Logging.with_logger(Logging.NullLogger()) do
+        first(new_v_text("<v><b/></v>")) === nothing
+    end
+end
+
+@testset "_with_cell_value gives each value as _cell_value" begin
+    xf = XLSX.newxlsx()
+    ws = xf[1]
+    ws["A1"] = "text"
+    sst = XLSX.getcell(ws, "A1").value
+    cases = [(XLSX.CT_EMPTY, UInt64(0)), (XLSX.CT_ERROR, UInt64(1)), (XLSX.CT_RICHVALUE, UInt64(1)),
+             (XLSX.CT_STRING, sst), (XLSX.CT_BOOL, UInt64(1)), (XLSX.CT_INT, reinterpret(UInt64, Int64(-4))),
+             (XLSX.CT_FLOAT, reinterpret(UInt64, 2.5)), (XLSX.CT_DATE, reinterpret(UInt64, Int64(45000))),
+             (XLSX.CT_DATETIME, reinterpret(UInt64, 45000.25)), (XLSX.CT_TIME, reinterpret(UInt64, 0.5))]
+    for (dt, v) in cases
+        a = XLSX._cell_value(ws, dt, v)
+        b = XLSX._with_cell_value(x -> (x, typeof(x)), ws, dt, v)
+        @test isequal(a, b[1]) && typeof(a) == b[2]
+    end
+end

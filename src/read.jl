@@ -1226,9 +1226,15 @@ function load_files!(xf::XLSXFile, zip_io::ZipArchives.ZipReader; pass::Int,
         # includes the style lookups each cell makes: fill them for every cell
         # format now, since a Dict must not be read on one thread while written on another.
         isempty(pending) || _prefill_style_buffers!(wb)
-        fill_tasks = [Threads.@spawn(first_cache_fill!(sheet, parse(raw, XML.LazyNode)))
+        fill_tasks = [Threads.@spawn(first_cache_fill!(sheet, parse(raw, XML.LazyNode); defer_strings = true))
                       for (sheet, raw) in pending]
-        foreach(wait, fill_tasks)
+        strings = fetch.(fill_tasks)
+        # The strings each sheet found that the table doesn't hold, added in workbook
+        # order (`pending` is in the order the parts were read), so that their indices,
+        # and the saved file, don't depend on which fill finished first.
+        for i in sortperm([findfirst(s -> s === sheet, wb.sheets) for (sheet, _) in pending])
+            _commit_pending_strings!(wb, strings[i])
+        end
     end
 
     nworkers = min(max_threads(), length(ZipArchives.zip_names(zip_io)))
@@ -1549,39 +1555,6 @@ end
 # cache. Set to `false` to send `readtable` through the cache path, as before #462;
 # the tests run with both settings.
 const _READTABLE_VALUE_ROWS = Ref(true)
-
-# `readtable` (without `table_name`) through value rows. Falls back to the cache path
-# for a chartsheet, a sheet not held as XML text, or rows out of ascending order;
-# results are the same as `gettable` on the cache except that invalid cells outside the
-# returned area aren't decoded, so they raise no error (see src/valuerows.jl).
-function _readtable_value_rows(source, sheet, cols; infer_eltypes::Bool, kw...)
-    xf = open_or_read_xlsx(source, true, true, false; target_sheet=sheet, load_formulas=false,
-                           split_sheets=false)
-    ws = getsheet(xf, sheet)
-    wb = get_workbook(xf)
-    cache_path() = isnothing(cols) ? gettable(ws; infer_eltypes, kw...) : gettable(ws, cols; infer_eltypes, kw...)
-    is_chartsheet(wb, ws.name) && return cache_path()
-    raw = get(xf.data, get_relationship_target_by_id("xl", wb, ws.relationship_id), nothing)
-    raw isa String || return cache_path()
-    try
-        # A `stop_in_row_function` sees rows as they're read, so check the row order
-        # first: a fallback after it had been called would call it on rows twice.
-        get(kw, :stop_in_row_function, nothing) === nothing ||
-            _check_all_rows_ascending(ValueRowIterator(ws, raw, nothing))
-        itr = if isnothing(cols)
-            _eachtablerow(ws, ValueRowIterator(ws, raw, nothing); kw...)
-        else
-            cr = convert(ColumnRange, cols)
-            _eachtablerow(ws, ValueRowIterator(ws, raw, cr.start:cr.stop), cr; kw...)
-        end
-        t = gettable(itr; infer_eltypes)
-        _check_rows_ascending!(itr.itr)    # the rows after the table, too
-        return t
-    catch e
-        e isa _RowsNotAscending || rethrow()
-    end
-    return cache_path()
-end
 
 """
     readto(

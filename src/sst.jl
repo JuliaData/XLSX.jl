@@ -47,8 +47,8 @@ function sst_formatted_string(sst::SharedStringTable, index::Integer, pfx_colon:
 end
 
 function create_new_sst(wb::Workbook, sst::SharedStringTable)
-    if !sst.is_loaded
-        sst.is_loaded = true
+    if !(@atomic sst.is_loaded)
+        @atomic sst.is_loaded = true
 
         # add relationship
         #<Relationship Id="rId16" Target="sharedStrings.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings"/>
@@ -105,17 +105,99 @@ function add_formatted_string!(wb::Workbook, sst::SharedStringTable, str::String
 end
 function add_formatted_string!(wb::Workbook, str_formatted::String)::Int64
     isempty(str_formatted) && throw(XLSXError("Can't add empty string to Shared String Table."))
+    pending = _pending_strings()
+    isnothing(pending) || return _locked_index_or_pend!(wb, pending, _sst_key(str_formatted))
     lock(wb.sst_lock) do
         add_to_sst!(_loaded_sst(wb), str_formatted)
     end
 end
 
+#------------------------------------------------------------------- Strings found by a cache fill
+# A cell can hold text that isn't in the table: a formula's text result (`t="str"`) or
+# an inline string. Reading it adds the text to the table. In "rw" mode the sheets are
+# filled in parallel, so if each fill added its new strings as it met them, their
+# indices would depend on which fill got there first, and so would the saved file. A
+# fill collects them instead, its cells holding a placeholder index, and they are added
+# afterwards (`_commit_pending_strings!`): for "rw", sheet by sheet in workbook order,
+# which gives the indices that filling one sheet after another gives.
+#
+# The fill's collection is found through task-local storage, so the cell readers need
+# no extra argument. `_FILLS_COLLECTING` counts the fills collecting, so that adding a
+# string outside a fill (any write) doesn't look for one while none is running.
+mutable struct _PendingStrings
+    keys::Vector{Tuple{Bool,String}}       # (rich, plain text or `<si>` XML), in the order met
+    slot::Dict{Tuple{Bool,String},Int}     # key => its position in `keys`
+    cells::Vector{Cell}                    # the cells holding a placeholder index
+end
+_PendingStrings() = _PendingStrings(Tuple{Bool,String}[], Dict{Tuple{Bool,String},Int}(), Cell[])
+
+const _PENDING_SST_BASE = Int64(1) << 62   # a placeholder is this plus the key's position - 1
+const _PENDING_STRINGS_KEY = :XLSX_pending_strings
+const _FILLS_COLLECTING = Threads.Atomic{Int}(0)
+
+@inline _is_pending_index(value::UInt64) = reinterpret(Int64, value) >= _PENDING_SST_BASE
+
+@inline function _pending_strings()::Union{Nothing,_PendingStrings}
+    _FILLS_COLLECTING[] == 0 && return nothing
+    return get(task_local_storage(), _PENDING_STRINGS_KEY, nothing)
+end
+
+# Runs `f` with the strings it adds to the table collected in `pending`.
+function _collecting_strings(f, pending::_PendingStrings)
+    Threads.atomic_add!(_FILLS_COLLECTING, 1)
+    try
+        return task_local_storage(f, _PENDING_STRINGS_KEY, pending)
+    finally
+        Threads.atomic_sub!(_FILLS_COLLECTING, 1)
+    end
+end
+
+# How the table keys a string given as `<si>` XML, as `add_to_sst!` stores it.
+function _sst_key(si_xml::String)::Tuple{Bool,String}
+    text = _si_plain_text(xml_root_element(parse(si_xml, XML.LazyNode)))
+    return isnothing(text) ? (true, si_xml) : (false, text)
+end
+
+_locked_index_or_pend!(wb::Workbook, pending::_PendingStrings, key::Tuple{Bool,String})::Int64 =
+    lock(() -> _index_or_pend!(wb, pending, key), wb.sst_lock)
+
+# The string's index if the table holds it, else a placeholder. Call it holding `wb.sst_lock`.
+# A workbook without a table gets one only when the strings are committed.
+function _index_or_pend!(wb::Workbook, pending::_PendingStrings, key::Tuple{Bool,String})::Int64
+    sst = get_sst(wb)
+    if (@atomic sst.is_loaded) || has_sst(wb)
+        sst = _loaded_sst(wb)
+        _ensure_sst_index(sst)
+        ind = get(first(key) ? sst.rich_index : sst.index, last(key), nothing)
+        ind === nothing || return ind
+    end
+    slot = get!(pending.slot, key) do
+        push!(pending.keys, key)
+        length(pending.keys)
+    end
+    return _PENDING_SST_BASE + slot - 1
+end
+
+# Adds a fill's collected strings to the table, in the order it met them, and gives its
+# cells their indices.
+function _commit_pending_strings!(wb::Workbook, pending::_PendingStrings)
+    isempty(pending.keys) && return nothing
+    indices = lock(wb.sst_lock) do
+        sst = _loaded_sst(wb)
+        [rich ? add_to_sst!(sst, s) : add_plain_to_sst!(sst, s) for (rich, s) in pending.keys]
+    end
+    for cell in pending.cells
+        cell.value = reinterpret(UInt64, indices[reinterpret(Int64, cell.value) - _PENDING_SST_BASE + 1])
+    end
+    return nothing
+end
+
 # The workbook's Shared String Table, loaded or created. Call it holding `wb.sst_lock`.
 function _loaded_sst(wb::Workbook)::SharedStringTable
     sst = get_sst(wb)
-    if has_sst(wb) && !sst.is_loaded
+    if has_sst(wb) && !(@atomic sst.is_loaded)
         sst_load!(wb)
-    elseif !sst.is_loaded
+    elseif !(@atomic sst.is_loaded)
         create_new_sst(wb, sst)
     end
     return sst
@@ -127,8 +209,11 @@ needs_preserve(s::AbstractString) =
     !isempty(s) && (isspace(first(s)) || isspace(last(s))) || contains(s, '\n') || contains(s, "  ")
 
 # allow to write cells containing only whitespace characters or with leading or trailing whitespace.
-function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int
+# Int64, not Int: a fill's placeholder index is over 2^62, past a 32-bit Int.
+function add_shared_string!(wb::Workbook, str_unformatted::AbstractString) :: Int64
     text = String(str_unformatted)
+    pending = _pending_strings()
+    isnothing(pending) || return _locked_index_or_pend!(wb, pending, (false, text))
     lock(wb.sst_lock) do
         add_plain_to_sst!(_loaded_sst(wb), text)
     end
@@ -203,12 +288,12 @@ end
 
 function sst_load!(workbook::Workbook)
     sst = get_sst(workbook)
-    sst.is_loaded && return
+    (@atomic sst.is_loaded) && return
     has_sst(workbook) || return
 
     xlsxfile = get_xlsxfile(workbook)
     if !internal_xml_file_exists(xlsxfile, "xl/sharedStrings.xml")
-        sst.is_loaded = true
+        @atomic sst.is_loaded = true
         return
     end
 
@@ -241,7 +326,7 @@ function sst_load!(workbook::Workbook)
         push!(sst.unformatted, text)
     end
 
-    sst.is_loaded = true
+    @atomic sst.is_loaded = true
 end
 
 # Checks whether this workbook has a Shared String Table.
@@ -287,9 +372,16 @@ end
 # Looks for a string inside the Shared Strings Table (sst).
 # `index` starts at 0.
 @inline function sst_unformatted_string(wb::Workbook, index::Int64)::String
-    sst = get_sst(wb)
-    sst.is_loaded || sst_load!(wb)
+    sst = _ensure_sst_loaded(wb)
     return sst.unformatted[index+1]
+end
+
+# A read-only file loads the table on its first string read, perhaps from several
+# tasks at once: one loads it, under the lock, while the others wait.
+@inline function _ensure_sst_loaded(wb::Workbook)::SharedStringTable
+    sst = get_sst(wb)
+    (@atomic sst.is_loaded) || lock(() -> sst_load!(wb), wb.sst_lock)
+    return sst
 end
 
 @inline sst_unformatted_string(xl::XLSXFile, index::Int64) :: String = sst_unformatted_string(get_workbook(xl), index)
@@ -671,7 +763,7 @@ function getRichTextString(s::Worksheet, c::CellRef)::Union{RichTextString, Noth
     cell = getcell(s, c)
     cell isa EmptyCell && return nothing
     cell.datatype == CT_STRING || return nothing
-    sst_load!(get_workbook(s))
+    _ensure_sst_loaded(get_workbook(s))
     uss = get(get_sst(get_workbook(s)).rich, reinterpret(Int64, cell.value), nothing)
     uss === nothing && return nothing # plain string
     return getRichTextString(get_workbook(s), uss)

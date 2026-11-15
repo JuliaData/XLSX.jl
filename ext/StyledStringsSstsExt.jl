@@ -30,7 +30,7 @@ _ss_rich(ss::_AnnStr) = isempty(ss) ? "" : RichTextString(_ssToRuns(ss))
 
 Charts.setChartTitleText(c::Charts.Chart, ss::_AnnStr) =
     Charts.setChartTitleText(c, _ss_rich(ss))
-Charts.setAxisTitleText(c::Charts.Chart, ax::Charts.ChartAxis, ss::_AnnStr) =
+Charts.setAxisTitleText(c::Charts.Chart, ax::Charts.AxisRef, ss::_AnnStr) =
     Charts.setAxisTitleText(c, ax, _ss_rich(ss))
 Charts.setLabelText(c::Charts.Chart, i::Integer, point::Integer, ss::_AnnStr) =
     Charts.setLabelText(c, i, point, _ss_rich(ss))

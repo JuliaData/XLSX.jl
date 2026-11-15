@@ -3,9 +3,9 @@ function CellRef(n::AbstractString)
     i = 1
     len = ncodeunits(n)
     len == 0 && throw(XLSXError("$n is not a valid CellRef."))
-    
-    # scan letters for column
-    while i <= len && isascii(n[i]) && isuppercase(n[i])
+
+    # scan letters for column (bytes: a non-ASCII character's bytes are never 'A':'Z')
+    while i <= len && UInt8('A') <= codeunit(n, i) <= UInt8('Z')
         i += 1
     end
     col_end = i - 1
@@ -26,7 +26,7 @@ function CellRef(n::AbstractString)
         i += 1
     end
     row == 0 && throw(XLSXError("$n is not a valid CellRef."))
-    
+
     return CellRef(Int32(row), Int32(col))
 end
 

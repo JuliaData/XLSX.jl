@@ -235,18 +235,33 @@ end
 # duplicated `<row r>` (never written by Excel) differently from the cache. That is
 # the one accepted difference. With value rows (the default), `enable_cache` has no
 # effect and such sheets fall back to the cache, so agreement must be exact.
-_diff_nocache_allowed(malformed::Bool, value_rows::Bool)::Bool = malformed && !value_rows
+_diff_nocache_allowed(malformed::Bool, path::Symbol)::Bool = malformed && path == :cache
 
-# The two paths `readtable` is checked on (#462), and their names in mismatch reports.
-const _DIFF_PATHS = (true => "value rows", false => "the cache")
+# The paths `readtable` is checked on, and their names in mismatch reports: value rows
+# read by the byte scanner (src/valuescan.jl) or a cursor (#462), and the worksheet cache.
+const _DIFF_PATHS = (:scan => "the scanner", :cursor => "the cursor", :cache => "the cache")
 
-# `f()` with `readtable` on value rows (`true`) or on the worksheet cache (`false`).
-function _with_value_rows(f, value_rows::Bool)
-    XLSX._READTABLE_VALUE_ROWS[] = value_rows
+# `f()` with the worksheet cache filled by the byte scanner (`true`, the default) or by the
+# cursor walk (`false`). The oracles fill theirs with the cursor, so that the scanner is
+# checked against XML.jl alone.
+function _with_cache_scan(f, scan::Bool)
+    XLSX._CACHE_SCAN[] = scan
+    try
+        return f()
+    finally
+        XLSX._CACHE_SCAN[] = true
+    end
+end
+
+# `f()` with `readtable` on the path `path` (see `_DIFF_PATHS`).
+function _with_value_rows(f, path::Symbol)
+    XLSX._READTABLE_VALUE_ROWS[] = path != :cache
+    XLSX._READTABLE_SCAN[] = path == :scan
     try
         return f()
     finally
         XLSX._READTABLE_VALUE_ROWS[] = true
+        XLSX._READTABLE_SCAN[] = true
     end
 end
 
@@ -268,8 +283,10 @@ function _diff_check(bytes::Vector{UInt8}, xf, sheet, cols, kw::NamedTuple, sec:
     # column_labels: nothing, the right length, or one too many (must throw identically)
     column_labels = nothing
     if sec[4] != 1
-        probe = _diff_run(() -> isnothing(cols) ?
-            XLSX.gettable(xf[sheet]; kw...) : XLSX.gettable(xf[sheet], cols; kw...))
+        probe = _with_cache_scan(false) do
+            _diff_run(() -> isnothing(cols) ?
+                XLSX.gettable(xf[sheet]; kw...) : XLSX.gettable(xf[sheet], cols; kw...))
+        end
         probe isa Exception && return String[]    # nothing more to learn for this case
         n = length(probe.column_labels) + (sec[4] == 3 ? 1 : 0)
         column_labels = [Symbol("L$i") for i in 1:n]
@@ -279,16 +296,18 @@ function _diff_check(bytes::Vector{UInt8}, xf, sheet, cols, kw::NamedTuple, sec:
     common(log) = (; kw..., column_labels, normalizenames, missing_strings,
                     stop_in_row_function = _diff_stop_fn(stop_kind, log))
 
-    oracle = _diff_run(() -> isnothing(cols) ?
-        XLSX.gettable(xf[sheet]; common(log_a)..., infer_eltypes) :
-        XLSX.gettable(xf[sheet], cols; common(log_a)..., infer_eltypes))
+    oracle = _with_cache_scan(false) do
+        _diff_run(() -> isnothing(cols) ?
+            XLSX.gettable(xf[sheet]; common(log_a)..., infer_eltypes) :
+            XLSX.gettable(xf[sheet], cols; common(log_a)..., infer_eltypes))
+    end
 
     mismatches = String[]
-    for (value_rows, name) in _DIFF_PATHS
+    for (path, name) in _DIFF_PATHS
         # The one known difference of the streaming path (see `_diff_nocache_allowed`)
-        !enable_cache && _diff_nocache_allowed(malformed, value_rows) && continue
+        !enable_cache && _diff_nocache_allowed(malformed, path) && continue
         log_b = _DiffCall[]
-        subject = _with_value_rows(value_rows) do
+        subject = _with_value_rows(path) do
             _diff_run(() -> if isnothing(cols)
                 sheet == 1 && sec[6] % 2 == 0 ?   # exercise readtable(source) too
                     XLSX.readtable(IOBuffer(bytes); common(log_b)..., infer_eltypes, enable_cache) :
@@ -325,9 +344,9 @@ function _diff_product(label, bytes, sheet, first_rows, columns, cover, offset;
     mismatches = String[]
     xf = _diff_run(() -> XLSX.readxlsx(IOBuffer(bytes)))
     if xf isa Exception
-        # The oracle can't open it: readtable must fail the same way on both paths.
-        for (value_rows, name) in _DIFF_PATHS
-            e = _with_value_rows(() -> _diff_run(() -> XLSX.readtable(IOBuffer(bytes), sheet)), value_rows)
+        # The oracle can't open it: readtable must fail the same way on every path.
+        for (path, name) in _DIFF_PATHS
+            e = _with_value_rows(() -> _diff_run(() -> XLSX.readtable(IOBuffer(bytes), sheet)), path)
             m = _diff_compare(xf, e)
             m === nothing || push!(mismatches, "$label: open: via $name: $m")
         end
@@ -523,15 +542,18 @@ end
 # ── Value rows vs cache rows, row by row (#462) ───────────────────────────────
 
 # Rows of `bytes`' sheet `sheet` from a `ValueRowIterator` (decoding `cols`, or all
-# columns) and from the worksheet cache, or the exceptions they threw.
-function _both_row_sources(bytes, sheet, cols)
+# columns; read by the byte scanner if `scan`, else a cursor) and from the worksheet
+# cache, or the exceptions they threw.
+function _both_row_sources(bytes, sheet, cols, scan::Bool)
     value_rows = _diff_run() do
         xf = XLSX.open_or_read_xlsx(IOBuffer(bytes), true, true, false; split_sheets = false)
         ws = xf[sheet]
         raw = xf.data[XLSX.get_relationship_target_by_id("xl", XLSX.get_workbook(xf), ws.relationship_id)]
-        collect(XLSX.ValueRowIterator(ws, raw, cols))
+        collect(XLSX.ValueRowIterator(ws, raw, cols, scan))
     end
-    cache_rows = _diff_run(() -> collect(XLSX.eachrow(XLSX.readxlsx(IOBuffer(bytes))[sheet])))
+    cache_rows = _with_cache_scan(false) do
+        _diff_run(() -> collect(XLSX.eachrow(XLSX.readxlsx(IOBuffer(bytes))[sheet])))
+    end
     return value_rows, cache_rows
 end
 
@@ -539,6 +561,9 @@ end
 function _compare_row_sources(value_rows, cache_rows, cols)
     if value_rows isa Exception || cache_rows isa Exception
         value_rows isa XLSX._RowsNotAscending && return nothing   # readtable falls back to the cache
+        value_rows isa XLSX._ScanFallback && return nothing       # readtable falls back to the cursor
+        (value_rows isa Exception && cache_rows isa Exception) ||
+            return "only the $(value_rows isa Exception ? "value" : "cache") rows threw"
         return _diff_compare(cache_rows, value_rows)
     end
     length(value_rows) == length(cache_rows) || return "$(length(value_rows)) value rows vs $(length(cache_rows)) cache rows"
@@ -566,7 +591,10 @@ function _compare_row_sources(value_rows, cache_rows, cols)
     return nothing
 end
 
-@testset "value rows match cache rows" begin
+# Every sheet the row-source checks read: the generated corpus, the special and random
+# sheets, every worksheet of the test workbooks and, with `XLSX_DIFF_FIXTURES`, the
+# bench fixtures; as (label, workbook bytes, sheet).
+function _diff_sheet_corpus()::Vector{Tuple{String,Vector{UInt8},Int}}
     sheets = Tuple{String,Vector{UInt8},Int}[]
     for len in 0:3, states in Iterators.product(ntuple(_ -> _DIFF_ROW_STATES, len)...)
         push!(sheets, ("corpus $(collect(states))", _diff_corpus_sheet(collect(states)), 1))
@@ -588,20 +616,30 @@ end
             startswith(file, "xl_") && push!(sheets, ("$file", read(joinpath(fixtures, file)), 2))
         end
     end
+    return sheets
+end
 
+@testset "value rows match cache rows" begin
+    sheets = _diff_sheet_corpus()
     mismatches = String[]
-    for (label, bytes, sheet) in sheets, cols in (nothing, 2:4, 1:7, 3:3)
-        m = _compare_row_sources(_both_row_sources(bytes, sheet, cols)..., cols)
-        m === nothing || push!(mismatches, "$label cols=$cols: $m")
+    scan_fallbacks = String[]           # sheets the byte scanner handed back to the cursor
+    for (label, bytes, sheet) in sheets, cols in (nothing, 2:4, 1:7, 3:3), scan in (true, false)
+        sources = _both_row_sources(bytes, sheet, cols, scan)
+        sources[1] isa XLSX._ScanFallback && push!(scan_fallbacks, "$label cols=$cols")
+        m = _compare_row_sources(sources..., cols)
+        m === nothing || push!(mismatches, "$label cols=$cols scan=$scan: $m")
     end
     foreach(println, first(mismatches, 20))
     @test isempty(mismatches)
+    foreach(println, first(scan_fallbacks, 20))
+    @test isempty(scan_fallbacks)
     @test length(sheets) > 900
 
     # the malformed sheets make value rows hand over to the cache
     for (name, bytes) in _diff_special_sheets()
         name in ("out-of-order rows", "duplicated row") || continue
-        @test _both_row_sources(bytes, 1, nothing)[1] isa XLSX._RowsNotAscending
+        @test _both_row_sources(bytes, 1, nothing, true)[1] isa XLSX._RowsNotAscending
+        @test _both_row_sources(bytes, 1, nothing, false)[1] isa XLSX._RowsNotAscending
     end
 end
 
@@ -1132,13 +1170,14 @@ and `gettable` as they were before are kept below as the reference: the new code
 give exactly the same rows, values, types and `stop_in_row_function` calls.
 =#
 
-# The pre-#462 `iterate(::TableRowIterator)`, verbatim apart from qualified names.
+# The pre-#462 `iterate(::TableRowIterator)`, verbatim apart from qualified names and its
+# states, now built by `_table_state`.
 function _old_handle_gap(itr, table_row_index, col_count, expected_row, actual_row, sheet_row, sheet_row_iterator_state)
     itr.stop_in_empty_row && return nothing
     itr.keep_empty_rows || return :skip
     table_row = XLSX.TableRow(table_row_index, itr.index, fill(missing, col_count))
     XLSX._should_stop(itr, table_row) && return nothing
-    newstate = XLSX.TableRowIteratorState(table_row_index, expected_row, sheet_row_iterator_state,
+    newstate = XLSX._table_state(itr, table_row_index, expected_row, sheet_row_iterator_state,
                                           actual_row - expected_row - 1, sheet_row)
     return table_row, newstate
 end
@@ -1146,7 +1185,7 @@ end
 function _old_return_table_row(itr, table_row_index, actual_row, sheet_row, sheet_row_iterator_state)
     table_row = XLSX.TableRow(table_row_index, itr.index, sheet_row, itr.missing_strings)
     XLSX._should_stop(itr, table_row) && return nothing
-    newstate = XLSX.TableRowIteratorState(table_row_index, actual_row, sheet_row_iterator_state, 0, nothing)
+    newstate = XLSX._table_state(itr, table_row_index, actual_row, sheet_row_iterator_state, 0, nothing)
     return table_row, newstate
 end
 
@@ -1156,7 +1195,7 @@ function _old_iterate(itr, state)
     if state.missing_rows > 0
         table_row = XLSX.TableRow(table_row_index, itr.index, fill(missing, col_count))
         XLSX._should_stop(itr, table_row) && return nothing
-        newstate = XLSX.TableRowIteratorState(table_row_index, state.sheet_row_index + 1,
+        newstate = XLSX._table_state(itr, table_row_index, state.sheet_row_index + 1,
             state.sheet_row_iterator_state, state.missing_rows - 1, state.row_pending)
         return table_row, newstate
     end
@@ -1190,7 +1229,7 @@ function _old_tablerows(itr)
     end
     isnothing(next) && return out
     sheet_row, sheet_row_state = next
-    state = XLSX.TableRowIteratorState(0, itr.first_data_row - 1, sheet_row_state, 0, sheet_row)
+    state = XLSX._table_state(itr, 0, itr.first_data_row - 1, sheet_row_state, 0, sheet_row)
     while true
         r = _old_iterate(itr, state)
         isnothing(r) && break
@@ -1375,4 +1414,191 @@ end
         end
         @test nrows > 0
     end
+end
+
+# ── The byte scanner: XML variations ──────────────────────────────────────────
+
+# Sheets written in each shape `<sheetData>` can take (src/valuescan.jl), with what the
+# scanner should do with them: read them itself (`:fast`), hand some cells to XML.jl
+# (`:cell`), or hand the whole sheet back to the cursor (`:sheet`). Each is a header, a
+# plain row, the variant as row 3, and another plain row.
+const _SCAN_VARIANT_ROWS = [
+    ("single quotes",        :fast,  "<row r='3'><c r='B3' t='s'><v>0</v></c><c r='C3' s='1'><v>45000</v></c></row>"),
+    ("spaces and newlines",  :fast,  "<row  r = \"3\" >\n <c  r = \"B3\"\n s=\"1\" ><v >45001</v ></c >\n<c\tr=\"C3\"><v>7</v></c></row>"),
+    ("attribute order",      :fast,  "<row r=\"3\"><c t=\"b\" s=\"0\" r=\"B3\"><v>1</v></c><c s=\"1\" r=\"C3\"><v>45002</v></c></row>"),
+    ("extra attributes",     :fast,  "<row r=\"3\" spans=\"2:4\" x14ac:dyDescent=\"0.25\"><c r=\"B3\" ph=\"1\" x14ac:q=\"r\"><v>2</v></c></row>"),
+    ("'>' in a value",       :fast,  "<row r=\"3\" note=\"a>b\"><c r=\"B3\" note=\"x>y/\"><v>2</v></c></row>"),
+    ("comments and PIs",     :fast,  "<!-- before --><row r=\"3\"><!-- <c r=\"B3\"><v>9</v></c> --><c r=\"B3\"><v>1</v></c><?pi x?><c r=\"C3\"><v>2</v></c></row><?pi y?>"),
+    ("self-closing",         :fast,  "<row r=\"3\"><c r=\"B3\"/><c r=\"C3\" s=\"1\"/><c r=\"D3\"><v/></c></row>"),
+    ("self-closing row",     :fast,  "<row r=\"3\" ht=\"20\"/>"),
+    ("empty v",              :fast,  "<row r=\"3\"><c r=\"B3\" t=\"str\"><v></v></c><c r=\"C3\"><v>5</v></c></row>"),
+    ("formulas",             :fast,  "<row r=\"3\"><c r=\"B3\"><f>1+1</f><v>2</v></c><c r=\"C3\" t=\"str\"><f t=\"shared\" ref=\"C3:C4\" si=\"0\"/><v>x y</v></c><c r=\"D3\"><f>A1</f></c></row>"),
+    ("text around children", :fast,  "<row r=\"3\">\n  <c r=\"B3\" t=\"str\">\n    <v> padded </v>\n  </c>\n  <c r=\"C3\"> <v>5</v> </c>\n</row>"),
+    ("vm and cm",            :fast,  "<row r=\"3\"><c r=\"B3\" t=\"e\" vm=\"1\"><v>#VALUE!</v></c><c r=\"C3\" cm=\"1\"><f t=\"array\" ref=\"C3\">1</f><v>3</v></c></row>"),
+    ("value types",          :fast,  "<row r=\"3\"><c r=\"B3\" t=\"n\"><v>1.5</v></c><c r=\"C3\" t=\"d\"><v>2024-01-02</v></c><c r=\"D3\" t=\"e\"><v>#N/A</v></c><c r=\"E3\" t=\"b\"><v>0</v></c></row>"),
+    ("other elements",       :fast,  "<row r=\"3\"><extLst><ext uri=\"x\"><c r=\"B3\"><v>99</v></c></ext></extLst><c r=\"C3\"><v>1</v></c></row><foo><row r=\"7\"/></foo>"),
+    ("columns outside",      :fast,  "<row r=\"3\"><c r=\"A3\"><f>x</f><v>1</v></c><c r=\"B3\"><v>1</v></c><c r=\"H3\" t=\"b\"><v>7</v></c></row>"),
+    ("plain inline strings", :fast,  "<row r=\"3\"><c r=\"B3\" t=\"inlineStr\"><is><t>hi there</t></is></c><c r=\"C3\" t=\"inlineStr\" s=\"2\">\n <is>\n  <t xml:space=\"preserve\">  a  </t>\n </is>\n</c><c r=\"D3\" t=\"inlineStr\"><f>\"x\"&amp;1</f><is><t/></is></c><c r=\"E3\" t=\"inlineStr\"><is/></c><c r=\"F3\" t=\"inlineStr\"><is><t>s0</t></is></c></row>"),
+    ("non-ASCII text",       :fast,  "<row r=\"3\" note=\"né\"><c r=\"B3\" t=\"str\"><v>ünïcödé</v></c><c r=\"C3\" t=\"inlineStr\" x=\"€\"><is><t>日本語</t></is></c><c r=\"D3\"><f>\"é\"</f><v>1</v></c></row>"),
+    ("inline strings",       :cell,  "<row r=\"3\"><c r=\"B3\" t=\"inlineStr\"><is><t>hi</t></is></c><c r=\"C3\" t=\"inlineStr\"><is><r><t>a</t></r><r><rPr><b/></rPr><t>b</t></r></is></c><c r=\"D3\" t=\"inlineStr\"><v>5</v></c></row>"),
+    ("entities in v",        :cell,  "<row r=\"3\"><c r=\"B3\" t=\"str\"><v>a &amp; b</v></c><c r=\"C3\"><v>&#49;2</v></c></row>"),
+    ("CDATA in v",           :cell,  "<row r=\"3\"><c r=\"B3\" t=\"str\"><v><![CDATA[x<y]]></v></c></row>"),
+    ("CRLF in v",            :cell,  "<row r=\"3\"><c r=\"B3\" t=\"str\"><v>a\r\nb</v></c><c r=\"C3\" t=\"str\"><v>c\rd</v></c></row>"),
+    ("comments in a cell",   :cell,  "<row r=\"3\"><c r=\"B3\"><!--x--><v>1</v></c><c r=\"C3\"><v>2<!--x--></v></c></row>"),
+    ("two v",                :cell,  "<row r=\"3\"><c r=\"B3\"><v>1</v><v>2</v></c><c r=\"C3\"><v>1</v><v></v></c></row>"),
+    ("unknown children",     :cell,  "<row r=\"3\"><c r=\"B3\"><is><t>x</t></is><v>5</v></c><c r=\"C3\"><extLst/><v>6</v></c><c r=\"D3\"><v><x/>7</v></c></row>"),
+    ("entity in an attr",    :cell,  "<row r=\"3\"><c r=\"&#66;3\"><v>1</v></c><c r=\"C3\" t=\"&#115;\"><v>0</v></c></row>"),
+    ("tab in an attr",       :cell,  "<row r=\"3\"><c r=\"B3\" s=\"\t1\"><v>45000</v></c></row>"),
+    ("bad boolean",          :fast,  "<row r=\"3\"><c r=\"B3\" t=\"b\"><v>2</v></c></row>"),
+    ("bad reference",        :fast,  "<row r=\"3\"><c r=\"3B\"><v>2</v></c></row>"),
+    ("no cell reference",    :fast,  "<row r=\"3\"><c><v>2</v></c></row>"),
+    ("non-ASCII type",       :fast,  "<row r=\"3\"><c r=\"B3\" t=\"bü\"><v>1</v></c><c r=\"C3\" s=\"1é\"><v>1</v></c></row>"),
+    ("bad style",            :fast,  "<row r=\"3\"><c r=\"B3\" s=\"x\"><v>2</v></c></row>"),
+    ("row without r",        :fast,  "<row><c r=\"B3\"><v>2</v></c></row>"),
+    ("row r empty",          :fast,  "<row r=\"\"><c r=\"B3\"><v>2</v></c></row>"),
+    ("row r not a number",   :fast,  "<row r=\"x\"><c r=\"B3\"><v>2</v></c></row>"),
+    ("entity in row r",      :sheet, "<row r=\"&#51;\"><c r=\"B3\"><v>2</v></c></row>"),
+    ("unquoted attribute",   :sheet, "<row r=\"3\"><c r=B3><v>2</v></c></row>"),
+    ("unclosed comment",     :sheet, "<row r=\"3\"><c r=\"B3\"><v>2</v></c></row><!-- "),
+    ("mismatched end tags",  :fast,  "<row r=\"3\"><c r=\"B3\"><v>2</x></c><c r=\"C3\"><v>3</v></y></row>"),
+]
+
+_scan_plain_row(r) = "<row r=\"$r\"><c r=\"B$r\"><v>$r</v></c><c r=\"C$r\" t=\"s\"><v>3</v></c><c r=\"D$r\" s=\"1\"><v>4500$r</v></c></row>"
+_scan_around(row3) = _diff_header(1) * _scan_plain_row(2) * row3 * _scan_plain_row(4)
+
+function _scan_variant_sheets()::Vector{Tuple{String,Symbol,Vector{UInt8}}}
+    out = [(name, kind, _diff_build_xlsx(_scan_around(row3), _diff_base_sst())) for (name, kind, row3) in _SCAN_VARIANT_ROWS]
+    # whole worksheets: a namespace prefix, and a DOCTYPE entity (expanded before the scan)
+    prefixed = replace(_scan_around(_scan_plain_row(3)), "<row" => "<x:row", "</row>" => "</x:row>",
+                       "<c " => "<x:c ", "</c>" => "</x:c>", "<v>" => "<x:v>", "</v>" => "</x:v>")
+    push!(out, ("namespace prefix", :fast, _diff_build_xlsx("", _diff_base_sst(); sheet_xml =
+        "<x:worksheet xmlns:x=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" *
+        "<x:sheetData>" * prefixed * "</x:sheetData></x:worksheet>")))
+    push!(out, ("DOCTYPE entity", :fast, _diff_build_xlsx("", _diff_base_sst(); sheet_xml =
+        "<?xml version=\"1.0\"?>\n<!DOCTYPE worksheet [<!ENTITY e \"hello\">]>\n" *
+        "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>" *
+        _scan_around("<row r=\"3\"><c r=\"B3\" t=\"str\"><v>&e;</v></c></row>") * "</sheetData></worksheet>")))
+    return out
+end
+
+# The first difference between the scanner and the other row sources and `readtable`
+# paths on one variant sheet, and what the scanner did with it, or `nothing`.
+function _scan_variant_check(kind, bytes, cols)::Union{Nothing,String}
+    XLSX._SCAN_CELL_FALLBACKS[] = 0
+    scanned, cache_rows = _both_row_sources(bytes, 1, cols, true)
+    did = scanned isa XLSX._ScanFallback ? :sheet : XLSX._SCAN_CELL_FALLBACKS[] > 0 ? :cell : :fast
+    did == kind || return "expected $kind, the scanner did $did"
+    cursor_rows = _both_row_sources(bytes, 1, cols, false)[1]
+    for (other, label) in ((cursor_rows, "cursor"), (cache_rows, "cache"))
+        # the cache decodes cells outside `cols`, which value rows don't (by design)
+        other isa Exception && !(cursor_rows isa Exception) && continue
+        m = _compare_row_sources(scanned, other, cols)
+        m === nothing || return "rows vs $label rows: $m"
+    end
+    # readtable: the cursor against the cache is checked on real files above; here, where
+    # they may differ by design (an invalid cell outside the read area) or in how a
+    # malformed file fails, the scanner must match the cursor
+    scanned_t, cursor_t = [_with_value_rows(path) do
+                               _diff_run(() -> isnothing(cols) ? XLSX.readtable(IOBuffer(bytes), 1) :
+                                                                 XLSX.readtable(IOBuffer(bytes), 1, "B:D"))
+                           end for path in (:scan, :cursor)]
+    m = _diff_compare(cursor_t, scanned_t)
+    m === nothing || return "readtable via the cursor vs the scanner: $m"
+    # a sheet handed back to the cursor is handed back before any row reaches the function
+    calls = [0, 0]
+    for (k, path) in enumerate((:scan, :cursor))
+        _with_value_rows(path) do
+            _diff_run(() -> XLSX.readtable(IOBuffer(bytes), 1;
+                                           stop_in_row_function = _ -> (calls[k] += 1; false)))
+        end
+    end
+    calls[1] == calls[2] || return "stop_in_row_function called $(calls[1]) vs $(calls[2]) times"
+    return nothing
+end
+
+@testset "byte scanner: XML variations" begin
+    mismatches = String[]
+    for (name, kind, bytes) in _scan_variant_sheets(), cols in (nothing, 2:4)
+        m = _scan_variant_check(kind, bytes, cols)
+        m === nothing || push!(mismatches, "$name cols=$cols: $m")
+    end
+    foreach(println, mismatches)
+    @test isempty(mismatches)
+    @test length(_scan_variant_sheets()) == length(_SCAN_VARIANT_ROWS) + 2
+end
+
+# ── The byte scanner: the worksheet cache ─────────────────────────────────────
+
+# Everything a cache fill leaves in a workbook: each worksheet's rows, with each cell's
+# fields and value, height, unhandled row attributes, dimension, string count and next
+# formula id, and the workbook's formulas.
+function _cache_state(xf)
+    wb = XLSX.get_workbook(xf)
+    out = Any[]
+    for ws in wb.sheets
+        XLSX.is_chartsheet(wb, ws.name) && continue
+        rows = Any[]
+        for r in XLSX.eachrow(ws)
+            cells = sort([(col, c.ref, c.value, c.style, c.meta, c.datatype, c.formula,
+                           XLSX._cell_value(ws, c.datatype, c.value, c)) for (col, c) in r.rowcells]; by = first)
+            push!(rows, (XLSX.row_number(r), r.ht, cells))
+        end
+        push!(out, (ws.name, rows, ws.sst_count, ws.unhandled_attributes, ws.dimension, ws.next_formula_id))
+    end
+    push!(out, sort([(string(k), string(v)) for (k, v) in wb.formulas]))
+    return out
+end
+
+# The ways a workbook's cache is filled: on first use (`readxlsx`), at opening for
+# editing (`mode="rw"`, a sheet per thread), and without formulas (as `readtable` opens
+# a file it can't read with value rows).
+const _CACHE_OPENS = (
+    "r"           => b -> XLSX.readxlsx(IOBuffer(b)),
+    "rw"          => b -> XLSX.openxlsx(IOBuffer(b); mode = "rw"),
+    "no formulas" => b -> XLSX.open_or_read_xlsx(IOBuffer(b), true, true, false; load_formulas = false),
+)
+
+# The error underneath the tasks a sheet fills in: their wrappers show the stack traces,
+# which differ between the two ways of filling.
+function _root_exception(e)
+    while true
+        if e isa TaskFailedException
+            e = last(current_exceptions(e.task)).exception
+        elseif e isa CompositeException
+            e = first(e)
+        else
+            return e
+        end
+    end
+end
+
+# The first difference between the caches the byte scanner and the cursor walk fill
+# from `bytes`, opened each way, or `nothing`.
+function _cache_fill_check(bytes::Vector{UInt8})::Union{Nothing,String}
+    for (label, open) in _CACHE_OPENS
+        scanned, cursor = [_with_cache_scan(scan) do
+                               _diff_run(() -> _cache_state(open(bytes)))
+                           end for scan in (true, false)]
+        if scanned isa Exception || cursor isa Exception
+            # the same exception, or a mismatch
+            m = _diff_compare(_root_exception(cursor), _root_exception(scanned))
+            m === nothing || return "$label: $m"
+        elseif !isequal(scanned, cursor)
+            return "$label: the caches differ"
+        end
+    end
+    return nothing
+end
+
+@testset "byte scanner: caches match the cursor's" begin
+    workbooks = unique(bytes for (_, bytes, _) in _diff_sheet_corpus())
+    append!(workbooks, [bytes for (_, _, bytes) in _scan_variant_sheets()])
+    mismatches = String[]
+    for (i, bytes) in enumerate(workbooks)
+        m = _cache_fill_check(bytes)
+        m === nothing || push!(mismatches, "workbook $i: $m")
+    end
+    foreach(println, first(mismatches, 20))
+    @test isempty(mismatches)
+    @test length(workbooks) > 500
 end
