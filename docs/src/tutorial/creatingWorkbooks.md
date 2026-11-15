@@ -172,6 +172,36 @@ julia> XLSX.readxlsx(seekstart(io))["Data"]["A1:C4"]
  3      "item 3"  2026-01-03
 ```
 
+`addsheet!` also takes a Tables.jl table, such as a `DataFrame`: its column names are
+the header, and its rows are written straight away. [`XLSX.writerows!`](@ref) writes a
+table's rows below those already written, so a sheet can be written from a table in
+pieces, or a table and rows of your own can share a sheet:
+
+```jldoctest streaming
+julia> io = IOBuffer();
+
+julia> XLSX.streamxlsx(io) do s
+           sh = XLSX.addsheet!(s, "Readings", (id=[1, 2], value=[0.5, 0.25]); freeze_header=true)
+           XLSX.writerows!(sh, [(id=3, value=0.125), (id=4, value=0.0625)])
+           XLSX.writerow!(sh, ("total", 0.9375))
+           XLSX.addsheet!(s, "Notes", [(note="from a sensor",)])
+       end
+
+julia> XLSX.readxlsx(seekstart(io))["Readings"]["A1:B6"]
+6×2 Matrix{Any}:
+  "id"      "value"
+ 1         0.5
+ 2         0.25
+ 3         0.125
+ 4         0.0625
+  "total"  0.9375
+```
+
+As with `writerow!`, `writerows!` writes a table's columns in order from column A: it
+doesn't match their names to the header. Because more rows can follow, a sheet added
+with a table has no `<dimension>` (see below); `writetable` with `streaming=true`,
+which writes each table whole, gives it one.
+
 Writing a million rows of 20 mixed columns this way needs about 160 MiB beyond the
 memory the data itself takes, where writing it through the cell cache needs about
 3.8 GiB, and it is faster too (see `bench/stream_write.jl` in the repository).

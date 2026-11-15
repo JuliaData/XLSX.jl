@@ -22,11 +22,13 @@ XLSX.writetable
 ## Streaming writes
 
 Guide: [Writing large files](@ref). [`XLSX.writetable`](@ref) streams a whole table with
-`streaming=true`; `XLSX.addsheet!` adds a sheet to a `StreamWriter`.
+`streaming=true`; `XLSX.addsheet!` adds a sheet to a `StreamWriter`, empty or with a
+table's rows.
 
 ```@docs
 XLSX.streamxlsx
 XLSX.writerow!
+XLSX.writerows!
 XLSX.StreamWriter
 XLSX.StreamSheet
 ```

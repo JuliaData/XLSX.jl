@@ -71,7 +71,7 @@ export
     readdata, getdata, gettable, readtable, readto,
     iserror, geterror,
     gettransposedtable, readtransposedtable,
-    writetable, writetable!, streamxlsx, writerow!,
+    writetable, writetable!, streamxlsx, writerow!, writerows!,
     addDefinedName, deleteDefinedName, deleteAllDefinedNames,
     setFormula,
     # Formats
