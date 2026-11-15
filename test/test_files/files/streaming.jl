@@ -255,6 +255,34 @@ end
     @test xf["W"]["EK3"] == 142
 end
 
+@testset "floats written as print writes them" begin
+    # `_write_number` writes floats of up to 15 digits itself, and others with `print`
+    w = XLSX._RowWriter(XLSX.newxlsx()[1], "", 1)
+    io = IOBuffer()
+    written(x) = (XLSX._write_number(io, w, x); String(take!(io)))
+    rng = Random.Xoshiro(7)
+    vals = reinterpret.(Float64, rand(rng, UInt64, 20_000))
+    for e in -12:16, j in 0:17   # short decimals at every scale
+        append!(vals, round.(rand(rng, 4) .* 10.0^e; digits=j))
+    end
+    append!(vals, [k * 10.0^j for k in (1, 7, 12, 123, 999) for j in -25:25])
+    for b in (1e-4, 1e6, 1e15, 1e-5, 1e16, 1.0, 0.1, 2.0^53, 1e22, 1e23)   # where the notation changes
+        for f in (nextfloat, prevfloat)
+            y = b
+            for _ in 1:20
+                push!(vals, y)
+                y = f(y)
+            end
+        end
+    end
+    append!(vals, [r * 0.25 for r in 1:1000]); append!(vals, [k / 24 + 45000 for k in 1:100])
+    append!(vals, [5e-324, floatmin(Float64), floatmax(Float64), 0.0, Inf, NaN, 0.1 + 0.2, 1 / 3])
+    append!(vals, -vals)
+    @test all(x -> written(x) == string(x), vals)
+    @test count(x -> XLSX._write_short_float(io, w, x), vals) > length(vals) ÷ 10   # most short ones are
+    take!(io)
+end
+
 @testset "several sheets" begin
     df1 = DataFrames.DataFrame(a=[1, 2], b=["x", "y"])
     rows2 = [(c=1.5,), (c=2.5,)]

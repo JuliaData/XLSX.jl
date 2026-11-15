@@ -202,9 +202,9 @@ doesn't match their names to the header. Because more rows can follow, a sheet a
 with a table has no `<dimension>` (see below); `writetable` with `streaming=true`,
 which writes each table whole, gives it one.
 
-Writing a million rows of 20 mixed columns this way needs about 160 MiB beyond the
+Writing a million rows of 20 mixed columns this way needs about 15 MiB beyond the
 memory the data itself takes, where writing it through the cell cache needs about
-3.8 GiB, and it is faster too (see `bench/stream_write.jl` in the repository).
+3.9 GiB, and it takes less than half the time (see `bench/stream_write.jl` in the repository).
 
 Strings are written in each cell ("inline") by default. With `shared_strings=true`
 they go in one shared table, as Excel writes them. That makes a file of many repeated

@@ -33,6 +33,7 @@ mutable struct StreamSheet
     row::Int                        # the last row written
     rows_in_chunk::Int
     pipe::Channel{Vector{UInt8}}
+    free::Channel{Vector{UInt8}}    # buffers the writing task is done with, to reuse
     task::Task
     isopen::Bool
 end
@@ -208,18 +209,23 @@ function _stream_addsheet!(s::StreamWriter, name::AbstractString, nrows::Union{N
     ZipArchives.zip_newfile(s.zip, get_worksheet_internal_file(sheet); compress=true)
     write(s.zip, head)
 
-    # the writing task: it alone touches the zip until the sheet is closed
+    # The writing task: it alone touches the zip until the sheet is closed. Each chunk's
+    # buffer comes back by `free` once written, so the next chunk is formatted into it
+    # rather than into a new buffer grown from empty. At most four are ever made (two
+    # waiting in `pipe`, one being written, one being filled), so `free` never blocks.
     pipe = Channel{Vector{UInt8}}(2)
+    free = Channel{Vector{UInt8}}(4)
     zip = s.zip
     task = Threads.@spawn for bytes in pipe
         write(zip, bytes)
+        put!(free, bytes)
     end
     bind(pipe, task)
 
     pfx = _prefix_colon(sheet)
     ncols = isnothing(cols) ? 1 : max(1, length(cols))
     sh = StreamSheet(sheet, s.zip, s.shared_strings, _RowWriter(sheet, pfx, ncols), pfx, IOBuffer(),
-                     cols, column_styles, table, 0, 0, pipe, task, true)
+                     cols, column_styles, table, 0, 0, pipe, free, task, true)
     s.current = sh
     isnothing(cols) || _write_row!(sh, i -> cols[i], length(cols); styled=false)
     return sh
@@ -388,6 +394,8 @@ function _flush_chunk!(sh::StreamSheet)
     else
         wait(sh.task)   # the writing task failed: rethrow its error
     end
+    # the next chunk goes in a buffer already written, if one is back
+    isready(sh.free) && (sh.io = IOBuffer(take!(sh.free); read=false, write=true, truncate=true))
     return nothing
 end
 
@@ -454,8 +462,15 @@ function _stream_columns!(s::StreamWriter, sheetname::AbstractString, data, colu
     nrows = _check_table_shape(data, columnnames)
     sh = _stream_addsheet!(s, sheetname, nrows; columns=columnnames, kw...)
     ncols = length(data)
-    for r in 1:nrows
-        _write_row!(sh, c -> data[c][r], ncols)
+    if ncols <= 100
+        # As a column table (its names don't matter: the header is written), so that
+        # `Tables.eachcolumn` reads each value with its type known, rather than boxed
+        # from a `Vector{Any}` of columns. Beyond 100 columns it loops, so gains nothing.
+        writerows!(sh, NamedTuple{ntuple(c -> Symbol(:c, c), ncols)}(Tuple(_as_vector(c) for c in data)))
+    else
+        for r in 1:nrows
+            _write_row!(sh, c -> data[c][r], ncols)
+        end
     end
     return nothing
 end
