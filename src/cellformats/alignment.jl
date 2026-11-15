@@ -168,7 +168,7 @@ function _setAlignment(sh::Worksheet, cellref::CellRef; spec::AlignmentSpec)::In
 
     alignment_node = XML.Node{String}(XML.Element, "alignment", Pair{String,String}[k => v for (k,v) in atts], nothing, nothing)
     newstyle       = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), alignment_node).id
-    cell.style     = newstyle
+    _updatecell!(sh, cell; style=newstyle)
 
     return Int(newstyle)
 end

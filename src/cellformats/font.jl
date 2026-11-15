@@ -132,11 +132,11 @@ function _setFont(sh::Worksheet, cellref::CellRef; spec::FontSpec)::Int
     new_fontid = styles_add_cell_attribute(wb, font_node, "fonts")
 
     newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["fontId", "applyFont"], [string(new_fontid), "1"]).id
-    cell.style = newstyle
+    cell = _updatecell!(sh, cell; style=newstyle)
 
     if cell.datatype == CT_STRING
         v = update_sharedString_font(sh, cell, spec)
-        cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
+        isnothing(v) || _updatecell!(sh, cell.ref; value=reinterpret(UInt64, Int64(v)))   # read again: it may have changed
     end
 
     return new_fontid

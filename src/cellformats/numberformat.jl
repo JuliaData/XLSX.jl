@@ -189,7 +189,7 @@ function _setFormat(sh::Worksheet, cellref::CellRef; spec::FormatSpec)::Int
         (["numFmtId", "applyNumberFormat"], [string(new_formatid), "1"])
 
     newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), atts[1], atts[2]).id
-    cell.style = newstyle
+    _updatecell!(sh, cell; style=newstyle)
 
     return new_formatid
 end

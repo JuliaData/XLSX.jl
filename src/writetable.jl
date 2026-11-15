@@ -200,7 +200,7 @@ function _can_fill_directly(ws::Worksheet, rows::UnitRange{Int}, cols::UnitRange
     (isnothing(cache) || !is_cache_enabled(ws) || !cache.is_full || !is_writable(get_xlsxfile(ws))) && return false
     for (r, rowcells) in cache.cells
         r in rows || continue
-        any(in(cols), keys(rowcells)) && return false
+        any(in(cols), _rowcolumns(rowcells)) && return false
     end
     return true
 end
@@ -211,7 +211,7 @@ function _fill_cells!(ws::Worksheet, data, r0::Int, c0::Int, nrows::Int)
     ncols = length(data)
     for r in r0:(r0 + nrows - 1)
         _ensure_cache_row!(ws, r)
-        sizehint!(cache.cells[r], length(cache.cells[r]) + ncols)
+        _reserve!(cache.cells[r], ncols)
     end
     if ncols <= 100
         # As a column table, so that `Tables.eachcolumn` reads each value with its
@@ -241,7 +241,7 @@ function _fill_rows!(ws::Worksheet, rows, sch::Tables.Schema, r0::Int, c0::Int)
     return nothing
 end
 
-function _fill_row!(ws::Worksheet, rowcells::Dict{Int,Cell}, sch::Tables.Schema, row, r::Int, c0::Int)
+function _fill_row!(ws::Worksheet, rowcells::RowCells, sch::Tables.Schema, row, r::Int, c0::Int)
     Tables.eachcolumn(sch, row) do v, c, _
         _put_cell!(ws, rowcells, CellRef(r, c0 + c - 1), v)
     end
@@ -261,7 +261,7 @@ _table_cell_value(v::AbstractString) = String(v)
 _table_cell_value(_) = nothing
 
 # Make the cell for `v` at `ref`, where there is none yet, as `sheet[ref] = v` would.
-@inline function _put_cell!(ws::Worksheet, rowcells::Dict{Int,Cell}, ref::CellRef, v)
+@inline function _put_cell!(ws::Worksheet, rowcells::RowCells, ref::CellRef, v)
     x = _table_cell_value(v)
     if isnothing(x)
         ws[ref] = v
@@ -269,7 +269,7 @@ _table_cell_value(_) = nothing
     end
     style = x isa Union{Dates.Date,Dates.DateTime,Dates.Time} ? id(default_cell_format(ws, x)) : UInt32(0)
     t, value = xlsx_encode(ws, x)
-    rowcells[column_number(ref)] = Cell(ref, value, style, UInt16(0), t, false)
+    _setrowcell!(rowcells, Cell(ref, value, style, UInt16(0), t, false))
     return nothing
 end
 

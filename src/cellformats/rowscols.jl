@@ -430,7 +430,7 @@ function _ensure_cache_row!(ws::Worksheet, r::Integer)
     cache = ws.cache
     if !haskey(cache.cells, r)
         push!(cache.rows_in_cache, r)
-        cache.cells[r] = Dict{Int,Cell}()
+        cache.cells[r] = _newrow()
         cache.row_ht[r] = nothing
         cache.dirty = true
     end

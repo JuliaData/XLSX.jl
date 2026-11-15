@@ -477,10 +477,10 @@
             s2=f[2]
             s2["A1:B4"]=""
             XLSX.setFormula(s2, "A1", "=Sheet1!A1+10")
-            XLSX.getcell(s2, "B1").formula=true
-            XLSX.getcell(s2, "B2").formula=true
-            XLSX.getcell(s2, "B3").formula=true
-            XLSX.getcell(s2, "B4").formula=true
+            XLSX._updatecell!(s2, XLSX.CellRef("B1"); formula=true)
+            XLSX._updatecell!(s2, XLSX.CellRef("B2"); formula=true)
+            XLSX._updatecell!(s2, XLSX.CellRef("B3"); formula=true)
+            XLSX._updatecell!(s2, XLSX.CellRef("B4"); formula=true)
             w=XLSX.get_workbook(s2)
             w.formulas[XLSX.SheetCellRef("Sheet2!B1")] = XLSX.ReferencedFormula("=Sheet1!A1+10", 0, "B1:B4", nothing)
             w.formulas[XLSX.SheetCellRef("Sheet2!B2")] = XLSX.FormulaReference(0, nothing)

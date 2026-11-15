@@ -81,7 +81,7 @@ function addsheet!(wb::Workbook, name::AbstractString=""; sheet_template_data::V
 
     new_cache = XLSX.WorksheetCache(
         true,
-        Dict{Int,Dict{Int,XLSX.Cell}}(),
+        CellCache(),
         Int[],
         Dict{Int,Union{Float64,Nothing}}(),
         Dict{Int,Int}(),

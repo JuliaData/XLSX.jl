@@ -104,7 +104,7 @@ end
 # others are skipped after reading only their `r`. Leaves the cursor holding the node
 # after the row. Returns the number of shared-string cells decoded and the first and
 # last column of any `<c>` in the row (`typemax(Int)`, 0 for none).
-function _cursor_rowcells!(rowcells::Dict{Int,Cell}, c::XML.Cursor, ws::Worksheet, wb::Workbook, sst_pfx::String,
+function _cursor_rowcells!(rowcells::RowCells, c::XML.Cursor, ws::Worksheet, wb::Workbook, sst_pfx::String,
                            local_formulas::Dict{SheetCellRef,AbstractFormula}, load_formulas::Bool,
                            cols::Union{Nothing,UnitRange{Int}} = nothing)::Tuple{Int,Int,Int}
     sst_count = 0
@@ -116,7 +116,7 @@ function _cursor_rowcells!(rowcells::Dict{Int,Cell}, c::XML.Cursor, ws::Workshee
                 cell = _cursor_cell(child, ws, wb, sst_pfx, local_formulas, load_formulas)
                 col = column_number(cell)
                 sst_count += cell.datatype == CT_STRING ? 1 : 0
-                rowcells[col] = cell
+                _setrowcell!(rowcells, cell)
             else
                 XML.skip_element!(child)
             end
@@ -139,7 +139,7 @@ end
 # `<sheetData>`, decoding each row's cells as it passes them.
 function Base.iterate(itr::SheetRowStreamIterator)
     ws = get_worksheet(itr)
-    state = SheetRowStreamIteratorState(XML.Cursor(_open_sheetdata(ws)), Dict{Int,Cell}(),
+    state = SheetRowStreamIteratorState(XML.Cursor(_open_sheetdata(ws)), _newrow(),
                                         Dict{SheetCellRef,AbstractFormula}(),
                                         isnothing(ws.dimension), typemax(Int), 0, typemax(Int), 0)
     return iterate(itr, state)
@@ -297,11 +297,8 @@ Returns the internal representation of a worksheet cell.
 Returns `XLSX.EmptyCell` if the cell has no data.
 """
 function getcell(r::SheetRow, column_index::Int) :: AbstractCell
-    if haskey(r.rowcells, column_index)
-        return r.rowcells[column_index]
-    else
-        return EmptyCell(CellRef(row_number(r), column_index))
-    end
+    cell = _rowcell(r.rowcells, column_index)
+    return isnothing(cell) ? EmptyCell(CellRef(row_number(r), column_index)) : cell
 end
 
 function getcell(r::SheetRow, column_name::AbstractString)
@@ -430,21 +427,22 @@ end
 const _HANDLED_ROW_ATTRIBUTES = ("r", "spans", "ht")
 
 @inline function _new_rowcells(fill::_CacheFill)
-    rowcells = Dict{Int,Cell}()
-    sizehint!(rowcells, fill.expected_cols)
-    return rowcells
+    return _newrow(fill.expected_cols)
 end
 
 # Push a row into the cache, with its unhandled attributes, and widen the bounds to it.
 function _push_filled_row!(fill::_CacheFill, row_num::Int, row_ht::Union{Nothing,Float64},
-                           rowcells::Dict{Int,Cell}, unhandled::Dict{String,String})
+                           rowcells::RowCells, unhandled::Dict{String,String})
     ws = fill.ws
     !isempty(unhandled) && (fill.unhandled_attributes[row_num] = unhandled)
     push_sheetrow!(fill.cache, SheetRow(ws, row_num, row_ht, rowcells))
+    # The next row is sized as this one: a row's cells are a vector, and one grown cell
+    # by cell is copied as it grows and left with room to spare.
+    isempty(rowcells) || (fill.expected_cols = length(rowcells))
     fill.track || return nothing
     row_min, row_max, col_min, col_max = fill.bounds
     row_min = min(row_min, row_num); row_max = max(row_max, row_num)
-    for col in keys(rowcells)
+    for col in _rowcolumns(rowcells)
         col_min = min(col_min, col); col_max = max(col_max, col)
     end
     fill.bounds = (row_min, row_max, col_min, col_max)
@@ -453,11 +451,11 @@ end
 
 # Put a cell read into its row, counting it if it holds a shared string (a repeated
 # column counts each time it is read).
-@inline function _add_filled_cell!(fill::_CacheFill, rowcells::Dict{Int,Cell}, cell::Cell)
+@inline function _add_filled_cell!(fill::_CacheFill, rowcells::RowCells, cell::Cell)
     fill.sst_total += cell.datatype == CT_STRING ? 1 : 0
     # a string not yet in the table: its index is given when the strings are committed
-    cell.datatype == CT_STRING && _is_pending_index(cell.value) && push!(fill.pending.cells, cell)
-    rowcells[column_number(cell)] = cell
+    cell.datatype == CT_STRING && _is_pending_index(cell.value) && push!(fill.pending.places, (rowcells, column_number(cell)))
+    _setrowcell!(rowcells, cell)
     return nothing
 end
 
@@ -590,7 +588,7 @@ function match_rows(ws::Worksheet, rows_to_match::Vector{Int})::Vector{SheetRow}
             i += 1
         end
         if i <= length(wanted) && wanted[i] == row_num
-            rowcells = Dict{Int,Cell}()
+            rowcells = _newrow()
             ht = _row_height(c)
             _cursor_rowcells!(rowcells, c, ws, wb, sst_pfx, local_formulas, load_formulas)
             push!(matched_rows, SheetRow(ws, row_num, ht, rowcells))

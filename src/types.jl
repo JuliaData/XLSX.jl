@@ -347,7 +347,7 @@ XL_SPILL
 
 abstract type AbstractCell end
 
-mutable struct Cell <: AbstractCell
+struct Cell <: AbstractCell   # immutable: change a cell by storing a changed copy (see `_updatecell!`)
     ref::CellRef 
     value::UInt64 # Needs to be `reinterpret`ed according to the `Cell.datatype`
     style::UInt32
@@ -528,7 +528,8 @@ struct Relationship
     Target::String
 end
 
-const CellCache = Dict{Int, Dict{Int, Cell}} # row -> ( column -> cell )
+const RowCells = Vector{Cell}             # a row's cells in column order: see rowcells.jl, the only code that relies on this
+const CellCache = Dict{Int, RowCells}     # row number -> the row's cells
 
 #=
 Iterates over Worksheet cells. See `eachrow` method docs.
@@ -540,7 +541,7 @@ abstract type SheetRowIterator end
 
 mutable struct SheetRowStreamIteratorState{C}
     cursor::C          # in `<sheetData>`, after the last row read (single pass: advance a state once)
-    rowcells::Dict{Int,Cell}
+    rowcells::RowCells
     local_formulas::Dict{SheetCellRef,AbstractFormula}
     # Sheet bounds seen so far, tracked only when the worksheet had no dimension
     # at the start of iteration. Set as the dimension when iteration completes.
@@ -557,7 +558,7 @@ end
 
 mutable struct WorksheetCache{I<:SheetRowIterator} <: SheetRowIterator
     is_full::Bool # false until iterator runs to completion
-    cells::CellCache # SheetRowNumber -> Dict{column_number, Cell}
+    cells::CellCache # row number -> the row's cells
     rows_in_cache::Vector{Int} # row numbers stored in cache; sorted only when `dirty` is false (see `ensure_sorted!`)
     row_ht::Dict{Int, Union{Float64, Nothing}} # Maps a row number to a row height
     row_index::Dict{Int, Int} # maps a row number to the index of the row number in rows_in_cache
@@ -973,7 +974,7 @@ struct SheetRow <: AbstractSheetRow
     sheet::Worksheet
     row::Int                     # index of the row in the worksheet
     ht::Union{Float64, Nothing}  # row height
-    rowcells::Dict{Int, Cell}    # column -> value
+    rowcells::RowCells           # the row's cells (see rowcells.jl)
 end
 
 struct Index # for TableRowIterator - based on DataFrames.jl

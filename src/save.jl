@@ -500,7 +500,6 @@ function _write_cache_rows!(out::IO, sheet::Worksheet, pfx::String)
         @sync for _ in 1:nworkers
             Threads.@spawn try
                 w = _RowWriter(sheet, pfx, ncols)
-                column_indexes = Int[]
                 while true
                     buf = take!(free)
                     next = iterate(chunks)
@@ -508,7 +507,7 @@ function _write_cache_rows!(out::IO, sheet::Worksheet, pfx::String)
                     n, rows = first(next)
                     io = IOBuffer(buf; read=false, write=true, truncate=true)
                     for row in rows
-                        process_cache_row!(io, column_indexes, row, w)
+                        process_cache_row!(io, row, w)
                     end
                     put!(written, (n, take!(io)))
                 end
@@ -693,13 +692,11 @@ end
 # Write one row of the cache as XML to `row_node`. `w` holds what every row needs
 # (see `_RowWriter`); integers and cell references are written without making
 # strings, as this runs once for every cell of the sheet.
-function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cacherow, w::_RowWriter)
+function process_cache_row!(row_node::IOBuffer, cacherow, w::_RowWriter)
     ws, pfx = w.ws, w.pfx
 
     d, r, unhandled_attributes = cacherow
     row_nr = row_number(r)
-
-    sort!(append!(empty!(column_indexes), keys(r.rowcells)))   # the row's columns, reusing the vector
 
     write(row_node, w.row_open)
     _write_number(row_node, w, row_nr)
@@ -721,9 +718,7 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
 
     write(row_node, ">")
 
-    for c in column_indexes
-        cell = getcell(r, c)
-        cell isa EmptyCell && continue
+    for cell in _rowcells(r.rowcells)   # in column order
 
         # A formula's string result is written in the cell, as Excel writes it, not
         # as a shared string.

@@ -182,7 +182,7 @@ end
 function _check_room(ws::Worksheet, e::RowColEdit)
     last_kept = _edit_max(e) - e.count
     for (r, row) in ws.cache.cells
-        far = e.axis === :row ? r : maximum(keys(row); init=0)
+        far = e.axis === :row ? r : maximum(_rowcolumns(row); init=0)
         far > last_kept &&
             throw(XLSXError("Cannot insert $(e.count) $(e.axis)s: it would push data in $(e.axis) $far past the last $(e.axis) of the sheet."))
     end
@@ -202,24 +202,21 @@ function _shift_cells!(ws::Worksheet, e::RowColEdit)
         if e.axis === :row
             r2 = _shift_index(r, e)
             if isnothing(r2)
-                strings_gone += count(c -> c.datatype == CT_STRING, values(row))
+                strings_gone += count(c -> c.datatype == CT_STRING, _rowcells(row))
                 continue
             end
-            for c in values(row)
-                c.ref = CellRef(r2, column_number(c.ref))
-            end
+            _maprow!(c -> _withfields(c; ref=CellRef(r2, column_number(c.ref))), row)
             cells[r2] = row
         else
             r2 = r
-            new_row = Dict{Int,Cell}()
-            for (col, c) in row
-                col2 = _shift_index(col, e)
+            new_row = _newrow()
+            for c in _rowcells(row)
+                col2 = _shift_index(column_number(c), e)
                 if isnothing(col2)
                     strings_gone += c.datatype == CT_STRING
                     continue
                 end
-                c.ref = CellRef(r, col2)
-                new_row[col2] = c
+                _setrowcell!(new_row, _withfields(c; ref=CellRef(r, col2)))
             end
             cells[r] = new_row
         end

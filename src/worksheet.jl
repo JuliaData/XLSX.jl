@@ -227,7 +227,7 @@ function _set_dimension_from_cache!(ws::Worksheet)
     for row in ws.cache
         row_min = min(row_min, row.row)
         row_max = max(row_max, row.row)
-        for col in keys(row.rowcells)
+        for col in _rowcolumns(row.rowcells)
             col_min = min(col_min, col)
             col_max = max(col_max, col)
         end
@@ -513,7 +513,8 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
             if length(row_dict) <= width
                 # Fewer entries than the span — cheaper to walk the row's own
                 # entries (no hashing) and filter to range.
-                for (c, cell) in row_dict
+                for cell in _rowcells(row_dict)
+                    c = column_number(cell)
                     (left <= c <= right) || continue
                     if !isempty(cell)
                         result[r - top + 1, c - left + 1] = getdata(ws, cell)
@@ -523,7 +524,7 @@ function getdata(ws::Worksheet, rng::CellRange)::Array{Any,2}
                 # At least as full as the span — cheaper to probe just the
                 # columns actually requested than to walk past irrelevant ones.
                 for c in left:right
-                    cell = get(row_dict, c, nothing)
+                    cell = _rowcell(row_dict, c)
                     isnothing(cell) && continue
                     if !isempty(cell)
                         result[r - top + 1, c - left + 1] = getdata(ws, cell)
@@ -669,10 +670,10 @@ function getcell(ws::Worksheet, single::CellRef)::AbstractCell
 
     # if cache is in use, look-up cell direct rather than iterating
     if !isnothing(ws.cache) && is_cache_enabled(ws)
-        if haskey(ws.cache.cells, single.row_number)
-            if haskey(ws.cache.cells[single.row_number], single.column_number)
-                return ws.cache.cells[single.row_number][single.column_number]
-            end
+        row = get(ws.cache.cells, Int(single.row_number), nothing)
+        if !isnothing(row)
+            cell = _rowcell(row, single.column_number)
+            isnothing(cell) || return cell
         end
         ws.cache.is_full && return EmptyCell(single)
     end
@@ -775,12 +776,11 @@ function getcellrange(ws::Worksheet, rng::CellRange)::Array{AbstractCell,2}
         # use cache if possible
         if !isnothing(ws.cache)
             for single in rng
-                if haskey(ws.cache.cells, single.row_number)
-                    if haskey(ws.cache.cells[single.row_number], single.column_number)
-                        cell = ws.cache.cells[single.row_number][single.column_number]
-                        (r, c) = relative_cell_position(cell, rng)
-                        result[r, c] = cell
-                    end
+                row = get(ws.cache.cells, Int(single.row_number), nothing)
+                cell = isnothing(row) ? nothing : _rowcell(row, single.column_number)
+                if !isnothing(cell)
+                    (r, c) = relative_cell_position(cell, rng)
+                    result[r, c] = cell
                 end
             end
         else

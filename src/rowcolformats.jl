@@ -49,7 +49,7 @@ _styled_empty_cell(r::Int, c::Int, s::UInt32) = Cell(CellRef(r, c), UInt64(0), s
 function _inherit_rows!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyle::Function)
     cache = ws.cache
     colborder = _column_style_borders(ws)
-    srccells = get(cache.cells, src, Dict{Int,Cell}())
+    srccells = get(cache.cells, src, _newrow())
     ht = get(cache.row_ht, src, nothing)
     attrs = isnothing(ws.unhandled_attributes) ? nothing : get(ws.unhandled_attributes, src, nothing)
     rowattrs = Dict{String,String}()
@@ -60,10 +60,11 @@ function _inherit_rows!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyle::
         s == 0 || (rowattrs["s"] = string(s); rowattrs["customFormat"] = "1")
     end
     for r in news
-        cells = Dict{Int,Cell}()
-        for (col, c) in srccells
+        cells = _newrow()
+        for c in _rowcells(srccells)
+            col = column_number(c)
             s = restyle(c.style, get(colborder, col, "0"))
-            s == 0 || (cells[col] = _styled_empty_cell(r, col, s))
+            s == 0 || _setrowcell!(cells, _styled_empty_cell(r, col, s))
         end
         isempty(cells) && isnothing(ht) && isempty(rowattrs) && continue
         cache.cells[r] = cells
@@ -84,10 +85,10 @@ function _inherit_columns!(ws::Worksheet, src::Int, news::UnitRange{Int}, restyl
     rowborder(r) = (s = get(get(uh, r, Dict{String,String}()), "s", "0");
                     get(styles_cell_xf(get_workbook(ws), parse(Int, s)), "borderId", "0"))
     for row in values(ws.cache.cells), col in news
-        c = get(row, src, nothing)
+        c = _rowcell(row, src)
         isnothing(c) && continue
         s = restyle(c.style, rowborder(row_number(c.ref)))
-        s == 0 || (row[col] = _styled_empty_cell(row_number(c.ref), col, s))
+        s == 0 || _setrowcell!(row, _styled_empty_cell(row_number(c.ref), col, s))
     end
     ws.cache.dirty = true
 

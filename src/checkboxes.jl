@@ -246,8 +246,8 @@ function getCheckboxes(ws::Worksheet)
     wb = get_workbook(ws)
     boxed = Dict{UInt32,Bool}()   # by style
     for r in eachrow(ws)
-        for col in sort!(collect(keys(r.rowcells)))
-            cell = r.rowcells[col]
+        for col in _sorted_rowcolumns(r.rowcells)
+            cell = _rowcell(r.rowcells, col)
             cell.style == 0 && continue
             get!(() -> _xf_has_checkbox(styles_cell_xf(wb, Int(cell.style)), i), boxed, cell.style) || continue
             push!(out, (cell=string(cell.ref), checked=cell.datatype == CT_BOOL && cell.value != 0))

@@ -336,7 +336,7 @@ function _format_target(sh::Worksheet, cellref::CellRef, what::String)
     cell isa EmptyCell &&
         throw(XLSXError("Cannot set $what for an `EmptyCell`: $(cellname(cellref)). Set the value first."))
     allXfNodes = get_cellXfs_nodes(get_workbook(sh))
-    cell.style == UInt32(0) && (cell.style = get_num_style_index(sh, allXfNodes, 0).id)
+    cell.style == UInt32(0) && (cell = _updatecell!(sh, cell; style=get_num_style_index(sh, allXfNodes, 0).id))
     return cell, allXfNodes
 end
 
@@ -677,7 +677,7 @@ function maybe_update_font!(f::Function, ws::Worksheet, cell, cellref; spec)
     cell isa EmptyCell && return
     cell.datatype == CT_STRING || return
     v = update_sharedString_font(ws, cell, spec)
-    cell.value = isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
+    isnothing(v) || _updatecell!(ws, cell.ref; value=reinterpret(UInt64, Int64(v)))   # read again: it may have changed
 end
 
 function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML.Node}, cellref::CellRef, atts::Vector{String}, newid::Union{Int,Nothing}, first::Bool; kw...)
@@ -687,10 +687,8 @@ function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML
         newid = f(ws, cellref; kw...)
         first = false
     else
-        if cell.style == UInt64(0)
-            cell.style = get_num_style_index(ws, allXfNodes, 0).id
-        end
-        cell.style = update_template_xf(ws, allXfNodes, CellDataFormat(cell.style), atts, [string(newid), "1"]).id
+        style = cell.style == 0 ? get_num_style_index(ws, allXfNodes, 0).id : cell.style
+        _updatecell!(ws, cell; style=update_template_xf(ws, allXfNodes, CellDataFormat(style), atts, [string(newid), "1"]).id)
     end
     return newid, first
 end
@@ -774,11 +772,11 @@ function process_uniform_core(ws::Worksheet, cellref::CellRef, newid::Union{Int,
         firstFont=getFont(ws, cellref)
         first = false
     else                               # Apply the same style to the rest of the cells in the range.
-        cell.style = isnothing(newid) ? UInt64(0) : UInt64(newid)
+        cell = _updatecell!(ws, cell; style=isnothing(newid) ? UInt64(0) : UInt64(newid))
     end
     if cell.datatype == CT_STRING && !isnothing(firstFont)
         v=update_sharedString_font(ws, cell, firstFont)
-        cell.value= isnothing(v) ? cell.value : reinterpret(UInt64, Int64(v))
+        isnothing(v) || _updatecell!(ws, cell.ref; value=reinterpret(UInt64, Int64(v)))   # read again: it may have changed
     end
 
     return newid, first, firstFont
@@ -873,10 +871,8 @@ function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML
         alignment_node = XML.Node{String}(XML.Element, "alignment", isnothing(new_alignment) ? Pair{String,String}[] : Pair{String,String}[k => v for (k,v) in new_alignment], nothing, nothing)
         first = false
     else                               # Apply the same attribute to the rest of the cells in the range.
-        if cell.style == UInt64(0)
-            cell.style = get_num_style_index(ws, allXfNodes, 0).id
-        end
-        cell.style = update_template_xf(ws, allXfNodes, CellDataFormat(cell.style), alignment_node).id
+        style = cell.style == 0 ? get_num_style_index(ws, allXfNodes, 0).id : cell.style
+        _updatecell!(ws, cell; style=update_template_xf(ws, allXfNodes, CellDataFormat(style), alignment_node).id)
     end
     return newid, first, alignment_node
 end
@@ -1089,7 +1085,7 @@ function _strip_run_props!(ws::Worksheet, cell::Cell, tags::Set{String}) :: Unio
         if !isempty(kw)
             # Point the cell at the plain string first, otherwise the setFont
             # below re-enters this function on the same rich text and recurses.
-            cell.value = reinterpret(UInt64, Int64(new_index))
+            cell = _updatecell!(ws, cell; value=reinterpret(UInt64, Int64(new_index)))
             setFont(ws, cell.ref; kw...)
         end
     else

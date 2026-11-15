@@ -380,7 +380,7 @@ function _sort_rows!(ws::Worksheet, rng::CellRange, keys::Vector{Tuple{Int,Bool}
     end
     for (cell, f, _) in taken
         isnothing(f) || delete!(wb.formulas, SheetCellRef(ws.name, cell.ref))
-        delete!(ws.cache.cells[row_number(cell.ref)], column_number(cell.ref))
+        _deleterowcell!(ws.cache.cells[row_number(cell.ref)], column_number(cell.ref))
     end
     was_hidden = Set(r for r in r1:r2 if isRowHidden(ws, r))   # a row's filter state goes with it
     for (cell, f, text) in taken

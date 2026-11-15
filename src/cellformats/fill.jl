@@ -183,7 +183,7 @@ function _setFill(sh::Worksheet, cellref::CellRef; spec::FillSpec)::Int
     new_fillid = styles_add_cell_attribute(wb, fill_node, "fills")
 
     newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["fillId", "applyFill"], [string(new_fillid), "1"]).id
-    cell.style = newstyle
+    _updatecell!(sh, cell; style=newstyle)
 
     return new_fillid
 end

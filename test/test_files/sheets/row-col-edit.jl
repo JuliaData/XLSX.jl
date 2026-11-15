@@ -203,7 +203,7 @@
         for r in 2:5
             fs[XLSX.SheetCellRef("Other!A$r")] = XLSX.FormulaReference(id, nothing)
         end
-        foreach(r -> XLSX.getcell(o, r, 1).formula = true, 1:5)
+        foreach(r -> XLSX._updatecell!(o, XLSX.CellRef(r, 1); formula=true), 1:5)
         @test formula(o, "A3") == "=Data!A12+1"
         XLSX.insertRows(s, 2)
         k, f = only(shared(xf))
