@@ -1146,6 +1146,68 @@ end
         isfile("hint.xlsx") && rm("hint.xlsx")
     end
 
+    # `writetable!` makes the cells of an empty range directly; they must be those
+    # `sheet[ref] = v` makes, cell for cell, with the same shared strings and styles.
+    @testset "fill as setindex" begin
+        n = 40
+        png = joinpath(data_directory, only(filter(f -> endswith(f, ".png"), readdir(data_directory))))
+        cols = Any[
+            Int64.(1:n), Int8[i % 100 for i in 1:n], [i // 3 for i in 1:n], Float32[i % 7 == 0 ? NaN32 : i / 3 for i in 1:n],
+            [i % 5 == 0 ? Inf : i / 7 for i in 1:n], [i % 3 == 0 ? missing : Date(2020) + Day(i) for i in 1:n],
+            [i % 4 == 0 ? nothing : Time(1, i % 60) for i in 1:n], [DateTime(2021) + Minute(i) for i in 1:n],
+            [isodd(i) for i in 1:n], [SubString("abc$i", 2) for i in 1:n], [i % 3 == 0 ? "" : "x\u0001y$(i % 4)" for i in 1:n],
+            [isodd(i) ? "s$i" : i for i in 1:n], ['c' for _ in 1:n],
+            [i <= 2 ? XLSX.CellImage(png) : missing for i in 1:n],
+        ]
+        names = ["c$i" for i in eachindex(cols)]
+        for (file, anchor) in [(nothing, "A1"), (nothing, "C5"), ("general.xlsx", "A40"), ("Book_1904.xlsx", "F30")]
+            open_one() = isnothing(file) ? XLSX.newxlsx() : XLSX.openxlsx(joinpath(data_directory, file); mode="rw")
+            xf_fill, xf_cells = open_one(), open_one()
+            a = XLSX.CellRef(anchor)
+            XLSX.writetable!(xf_fill[1], cols, names; anchor_cell=a)
+            s = xf_cells[1]   # the same, cell by cell
+            for c in eachindex(cols)
+                s[a.row_number, a.column_number + c - 1] = names[c]
+            end
+            for r in 1:n, c in eachindex(cols)   # rows in turn, as `writetable!` writes them
+                s[a.row_number + r, a.column_number + c - 1] = XLSX.process_vector(cols[c])[r]
+            end
+            f, g = xf_fill[1], xf_cells[1]
+            @test XLSX.get_dimension(f) == XLSX.get_dimension(g)
+            @test sort(collect(keys(f.cache.cells))) == sort(collect(keys(g.cache.cells)))
+            @test all(r -> sort(collect(keys(f.cache.cells[r]))) == sort(collect(keys(g.cache.cells[r]))), keys(f.cache.cells))
+            same(x, y) = x.ref == y.ref && x.value == y.value && x.style == y.style && x.datatype == y.datatype && x.meta == y.meta
+            @test all(r -> all(c -> same(f.cache.cells[r][c], g.cache.cells[r][c]), keys(f.cache.cells[r])), keys(f.cache.cells))
+            @test XLSX.get_sst(XLSX.get_workbook(f)).unformatted == XLSX.get_sst(XLSX.get_workbook(g)).unformatted
+            @test f.sst_count == g.sst_count
+            @test XLSX.XML.write(XLSX.styles_xmlroot(XLSX.get_workbook(f))) == XLSX.XML.write(XLSX.styles_xmlroot(XLSX.get_workbook(g)))
+            @test XLSX.getdata(f, a.row_number + 7, a.column_number + 3) == "NaN"   # Excel has no NaN
+        end
+    end
+
+    @testset "fill keeps styles" begin
+        # Over cells already there, each keeps its formatting, as `sheet[ref] = v` keeps it.
+        cols = Any[[1, 2, 3], [Date(2020), Date(2021), Date(2022)]]
+        function bold_sheet()
+            xf = XLSX.newxlsx()
+            s = xf[1]
+            s["A1:B4"] = 0
+            XLSX.setFont(s, "A2:B4"; bold=true)
+            return s
+        end
+        s, t = bold_sheet(), bold_sheet()
+        bold = s.cache.cells[3][1].style
+        XLSX.writetable!(s, cols, ["a", "b"])
+        t[1, 1], t[1, 2] = "a", "b"
+        for r in 1:3, c in 1:2
+            t[r + 1, c] = cols[c][r]
+        end
+        @test s.cache.cells[3][1].style == bold
+        @test XLSX.getdata(s, 3, 2) == Date(2021)
+        @test XLSX.styles_is_datetime(XLSX.get_workbook(s), XLSX.CellDataFormat(s.cache.cells[3][2].style))
+        @test all(r -> all(c -> s.cache.cells[r][c].style == t.cache.cells[r][c].style, 1:2), 1:4)
+    end
+
     # delete files created by this testset
     delete_files = ["output_table.xlsx", "output_tables.xlsx", "mytest.xlsx"]
     for f in delete_files

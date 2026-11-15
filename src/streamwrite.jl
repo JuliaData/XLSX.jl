@@ -335,7 +335,7 @@ function _open_row!(sh::StreamSheet, n::Int)
     _write_number(io, w, r)
     write(io, "\" spans=\"1:")
     _write_number(io, w, width)
-    write(io, "\">\n")
+    write(io, "\">")
     return r, start
 end
 
@@ -364,7 +364,7 @@ function _write_stream_cell!(sh::StreamSheet, ref::CellRef, v, styled::Bool)::Bo
         s = strip_illegal_chars(v)
         isempty(s) && return false
         _write_cell_open!(io, w, ref, "inlineStr", style)
-        write(io, ">\n        <", sh.pfx, "is>")
+        write(io, "><", sh.pfx, "is>")
         write_plain_t(io, s, sh.pfx)
         write(io, "</", sh.pfx, "is>", w.c_close)
     else
