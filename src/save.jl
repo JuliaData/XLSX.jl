@@ -145,7 +145,7 @@ function _write_package!(xlsx::ZipArchives.ZipWriter, xf::XLSXFile; streamed=())
     # write sharedString table
     if !isempty(get_sst(wb))
         ZipArchives.zip_newfile(xlsx, "xl/sharedStrings.xml"; compress=true)
-        print(xlsx, generate_sst_xml_string(wb))
+        write_sst_xml(xlsx, wb)
     end
     return nothing
 end
@@ -165,7 +165,12 @@ function set_worksheet_xml_document!(ws::Worksheet, xdoc::XML.Node)
     xf.data[filename] = xdoc
 end
 
-function generate_sst_xml_string(wb::Workbook)::String
+generate_sst_xml_string(wb::Workbook)::String = sprint(write_sst_xml, wb)
+
+# Write `xl/sharedStrings.xml` to `io` a chunk at a time, rather than making the whole
+# of it as one string first: a table of millions of strings would need several times
+# its size in memory to build.
+function write_sst_xml(io::IO, wb::Workbook)
     sst = wb.sst
     !(@atomic sst.is_loaded) && throw(XLSXError("Can't generate XML string from a Shared String Table that is not loaded."))
 
@@ -186,11 +191,16 @@ function generate_sst_xml_string(wb::Workbook)::String
         else
             print(buff, raw)
         end
+        if position(buff) >= 1 << 20   # write the chunk, and fill its buffer again
+            bytes = take!(buff)
+            write(io, bytes)
+            buff = IOBuffer(bytes; read=false, write=true, truncate=true)
+        end
     end
 
     print(buff, "</$(pfx_c)sst>")
-
-    return String(take!(buff))
+    write(io, take!(buff))
+    return nothing
 end
 
 # A formula as `<f>` holds it, without the leading `=` it has in Excel's formula bar
