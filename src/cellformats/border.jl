@@ -252,7 +252,7 @@ function _setBorder(sh::Worksheet, cellref::CellRef; spec::BorderSpec)::Int
     border_node  = buildNode("border", new_border_atts, pfx)
     new_borderid = styles_add_cell_attribute(wb, border_node, "borders")
     newstyle     = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["borderId", "applyBorder"], [string(new_borderid), "1"]).id
-    cell.style   = newstyle
+    _updatecell!(sh, cell; style=newstyle)
 
     return new_borderid
 end

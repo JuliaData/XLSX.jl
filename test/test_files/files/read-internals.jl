@@ -472,7 +472,7 @@ _same_fields(a, b) = typeof(a) == typeof(b) &&
             XLSX.is_chartsheet(wb, ws.name) && continue
             expected, expected_formulas = _cells_by_lazynode(ref_xf, ref_ws)
             XLSX.eachrow(ws)                         # fill the cache
-            got = Dict((r, col) => cell for (r, row) in ws.cache.cells for (col, cell) in row)
+            got = Dict((r, XLSX.column_number(cell)) => cell for (r, row) in ws.cache.cells for cell in row)
             same = keys(got) == keys(expected) &&
                    all(_same_fields(got[k], expected[k]) for k in keys(expected))
             same || println("cache fill differs from Cell(::LazyNode): $file, sheet $(ws.name)")
@@ -525,7 +525,7 @@ end
         expected, expected_formulas = _cells_by_lazynode(ref_xf, ref_xf[1])
         ws = xf[1]
         XLSX.eachrow(ws)
-        got = Dict((r, col) => cell for (r, row) in ws.cache.cells for (col, cell) in row)
+        got = Dict((r, XLSX.column_number(cell)) => cell for (r, row) in ws.cache.cells for cell in row)
         same = keys(got) == keys(expected) && all(_same_fields(got[k], expected[k]) for k in keys(expected))
         same || println("cache fill differs from Cell(::LazyNode): $name")
         @test same

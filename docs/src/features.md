@@ -16,7 +16,7 @@ or one started with [`XLSX.newxlsx`](@ref). Functions that only read work on any
 |:--------------|:---------|:-----|:-----------------|:-------|:------|
 | Cell values | typing in cells | `sheet["A1"]`, [`XLSX.getdata`](@ref), [`XLSX.readdata`](@ref) | `sheet["A1"] = value` | — | [XLSX Tutorial](tutorial/XLSXtutorial.md) |
 | Tabular data | — | [`XLSX.readtable`](@ref), [`XLSX.gettable`](@ref), [`XLSX.eachtablerow`](@ref) | [`XLSX.writetable`](@ref), [`XLSX.writetable!`](@ref) | — | [XLSX Tutorial](tutorial/XLSXtutorial.md) |
-| Writing large files in constant memory | — | — | [`XLSX.writetable`](@ref) with `streaming=true`, [`XLSX.streamxlsx`](@ref), [`XLSX.writerow!`](@ref) | — | [Writing large files](@ref) |
+| Writing large files in constant memory | — | — | [`XLSX.writetable`](@ref) with `streaming=true`, [`XLSX.streamxlsx`](@ref), [`XLSX.writerow!`](@ref), [`XLSX.writerows!`](@ref) | — | [Writing large files](@ref) |
 | Excel Tables | *Insert → Table* | [`XLSX.tables`](@ref), [`XLSX.table`](@ref), [`XLSX.gettotals`](@ref) | [`XLSX.addtable!`](@ref), [`XLSX.appendtable!`](@ref), [`XLSX.settotals!`](@ref) | [`XLSX.deletetable!`](@ref), [`XLSX.removetotals!`](@ref) | [Excel Tables](tables/excelTables.md) |
 | Formulas, with their cached values | formula bar | [`XLSX.getFormula`](@ref), `sheet["A1"]` for the value | [`XLSX.setFormula`](@ref), with `value` | — | [Using Formulas](formulae/formulas.md) |
 | Named ranges | *Formulas → Name Manager* | [`XLSX.getDefinedNames`](@ref), [`XLSX.getAllDefinedNames`](@ref) | [`XLSX.addDefinedName`](@ref) | [`XLSX.deleteDefinedName`](@ref), [`XLSX.deleteAllDefinedNames`](@ref) | [Named ranges](formulae/namedRanges.md) |

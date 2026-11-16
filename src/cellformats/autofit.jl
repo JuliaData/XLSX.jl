@@ -133,7 +133,8 @@ function autofitColumns(ws::Worksheet, cols=:; min_width::Real=0, max_width::Rea
     fonts = Dict{UInt32,Tuple{Vector{Float64},Float64}}()
     formats = Dict{String,Union{Nothing,Vector{_FmtSection}}}()
     widest = Dict{Int,Float64}()
-    for row in eachrow(ws), (c, cell) in row.rowcells
+    for row in eachrow(ws), cell in _rowcells(row.rowcells)
+        c = column_number(cell)
         (isnothing(wanted) || c in wanted) || continue
         any(m -> cell.ref in m, merged) && continue
         text = _cell_text(ws, cell; for_width=true, formats)

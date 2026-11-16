@@ -131,9 +131,14 @@ function _write_package!(xlsx::ZipArchives.ZipWriter, xf::XLSXFile; streamed=())
         if sheet_no in streamed || is_chartsheet(wb, getsheet(wb, sheet_no).name)
             continue
         end
-        pieces = update_single_sheet!(wb, sheet_no, true)
-        ZipArchives.zip_newfile(xlsx, get_worksheet_internal_file(getsheet(wb, sheet_no)); compress=true)
-        foreach(p -> write(xlsx, p), pieces)
+        sheet = getsheet(wb, sheet_no)
+        # What comes before the rows, the rows from the cache, and what comes after,
+        # each written as it is made: the whole sheet is never held in memory.
+        head, tail = _sheet_xml_frame(sheet, get_dimension(sheet))
+        ZipArchives.zip_newfile(xlsx, get_worksheet_internal_file(sheet); compress=true)
+        write(xlsx, head)
+        _write_cache_rows!(xlsx, sheet, _prefix_colon(sheet))
+        write(xlsx, tail)
     end
 
     # write binary files
@@ -145,7 +150,7 @@ function _write_package!(xlsx::ZipArchives.ZipWriter, xf::XLSXFile; streamed=())
     # write sharedString table
     if !isempty(get_sst(wb))
         ZipArchives.zip_newfile(xlsx, "xl/sharedStrings.xml"; compress=true)
-        print(xlsx, generate_sst_xml_string(wb))
+        write_sst_xml(xlsx, wb)
     end
     return nothing
 end
@@ -165,7 +170,12 @@ function set_worksheet_xml_document!(ws::Worksheet, xdoc::XML.Node)
     xf.data[filename] = xdoc
 end
 
-function generate_sst_xml_string(wb::Workbook)::String
+generate_sst_xml_string(wb::Workbook)::String = sprint(write_sst_xml, wb)
+
+# Write `xl/sharedStrings.xml` to `io` a chunk at a time, rather than making the whole
+# of it as one string first: a table of millions of strings would need several times
+# its size in memory to build.
+function write_sst_xml(io::IO, wb::Workbook)
     sst = wb.sst
     !(@atomic sst.is_loaded) && throw(XLSXError("Can't generate XML string from a Shared String Table that is not loaded."))
 
@@ -186,11 +196,16 @@ function generate_sst_xml_string(wb::Workbook)::String
         else
             print(buff, raw)
         end
+        if position(buff) >= 1 << 20   # write the chunk, and fill its buffer again
+            bytes = take!(buff)
+            write(io, bytes)
+            buff = IOBuffer(bytes; read=false, write=true, truncate=true)
+        end
     end
 
     print(buff, "</$(pfx_c)sst>")
-
-    return String(take!(buff))
+    write(io, take!(buff))
+    return nothing
 end
 
 # A formula as `<f>` holds it, without the leading `=` it has in Excel's formula bar
@@ -202,8 +217,8 @@ function add_node_formula!(io, ref::CellRef, ws::Worksheet, pfx)
 end
 add_node_formula!(io, f::CellFormula, pfx) = add_node_formula!(io, f.value, pfx)
 function add_node_formula!(io, f::Formula, pfx)
-    write(io, "\n        <$(pfx)f")
-    
+    write(io, "<$(pfx)f")
+
     isnothing(f.type) || isempty(f.type) || write(io, " t=\"", f.type, "\"")
     isnothing(f.ref) || isempty(f.ref) || write(io, " ref=\"", f.ref, "\"")
     
@@ -218,7 +233,7 @@ function add_node_formula!(io, f::Formula, pfx)
 end
 
 function add_node_formula!(io, f::FormulaReference, pfx)
-    write(io, "\n        <$(pfx)f t=\"shared\"")
+    write(io, "<$(pfx)f t=\"shared\"")
     
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
@@ -232,7 +247,7 @@ function add_node_formula!(io, f::FormulaReference, pfx)
 end
 
 function add_node_formula!(io, f::ReferencedFormula, pfx)
-    write(io, "\n        <$(pfx)f t=\"shared\" ref=\"", f.ref, "\"")
+    write(io, "<$(pfx)f t=\"shared\" ref=\"", f.ref, "\"")
     
     if !isnothing(f.unhandled)
         for (k, v) in f.unhandled
@@ -246,39 +261,21 @@ function add_node_formula!(io, f::ReferencedFormula, pfx)
 end
 
 """
-    update_worksheets_xml!(xl::XLSXFile; full=false)
+    update_worksheets_xml!(xl::XLSXFile)
 
-Update worksheet files held in `xf.data` whenever needed. These files had row and cell data 
-stripped out when they were read because, when needed (ie in write mode), these data are 
-stored in the cache. Worksheet xml files are fully reconstructed to include rows and cells 
-from the cache only as a transient precursor to writing an xlsx file and these reconstructed 
-worksheet xml files are not stored.
+Update worksheet files held in `xf.data` whenever needed. These files had row and cell data
+stripped out when they were read because, when needed (ie in write mode), these data are
+stored in the cache. The rows and cells are written from the cache only when the file is
+saved (see `_write_package!`), straight into the file, and are not stored.
 """
-function update_worksheets_xml!(xl::XLSXFile; full=false)
+function update_worksheets_xml!(xl::XLSXFile)
     wb = get_workbook(xl)
     for sheet_no in 1:sheetcount(wb)
-        if is_chartsheet(wb, getsheet(wb, sheet_no).name)
-            continue
-        end
-        update_single_sheet!(wb, sheet_no, full)
+        sheet = getsheet(wb, sheet_no)
+        is_chartsheet(wb, sheet.name) && continue
+        set_worksheet_xml_document!(sheet, _worksheet_doc_copy(sheet))
     end
     return nothing
-end
-function update_single_sheet!(wb::Workbook, sheet_no::Int, full::Bool)::Union{Nothing,Vector{Vector{UInt8}}}
-    sheet = getsheet(wb, sheet_no)
-    if full # need to reconstruct row and cell data from cache
-        # The sheet in pieces, to be written one after another: what comes before
-        # the rows, the rows from the WorksheetCache a chunk at a time, and what
-        # comes after. Joining them first would copy the whole sheet again.
-        head, tail = _sheet_xml_frame(sheet, get_dimension(sheet))
-        pieces = [head]
-        append!(pieces, get_cache_rows(sheet, _prefix_colon(sheet)))
-        push!(pieces, tail)
-        return pieces
-    else
-        set_worksheet_xml_document!(sheet, _worksheet_doc_copy(sheet)) # no need to save full reconstructed data
-        return nothing
-    end
 end
 
 _prefix_colon(sheet::Worksheet) = (pfx = get_prefix(sheet); pfx == "" ? pfx : pfx * ":")
@@ -329,8 +326,8 @@ function _sheet_xml_frame(sheet::Worksheet, dimension::Union{Nothing,CellRange})
             print(head, " ",k,"=\"",v,"\"")
         end
     end
-    print(head, ">\n")
-    tail = Vector{UInt8}("  </$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx))))
+    print(head, ">")
+    tail = Vector{UInt8}("</$(pfx)sheetData>" * SubString(empty_doc, nextind(empty_doc, last(idx))))
     return take!(head), tail
 end
 
@@ -371,17 +368,23 @@ struct _RowWriter
     num::Vector{UInt8}        # where numbers are formatted
 end
 function _RowWriter(ws::Worksheet, pfx::String, ncols::Int)
-    return _RowWriter(ws, pfx, "    <$(pfx)row r=\"", "      <$(pfx)c r=\"", "\n        <$(pfx)v>", "</$(pfx)v>",
-                      "\n      </$(pfx)c>\n", "    </$(pfx)row>\n",
+    return _RowWriter(ws, pfx, "<$(pfx)row r=\"", "<$(pfx)c r=\"", "<$(pfx)v>", "</$(pfx)v>",
+                      "</$(pfx)c>", "</$(pfx)row>",
                       [encode_column_number(c) for c in 1:ncols], Vector{UInt8}(undef, 64))
 end
 
-# Write an integer without making a string. A float is printed: Julia has no public way to
-# format one without making a string.
+# Write an integer without making a string.
 function _write_number(io::IO, w::_RowWriter, n::Integer)
     buf = w.num
     neg = n < 0
-    u = neg ? unsigned(-(Int128(n))) : unsigned(n)
+    i = _format_digits!(buf, neg ? unsigned(-(Int128(n))) : unsigned(n))
+    neg && (buf[i] = UInt8('-'); i -= 1)
+    GC.@preserve buf unsafe_write(io, pointer(buf, i + 1), length(buf) - i)
+    return nothing
+end
+
+# The digits of `u` at the end of `buf`: they are `buf[i+1:end]` for the `i` returned.
+function _format_digits!(buf::Vector{UInt8}, u::Unsigned)::Int
     i = length(buf)
     while true
         buf[i] = UInt8('0') + UInt8(u % 10)
@@ -389,11 +392,83 @@ function _write_number(io::IO, w::_RowWriter, n::Integer)
         i -= 1
         u == 0 && break
     end
-    neg && (buf[i] = UInt8('-'); i -= 1)
-    GC.@preserve buf unsafe_write(io, pointer(buf, i + 1), length(buf) - i)
-    return nothing
+    return i
 end
-_write_number(io::IO, ::_RowWriter, x::Float64) = (print(io, x); nothing)
+
+# Write a float as `print` does, without making a string where it can: `print`
+# allocates for every float, and Julia has no public way to format one without.
+_write_number(io::IO, w::_RowWriter, x::Float64) = (_write_short_float(io, w, x) || print(io, x); nothing)
+
+const _EXACT_POW10 = ntuple(i -> 10.0^(i - 1), 23)   # 1e0 to 1e22, each exact in a Float64
+
+# Write `x` if its shortest decimal has at most 15 digits, and return whether it did.
+#
+# For `d` = 0, 1, ..., take `m = round(|x| * 10^d)`. When `m < 10^15` and `d <= 22`,
+# both `m` and `10^d` are exact floats, so IEEE division rounds `m / 10^d` correctly:
+# if that is `|x|`, the decimal `m`e-`d` reads back as `x`. The first such `d` gives the
+# shortest decimal. It is the one `print` writes, as that is the shortest that reads
+# back and, with 15 digits or fewer, no other decimal of as many digits is as close.
+# Neither is it missed: a decimal of `d` places that reads back as `x` is within
+# 10^d × ulp(x)/2 < 0.12 of `|x| * 10^d`, and the product's own error is smaller than
+# 0.12, so it rounds to that decimal.
+#
+# `print` writes 1e-4 <= |x| < 1e6 as `123.45` and the rest as `1.2345e6`.
+function _write_short_float(io::IO, w::_RowWriter, x::Float64)::Bool
+    isfinite(x) || return false
+    a = abs(x)
+    if a == 0
+        write(io, signbit(x) ? "-0.0" : "0.0")
+        return true
+    end
+    a >= 1e15 && return false
+    m, d = UInt64(0), 0
+    while true
+        d > 22 && return false
+        p = _EXACT_POW10[d + 1]
+        y = a * p
+        y >= 1e15 && return false
+        m = unsafe_trunc(UInt64, round(y))
+        Float64(m) / p == a && break
+        d += 1
+    end
+
+    buf = w.num
+    i = _format_digits!(buf, m)
+    n = length(buf) - i                    # the number of digits
+    signbit(x) && write(io, UInt8('-'))
+    GC.@preserve buf begin
+        digits = pointer(buf, i + 1)
+        if 1e-4 <= a < 1e6
+            if d == 0
+                unsafe_write(io, digits, n)
+                write(io, ".0")
+            elseif n > d                   # 123.45
+                unsafe_write(io, digits, n - d)
+                write(io, UInt8('.'))
+                unsafe_write(io, digits + (n - d), d)
+            else                           # 0.0012
+                write(io, "0.")
+                for _ in 1:(d - n)
+                    write(io, UInt8('0'))
+                end
+                unsafe_write(io, digits, n)
+            end
+        else
+            e10 = n - 1 - d
+            while n > 1 && buf[i + n] == UInt8('0')   # 1.5e14, not 1.50000000000000e14
+                n -= 1
+            end
+            unsafe_write(io, digits, 1)
+            write(io, UInt8('.'))
+            n == 1 ? write(io, UInt8('0')) : unsafe_write(io, digits + 1, n - 1)
+            write(io, UInt8('e'))
+            e10 < 0 && write(io, UInt8('-'))
+            j = _format_digits!(buf, unsigned(abs(e10)))   # the mantissa is written: reuse `buf`
+            unsafe_write(io, pointer(buf, j + 1), length(buf) - j)
+        end
+    end
+    return true
+end
 
 function _write_cellref(io::IO, w::_RowWriter, c::CellRef)
     col = column_number(c)
@@ -402,37 +477,71 @@ function _write_cellref(io::IO, w::_RowWriter, c::CellRef)
     return nothing
 end
 
-# The sheet's rows as XML, in chunks in row order. The chunks are written in
-# parallel, each into a buffer of its own.
-function get_cache_rows(sheet::Worksheet, pfx::String)::Vector{Vector{UInt8}}
+# Write the sheet's rows as XML to `out`, in row order. Chunks of rows are formatted
+# in parallel and written as soon as those before them are, so only a few chunks are
+# ever in memory, not the whole sheet.
+#
+# There are `2 × nworkers` buffers. A worker takes a free buffer before it takes a
+# chunk, and a buffer is free again once its chunk is written. A chunk is taken only
+# after every chunk before it, each already with a buffer, so the next chunk to write
+# is always being formatted and the buffers can't all wait on it.
+function _write_cache_rows!(out::IO, sheet::Worksheet, pfx::String)
     cache = sheet.cache
     isnothing(cache) && throw(XLSXError("Worksheet '$(sheet.name)' cannot be written - it has no cache."))
     chunksize = ROW_CHUNKSIZE
     nworkers = clamp(cld(length(cache.rows_in_cache), chunksize), 1, max_threads())
+    nbuffers = 2 * nworkers
     ncols = column_number(get_dimension(sheet).stop)
     chunks = stream_cache_rows(sheet, chunksize)
-    written = Channel{Tuple{Int,Vector{UInt8}}}(1 << 8)
+    free = Channel{Vector{UInt8}}(nbuffers)
+    foreach(_ -> put!(free, UInt8[]), 1:nbuffers)
+    written = Channel{Tuple{Int,Vector{UInt8}}}(nbuffers)   # never full: one per buffer
     workers = @async try   # `written` is read below while they run, and closed when they stop
         @sync for _ in 1:nworkers
-            Threads.@spawn begin
+            Threads.@spawn try
                 w = _RowWriter(sheet, pfx, ncols)
-                io = IOBuffer()
-                column_indexes = Int[]
-                for (n, rows) in chunks
+                while true
+                    buf = take!(free)
+                    next = iterate(chunks)
+                    next === nothing && break
+                    n, rows = first(next)
+                    io = IOBuffer(buf; read=false, write=true, truncate=true)
                     for row in rows
-                        process_cache_row!(io, column_indexes, row, w)
+                        process_cache_row!(io, row, w)
                     end
                     put!(written, (n, take!(io)))
                 end
+            catch e
+                close(free, e)     # stop the other workers
+                close(chunks, e)
+                rethrow()
             end
         end
     finally
         close(written)
     end
-    out = collect(written)
-    wait(workers)   # rethrows a worker's error
-    sort!(out; by=first)
-    return last.(out)
+
+    failed = nothing
+    try
+        pending = Dict{Int,Vector{UInt8}}()   # chunks formatted before those ahead of them
+        next_n = 1
+        for (n, bytes) in written
+            pending[n] = bytes
+            while haskey(pending, next_n)
+                b = pop!(pending, next_n)
+                write(out, b)
+                put!(free, b)
+                next_n += 1
+            end
+        end
+    catch e   # writing failed, or a worker did and closed `free` with its error
+        failed = e
+        close(free, e)    # a channel closed with `e` throws `e`: the workers stop
+        close(chunks, e)
+    end
+    wait(workers)   # rethrows a worker's error, or the writer's as they stopped on it
+    isnothing(failed) || throw(failed)
+    return nothing
 end
 
 const DOCPROPS_VTYPES_NS = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
@@ -583,13 +692,11 @@ end
 # Write one row of the cache as XML to `row_node`. `w` holds what every row needs
 # (see `_RowWriter`); integers and cell references are written without making
 # strings, as this runs once for every cell of the sheet.
-function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cacherow, w::_RowWriter)
+function process_cache_row!(row_node::IOBuffer, cacherow, w::_RowWriter)
     ws, pfx = w.ws, w.pfx
 
     d, r, unhandled_attributes = cacherow
     row_nr = row_number(r)
-
-    sort!(append!(empty!(column_indexes), keys(r.rowcells)))   # the row's columns, reusing the vector
 
     write(row_node, w.row_open)
     _write_number(row_node, w, row_nr)
@@ -609,11 +716,9 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         write(row_node, " ", attribute, "=\"", XML.escape(value; attribute = true), "\"")
     end
 
-    write(row_node, ">\n")
+    write(row_node, ">")
 
-    for c in column_indexes
-        cell = getcell(r, c)
-        cell isa EmptyCell && continue
+    for cell in _rowcells(r.rowcells)   # in column order
 
         # A formula's string result is written in the cell, as Excel writes it, not
         # as a shared string.
@@ -647,14 +752,13 @@ function process_cache_row!(row_node::IOBuffer, column_indexes::Vector{Int}, cac
         end
 
         if !has_value && !has_formula
-            write(row_node, "/>\n")
+            write(row_node, "/>")
         else
             write(row_node, ">")
             if has_formula
                 add_node_formula!(row_node, cell.ref, ws, pfx)
             end
             if str_result
-                write(row_node, "\n        ")
                 write_preserved(row_node, "v", sst_unformatted_string(ws, reinterpret(Int64, cell.value)), pfx)
             elseif is_raw
                 _write_cell_v!(row_node, w, cell.datatype, cell.value)

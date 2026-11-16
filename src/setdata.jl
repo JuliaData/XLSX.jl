@@ -31,7 +31,7 @@ function setdata!(ws::Worksheet, cell::Cell)
     c = column_number(cell)
 
     _ensure_cache_row!(ws, r)
-    cache.cells[r][c] = cell
+    _setrowcell!(cache.cells[r], cell)
     add_cell_to_worksheet_dimension!(ws, cell)
 
     nothing
@@ -185,11 +185,11 @@ function setdata!(ws::Worksheet, ref::CellRef, val::Union{AbstractFormula,CellCo
             return setdata!(ws, ref, CellValue(ws, val))
         end
     else
-        c.style = _style_for_value(ws, c.style, val)
+        style = _style_for_value(ws, c.style, val)
         if val isa AbstractFormula
-            return setdata!(ws, ref, CellFormula(val, CellDataFormat(c.style)))
+            return setdata!(ws, ref, CellFormula(val, CellDataFormat(style)))
         else
-            return setdata!(ws, ref, CellValue(val, CellDataFormat(c.style)))
+            return setdata!(ws, ref, CellValue(val, CellDataFormat(style)))
         end
     end
 end
@@ -405,8 +405,7 @@ function setdata!(sheet::Worksheet, ref::CellRef, rts::RichTextString)
 
     if length(rts.runs) > 1 # add RichTextString as a rich sharedString
         sheet.sst_count += 1
-        c.value = add_formatted_string!(get_workbook(sheet), richTextStringtoXML(rts, pfx))
-        c.datatype = CT_STRING
+        _updatecell!(sheet, c; value=add_formatted_string!(get_workbook(sheet), richTextStringtoXML(rts, pfx)), datatype=CT_STRING)
     else # add single run as a normal cell value with a cell level font style
         sheet[ref] = rts.text
         kw = _run_font_kwargs(rts.runs[1].atts)

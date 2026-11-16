@@ -1029,12 +1029,15 @@ end
 # Rows by contents (see `_cell_contents`): a targeted read numbers inline strings differently.
 _row_contents(ws, rows) = [(r, ht, Dict(k => _cell_contents(ws, v) for (k, v) in cells)) for (r, ht, cells) in rows]
 
-# The rows the stream iterator yields, copied (it reuses one `Dict` per pass); stops
+# A row's cells by column.
+_rowdict(cells) = Dict{Int,XLSX.Cell}(XLSX.column_number(c) => c for c in cells)
+
+# The rows the stream iterator yields, copied (it reuses one row per pass); stops
 # after `limit` rows.
 function _stream_rows(ws; limit = typemax(Int))
     rows = Tuple{Int,Union{Nothing,Float64},Dict{Int,XLSX.Cell}}[]
     for r in XLSX.eachrow(ws)
-        push!(rows, (XLSX.row_number(r), r.ht, copy(r.rowcells)))
+        push!(rows, (XLSX.row_number(r), r.ht, _rowdict(r.rowcells)))
         length(rows) >= limit && break
     end
     return rows
@@ -1084,7 +1087,7 @@ end
         for wanted in _diff_choices(wanted_sets, label, k; keep = 0, n = 2)
             n += 1
             ws = openws()
-            matched = [(XLSX.row_number(r), r.ht, r.rowcells) for r in XLSX.match_rows(ws, wanted)]
+            matched = [(XLSX.row_number(r), r.ht, _rowdict(r.rowcells)) for r in XLSX.match_rows(ws, wanted)]
             isequal(_row_contents(ws, matched), _row_contents(oldws, filter(r -> first(r) in wanted, want))) ||
                 push!(mismatches, "$tag match_rows $wanted: rows differ")
             _formulas_of(ws) == _node_read_cells(openws(), first.(matched), nothing)[2] ||
@@ -1126,7 +1129,7 @@ end
             got = _diff_run(() -> begin
                 rows = Tuple{Int,Union{Nothing,Float64},Dict{Int,XLSX.Cell}}[]
                 for r in XLSX.SheetRowStreamIterator(ws, cols)
-                    push!(rows, (XLSX.row_number(r), r.ht, copy(r.rowcells)))
+                    push!(rows, (XLSX.row_number(r), r.ht, _rowdict(r.rowcells)))
                 end
                 rows
             end)
@@ -1540,7 +1543,7 @@ function _cache_state(xf)
         rows = Any[]
         for r in XLSX.eachrow(ws)
             cells = sort([(col, c.ref, c.value, c.style, c.meta, c.datatype, c.formula,
-                           XLSX._cell_value(ws, c.datatype, c.value, c)) for (col, c) in r.rowcells]; by = first)
+                           XLSX._cell_value(ws, c.datatype, c.value, c)) for (col, c) in _rowdict(r.rowcells)]; by = first)
             push!(rows, (XLSX.row_number(r), r.ht, cells))
         end
         push!(out, (ws.name, rows, ws.sst_count, ws.unhandled_attributes, ws.dimension, ws.next_formula_id))

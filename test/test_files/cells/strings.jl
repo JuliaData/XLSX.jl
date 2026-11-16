@@ -256,8 +256,7 @@ end
         xf, sh = rich_sheet()
         wb = XLSX.get_workbook(sh)
         si = "<si><r><rPr><b/><charset val=\"0\"/></rPr><t>ab</t></r><r><rPr><i/><outline/></rPr><t>cd</t></r></si>"
-        cell = XLSX.getcell(sh, "A1")
-        cell.value = reinterpret(UInt64, Int64(XLSX.add_formatted_string!(wb, si)))
+        XLSX._updatecell!(sh, XLSX.getcell(sh, "A1"); value=reinterpret(UInt64, Int64(XLSX.add_formatted_string!(wb, si))))
         XLSX.setFont(sh, "A1"; bold=true)
         s = XLSX.sst_formatted_string(XLSX.get_sst(wb), reinterpret(Int64, XLSX.getcell(sh, "A1").value))
         @test occursin("charset", s) && occursin("outline", s) && occursin("<i", s)

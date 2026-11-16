@@ -145,11 +145,17 @@ function writetable!(
     end
 
     data = [process_vector(col) for col in data]
-    for r in 1:row_count
-        for c in 1:col_count
-            target_cell_ref = CellRef(r + anchor_row - start_from_anchor, c + anchor_col - 1)
-            v = data[c][r]
-            sheet[target_cell_ref] = v
+    data_rows = (anchor_row + 1 - start_from_anchor):(anchor_row - start_from_anchor + row_count)
+    data_cols = anchor_col:(anchor_col + col_count - 1)
+    if row_count > 0 && _can_fill_directly(sheet, data_rows, data_cols)
+        _fill_cells!(sheet, data, first(data_rows), anchor_col, row_count)
+    else
+        for r in 1:row_count
+            for c in 1:col_count
+                target_cell_ref = CellRef(r + anchor_row - start_from_anchor, c + anchor_col - 1)
+                v = data[c][r]
+                sheet[target_cell_ref] = v
+            end
         end
     end
 
@@ -175,6 +181,95 @@ function writetable!(
     end
     freeze_header && freezePanes(sheet; nrows=anchor_row)
 
+    return nothing
+end
+
+#
+# Filling a table's cells straight into the cache. `sheet[ref] = v` looks for a cell
+# already there (to keep its style, or re-reference a shared formula), and reaches
+# the value through a `Vector` of columns, boxed. Where no cell is there yet, as in
+# any new sheet, the cells are made directly, each value read with its type known.
+# The cells, strings and styles made are those `sheet[ref] = v` would make, in the
+# same order: rows in turn, each from its first column.
+#
+
+# Whether the cells in `rows` × `cols` can be made directly: none is there yet, and
+# the cache holds the whole sheet and may be written.
+function _can_fill_directly(ws::Worksheet, rows::UnitRange{Int}, cols::UnitRange{Int})::Bool
+    cache = ws.cache
+    (isnothing(cache) || !is_cache_enabled(ws) || !cache.is_full || !is_writable(get_xlsxfile(ws))) && return false
+    for (r, rowcells) in cache.cells
+        r in rows || continue
+        any(in(cols), _rowcolumns(rowcells)) && return false
+    end
+    return true
+end
+
+# Make the cells of `data`, a vector of `nrows`-long columns, from (`r0`, `c0`).
+function _fill_cells!(ws::Worksheet, data, r0::Int, c0::Int, nrows::Int)
+    cache = ws.cache
+    ncols = length(data)
+    for r in r0:(r0 + nrows - 1)
+        _ensure_cache_row!(ws, r)
+        _reserve!(cache.cells[r], ncols)
+    end
+    if ncols <= 100
+        # As a column table, so that `Tables.eachcolumn` reads each value with its
+        # type known. Beyond 100 columns it loops, so gains nothing.
+        rows = Tables.rows(NamedTuple{ntuple(c -> Symbol(:c, c), ncols)}(Tuple(_as_vector(c) for c in data)))
+        _fill_rows!(ws, rows, Tables.schema(rows), r0, c0)   # its type is known there, not here
+    else
+        for i in 1:nrows, c in 1:ncols
+            r = r0 + i - 1
+            _put_cell!(ws, cache.cells[r], CellRef(r, c0 + c - 1), data[c][i])
+        end
+    end
+    r1, c1 = r0 + nrows - 1, c0 + ncols - 1
+    d = get_dimension(ws)
+    set_dimension!(ws, CellRange(min(r0, row_number(d.start)), min(c0, column_number(d.start)),
+                                 max(r1, row_number(d.stop)), max(c1, column_number(d.stop))))
+    return nothing
+end
+
+function _fill_rows!(ws::Worksheet, rows, sch::Tables.Schema, r0::Int, c0::Int)
+    cells = ws.cache.cells
+    r = r0
+    for row in rows
+        _fill_row!(ws, cells[r], sch, row, r, c0)
+        r += 1
+    end
+    return nothing
+end
+
+function _fill_row!(ws::Worksheet, rowcells::RowCells, sch::Tables.Schema, row, r::Int, c0::Int)
+    Tables.eachcolumn(sch, row) do v, c, _
+        _put_cell!(ws, rowcells, CellRef(r, c0 + c - 1), v)
+    end
+    return nothing
+end
+
+# A value as `sheet[ref] = v` stores it, or `nothing` for one it handles otherwise
+# (a picture, or a type it doesn't convert).
+_table_cell_value(::Union{Missing,Nothing}) = missing
+_table_cell_value(v::Union{String,Dates.Date,Dates.DateTime,Dates.Time}) = v
+_table_cell_value(v::Bool) = v
+_table_cell_value(v::Int64) = v
+_table_cell_value(v::Float64) = isfinite(v) ? v : string(v)   # Excel has no NaN or Inf
+_table_cell_value(v::Integer) = Int64(v)
+_table_cell_value(v::Real) = _table_cell_value(Float64(v))
+_table_cell_value(v::AbstractString) = String(v)
+_table_cell_value(_) = nothing
+
+# Make the cell for `v` at `ref`, where there is none yet, as `sheet[ref] = v` would.
+@inline function _put_cell!(ws::Worksheet, rowcells::RowCells, ref::CellRef, v)
+    x = _table_cell_value(v)
+    if isnothing(x)
+        ws[ref] = v
+        return nothing
+    end
+    style = x isa Union{Dates.Date,Dates.DateTime,Dates.Time} ? id(default_cell_format(ws, x)) : UInt32(0)
+    t, value = xlsx_encode(ws, x)
+    _setrowcell!(rowcells, Cell(ref, value, style, UInt16(0), t, false))
     return nothing
 end
 

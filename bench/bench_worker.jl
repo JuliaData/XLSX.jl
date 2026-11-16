@@ -76,6 +76,18 @@ function bench_write(source_path, tmp_path, sheet, kwargs)
     nothing
 end
 
+# Whether this version has `writetable(...; streaming=true)` (v0.13.4 and later)
+const STREAMING = let f = tempname() * ".xlsx"
+    try
+        XLSX.writetable(f, [[1, 2]], ["a"]; streaming=true)
+        true
+    catch
+        false
+    finally
+        rm(f; force=true)
+    end
+end
+
 function warm_cache!(sh)
     for row in XLSX.eachrow(sh)
         nothing
@@ -106,7 +118,7 @@ for fixture_name in [
     end
     sheet = table_sheet(fixture_name)
     kwargs = table_kwargs(fixture_name)
-    (wanted("readtable") || wanted("writetable")) && check_table(fixture_name, path, sheet, kwargs)
+    (wanted("readtable") || wanted("writetable") || wanted("writetable_only")) && check_table(fixture_name, path, sheet, kwargs)
 
     suite[fixture_name] = BenchmarkGroup()
 
@@ -176,6 +188,23 @@ for fixture_name in [
     tmp = tempname() * ".xlsx"
     wanted("writetable") && (suite[fixture_name]["writetable"] =
         @benchmarkable bench_write($path, $tmp, $sheet, $kwargs) seconds=2SECONDS evals=1)
+
+    # writetable_only — writing alone: the table is read in setup (excluded from timing),
+    # as external_write.jl times Python's writers
+    wanted("writetable_only") && (suite[fixture_name]["writetable_only"] = @benchmarkable(
+        XLSX.writetable($tmp, _t; overwrite=true),
+        setup=(_t = XLSX.readtable($path, $sheet; $kwargs...)),
+        seconds=SECONDS, evals=1
+    ))
+
+    # writetable_streaming — the same with `streaming=true`, in versions that have it
+    if wanted("writetable_streaming") && STREAMING
+        suite[fixture_name]["writetable_streaming"] = @benchmarkable(
+            XLSX.writetable($tmp, _t; overwrite=true, streaming=true),
+            setup=(_t = XLSX.readtable($path, $sheet; $kwargs...)),
+            seconds=SECONDS, evals=1
+        )
+    end
 
     # open_readwrite — open in rw mode (eager parallel fill)
     wanted("open_readwrite") && (suite[fixture_name]["open_readwrite"] = @benchmarkable(

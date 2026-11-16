@@ -71,7 +71,7 @@ export
     readdata, getdata, gettable, readtable, readto,
     iserror, geterror,
     gettransposedtable, readtransposedtable,
-    writetable, writetable!, streamxlsx, writerow!,
+    writetable, writetable!, streamxlsx, writerow!, writerows!,
     addDefinedName, deleteDefinedName, deleteAllDefinedNames,
     setFormula,
     # Formats
@@ -127,6 +127,7 @@ const ROW_CHUNKSIZE = 1_000           # number of rows to be processed in each t
 
 include("scheme-color.jl") # must load before types.jl (`CellColor`)
 include("types.jl")
+include("rowcells.jl")
 include("xmlutil.jl")
 include("xlsx-colors.jl") # must load before sst.jl and cellformat-helpers.jl
 include("formula.jl")

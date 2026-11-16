@@ -204,7 +204,7 @@ function rereference_formulae(ws::Worksheet, cell::Cell)
         end
     end
     delete!(wb.formulas, SheetCellRef(ws.name, cell.ref))
-    cell.formula = false
+    _updatecell!(ws, cell.ref; formula=false)   # read again: re-referencing changed cells
 end
 
 # The cells keep their cached values and styles: only the formula each refers to changes.
@@ -226,7 +226,7 @@ function rereference_formulae(ws::Worksheet, oldcell::Cell, f::AbstractFormula, 
             if newfr isa EmptyCell
                 setdata!(ws, Cell(fr, UInt64(0), UInt32(0), UInt16(0), CT_EMPTY, true))
             else
-                newfr.formula = true
+                _updatecell!(ws, newfr; formula=true)
             end
         end
     end
@@ -322,9 +322,7 @@ function update_formulas_missing_sheet!(wb::Workbook, name::String)
         old_formula = f.formula
         f.formula = replace(f.formula, repoint)
         if old_formula != f.formula
-            cell = getcell(xf, ref)
-            cell.datatype = CT_ERROR
-            cell.value = UInt64(XL_REF)
+            _updatecell!(xf, ref; datatype=CT_ERROR, value=UInt64(XL_REF))
             f isa ReferencedFormula && push!(error_formula_ids, f.id) # all FormulaReferences to this formula need updating
         end
     end
@@ -335,9 +333,7 @@ function update_formulas_missing_sheet!(wb::Workbook, name::String)
         if ref.sheet == name
             push!(formulas_to_delete, ref)
         elseif f.id ∈ error_formula_ids
-            cell = getcell(xf, ref)
-            cell.datatype = CT_ERROR
-            cell.value = UInt64(XL_REF)
+            _updatecell!(xf, ref; datatype=CT_ERROR, value=UInt64(XL_REF))
         end
     end
 
@@ -1038,8 +1034,7 @@ function _set_cell_formula!(ws::Worksheet, cellref::CellRef, val::AbstractString
     else
         setdata!(ws, cellref, CellFormula(Formula(f, t == "" ? nothing : t, ref == "" ? nothing : ref, nothing), CellDataFormat(c.style)))
     end
-    c = getcell(ws, cellref)
-    c.meta = cm == "" ? UInt16(0) : parse(UInt16, cm)
+    _updatecell!(ws, cellref; meta=cm == "" ? UInt16(0) : parse(UInt16, cm))
     return f
 end
 
@@ -1075,11 +1070,11 @@ function _cache_formula_value!(ws::Worksheet, ref::CellRef, v)
     isnothing(v) && return nothing
     c = getcell(ws, ref)
     if v isa CellErrorType
-        c.datatype, c.value = CT_ERROR, UInt64(v)
+        _updatecell!(ws, c; datatype=CT_ERROR, value=UInt64(v))
         return nothing
     end
-    c.datatype, c.value = xlsx_encode(ws, v)
-    c.style = _style_for_value(ws, c.style, v)
+    t, value = xlsx_encode(ws, v)
+    _updatecell!(ws, c; datatype=t, value, style=_style_for_value(ws, c.style, v))
     return nothing
 end
 

@@ -99,6 +99,11 @@ released versions v0.10–v0.13, upstream `master` on GitHub, and the working tr
 
         julia --project=. report.jl
 
+`writetable` times reading a fixture's table and writing it again; `writetable_only`
+times the write alone (the table is read in the benchmark's setup), and
+`writetable_streaming` the same with `streaming=true`, in versions that have it
+(v0.13.4 and later).
+
 ### Quick check of the working tree
 
 `quick.jl` runs a short subset — `open`, `readtable`, `readtable_subset` and
@@ -139,28 +144,38 @@ takes. It needs no fixtures, and takes a few minutes:
 
     julia --project=envs/dev -t auto stream_write.jl after-my-change
 
-### Against Python's readers
+### Against Python's packages
 
 `external_read.jl` times python-calamine, fastexcel and openpyxl reading the same
-tables `readtable` reads, so that `report.jl` can show where XLSX.jl stands. It is
-optional and not a test dependency. It runs in its own environment, `envs/python`,
-whose CondaPkg installs a private Python with the three readers (from conda-forge,
-into `envs/python/.CondaPkg/`, which git ignores) the first time it is used. Each
-reader is timed in Python itself, after a warm-up read. With the `readtable` results
-of a version in the same results directory, `report.jl` adds a table of the times
-side by side:
+tables `readtable` reads, and `external_write.jl` times openpyxl (normal and
+`write_only=True`), XlsxWriter (normal and `constant_memory`) and rustpy-xlsxwriter
+writing the same tables `writetable_only` writes, so that `report.jl` can show where
+XLSX.jl stands. They are optional and not test dependencies. They run in their own
+environment, `envs/python`, whose CondaPkg installs a private Python with these packages
+(from conda-forge, and rustpy-xlsxwriter from PyPI, into `envs/python/.CondaPkg/`, which
+git ignores; about 1.1 GB) the first time it is used. Each package is timed in Python
+itself, after a warm-up. The writers write a list of rows read beforehand with
+python-calamine, from the header row to the first empty row (to the end on `xl_gaps`),
+as `readtable` reads it. With the results of a version in the same results directory,
+`report.jl` adds tables of the times side by side:
 
-    BENCH_RESULTS=results/<name> julia --project=envs/python external_read.jl
-    BENCH_RESULTS=results/<name> BENCH_BENCHMARKS=readtable julia --project=envs/dev --threads=8 bench_worker.jl dev fixtures results/<name>/dev.json
+    BENCH_RESULTS=results/<name> BENCH_SECONDS=5 julia --project=envs/python external_read.jl
+    BENCH_RESULTS=results/<name> BENCH_SECONDS=5 julia --project=envs/python external_write.jl
+    BENCH_RESULTS=results/<name> julia --project=. run_benchmarks.jl dev
     BENCH_RESULTS=results/<name> julia --project=. report.jl
 
 Delete `envs/python/.CondaPkg/` afterwards to remove that Python again.
 
-On 2026-11-13 (Windows, 8 threads, `BENCH_SECONDS=5`; Python 3.13, calamine 0.9.1,
-fastexcel 0.21.0, openpyxl 3.1.5), XLSX.jl's `readtable` took 0.16–0.32× openpyxl's
-time, 1.5–2.0× python-calamine's and 2.6–4.1× fastexcel's on every fixture
-(3.7× and 4.6× on `small`, where the fixed costs dominate). On `large` (50,000 rows ×
-70 columns): XLSX.jl 3.0 s, calamine 1.8 s, fastexcel 1.1 s, openpyxl 13.7 s.
+On 2026-11-15 (Windows, 8 threads; Python 3.13, calamine 0.9.1, fastexcel 0.21.0,
+openpyxl 3.1.5, XlsxWriter 3.2.9, rustpy-xlsxwriter 0.9.1), on every fixture but
+`small`, `dev`'s `readtable` took 0.06–0.10× openpyxl's time, 0.43–0.83×
+python-calamine's and 0.78–1.51× fastexcel's; `writetable_only` took 0.04–0.15× openpyxl's
+time, 0.10–0.25× XlsxWriter's (either mode of each) and 0.85–1.44× rustpy-xlsxwriter's, and
+`writetable_streaming` 0.60–1.01× rustpy-xlsxwriter's. On `large` (50,000 rows ×
+70 columns): reading, XLSX.jl 1.2 s, calamine 2.0 s, fastexcel 1.2 s, openpyxl 14.5 s;
+writing, XLSX.jl 1.9 s (1.1 s streamed), openpyxl 22.7 s (17.5 s `write_only`),
+XlsxWriter 11.7 s (10.2 s `constant_memory`), rustpy-xlsxwriter 1.6 s. Results in
+`results/2026-11-15`.
 
 ### Maintainability check
 
@@ -259,6 +274,6 @@ bump the pin when a new patch is registered.
   threading race in its style cache (fails intermittently with `--threads=8`) and
   rejects `.xlsm`, so it can't run the `xl_*` fixtures
 - `v0.12` (0.12.4) — Updated XLSX.jl implementation adopting XML.jl v0.4
-- `v0.13` (0.13.2) — Adds native Excel chart support
+- `v0.13` (0.13.4) — Adds native Excel chart support
 - `master` — upstream `master` on GitHub
 - `dev` — the working tree

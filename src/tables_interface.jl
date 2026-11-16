@@ -83,8 +83,8 @@ function writetable(filename::Union{AbstractString,IO}, x; kw...)
     if !Tables.istable(x) && _is_sheet_spec_vector(x)
         return writetable(filename, _normalize_sheet_specs(x); kw...)
     end
-    if get(kw, :streaming, false) && Tables.istable(x) && !Tables.columnaccess(x)
-        return _stream_row_table(filename, x; kw...)   # read a row at a time
+    if get(kw, :streaming, false) && Tables.istable(x)
+        return _stream_one_table(filename, x; kw...)   # read a row at a time
     end
     return writetable(filename, _table_to_arrays(x)...; kw...)
 end
@@ -94,7 +94,7 @@ function _stream_sheets_options(; overwrite::Bool=false, as_table::Bool=false, t
     return (; overwrite, as_table, table_style)
 end
 
-function _stream_row_table(filename::Union{AbstractString,IO}, x; overwrite::Bool=false, sheetname::AbstractString="",
+function _stream_one_table(filename::Union{AbstractString,IO}, x; overwrite::Bool=false, sheetname::AbstractString="",
                            anchor_cell::Union{AbstractString,CellRef}=CellRef("A1"), totals=nothing, streaming::Bool=true, kw...)
     _check_streaming_options(anchor_cell isa AbstractString ? CellRef(String(anchor_cell)) : anchor_cell, totals)
     return _stream_sheets(filename, [(sheetname, x)]; overwrite, kw...)

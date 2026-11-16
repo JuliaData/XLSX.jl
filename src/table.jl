@@ -13,7 +13,7 @@ Base.show(io::IO, ::MIME"text/plain", dt::DataTable) =
 function column_bounds(sr::SheetRow)
     isempty(sr) && throw(XLSXError("Can't get column bounds from an empty row."))
 
-    cols = keys(sr.rowcells)
+    cols = _rowcolumns(sr.rowcells)
     return (minimum(cols), maximum(cols))
 end
 
@@ -22,7 +22,7 @@ function last_column_index(sr::SheetRow, anchor_column::Int)::Int
     isempty(getcell(sr, anchor_column)) &&
         throw(XLSXError("Can't get column bounds based on an empty anchor cell."))
 
-    cols = sort!(collect(keys(sr.rowcells)))
+    cols = _sorted_rowcolumns(sr.rowcells)
     first_i = findfirst(==(anchor_column), cols)
     first_i === nothing &&
         throw(XLSXError("Anchor column $anchor_column not present in row."))
@@ -296,7 +296,7 @@ end
 @inline _row_value(::Worksheet, r::ValueRow, column::Int) = getdata(r, column)
 
 # Columns holding a `<c>` (present, even if empty), in order.
-_present_columns(r::SheetRow) = sort(collect(keys(r.rowcells)))
+_present_columns(r::SheetRow) = _sorted_rowcolumns(r.rowcells)
 _present_columns(r::ValueRow) = [r.firstcol + i - 1 for i in eachindex(r.kinds) if r.kinds[i] != _KIND_ABSENT]
 
 # `gettable`'s push of a cached cell's value (`_push_row_cell!(::Vector, ::ValueRow, …)`

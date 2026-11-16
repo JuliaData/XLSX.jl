@@ -127,9 +127,9 @@ end
 mutable struct _PendingStrings
     keys::Vector{Tuple{Bool,String}}       # (rich, plain text or `<si>` XML), in the order met
     slot::Dict{Tuple{Bool,String},Int}     # key => its position in `keys`
-    cells::Vector{Cell}                    # the cells holding a placeholder index
+    places::Vector{Tuple{RowCells,Int}}    # where cells holding a placeholder index are: row and column
 end
-_PendingStrings() = _PendingStrings(Tuple{Bool,String}[], Dict{Tuple{Bool,String},Int}(), Cell[])
+_PendingStrings() = _PendingStrings(Tuple{Bool,String}[], Dict{Tuple{Bool,String},Int}(), Tuple{RowCells,Int}[])
 
 const _PENDING_SST_BASE = Int64(1) << 62   # a placeholder is this plus the key's position - 1
 const _PENDING_STRINGS_KEY = :XLSX_pending_strings
@@ -186,8 +186,11 @@ function _commit_pending_strings!(wb::Workbook, pending::_PendingStrings)
         sst = _loaded_sst(wb)
         [rich ? add_to_sst!(sst, s) : add_plain_to_sst!(sst, s) for (rich, s) in pending.keys]
     end
-    for cell in pending.cells
-        cell.value = reinterpret(UInt64, indices[reinterpret(Int64, cell.value) - _PENDING_SST_BASE + 1])
+    for (row, col) in pending.places
+        # the cell there now: a repeated column may have replaced the one met
+        cell = _rowcell(row, col)
+        (isnothing(cell) || cell.datatype != CT_STRING || !_is_pending_index(cell.value)) && continue
+        _setrowcell!(row, _withfields(cell; value=reinterpret(UInt64, indices[reinterpret(Int64, cell.value) - _PENDING_SST_BASE + 1])))
     end
     return nothing
 end

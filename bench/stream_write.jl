@@ -14,11 +14,14 @@
 #
 # Each is written by `cached` (`writetable`), `streamed` (`streaming=true`, inline
 # strings) and `streamed shared` (`streaming=true, shared_strings=true`).
+# `streamed coltable` streams the columns as a Tables.jl column table (a NamedTuple of
+# vectors, read as a DataFrame is), and `streamed rowtable` as a vector of NamedTuples
+# (read a row at a time; the rows are built before timing, but count in peak RSS).
 # With `name`, the results are also appended to results/stream/<name>.txt, and
 # earlier runs there are printed alongside.
 
 const CASES = ["mixed 1M x 20", "strings 100k x 8"]
-const MODES = ["data only", "cached", "streamed", "streamed shared"]
+const MODES = ["data only", "cached", "streamed", "streamed shared", "streamed coltable", "streamed rowtable"]
 
 function mixed_columns(n)
     d0 = Date(2020, 1, 1)
@@ -34,6 +37,11 @@ function mixed_columns(n)
 end
 string_columns(n) = [[isodd(c) ? "row $r col $c" : "label $(r % 50)" for r in 1:n] for c in 1:8]
 
+# The columns as a NamedTuple of vectors, and as a vector of NamedTuples (as
+# `Tables.rowtable` makes; Tables is not a dependency here).
+coltable(cols, names) = NamedTuple{Tuple(Symbol.(names))}(Tuple(cols))
+rowtable(nt::NamedTuple{N}) where {N} = [NamedTuple{N}(map(c -> c[r], Tuple(nt))) for r in eachindex(first(nt))]
+
 case_columns(case) = case == "mixed 1M x 20" ? mixed_columns(1_000_000) : string_columns(100_000)
 
 # One case and mode, in this process: prints `seconds MiB-allocated MiB-file MiB-peak-RSS`.
@@ -42,7 +50,10 @@ function run_one(case, mode)
     cols = Base.invokelatest(case_columns, case)
     names = ["c$i" for i in eachindex(cols)]
     path = tempname() * ".xlsx"
+    table = mode == "streamed coltable" ? Base.invokelatest(coltable, cols, names) :
+            mode == "streamed rowtable" ? Base.invokelatest(rowtable, Base.invokelatest(coltable, cols, names)) : nothing
     write_it() = mode == "data only" ? nothing :
+        !isnothing(table) ? XLSX.writetable(path, table; overwrite=true, streaming=true) :
         XLSX.writetable(path, cols, names; overwrite=true,
                         (mode == "cached" ? (;) : (; streaming=true, shared_strings=(mode == "streamed shared")))...)
     Base.invokelatest(write_it)   # compile

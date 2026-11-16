@@ -235,7 +235,7 @@ function _hyperlink_cell_text!(s::Worksheet, rng::CellRange, text::AbstractStrin
         cell = getcell(s, ref)
         old = cell.style
         if haskey(font_of, old)
-            cell.style = font_of[old]
+            _updatecell!(s, cell; style=font_of[old])
         else
             setFont(s, ref; color=HYPERLINK_FONT_COLOR, under="single")
             font_of[old] = getcell(s, ref).style

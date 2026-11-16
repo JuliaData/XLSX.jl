@@ -166,6 +166,123 @@ end
     @test xf[1]["A1:C1"] == Any["id" "name" "when"]
 end
 
+@testset "tables in streamxlsx" begin
+    df = DataFrames.DataFrame(STREAM_MIXED_COLUMNS, Symbol.(STREAM_MIXED_NAMES))
+    kw = (; as_table=true, table_name="Mixed", freeze_header=true, column_widths=12,
+          column_formats=Dict(:float => "0.00", "date" => "yyyy-mm-dd"))
+
+    # `addsheet!` with a table writes what `writetable(...; streaming=true)` does, but
+    # for the sheet's `<dimension>`: more rows can follow, so the range isn't known
+    no_dimension(xml) = replace(xml, r"<dimension ref=\"[A-Z0-9:]+\"/>\s*" => "")
+    for shared_strings in (false, true)
+        written = stream_written(io -> XLSX.writetable(io, df; streaming=true, shared_strings, sheetname="Data", kw...))
+        streamed = stream_written(io -> XLSX.streamxlsx(io; shared_strings) do s
+            sh = XLSX.addsheet!(s, "Data", df; kw...)
+            @test sh isa XLSX.StreamSheet && sh.row == 5
+        end)
+        a, b = stream_parts(written), stream_parts(streamed)
+        @test occursin("<dimension ref=\"A1:I5\"/>", a["xl/worksheets/sheet1.xml"])
+        @test !occursin("<dimension", b["xl/worksheets/sheet1.xml"])
+        @test keys(a) == keys(b)
+        for (name, xml) in a
+            @test mask_times(b[name]) == mask_times(no_dimension(xml))
+        end
+    end
+
+    # a DataFrame's columns are read as they are, not copied
+    ct = Tables.columntable(df)
+    @test all(ct[k] === df[!, k] for k in propertynames(df))
+
+    # tables, other sheets and hand-written rows, in one file
+    rows = [(id=i, name="n$i") for i in 1:5]
+    bytes = stream_written(io -> XLSX.streamxlsx(io) do s
+        sh = XLSX.addsheet!(s, "Rows", rows)
+        XLSX.writerow!(sh, (6, "by hand"))
+        XLSX.writerows!(sh, [(id=7, name="n7"), (id=8, name="n8")])
+        XLSX.writerows!(sh, Iterators.filter(r -> r.id > 3, rows))   # no length: read as it goes
+        XLSX.writerows!(sh, DataFrames.DataFrame(x=[9], y=["df"]))     # by position, not name
+        XLSX.writerows!(sh, rows[1:0])                                # no rows
+        for i in 1:3   # a table in pieces
+            XLSX.writerows!(sh, [(id=10i, name="p$i")])
+        end
+        XLSX.addsheet!(s, "Plain"; columns=["only"])
+        XLSX.addsheet!(s, "Empty", DataFrames.DataFrame(a=Int[], b=String[]))
+    end)
+    SAVE_FILES && save_outfile(IOBuffer(bytes))
+    xf = XLSX.readxlsx(IOBuffer(bytes))
+    @test XLSX.sheetnames(xf) == ["Rows", "Plain", "Empty"]
+    t = XLSX.gettable(xf["Rows"])
+    @test t.column_labels == [:id, :name]
+    @test t.data == Any[[1:8; 4; 5; 9; 10; 20; 30],
+                        ["n1", "n2", "n3", "n4", "n5", "by hand", "n7", "n8", "n4", "n5", "df", "p1", "p2", "p3"]]
+    @test xf["Empty"]["A1:B1"] == Any["a" "b"]
+    @test ismissing(xf["Empty"]["A2"])
+
+    # a table with no schema (a vector of `Dict`s) takes its names from its first row
+    dicts = [Dict(:a => i, :b => i / 2) for i in 1:3]
+    @test isnothing(Tables.schema(Tables.rows(dicts)))
+    xf = XLSX.readxlsx(IOBuffer(stream_written(io -> XLSX.streamxlsx(s -> XLSX.addsheet!(s, "D", dicts), io))))
+    t = XLSX.gettable(xf["D"])
+    col(k) = t.data[findfirst(==(k), t.column_labels)]
+    @test sort(t.column_labels) == [:a, :b]
+    @test col(:a) == [1, 2, 3] && col(:b) == [0.5, 1.0, 1.5]
+
+    # XLSX.jl's own tables: a `DataTable` (by columns, typed), the rows of
+    # `eachtablerow` (by rows, every column `Any`) and an Excel Table (by rows and by
+    # columns; its schema has no types)
+    source = stream_written(io -> XLSX.writetable(io, df; sheetname="Src", as_table=true, table_name="Src"))
+    xf = XLSX.readxlsx(IOBuffer(source))
+    reference = XLSX.readtable(IOBuffer(source), "Src")
+    for (label, table) in ["DataTable" => reference, "eachtablerow" => XLSX.eachtablerow(xf["Src"]),
+                           "Excel Table" => only(XLSX.tables(xf["Src"]))]
+        @testset "$label" begin
+            bytes = stream_written(io -> XLSX.streamxlsx(s -> XLSX.addsheet!(s, "Out", table), io))
+            t = XLSX.readtable(IOBuffer(bytes), "Out")
+            @test t.column_labels == reference.column_labels
+            @test isequal(t.data, reference.data)
+            # and appended below a header of their own
+            bytes = stream_written(io -> XLSX.streamxlsx(io) do s
+                XLSX.writerows!(XLSX.addsheet!(s, "Out"; columns=STREAM_MIXED_NAMES), table)
+            end)
+            @test isequal(XLSX.readtable(IOBuffer(bytes), "Out").data, reference.data)
+        end
+    end
+
+    # wider than the unrolled limit: still right
+    wide = DataFrames.DataFrame(["c$j" => [j, j + 1] for j in 1:150])
+    xf = XLSX.readxlsx(IOBuffer(stream_written(io -> XLSX.streamxlsx(s -> XLSX.addsheet!(s, "W", wide), io))))
+    @test xf["W"]["EK1"] == "c141"
+    @test xf["W"]["EK3"] == 142
+end
+
+@testset "floats written as print writes them" begin
+    # `_write_number` writes floats of up to 15 digits itself, and others with `print`
+    w = XLSX._RowWriter(XLSX.newxlsx()[1], "", 1)
+    io = IOBuffer()
+    written(x) = (XLSX._write_number(io, w, x); String(take!(io)))
+    rng = Random.Xoshiro(7)
+    vals = reinterpret.(Float64, rand(rng, UInt64, 20_000))
+    for e in -12:16, j in 0:17   # short decimals at every scale
+        append!(vals, round.(rand(rng, 4) .* 10.0^e; digits=j))
+    end
+    append!(vals, [k * 10.0^j for k in (1, 7, 12, 123, 999) for j in -25:25])
+    for b in (1e-4, 1e6, 1e15, 1e-5, 1e16, 1.0, 0.1, 2.0^53, 1e22, 1e23)   # where the notation changes
+        for f in (nextfloat, prevfloat)
+            y = b
+            for _ in 1:20
+                push!(vals, y)
+                y = f(y)
+            end
+        end
+    end
+    append!(vals, [r * 0.25 for r in 1:1000]); append!(vals, [k / 24 + 45000 for k in 1:100])
+    append!(vals, [5e-324, floatmin(Float64), floatmax(Float64), 0.0, Inf, NaN, 0.1 + 0.2, 1 / 3])
+    append!(vals, -vals)
+    @test all(x -> written(x) == string(x), vals)
+    @test count(x -> XLSX._write_short_float(io, w, x), vals) > length(vals) ÷ 10   # most short ones are
+    take!(io)
+end
+
 @testset "several sheets" begin
     df1 = DataFrames.DataFrame(a=[1, 2], b=["x", "y"])
     rows2 = [(c=1.5,), (c=2.5,)]
@@ -211,6 +328,16 @@ end
     stream_err(s -> XLSX.addsheet!(s; column_widths=10))                                  # one width needs columns
     stream_err(s -> XLSX.addsheet!(s; columns=["a"], column_formats=Dict("b" => "0.0")))  # no column "b"
     stream_err(s -> XLSX.addsheet!(s; column_formats=["0.0"]))                            # not a Dict
+    stream_err(s -> XLSX.addsheet!(s, "T", 1))                                            # not a table
+    stream_err(s -> XLSX.addsheet!(s, "T", [(a=1,)]; columns=["b"]))                      # names come from the table
+    stream_err(s -> XLSX.addsheet!(s, "T", DataFrames.DataFrame()))                       # no columns
+    stream_err(s -> XLSX.writerows!(XLSX.addsheet!(s), [1, 2]))                           # not a table
+    stream_err(s -> XLSX.writerows!(XLSX.addsheet!(s; columns=["a"]), [(a=1, b=2)]))      # wider than the header
+    stream_err(function (s)
+        sh = XLSX.addsheet!(s, "First", [(a=1,)])
+        XLSX.addsheet!(s, "Second")
+        XLSX.writerows!(sh, [(a=2,)])                                              # closed
+    end)
     stream_err(function (s)
         sh = XLSX.addsheet!(s)
         sh.row = XLSX.EXCEL_MAX_ROWS

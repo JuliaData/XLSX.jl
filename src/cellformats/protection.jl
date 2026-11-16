@@ -118,7 +118,7 @@ function _restyle_cells!(restyle::Function, ws::Worksheet, parts::Vector; empty=
                 ws[ref] = empty
                 cell = getcell(ws, ref)
             end
-            cell.style = get!(() -> restyle(Int(cell.style)), new_style, Int(cell.style))
+            _updatecell!(ws, cell; style=get!(() -> restyle(Int(cell.style)), new_style, Int(cell.style)))
         end
     end
     return nothing

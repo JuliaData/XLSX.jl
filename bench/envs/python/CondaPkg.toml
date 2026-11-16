@@ -1,8 +1,14 @@
-# The Python readers external_read.jl times. CondaPkg installs them, with their own
-# Python, from conda-forge when the environment is first used.
+# The Python readers external_read.jl times and the writers external_write.jl times.
+# CondaPkg installs them, with their own Python, from conda-forge (rustpy-xlsxwriter,
+# which isn't on conda-forge, from PyPI) when the environment is first used.
 [deps]
 python = ">=3.11,<3.14"
+pip = ""
 openpyxl = ""
 python-calamine = ""
 fastexcel = ""
 pyarrow = ""
+xlsxwriter = ""
+
+[pip.deps]
+rustpy-xlsxwriter = ""

@@ -470,8 +470,8 @@ function getCellImages(ws::Worksheet)
     out = NamedTuple{(:cell, :image),Tuple{String,CellImage}}[]
     rich = nothing
     for r in eachrow(ws)
-        for col in sort!(collect(keys(r.rowcells)))
-            cell = r.rowcells[col]
+        for col in _sorted_rowcolumns(r.rowcells)
+            cell = _rowcell(r.rowcells, col)
             cell.datatype == CT_RICHVALUE || continue
             rich = something(rich, _rich_values(xf))
             img = _cell_image(xf, rich, cell.value)
