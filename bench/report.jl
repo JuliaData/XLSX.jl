@@ -22,7 +22,7 @@ const fixtures = [
 
 const benchmarks = [
     "open", "readtable", "readtable_subset", "readtable_gaps", "readxlsx", "eachrow",
-    "single_cell", "writetable", "open_readwrite",
+    "single_cell", "writetable", "writetable_only", "writetable_streaming", "open_readwrite",
     "readtable_all_sheets",
 ]
 
@@ -120,4 +120,46 @@ let path = joinpath(RESULTS_DIR, "external.toml")
     end
     println("\nMedian times in milliseconds. XLSX/reader < 1.0x = XLSX.jl is faster. The Python",
             "\nreaders are timed in Python itself; calamine and openpyxl read the whole sheet.")
+end
+
+# ── Against Python's writers ──────────────────────────────────────────────────
+# external_write.jl's times for openpyxl, XlsxWriter and rustpy-xlsxwriter writing the
+# same tables, beside the newest XLSX.jl version's `writetable_only` (and
+# `writetable_streaming`, where it has it).
+
+let path = joinpath(RESULTS_DIR, "external_write.toml")
+    isfile(path) || return
+    ext = TOML.parsefile(path)
+    i = findlast(l -> haskey(all_results, l), first.(VERSIONS))
+    isnothing(i) && return
+    v = first(VERSIONS[i])
+    writers = [("openpyxl", "openpyxl"), ("openpyxl_write_only", "opx wo"),
+               ("xlsxwriter", "xlsxwr"), ("xlsxwriter_constant_memory", "xlsxwr cm"),
+               ("rustpy_xlsxwriter", "rustpy")]
+    println("\n" * "="^60)
+    println("WRITING A TABLE: XLSX.jl $v AGAINST PYTHON'S WRITERS")
+    println("="^60)
+    vers = get(ext, "versions", Dict())
+    println("Python ", get(ext, "python", "?"), "; ", join(("$r $(get(vers, r, "?"))" for r in ("openpyxl", "xlsxwriter", "rustpy_xlsxwriter")), ", "))
+    println(@sprintf("%-16s%12s%12s", "fixture", "XLSX", "XLSX strm") * join(@sprintf("%12s", s) for (_, s) in writers) *
+            @sprintf("%14s%14s", "XLSX/xlsxwr", "XLSX/rustpy"))
+    for fix in fixtures
+        haskey(ext, fix) && haskey(all_results[v], fix) && haskey(all_results[v][fix], "writetable_only") || continue
+        ours = median(all_results[v][fix]["writetable_only"]).time / 1e6
+        strm = haskey(all_results[v][fix], "writetable_streaming") ?
+               median(all_results[v][fix]["writetable_streaming"]).time / 1e6 : NaN
+        row = @sprintf("%-16s%10.1fms", fix, ours) * (isnan(strm) ? @sprintf("%12s", "N/A") : @sprintf("%10.1fms", strm))
+        for (w, _) in writers
+            t = get(ext[fix], w, NaN)
+            row *= isnan(t) ? @sprintf("%12s", "N/A") : @sprintf("%10.1fms", t)
+        end
+        for w in ("xlsxwriter", "rustpy_xlsxwriter")
+            t = get(ext[fix], w, NaN)
+            row *= isnan(t) ? @sprintf("%14s", "N/A") : @sprintf("%13.2fx", ours / t)
+        end
+        println(row)
+    end
+    println("\nMedian times in milliseconds, writing alone (the table is read beforehand).",
+            "\nXLSX/writer < 1.0x = XLSX.jl is faster. opx wo = openpyxl write_only=True;",
+            "\nxlsxwr cm = XlsxWriter constant_memory=True. The Python writers are timed in Python itself.")
 end

@@ -17,7 +17,7 @@ It may still exist in a form they don't describe. In short:
   XLSX.jl's `readtable` is faster than python-calamine and about as fast as fastexcel
   (see [Speed](#Speed)).
 - **openpyxl** reads and writes `.xlsx` files, as XLSX.jl does, with a similar range of
-  features, but it is much slower to read.
+  features, but it is much slower to read and to write.
 - **XLSX.jl** reads and writes `.xlsx` files, edits them in place, and covers formatting,
   charts and Excel's newer features. It reads only the Office Open XML formats.
 
@@ -93,25 +93,56 @@ Neither python-calamine nor fastexcel reads or writes anything in this table.
 
 ## Speed
 
-On the benchmark fixtures, XLSX.jl's [`XLSX.readtable`](@ref) reads a table 11 to 14 times
+All the times below were measured on 2026-11-15 on the same machine (Windows, 8 threads;
+Python 3.13). XLSX.jl's are those of the code for the next release. The method is in
+[`bench/README.md`](https://github.com/JuliaData/XLSX.jl/blob/master/bench/README.md#against-pythons-packages).
+
+### Reading
+
+On the benchmark fixtures, XLSX.jl's [`XLSX.readtable`](@ref) reads a table 10 to 17 times
 as fast as openpyxl, in 0.4 to 0.8 times python-calamine's time, and in about the same
-time as fastexcel (0.75 to 1.4 times its time). The exception is the smallest table
-(100 rows), where fixed costs dominate and the Python readers are 2.6 to 3.2 times as fast.
-Times in milliseconds (medians), for a few of the fixtures:
+time as fastexcel (0.8 to 1.5 times its time). The exception is the smallest table
+(100 rows), where fixed costs dominate and python-calamine and fastexcel are about 3 times
+as fast. Times in milliseconds (medians), for a few of the fixtures:
 
 | Table | XLSX.jl | python-calamine | fastexcel | openpyxl |
 |:------|--------:|----------------:|----------:|---------:|
-| 5,000 rows × 30 columns, mixed | 49 | 77 | 45 | 626 |
-| 50,000 rows × 70 columns, mixed | 1,095 | 1,775 | 1,073 | 13,650 |
-| 50,000 rows × 20 columns, numbers | 227 | 387 | 194 | 2,677 |
-| 50,000 rows × 10 columns, unique strings | 289 | 393 | 316 | 3,741 |
-| 30,000 rows × 100 columns, as Excel writes them, 20% formulas | 783 | 1,394 | 809 | 8,680 |
+| 5,000 rows × 30 columns, mixed | 50 | 84 | 47 | 702 |
+| 50,000 rows × 70 columns, mixed | 1,243 | 1,974 | 1,175 | 14,536 |
+| 50,000 rows × 20 columns, numbers | 271 | 433 | 202 | 2,801 |
+| 50,000 rows × 10 columns, unique strings | 297 | 425 | 294 | 4,001 |
+| 30,000 rows × 100 columns, as Excel writes them, 20% formulas | 880 | 1,418 | 821 | 8,999 |
 
-These are XLSX.jl's times with the reading changes in the next release, made on 2026-11-14;
-the Python readers' times were made on 2026-11-13 on the same machine (Windows, 8 threads;
-Python 3.13, calamine 0.9.1, fastexcel 0.21.0, openpyxl 3.1.5). The method is in
-[`bench/README.md`](https://github.com/JuliaData/XLSX.jl/blob/master/bench/README.md#Against-Python's-readers).
+python-calamine 0.9.1, fastexcel 0.21.0 (to Arrow), openpyxl 3.1.5 (`read_only=True`).
+
+### Writing
+
+python-calamine and fastexcel can't write, so here openpyxl is set beside the two writers
+most used in Python: [XlsxWriter](https://xlsxwriter.readthedocs.io/), which pandas and
+Polars use to write Excel files, and
+[rustpy-xlsxwriter](https://github.com/rahmadafandi/rustpy-xlsxwriter), Python bindings
+for the Rust [rust_xlsxwriter](https://github.com/jmcnamara/rust_xlsxwriter). Each writes
+the same table, values only, read beforehand and not timed. [`XLSX.writetable`](@ref)
+writes it 7 to 24 times as fast as openpyxl and 4 to 10 times as fast as XlsxWriter (the
+lower figures are against their faster modes), and in 0.85 to 1.4 times
+rustpy-xlsxwriter's time. With `streaming=true` it takes 0.6 to 1.0 times
+rustpy-xlsxwriter's time. Times in milliseconds (medians):
+
+| Table | XLSX.jl | XLSX.jl, `streaming=true` | openpyxl | openpyxl, `write_only=True` | XlsxWriter | XlsxWriter, `constant_memory` | rustpy-xlsxwriter |
+|:------|--------:|--------:|--------:|--------:|--------:|--------:|--------:|
+| 5,000 rows × 30 columns, mixed | 79 | 54 | 915 | 807 | 495 | 448 | 60 |
+| 50,000 rows × 70 columns, mixed | 1,876 | 1,123 | 22,656 | 17,534 | 11,719 | 10,152 | 1,608 |
+| 50,000 rows × 20 columns, numbers | 434 | 417 | 6,281 | 4,956 | 3,248 | 2,717 | 499 |
+| 50,000 rows × 10 columns, unique strings | 494 | 239 | 3,865 | 3,310 | 2,479 | 2,010 | 342 |
+| 30,000 rows × 100 columns, the values of the Excel-like table | 1,719 | 1,470 | 21,261 | 17,170 | 11,269 | 9,738 | 1,678 |
+
+openpyxl 3.1.5, XlsxWriter 3.2.9, rustpy-xlsxwriter 0.9.1. XLSX.jl writes from the
+table `readtable` returns; the Python writers write from a list of rows (a list of
+dictionaries for rustpy-xlsxwriter), one row at a time where the writer takes rows.
+On the smallest table (100 rows) XLSX.jl takes 3 ms, XlsxWriter 15 ms and
+rustpy-xlsxwriter 4 ms.
+
 Opening a workbook with [`XLSX.openxlsx`](@ref) to read or edit it does more work than
-`readtable`, and isn't compared here.
+`readtable` or `writetable`, and isn't compared here.
 
 See also: [Supported features](features.md) for every XLSX.jl feature and its functions.
