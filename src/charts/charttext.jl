@@ -314,15 +314,19 @@ end
     setChartTitleText(c, text) -> Chart
     setChartTitleText(c, ref::Union{CellRef,SheetCellRef}) -> Chart
 
-Replace the chart title's text and all its formatting. `text` may be a
-`DrawingText`, a string, which becomes a one-run title inheriting its formatting
-from the chart style, or a `RichTextString`, whose runs keep their own
-formatting and inherit the rest. A newline starts a new paragraph. A styled
-string from StyledStrings.jl (`styled"…"`, Julia 1.11 and later) is converted to
-a `RichTextString` as it is when written to a cell.
+Replace the chart title's text and the formatting of that text. `text` may be a
+`DrawingText`, a string, which becomes a one-run title in the title's style, or
+a `RichTextString`, whose runs keep their own formatting and take the rest from
+the title's style. A newline starts a new paragraph. A styled string from
+StyledStrings.jl (`styled"…"`, Julia 1.11 and later) is converted to a
+`RichTextString` as it is when written to a cell.
 
-This replaces rather than merges, like writing a `RichTextString` to a cell —
-use [`setChartTitleTextProp`](@ref) to change one property and leave the rest.
+The title's style is its `c:txPr`: the formatting [`setChartTitleTextProp`](@ref)
+sets, and what [`getChartTitleTextProps`](@ref) reads. It is kept, and the new
+text is written over it, as Excel writes a title: its text body and paragraph
+defaults are the style's wherever `text` sets none of its own. Formatting `text`
+does set replaces the old text's, like writing a `RichTextString` to a cell — use
+[`setChartTitleTextProp`](@ref) to change one property and leave the rest.
 
 Given a `CellRef` or `SheetCellRef`, the title is bound to that cell
 (`c:tx/c:strRef`) and shows its text, with the cell's current value cached as
@@ -340,8 +344,9 @@ Formatting that varies between the cell's runs is not shown.
 Typing text over a bound title replaces the reference. `c:autoTitleDeleted` is
 not touched, so a chart with the title switched off stays that way.
 
-A title created here gets `c:overlay val="0"`, as Excel writes on every title
-it creates, so it sits beside the plot area rather than over it.
+A chart with no title is given the one Excel 365 creates: 14 point, in the text
+color at 65%, with no fill or border, and `c:overlay val="0"` so that it sits
+beside the plot area rather than over it.
 """
 function setChartTitleText(c::Chart, text::DrawingText)
     root = chart_root(c)
@@ -349,7 +354,7 @@ function setChartTitleText(c::Chart, text::DrawingText)
     new  = rebuild_path(root,
                [(NS_C, "chart") => "chart",
                 (NS_C, "title") => "title"],
-               t -> _title_with_text(t, text, pfx);
+               t -> _title_with_text(_title_or_new(t, "chart", pfx), text, _wb(c), pfx);
                prefixes = pfx)
     set_chart_root!(c, new)
     return c
@@ -365,14 +370,78 @@ function setChartTitleText(c::Chart, ref::Union{CellRef,SheetCellRef})
     new  = rebuild_path(root,
                [(NS_C, "chart") => "chart",
                 (NS_C, "title") => "title"],
-               t -> _title_with_ref(t, strref, cellrich, _wb(c), pfx);
+               t -> _title_with_ref(_title_or_new(t, "chart", pfx), strref, cellrich, _wb(c), pfx);
                prefixes = pfx)
     set_chart_root!(c, new)
     return c
 end
 
-_title_with_text(t::XML.Node, text::DrawingText, pfx) =
-    _title_with_tx(t, _text_from(text, "rich", pfx), pfx)
+# The titles Excel 365 creates (Chart Elements → Chart Title, Axis Titles),
+# verbatim but for their c:tx: no fill or border, and text in the minor font
+# and the text color at 65%, 14 point for the chart title and 10 point for an
+# axis title. Excel turns a vertical axis's title a quarter turn, which
+# `_new_title` adds. Checked against test/data/chart_axis_titles_excel.xlsx.
+const _TITLE_TEMPLATE_DIR = joinpath(DATA_DIR, "charttitles")
+const _TITLE_TEMPLATES = Dict{String,String}()
+for f in ("chart", "axis")
+    p = joinpath(_TITLE_TEMPLATE_DIR, f * ".xml")
+    include_dependency(p)
+    _TITLE_TEMPLATES[f] = read(p, String)
+end
+
+# Excel's new `kind` title, "chart" or "axis", in the part's prefixes. A title
+# with no style is drawn in DrawingML's 18 point black, or Excel's old bold
+# default when it is bound to a cell, unlike any title Excel makes.
+function _new_title(kind::String, pfx; vertical::Bool = false)
+    t = _in_prefixes(xml_root_element(parse(_TITLE_TEMPLATES[kind], XML.Node)), pfx)
+    vertical || return t
+    return rebuild_path(t, [(NS_C, "txPr") => "txPr", (NS_A, "bodyPr") => "bodyPr"],
+                        b -> with_attribute(b, "rot", "-5400000");
+                        prefixes = pfx, parent_key = (NS_C, "title"))
+end
+
+# `t`, or Excel's new title in its place where `t` is empty: just created on the
+# way to it, or a bare <c:title/>, which has no style to keep.
+function _title_or_new(t::XML.Node, kind::String, pfx; vertical::Bool = false)
+    kids = XML.children(t)
+    return isnothing(kids) || isempty(kids) ? _new_title(kind, pfx; vertical) : t
+end
+
+# An axis's title or Excel's new one, turned a quarter where the axis is drawn
+# on the left or right.
+_axis_title_or_new(t::XML.Node, axis::XML.Node, pfx) =
+    _title_or_new(t, "axis", pfx;
+                  vertical = _attr(first_element_with_tag(axis, "axPos"), "val") in ("l", "r"))
+
+_title_with_text(t::XML.Node, text::DrawingText, wb::Workbook, pfx) =
+    _title_with_tx(t, _text_from(_on_title_style(text, first_element_with_tag(t, "txPr"), wb),
+                                 "rich", pfx), pfx)
+
+# Excel draws a typed title from its c:rich alone, so text with no formatting of
+# its own falls back to DrawingML's 18 point black. Excel writes the title's
+# style, its c:txPr, into the c:rich as well, and so does this: the c:txPr's
+# bodyPr and lstStyle where `text` has none, and its paragraph defaults under
+# each paragraph's own. What `text` sets wins.
+function _on_title_style(text::DrawingText, txpr::Union{Nothing,XML.Node}, wb::Workbook)
+    style = parse_drawing_text(wb, txpr)
+    isnothing(style) && return text
+    sp    = isempty(style.paragraphs) ? nothing : first(style.paragraphs).props
+    paras = DrawingParagraph[DrawingParagraph(_overlay_para_props(sp, p.props), p.runs, p.endprops, nothing)
+                             for p in text.paragraphs]
+    return DrawingText(something(text.body, style.body, Some(nothing)),
+                       something(text.liststyle, style.liststyle, Some(nothing)), paras, nothing)
+end
+
+# Field by field, `top` where it sets a value and `base` elsewhere; the default
+# run props are overlaid in the same way.
+function _overlay_para_props(base, top)
+    isnothing(top)  && return base
+    isnothing(base) && return top
+    return DrawingParaProps((f === :raw      ? nothing :
+                             f === :defprops ? _overlay_run_props(base.defprops, top.defprops) :
+                             something(getfield(top, f), Some(getfield(base, f)))
+                             for f in fieldnames(DrawingParaProps))...)
+end
 
 # Put `content` — a c:rich or a c:strRef — in the title's c:tx, replacing either.
 # A title with no c:overlay is drawn over the plot area; Excel writes
@@ -451,22 +520,27 @@ _run_prop_pairs(p::DrawingRunProps) =
     setAxisTitleText(c, ax, text) -> Chart
     setAxisTitleText(c, ax, ref::Union{CellRef,SheetCellRef}) -> Chart
 
-Replace an axis title's text and all its formatting, or bind it to a cell. `ax`
-names the axis by where it is drawn, `:x`, `:y`, `:x2` or `:y2` (see
+Replace an axis title's text and the formatting of that text, or bind it to a
+cell. `ax` names the axis by where it is drawn, `:x`, `:y`, `:x2` or `:y2` (see
 [`getChartAxis`](@ref)), or is a `ChartAxis` from [`getChartAxes`](@ref). `text`
 is as for [`setChartTitleText`](@ref): a string, a `DrawingText`, or a
-`RichTextString` or styled string, which keeps its run formatting. A `CellRef`
-or `SheetCellRef` binds the title, and a bound title can't carry rich text.
+`RichTextString` or styled string, which keeps its run formatting; the title's
+style, set by [`setAxisTitleTextProp`](@ref), is kept as for the chart title. A
+`CellRef` or `SheetCellRef` binds the title, and a bound title can't carry rich
+text.
 
-A title created here gets `c:overlay val="0"`, as Excel writes on every title
-it creates, so it sits beside the plot area rather than over it.
+An axis with no title is given the one Excel 365 creates: 10 point, in the text
+color at 65%, with no fill or border, and `c:overlay val="0"` so that it sits
+beside the plot area rather than over it. On an axis drawn on the left or right
+it reads upwards, turned a quarter (`a:bodyPr rot="-5400000"`), as in Excel.
 """
 function setAxisTitleText(c::Chart, ax::AxisRef, text::DrawingText)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
-    steps, _, _ = _axis_path(c, root, ax)
+    steps, _, el = _axis_path(c, root, ax)
     new = rebuild_path(root, [steps...; (NS_C, "title") => "title"],
-                       t -> _title_with_text(t, text, pfx); prefixes = pfx)
+                       t -> _title_with_text(_axis_title_or_new(t, el, pfx), text, _wb(c), pfx);
+                       prefixes = pfx)
     set_chart_root!(c, new)
     return c
 end
@@ -478,9 +552,10 @@ function setAxisTitleText(c::Chart, ax::AxisRef, ref::Union{CellRef,SheetCellRef
     strref, cellrich = _title_ref(c, ref)
     root = chart_root(c)
     pfx  = ns_prefixes(root)
-    steps, _, _ = _axis_path(c, root, ax)
+    steps, _, el = _axis_path(c, root, ax)
     new = rebuild_path(root, [steps...; (NS_C, "title") => "title"],
-                       t -> _title_with_ref(t, strref, cellrich, _wb(c), pfx); prefixes = pfx)
+                       t -> _title_with_ref(_axis_title_or_new(t, el, pfx), strref, cellrich, _wb(c), pfx);
+                       prefixes = pfx)
     set_chart_root!(c, new)
     return c
 end

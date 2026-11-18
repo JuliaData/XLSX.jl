@@ -1391,7 +1391,7 @@
             @test isnothing(title(c, valax))
             c = XLSX.Charts.setAxisTitleText(c, valax, "Proportion of responses")
             @test XLSX.Charts._bool_val(title(c, valax), "overlay") === false
-            @test [XLSX.localname(k) for k in XML.eachelement(title(c, valax))] == ["tx", "overlay"]
+            @test [XLSX.localname(k) for k in XML.eachelement(title(c, valax))] == ["tx", "overlay", "spPr", "txPr"]
             c = XLSX.Charts.setAxisTitleText(c, valax, "Share of responses")       # replaced, not duplicated
             @test count(k -> XLSX.localname(k) == "overlay", XML.eachelement(title(c, valax))) == 1
             @test axorder(c, valax)
@@ -2207,6 +2207,68 @@
             s = C.addChart(ws, :line; anchor = "F92:M108", xtitle = styled"{italic:Month}")
             @test C.getAxisTitleText(s, :x).paragraphs[1].runs[1].props.italic === true
         end
+        SAVE_FILES && save_outfile(xf)
+    end
+
+    @testset "new titles are formatted as Excel's" begin
+        # Issue #502: a new axis title, or retyped chart title, had no style and was
+        # drawn by Excel in DrawingML's 18pt black, or its old bold default when bound.
+        C = XLSX.Charts
+        # A line chart whose titles Excel 365 added (Chart Elements → Axis Titles).
+        ref = first(C.getCharts(XLSX.readxlsx(joinpath(data_directory, "chart_axis_titles_excel.xlsx"))[1]))
+        style(t) = (t.body, first(t.paragraphs).props)
+        for ax in (:x, :y)
+            @test style(C.getAxisTitleText(ref, ax)) == style(C.getAxisTitleTextProps(ref, ax))
+        end
+        @test C.getAxisTitleTextProps(ref, :y).body.rotation == -90
+        @test C.getAxisTitleTextProps(ref, :x).body.rotation == 0
+
+        xf = XLSX.newxlsx()
+        ws = xf[1]
+        ws["A1"] = ["" "North" "South"; 2 4 7; 3 5 8; 4 6 9; 5 7 10]
+        c = C.addChart(ws, :line; anchor = "F2:M18", title = "Sales", xtitle = "Month", ytitle = "£m")
+        for ax in (:x, :y)      # both the c:rich drawn and the c:txPr style, as Excel's
+            @test style(C.getAxisTitleText(c, ax))      == style(C.getAxisTitleText(ref, ax))
+            @test style(C.getAxisTitleTextProps(c, ax)) == style(C.getAxisTitleTextProps(ref, ax))
+        end
+        d = C.default_run_props(C.getAxisTitleText(c, :y))
+        @test d.size == 10 && d.bold === false && d.latin == "+mn-lt"
+        n = C._axnode(c, :y)
+        @test [XLSX.localname(k) for k in XML.eachelement(XLSX.first_element_with_tag(n, "title"))] ==
+              ["tx", "overlay", "spPr", "txPr"]
+
+        # Set with setAxisTitleText rather than addChart, and set again.
+        c2 = C.addChart(ws, :line; anchor = "F20:M36")
+        C.setAxisTitleText(c2, :y, "£m")
+        C.setAxisTitleText(c2, :y, "Revenue")
+        @test style(C.getAxisTitleText(c2, :y)) == style(C.getAxisTitleText(ref, :y))
+
+        # A horizontal bar chart's category axis is drawn on the left, so its title is turned.
+        b = C.addChart(ws, :bar; anchor = "F38:M54", xtitle = "£m", ytitle = "Region")
+        @test C.getAxisTitleText(b, C.getChartAxis(b, :category)).body.rotation == -90
+        @test C.getAxisTitleText(b, C.getChartAxis(b, :value)).body.rotation == 0
+
+        # A title bound to a cell has the same style, so is not drawn bold.
+        r = C.addChart(ws, :scatter; anchor = "F56:M72", xtitle = XLSX.CellRef("B1"))
+        @test style(C.getAxisTitleTextProps(r, :x)) == style(C.getAxisTitleTextProps(ref, :x))
+
+        # Retyping a chart title keeps its style; what the new text sets still wins.
+        t0 = style(C.getChartTitleText(c))
+        C.setChartTitleText(c, "Sales by month")
+        @test style(C.getChartTitleText(c)) == t0
+        @test C.default_run_props(C.getChartTitleText(c)).size == 14
+        C.setChartTitleTextProp(c, :size, 18)
+        C.setChartTitleText(c, "Sales")
+        @test C.default_run_props(C.getChartTitleText(c)).size == 18
+        C.setChartTitleText(c, C.DrawingText(C.DrawingParagraph("Q4";
+                               props = C.DrawingParaProps(defprops = C.DrawingRunProps(italic = true)))))
+        d = C.default_run_props(C.getChartTitleText(c))
+        @test d.italic === true && d.size == 18 && d.bold === false
+
+        # A chart made without a title is given Excel's when one is set.
+        nt = C.addChart(ws, :column; anchor = "F74:M90", title = false)
+        C.setChartTitleText(nt, "Regions")
+        @test style(C.getChartTitleText(nt)) == t0
         SAVE_FILES && save_outfile(xf)
     end
 end
