@@ -363,10 +363,12 @@ julia> setChartTitleText(c, "Revenue by region");
 julia> setAxisTitleText(c, :y, "£m");
 ```
 
-A title these create is written with `c:overlay` off, as Excel writes every
-title it creates, so it sits beside the plot area rather than over it. A title
-that already has `c:overlay` keeps its value. The text is formatted separately,
-with [`setChartTitleTextProp`](@ref) and [`setAxisTitleTextProp`](@ref).
+A title these create is the one Excel 365 creates: the chart title 14 point and
+an axis title 10 point, in grey with no fill or border, and with `c:overlay`
+off, so that it sits beside the plot area rather than over it. A title that
+already has `c:overlay` keeps its value. New text keeps the title's formatting
+unless it carries its own; the formatting is changed separately, with
+[`setChartTitleTextProp`](@ref) and [`setAxisTitleTextProp`](@ref).
 
 Multi-line titles are written as a [`DrawingText`](@ref) with several
 paragraphs:

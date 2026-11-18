@@ -54,8 +54,9 @@ julia> c = addChart(ws, :column; anchor = "D2:K17", title = "Revenue",
 
 Like `title`, each can be rich text or a cell reference instead of a string.
 They mean the axes as drawn, so on a `:bar` chart, whose bars run sideways,
-`ytitle` names the categories. To title an axis later, or one these don't reach,
-such as a combo chart's secondary axis, use [`setAxisTitleText`](@ref):
+`ytitle` names the categories. New axis titles look as they do when added in
+Excel: 10 point grey text, the vertical axis's title turned to read upwards. To
+title an axis later, or one these don't reach, such as a combo chart's secondary axis, use [`setAxisTitleText`](@ref):
 `setAxisTitleText(c, :y2, "Margin")`. See
 [Axes and gridlines](formattingCharts.md#Axes-and-gridlines) for the names an
 axis can be given.
