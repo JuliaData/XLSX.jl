@@ -14,6 +14,8 @@
 #   save_unchanged      a workbook of 100,000 x 8 numbers opened "rw" and saved unchanged
 #   save_after_edit     the same, after changing one cell
 #   format_cells        `setFont` and `setFill` on 2,000 x 8 cells, then save
+#   format_cells_mixed  the same cells in 100 bands of distinct fonts (set as part of the
+#                       timing), then `setFont` and `setFill` on them all, then save
 
 using XLSX, Dates, Test
 
@@ -83,6 +85,23 @@ function format_cells(n=2_000)
     return take!(io)
 end
 
+# Each of `nb` bands of rows gets a font of its own, so a range over them all has
+# `nb` different starting styles.
+function format_cells_mixed(n=2_000, nb=100)
+    xf = XLSX.newxlsx()
+    s = xf[1]
+    s[1:n, 1:NCOLS] = [r * 10 + c for r in 1:n, c in 1:NCOLS]
+    for k in 0:nb-1
+        XLSX.setFont(s, "A$(k * (n ÷ nb) + 1):H$((k + 1) * (n ÷ nb))";
+                     size = 6 + k * 0.25, color = string(k * 130_001 % 0xffffff; base = 16, pad = 6))
+    end
+    XLSX.setFont(s, "A1:H$n"; bold=true)
+    XLSX.setFill(s, "A1:H$n"; pattern="solid", fgColor="FFFF00")
+    io = IOBuffer()
+    XLSX.writexlsx(io, xf)
+    return take!(io)
+end
+
 function samples(f)
     f()
     f()
@@ -118,6 +137,7 @@ const PATHS = [
     "save_unchanged"     => save_unchanged,
     "save_after_edit"    => save_after_edit,
     "format_cells"       => format_cells,
+    "format_cells_mixed" => format_cells_mixed,
 ]
 
 println("JULIA=", VERSION, " THREADS=", Threads.nthreads())

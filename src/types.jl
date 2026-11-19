@@ -175,6 +175,13 @@ const BorderKw = Union{Nothing,Vector{<:Pair{String}}}
 # keywords; forwarding a single `spec` lets them compile once. Each is made by
 # `S(caller; kw...)`, which takes the setter's keywords with their usual types and
 # defaults, and names `caller` in the error for an unrecognized keyword.
+#
+# A spec also carries a `StyleMemo`, made new for each call. Cells that start with
+# the same style end with the same one, so a per-cell setter works out each starting
+# style's result once, the first time it meets it, and gives it to the other cells
+# from the memo. Every form of address passes the same spec on, so one call shares
+# one memo however its range is given.
+const StyleMemo = Dict{UInt32,Tuple{Int,UInt32}}   # starting style => (id returned, new style)
 struct FontSpec
     bold::Union{Nothing,Bool}
     italic::Union{Nothing,Bool}
@@ -184,6 +191,7 @@ struct FontSpec
     color::Union{Nothing,CellColor}
     name::Union{Nothing,String}
     vertAlign::Union{Nothing,String}
+    memo::StyleMemo
 end
 function FontSpec(caller::Symbol;
     bold::Union{Nothing,Bool}=nothing,
@@ -197,13 +205,14 @@ function FontSpec(caller::Symbol;
     kw...
 )
     _check_keywords(caller, FontSpec, kw)
-    return FontSpec(bold, italic, _str_or_nothing(under), strike, size, color, _str_or_nothing(name), _str_or_nothing(vertAlign))
+    return FontSpec(bold, italic, _str_or_nothing(under), strike, size, color, _str_or_nothing(name), _str_or_nothing(vertAlign), StyleMemo())
 end
 
 struct FillSpec
     pattern::Union{Nothing,String}
     fgColor::Union{Nothing,CellColor}
     bgColor::Union{Nothing,CellColor}
+    memo::StyleMemo
 end
 function FillSpec(caller::Symbol;
     pattern::Union{Nothing,AbstractString}=nothing,
@@ -212,7 +221,7 @@ function FillSpec(caller::Symbol;
     kw...
 )
     _check_keywords(caller, FillSpec, kw)
-    return FillSpec(_str_or_nothing(pattern), fgColor, bgColor)
+    return FillSpec(_str_or_nothing(pattern), fgColor, bgColor, StyleMemo())
 end
 
 struct AlignmentSpec
@@ -222,6 +231,7 @@ struct AlignmentSpec
     shrink::Union{Nothing,Bool}
     indent::Union{Nothing,Int}
     rotation::Union{Nothing,Int}
+    memo::StyleMemo
 end
 function AlignmentSpec(caller::Symbol;
     horizontal::Union{Nothing,AbstractString}=nothing,
@@ -233,15 +243,16 @@ function AlignmentSpec(caller::Symbol;
     kw...
 )
     _check_keywords(caller, AlignmentSpec, kw)
-    return AlignmentSpec(_str_or_nothing(horizontal), _str_or_nothing(vertical), wrapText, shrink, indent, rotation)
+    return AlignmentSpec(_str_or_nothing(horizontal), _str_or_nothing(vertical), wrapText, shrink, indent, rotation, StyleMemo())
 end
 
 struct FormatSpec
     format::Union{Nothing,String}
+    memo::StyleMemo
 end
 function FormatSpec(caller::Symbol; format::Union{Nothing,AbstractString}=nothing, kw...)
     _check_keywords(caller, FormatSpec, kw)
-    return FormatSpec(_str_or_nothing(format))
+    return FormatSpec(_str_or_nothing(format), StyleMemo())
 end
 
 struct BorderSpec
@@ -252,6 +263,7 @@ struct BorderSpec
     top::BorderKw
     bottom::BorderKw
     diagonal::BorderKw
+    memo::StyleMemo
 end
 function BorderSpec(caller::Symbol;
     outside::BorderKw=nothing, allsides::BorderKw=nothing,
@@ -261,13 +273,13 @@ function BorderSpec(caller::Symbol;
     kw...
 )
     _check_keywords(caller, BorderSpec, kw)
-    return BorderSpec(outside, allsides, left, right, top, bottom, diagonal)
+    return BorderSpec(outside, allsides, left, right, top, bottom, diagonal, StyleMemo())
 end
 
 function _check_keywords(caller::Symbol, ::Type{S}, kw) where {S}
     isempty(kw) && return nothing
     bad = join(("`$k`" for k in keys(kw)), ", ")
-    valid = join(("`$k`" for k in fieldnames(S)), ", ")
+    valid = join(("`$k`" for k in fieldnames(S) if k !== :memo), ", ")
     throw(XLSXError("Unrecognized keyword argument$(length(kw) == 1 ? "" : "s") $bad for `$caller`. Valid keywords are $valid."))
 end
 
@@ -886,6 +898,7 @@ mutable struct Workbook
     cellXfs_cache::Union{Vector{XML.Node}, Nothing}   # cache for get_cellXfs_nodes
     numFmt_cache::Union{Dict{Int, String}, Nothing}   # cache for get_numFmt_cache
     style_table_cache::Dict{String, Vector{XML.Node}} # cache for fonts/borders/fills, keyed by tag ("fonts","borders","fills")
+    style_index_cache::Dict{String, Dict{XML.Node, Int}} # their reverse, and that of cellXfs_cache: node => 0-based id (see get_style_index)
     next_table_id::Union{Int,Nothing}   # nothing until first computed
 end
 

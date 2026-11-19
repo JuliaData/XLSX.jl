@@ -128,6 +128,7 @@ testgroup("Formatting", [
     "autofit columns"         => "formatting/autofit.jl",
     "checkboxes"              => "formatting/checkboxes.jl",
     "conditional formats"     => "formatting/conditional.jl",
+    "mixed-style ranges"      => "formatting/mixed-ranges.jl",
 ])
 testgroup("Features", [
     "AutoFilter"              => "features/autofilter.jl",

@@ -127,6 +127,27 @@ function get_cellXfs_nodes(wb::Workbook)::Vector{XML.Node}
     return wb.cellXfs_cache
 end
 
+# Returns (and lazily builds) the index of the fonts, fills or borders (`att` is
+# "fonts", "fills" or "borders") or of the cell formats ("cellXfs"): each node => its
+# 0-based id. A node equal to an earlier one maps to the earlier id, the one a search
+# from the start finds. Kept in sync by styles_add_cell_attribute and
+# styles_add_cell_xf, so that adding a style finds an equal one already there by
+# hash, not by comparing it with every one.
+# XML.jl hashes a node by its content, as `==` compares it, so a node in the index
+# must never change: every caller adds a new node, or a changed copy of one.
+function get_style_index(wb::Workbook, att::String)::Dict{XML.Node,Int}
+    index = get(wb.style_index_cache, att, nothing)
+    index === nothing || return index
+    nodes = att == "cellXfs" ? get_cellXfs_nodes(wb) : get_style_nodes(wb, att)
+    index = Dict{XML.Node,Int}()
+    sizehint!(index, length(nodes))
+    for (k, node) in enumerate(nodes)
+        get!(index, node, k - 1)
+    end
+    wb.style_index_cache[att] = index
+    return index
+end
+
 function styles_cell_xf(wb::Workbook, index::Integer)::XML.Node
     return styles_cell_xf(get_cellXfs_nodes(wb), index)   # reuses existing O(1) overload
 end
@@ -364,19 +385,19 @@ function styles_add_cell_xf(wb::Workbook, new_xf::XML.Node)::CellDataFormat
     i, j = get_idces(xroot, "styleSheet", "cellXfs")
     (i === nothing || j === nothing) &&
         throw(XLSXError("Could not find `cellXfs` element in styles.xml — file may be malformed."))
-    existing_cellxf_elements_count = length(xml_elements(xroot[i][j]))
-    if parse(Int, xroot[i][j]["count"]) != existing_cellxf_elements_count
-        throw(XLSXError("Wrong number of xf elements found: $existing_cellxf_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
+    container = xroot[i][j]
+    nodes = get_cellXfs_nodes(wb)
+    existing_cellxf_elements_count = length(nodes)
+    if parse(Int, container["count"]) != existing_cellxf_elements_count
+        throw(XLSXError("Wrong number of xf elements found: $existing_cellxf_elements_count. Expected $(parse(Int, container["count"]))."))
     end
-    # Check new_xf doesn't duplicate any existing xf. If yes, use that rather than create new.
-    for (k, node) in enumerate(xml_elements(xroot[i][j]))
-        if node == new_xf
-            return CellDataFormat(k - 1) # CellDataFormat is zero-indexed
-        end
-    end
-    push!(xroot[i][j], new_xf)
-    xroot[i][j]["count"] = string(existing_cellxf_elements_count + 1)
-    wb.cellXfs_cache !== nothing && push!(wb.cellXfs_cache, new_xf)
+    # If new_xf duplicates an existing xf, use that rather than create new.
+    index = get_style_index(wb, "cellXfs")
+    k = get(index, new_xf, nothing)
+    k === nothing || return CellDataFormat(k)   # CellDataFormat is zero-indexed
+    push!(container, new_xf)
+    container["count"] = string(existing_cellxf_elements_count + 1)
+    push!(nodes, new_xf)
+    index[new_xf] = existing_cellxf_elements_count
     return CellDataFormat(existing_cellxf_elements_count) # turns out this is the new index (because it's zero-based)
-
 end

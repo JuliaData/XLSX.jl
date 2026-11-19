@@ -224,15 +224,25 @@ function _setBorder(sh::Worksheet, cellref::CellRef; spec::BorderSpec)::Int
     if !isnothing(allsides)
         !all(isnothing, [left, right, top, bottom]) &&
             throw(XLSXError("Keyword `allsides` is incompatible with `left`, `right`, `top`, or `bottom`."))
-        return _setBorder(sh, cellref; spec=BorderSpec(nothing, nothing, allsides, allsides, allsides, allsides, diagonal))
+        # The same memo: every cell of the call recurses with the same spec.
+        return _setBorder(sh, cellref; spec=BorderSpec(nothing, nothing, allsides, allsides, allsides, allsides, diagonal, spec.memo))
     end
 
+    cell, allXfNodes = _format_target(sh, cellref, "border")
+    # Worked out once for each starting style in the call (see `StyleMemo`).
+    new_borderid, newstyle = get!(() -> _restyle_border(sh, allXfNodes, cell.style, spec), spec.memo, cell.style)
+    _updatecell!(sh, cell; style=newstyle)
+
+    return new_borderid
+end
+
+# The border id, and the style, that `setBorder` gives a cell of style `style`.
+function _restyle_border(sh::Worksheet, allXfNodes::Vector{XML.Node}, style::UInt32, spec::BorderSpec)::Tuple{Int,UInt32}
+    (; left, right, top, bottom, diagonal) = spec
     wb   = get_workbook(sh)
     pfx = _styles_prefix(sh)
 
-    cell, allXfNodes = _format_target(sh, cellref, "border")
-
-    cell_style      = styles_cell_xf(allXfNodes, cell.style)
+    cell_style      = styles_cell_xf(allXfNodes, style)
     cell_borders    = getBorder(wb, cell_style)
     old_border_atts = cell_borders.border
 
@@ -251,10 +261,8 @@ function _setBorder(sh::Worksheet, cellref::CellRef; spec::BorderSpec)::Int
 
     border_node  = buildNode("border", new_border_atts, pfx)
     new_borderid = styles_add_cell_attribute(wb, border_node, "borders")
-    newstyle     = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["borderId", "applyBorder"], [string(new_borderid), "1"]).id
-    _updatecell!(sh, cell; style=newstyle)
-
-    return new_borderid
+    newstyle     = update_template_xf(sh, allXfNodes, CellDataFormat(style), ["borderId", "applyBorder"], [string(new_borderid), "1"]).id
+    return new_borderid, newstyle
 end
 
 """

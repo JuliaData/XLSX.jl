@@ -138,7 +138,7 @@ function setAlignment end
 define_percell_spec_methods(:setAlignment, :_setAlignment, :AlignmentSpec)
 
 function _setAlignment(sh::Worksheet, cellref::CellRef; spec::AlignmentSpec)::Int
-    (; horizontal, vertical, wrapText, shrink, indent, rotation) = spec
+    (; horizontal, vertical, indent, rotation) = spec
     _require_writable(sh, "set alignment")
 
     # Validate before any work
@@ -151,10 +151,20 @@ function _setAlignment(sh::Worksheet, cellref::CellRef; spec::AlignmentSpec)::In
     !isnothing(rotation) && rotation ∉ -90:90 &&
         throw(XLSXError("Invalid rotation value: $rotation. Must be an integer between -90 and 90."))
 
-    wb   = get_workbook(sh)
     cell, allXfNodes = _format_target(sh, cellref, "alignment")
+    # Worked out once for each starting style in the call (see `StyleMemo`).
+    id, newstyle = get!(() -> _restyle_alignment(sh, allXfNodes, cell.style, spec), spec.memo, cell.style)
+    _updatecell!(sh, cell; style=newstyle)
 
-    cell_style     = styles_cell_xf(allXfNodes, cell.style)
+    return id
+end
+
+# The style that `setAlignment` gives a cell of style `style`, as its id and itself.
+function _restyle_alignment(sh::Worksheet, allXfNodes::Vector{XML.Node}, style::UInt32, spec::AlignmentSpec)::Tuple{Int,UInt32}
+    (; horizontal, vertical, wrapText, shrink, indent, rotation) = spec
+    wb   = get_workbook(sh)
+
+    cell_style     = styles_cell_xf(allXfNodes, style)
     cell_alignment = getAlignment(wb, cell_style)
     old_atts       = isnothing(cell_alignment) ? Dict{String,String}() : cell_alignment.alignment["alignment"]
 
@@ -167,10 +177,8 @@ function _setAlignment(sh::Worksheet, cellref::CellRef; spec::AlignmentSpec)::In
     _merge_alignment_att(atts, "textRotation", rotation,   old_atts)
 
     alignment_node = XML.Node{String}(XML.Element, "alignment", Pair{String,String}[k => v for (k,v) in atts], nothing, nothing)
-    newstyle       = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), alignment_node).id
-    _updatecell!(sh, cell; style=newstyle)
-
-    return Int(newstyle)
+    newstyle       = update_template_xf(sh, allXfNodes, CellDataFormat(style), alignment_node).id
+    return Int(newstyle), newstyle
 end
 
 """
