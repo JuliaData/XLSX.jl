@@ -67,8 +67,6 @@ _doc_list(vals) = join(("- `$v`" for v in vals), "\n")
 const VALID_HORIZONTAL_ALIGNMENTS = ("left", "center", "right", "fill", "justify", "centerContinuous", "distributed")
 const VALID_VERTICAL_ALIGNMENTS   = ("top", "center", "bottom", "justify", "distributed")
 
-const BUILTIN_NUMFMT_RANGES = (0:22, 37:40, 45:49)
-
 # Reverse lookup: format code string -> built-in numFmtId integer.
 # Avoids linear scan of builtinFormats on every setFormat call.
 const BUILTIN_FORMAT_CODES = Dict{String,Int}(v => parse(Int, k) for (k, v) in builtinFormats)
@@ -397,36 +395,46 @@ end
 
 # Used by setFont(), setBorder(), setFill(), setAlignment() and setNumFmt()
 function styles_add_cell_attribute(wb::Workbook, new_att::XML.Node, att::String)::Int
+    att == "numFmts" && return _styles_add_numFmt_node(wb, new_att)
     xroot = styles_xmlroot(wb)
     i, j = get_idces(xroot, "styleSheet", att)
-    existing_elements_count = length(xml_elements(xroot[i][j]))
-    if parse(Int, xroot[i][j]["count"]) != existing_elements_count
-        throw(XLSXError("Wrong number of elements elements found: $existing_elements_count. Expected $(parse(Int, xroot[i][j]["count"]))."))
+    container = xroot[i][j]
+    nodes = get_style_nodes(wb, att)
+    existing_elements_count = length(nodes)
+    if parse(Int, container["count"]) != existing_elements_count
+        throw(XLSXError("Wrong number of elements elements found: $existing_elements_count. Expected $(parse(Int, container["count"]))."))
     end
 
-    # Check new_att doesn't duplicate any existing att. If yes, use that rather than create new.
-    for (k, node) in enumerate(xml_elements(xroot[i][j]))
-        if XML.tag(new_att) == "numFmt" # mustn't compare numFmtId attribute for formats
-            if node["formatCode"] == new_att["formatCode"]
-                return k - 1 # CellDataFormat is zero-indexed
-            end
-        else
-            if node == new_att
-                return k - 1 # CellDataFormat is zero-indexed
-            end
-        end
-    end
+    # If new_att duplicates an existing att, use that rather than create new.
+    index = get_style_index(wb, att)
+    k = get(index, new_att, nothing)
+    k === nothing || return k   # zero-indexed
 
-    push!(xroot[i][j], new_att)
-    xroot[i][j]["count"] = string(existing_elements_count + 1)
-
-    if att == "numFmts" && wb.numFmt_cache !== nothing
-        wb.numFmt_cache[parse(Int, new_att["numFmtId"])] = new_att["formatCode"]
-    elseif haskey(wb.style_table_cache, att)
-        push!(wb.style_table_cache[att], new_att)
-    end
+    push!(container, new_att)
+    container["count"] = string(existing_elements_count + 1)
+    push!(nodes, new_att)
+    index[new_att] = existing_elements_count
 
     return existing_elements_count # turns out this is the new index (because it's zero-based)
+end
+
+# A `<numFmt>` is the same as one already there if its `formatCode` is: its
+# `numFmtId` mustn't be compared. (Nothing in XLSX.jl adds one this way:
+# `styles_add_numFmt` chooses the id too.)
+function _styles_add_numFmt_node(wb::Workbook, new_att::XML.Node)::Int
+    xroot = styles_xmlroot(wb)
+    i, j = get_idces(xroot, "styleSheet", "numFmts")
+    existing = xml_elements(xroot[i][j])
+    if parse(Int, xroot[i][j]["count"]) != length(existing)
+        throw(XLSXError("Wrong number of elements elements found: $(length(existing)). Expected $(parse(Int, xroot[i][j]["count"]))."))
+    end
+    for (k, node) in enumerate(existing)
+        node["formatCode"] == new_att["formatCode"] && return k - 1
+    end
+    push!(xroot[i][j], new_att)
+    xroot[i][j]["count"] = string(length(existing) + 1)
+    wb.numFmt_cache !== nothing && (wb.numFmt_cache[parse(Int, new_att["numFmtId"])] = new_att["formatCode"])
+    return length(existing)
 end
 # Any AbstractString (a SubString, a RichTextString, ...) is converted once here (#498).
 process_sheetcell(f::Function, xl::XLSXFile, sheetcell::AbstractString; kw...) =
@@ -672,7 +680,7 @@ end
 #
 # Most setUniform functions (but not Style or Alignment - see below)
 #
-function maybe_update_font!(f::Function, ws::Worksheet, cell, cellref; spec)
+function maybe_update_font!(f::F, ws::Worksheet, cell, cellref; spec) where {F<:Function}
     f === _setFont || return
     cell isa EmptyCell && return
     cell.datatype == CT_STRING || return
@@ -680,32 +688,41 @@ function maybe_update_font!(f::Function, ws::Worksheet, cell, cellref; spec)
     isnothing(v) || _updatecell!(ws, cell.ref; value=reinterpret(UInt64, Int64(v)))   # read again: it may have changed
 end
 
-function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML.Node}, cellref::CellRef, atts::Vector{String}, newid::Union{Int,Nothing}, first::Bool; kw...)
+# Every cell after the first takes the first cell's attribute. The style that gives
+# it depends only on the cell's own style, so `memo` keeps it for each starting style.
+function process_uniform_core(f::F, ws::Worksheet, allXfNodes::Vector{XML.Node}, cellref::CellRef, atts::Vector{String}, newid::Union{Int,Nothing}, first::Bool, memo::Dict{UInt32,UInt32}; kw...) where {F<:Function}
     cell = getcell(ws, cellref)
     cell isa EmptyCell && return newid, first
     if first
         newid = f(ws, cellref; kw...)
         first = false
     else
-        style = cell.style == 0 ? get_num_style_index(ws, allXfNodes, 0).id : cell.style
-        _updatecell!(ws, cell; style=update_template_xf(ws, allXfNodes, CellDataFormat(style), atts, [string(newid), "1"]).id)
+        newstyle = get(memo, cell.style, nothing)
+        if newstyle === nothing
+            style = cell.style == 0 ? get_num_style_index(ws, allXfNodes, 0).id : cell.style
+            newstyle = memo[cell.style] = update_template_xf(ws, allXfNodes, CellDataFormat(style), atts, [string(newid), "1"]).id
+        end
+        _updatecell!(ws, cell; style=newstyle)
     end
     return newid, first
 end
 
-function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange, atts::Vector{String}; kw...)
+# `f::F`: these loops only pass `f` on, so Julia would otherwise not specialise them on
+# it, and every cell would be a dynamic call.
+function process_uniform_attribute(f::F, ws::Worksheet, rng::CellRange, atts::Vector{String}; kw...) where {F<:Function}
     _require_cache(ws, "set uniform attributes")
     allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     newid, first = nothing, true
+    memo = Dict{UInt32,UInt32}()
     isInDim(ws, get_dimension(ws), rng)
     for cellref in rng
-        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
+        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first, memo; kw...)
         maybe_update_font!(f, ws, getcell(ws, cellref), cellref; kw...)
     end
     return first ? -1 : newid
 end
 
-function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange, atts::Vector{String}; kw...)::Int
+function process_uniform_ncranges(f::F, ws::Worksheet, ncrng::NonContiguousRange, atts::Vector{String}; kw...)::Int where {F<:Function}
     allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     single = length(ncrng) == 1
     bounds = nc_bounds(ncrng)
@@ -718,6 +735,7 @@ function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguo
         throw(XLSXError("Non-contiguous range $ncrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
 
     newid, first = nothing, true
+    memo = Dict{UInt32,UInt32}()
     for r in ncrng.rng
         if r isa CellRef
             cell = getcell(ws, r)
@@ -725,11 +743,11 @@ function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguo
                 single && throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(r)). Set the value first."))
                 continue
             end
-            newid, first = process_uniform_core(f, ws, allXfNodes, r, atts, newid, first; kw...)
+            newid, first = process_uniform_core(f, ws, allXfNodes, r, atts, newid, first, memo; kw...)
             maybe_update_font!(f, ws, cell, r; kw...)
         else
             for c in r
-                newid, first = process_uniform_core(f, ws, allXfNodes, c, atts, newid, first; kw...)
+                newid, first = process_uniform_core(f, ws, allXfNodes, c, atts, newid, first, memo; kw...)
                 maybe_update_font!(f, ws, getcell(ws, c), c; kw...)
             end
         end
@@ -742,16 +760,17 @@ function process_uniform_veccolon(f::Function, ws::Worksheet, row, col, atts::Ve
     return process_uniform_vecint(f, ws, row, col, atts; kw...)
 end
 
-function process_uniform_vecint(f::Function, ws::Worksheet, row, col, atts::Vector{String}; kw...)
+function process_uniform_vecint(f::F, ws::Worksheet, row, col, atts::Vector{String}; kw...) where {F<:Function}
     allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     dim = get_dimension(ws)
     isInDim(ws, dim, row, col)
     newid, first = nothing, true
+    memo = Dict{UInt32,UInt32}()
     for a in row, b in col
         cellref = CellRef(a, b)
         cell = getcell(ws, cellref)
         cell isa EmptyCell && continue
-        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first; kw...)
+        newid, first = process_uniform_core(f, ws, allXfNodes, cellref, atts, newid, first, memo; kw...)
         maybe_update_font!(f, ws, cell, cellref; kw...)
     end
     return first ? -1 : newid
@@ -860,7 +879,7 @@ end
 #
 # Alignment is different
 #
-function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML.Node}, cellref::CellRef, newid::Union{Int,Nothing}, first::Bool, alignment_node::Union{XML.Node,Nothing}; kw...) # setUniformAlignment is different
+function process_uniform_core(f::F, ws::Worksheet, allXfNodes::Vector{XML.Node}, cellref::CellRef, newid::Union{Int,Nothing}, first::Bool, alignment_node::Union{XML.Node,Nothing}, memo::Dict{UInt32,UInt32}; kw...) where {F<:Function} # setUniformAlignment is different
     cell = getcell(ws, cellref)
     if cell isa EmptyCell # Can't add a attribute to an empty cell.
         return newid, first, alignment_node
@@ -871,24 +890,29 @@ function process_uniform_core(f::Function, ws::Worksheet, allXfNodes::Vector{XML
         alignment_node = XML.Node{String}(XML.Element, "alignment", isnothing(new_alignment) ? Pair{String,String}[] : Pair{String,String}[k => v for (k,v) in new_alignment], nothing, nothing)
         first = false
     else                               # Apply the same attribute to the rest of the cells in the range.
-        style = cell.style == 0 ? get_num_style_index(ws, allXfNodes, 0).id : cell.style
-        _updatecell!(ws, cell; style=update_template_xf(ws, allXfNodes, CellDataFormat(style), alignment_node).id)
+        newstyle = get(memo, cell.style, nothing)
+        if newstyle === nothing
+            style = cell.style == 0 ? get_num_style_index(ws, allXfNodes, 0).id : cell.style
+            newstyle = memo[cell.style] = update_template_xf(ws, allXfNodes, CellDataFormat(style), alignment_node).id
+        end
+        _updatecell!(ws, cell; style=newstyle)
     end
     return newid, first, alignment_node
 end
-function process_uniform_attribute(f::Function, ws::Worksheet, rng::CellRange; kw...)
+function process_uniform_attribute(f::F, ws::Worksheet, rng::CellRange; kw...) where {F<:Function}
     _require_cache(ws, "set uniform attributes")
 allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     let newid::Union{Int,Nothing}, first::Bool, alignment_node::Union{XML.Node,Nothing}
         newid = nothing
         first = true
         alignment_node = nothing
+        memo = Dict{UInt32,UInt32}()
         isInDim(ws, get_dimension(ws), rng)
         for cellref in rng
             if getcell(ws, cellref) isa EmptyCell
                 continue
             end
-            newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, cellref, newid, first, alignment_node; kw...)
+            newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, cellref, newid, first, alignment_node, memo; kw...)
         end
         if first
             newid = -1
@@ -896,7 +920,7 @@ allXfNodes = get_cellXfs_nodes(get_workbook(ws))
         return newid
     end
 end
-function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int
+function process_uniform_ncranges(f::F, ws::Worksheet, ncrng::NonContiguousRange; kw...)::Int where {F<:Function}
     allXfNodes = get_cellXfs_nodes(get_workbook(ws))
     single = length(ncrng) == 1
     dim = get_dimension(ws)
@@ -906,16 +930,17 @@ function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguo
             newid = nothing
             first = true
             alignment_node = nothing
+            memo = Dict{UInt32,UInt32}()
             for r in ncrng.rng
                 if r isa CellRef
                     if getcell(ws, r) isa EmptyCell
                         single && throw(XLSXError("Cannot set format for an `EmptyCell`: $(cellname(r)). Set the value first."))
                         continue
                     end
-                    newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, r, newid, first, alignment_node; kw...)
+                    newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, r, newid, first, alignment_node, memo; kw...)
                 else
                     for c in r
-                        newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, c, newid, first, alignment_node; kw...)
+                        newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, c, newid, first, alignment_node, memo; kw...)
                     end
                 end
             end
@@ -928,7 +953,7 @@ function process_uniform_ncranges(f::Function, ws::Worksheet, ncrng::NonContiguo
         throw(XLSXError("Non-contiguous range $ncrng is out of bounds. Worksheet `$(ws.name)` only has dimension `$dim`."))
     end
 end
-function process_uniform_veccolon(f::Function, ws::Worksheet, row, col; kw...)
+function process_uniform_veccolon(f::F, ws::Worksheet, row, col; kw...) where {F<:Function}
     dim = get_dimension(ws)
     if dim === nothing
         throw(XLSXError("No worksheet dimension found"))
@@ -940,13 +965,14 @@ function process_uniform_veccolon(f::Function, ws::Worksheet, row, col; kw...)
             newid = nothing
             first = true
             alignment_node = nothing
+            memo = Dict{UInt32,UInt32}()
             for a in row
                 for b in col
                     cellref = CellRef(a, b)
                     if getcell(ws, cellref) isa EmptyCell
                         continue
                     end
-                    newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, cellref, newid, first, alignment_node; kw...)
+                    newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, cellref, newid, first, alignment_node, memo; kw...)
                 end
             end
             if first
@@ -956,7 +982,7 @@ function process_uniform_veccolon(f::Function, ws::Worksheet, row, col; kw...)
         end
     end
 end
-function process_uniform_vecint(f::Function, ws::Worksheet, row, col; kw...)
+function process_uniform_vecint(f::F, ws::Worksheet, row, col; kw...) where {F<:Function}
     let newid::Union{Int,Nothing}, first::Bool, alignment_node::Union{XML.Node,Nothing}
         dim = get_dimension(ws)
         if dim === nothing
@@ -966,13 +992,14 @@ function process_uniform_vecint(f::Function, ws::Worksheet, row, col; kw...)
         newid = nothing
         first = true
         alignment_node = nothing
+        memo = Dict{UInt32,UInt32}()
         isInDim(ws, dim, row, col)
         for a in row, b in col
             cellref = CellRef(a, b)
             if getcell(ws, cellref) isa EmptyCell
                 continue
             end
-            newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, cellref, newid, first, alignment_node; kw...)
+            newid, first, alignment_node = process_uniform_core(f, ws, allXfNodes, cellref, newid, first, alignment_node, memo; kw...)
         end
         if first
             newid = -1
@@ -995,7 +1022,15 @@ _run_tags(font_tag::AbstractString) = font_tag in ("name", RUN_FACE_TAGS...) ? R
 
 # Each cell of a uniform range takes the first cell's font, so a rich-text cell's runs
 # lose every property that font sets.
+# Whether a string cell's shared string has rich-text runs, the only strings these
+# change. Most don't, so this is asked first, before anything is built for them.
+function _has_runs(ws::Worksheet, cell::Cell)::Bool
+    str = get(get_sst(get_workbook(ws)).rich, reinterpret(Int64, cell.value), nothing)
+    return str !== nothing && occursin("<r>", str)
+end
+
 function update_sharedString_font(ws::Worksheet, cell::Cell, firstFont::CellFont) :: Union{Nothing,Int64}
+    _has_runs(ws, cell) || return nothing
     tags = Set{String}()
     for k in keys(firstFont.font)
         union!(tags, _run_tags(k))
@@ -1006,6 +1041,7 @@ end
 # `setFont` and `setUniformFont` give the font as keywords; each one given overrides
 # the matching run properties.
 function update_sharedString_font(ws::Worksheet, cell::Cell, s::FontSpec) :: Union{Nothing,Int64}
+    _has_runs(ws, cell) || return nothing
     tags = Set{String}()
     for (given, font_tag) in ((!isnothing(s.bold), "b"), (!isnothing(s.italic), "i"), (!isnothing(s.strike), "strike"),
                               (!isnothing(s.under), "u"), (!isnothing(s.size), "sz"), (!isnothing(s.color), "color"),

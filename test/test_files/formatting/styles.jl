@@ -1226,6 +1226,43 @@ end
 
     end
 
+    @testset "built-in locale formats" begin
+        # Excel's accounting formats (41-44) and East Asian dates (23-36, 50-81) are
+        # built in, with codes that depend on the locale. `getFormat` threw for them,
+        # so `setFormat` and `setUniformFormat` did too.
+        function with_format(xf, id)
+            wb = XLSX.get_workbook(xf)
+            style = XLSX.styles_add_cell_xf(wb, Dict("numFmtId" => string(id), "applyNumberFormat" => "1",
+                                                     "fontId" => "0", "fillId" => "0", "borderId" => "0", "xfId" => "0")).id
+            s = xf[1]
+            s["A1"] = 1234.5
+            s["A2"] = 1234.5
+            XLSX._updatecell!(s, XLSX.CellRef("A1"); style)
+            XLSX._updatecell!(s, XLSX.CellRef("A2"); style)
+            return s
+        end
+        # Defined in the file, as Excel writes it: the file's code is returned.
+        xf = XLSX.opentemplate(joinpath(data_directory, "Bom - issue243.xlsx"))
+        s = with_format(xf, 43)
+        code = XLSX.styles_numFmt_formatCode(XLSX.get_workbook(xf), 43)
+        @test XLSX.getFormat(s, "A1").numFmtId == 43
+        @test XLSX.getFormat(s, "A1").format == Dict("numFmt" => Dict("numFmtId" => "43", "formatCode" => code))
+        @test XLSX.setFormat(s, "A1"; format="0.00") == 2
+        @test XLSX.setUniformFormat(s, "A2:A2"; format="0.00") == 2
+        @test XLSX.getFormat(s, "A2").numFmtId == 2
+        # Not defined: the id, with no code.
+        for id in (44, 30)
+            s = with_format(XLSX.newxlsx(), id)
+            @test XLSX.getFormat(s, "A1").numFmtId == id
+            @test isempty(XLSX.getFormat(s, "A1").format)
+            @test XLSX.setFormat(s, "A1"; format="Percentage") == 9
+            @test XLSX.setUniformFormat(s, "A2:A2"; format="Percentage") == 9
+        end
+        # A custom id the file doesn't define is still an error.
+        s = with_format(XLSX.newxlsx(), 170)
+        @test_throws XLSX.XLSXError XLSX.getFormat(s, "A1")
+    end
+
     @testset "UniformStyle" begin
         f = XLSX.newxlsx()
         s = f[1]

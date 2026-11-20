@@ -278,7 +278,7 @@ All the format setter functions have `setUniformAttribute` versions, too. See [`
 
 It is possible to use each of the `setUniformAttribute` functions in turn to ensure every possible 
 attribute is consistently applied to a range of cells. However, if perfect uniformity is required, 
-then `setUniformStyle` is considerably more efficient. It will simply take the `styleId` of the 
+then `setUniformStyle` is simpler, and faster too. It will simply take the `styleId` of the 
 first cell in the range and apply it uniformly to each cell in the range. This ensures that all 
 of font, fill, border, format, and alignment are all completely consistent across the range:
 
@@ -289,8 +289,8 @@ julia> XLSX.setUniformStyle(s, "A1:CV100") # set all formatting attributes to be
 
 ### Illustrating the different approaches
 
-To illustrate the differences between applying `setAttribute`, `setUniformAttribute` and `setUinformStyle`,
-consider the following worksheet, which has very hetrogeneous formatting across the three cells:
+To illustrate the differences between applying `setAttribute`, `setUniformAttribute` and `setUniformStyle`,
+consider the following worksheet, which has very heterogeneous formatting across the three cells:
 
 ![Three cells, B2, D2 and F2, with different fonts, fills and borders](../images/multicell.png)
 
@@ -333,7 +333,7 @@ Which results in all formatting attributes being entirely consistent across the 
 
 ### Performance differences between methods
 
-To illustrtate the relative performance of these three methods, applied to a million cells:
+To illustrate the relative performance of these three methods, applied to a million cells:
 ```julia
 using XLSX
 function setup()
@@ -360,7 +360,7 @@ function timeit()
     print("Using `setUniformFormat` : ")
     @time do_uniform_format(f)
     f = setup()
-    print("Using `setUniformStyle` : ")
+    print("Using `setUniformStyle`  : ")
     @time do_format_styles(f)
     return f
 end
@@ -370,34 +370,26 @@ f=timeit()
 which yields the following timings:
 
 ```
-Using `setFormat`        :  10.966803 seconds (256.00 M allocations: 19.771 GiB, 18.81% gc time)
-Using `setUniformFormat` :   2.222868 seconds (31.00 M allocations: 1.137 GiB, 19.48% gc time)
-Using `setUniformStyles` :   0.519658 seconds (14.00 M allocations: 416.587 MiB)
+Using `setFormat`        :   0.196571 seconds (1.00 M allocations: 15.268 MiB, 1.64% gc time)
+Using `setUniformFormat` :   0.070712 seconds (217 allocations: 10.859 KiB)
+Using `setUniformStyle`  :   0.035277 seconds (261 allocations: 13.516 KiB)
 ```
 
-The same test, using the more involved `setBorder` function
-
-```julia
-do_format(f) = XLSX.setBorder(f[1], 1:1000, 1:1000;
-        left     = ["style" => "dotted", "color" => "FF000FF0"],
-        right    = ["style" => "medium", "color" => "firebrick2"],
-        top      = ["style" => "thick",  "color" => "FF230000"],
-        bottom   = ["style" => "medium", "color" => "goldenrod3"],
-        diagonal = ["style" => "dotted", "color" => "FF00D4D4", "direction" => "both"]
-    )
-```
-
-gives
+The same test with `setBorder`, `setUniformBorder` and a border set on `A1` before
+`setUniformStyle` gives much the same:
 
 ```
-Using `setBorder`        :  29.536010 seconds (759.00 M allocations: 64.286 GiB, 22.01% gc time)
-Using `setUniformBorder` :   2.052018 seconds (31.00 M allocations: 1.197 GiB, 13.18% gc time)
-Using `setUniformStyles` :   0.599491 seconds (14.00 M allocations: 416.586 MiB, 15.20% gc time)
+Using `setBorder`        :   0.196441 seconds (1.00 M allocations: 15.276 MiB, 1.61% gc time)
+Using `setUniformBorder` :   0.068270 seconds (280 allocations: 18.609 KiB)
+Using `setUniformStyle`  :   0.036877 seconds (225 allocations: 13.828 KiB)
 ```
 
-If maintaining heterogeneous formatting attributes is not important, it is more efficient to 
-apply `setUinformAttribute` functions rather than `setAttribute` functions, especially on large 
-cell ranges, and more efficient still to use `setUniformStyle`.
+All three are fast, so choose between them by the result you want rather than by speed.
+A range setter works out each different starting style in the range once, and gives the
+result to every cell that started with that style, so it is no slower when the cells start
+with many different styles. `setUniformStyle` is the fastest, as it only copies the first
+cell's style, and a `setUniformAttribute` function is a little faster than its
+`setAttribute` function, as it does not need to look at each cell's own format.
 
 ## Copying formatting attributes
 

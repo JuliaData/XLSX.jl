@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst count="3" uniqueCount="4" xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<si><r><rPr><b/><color rgb="FFFF0000"/></rPr><t>ab</t></r><r><rPr><i/></rPr><t>cd</t></r></si><si><t>plain</t></si><si>
+  <r>
+<rPr>
+  <color rgb="FFFF0000"/>
+</rPr>
+    <t>ab</t>
+  </r>
+  <r>
+<rPr>
+  <i/>
+</rPr>
+    <t>cd</t>
+  </r>
+</si><si>
+  <r>
+<rPr>
+  <color rgb="FFFF0000"/>
+</rPr>
+    <t>ab</t>
+  </r>
+  <r>
+    <t>cd</t>
+  </r>
+</si></sst>

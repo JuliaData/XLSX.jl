@@ -20,8 +20,9 @@ Return a `CellFormat` object containing:
 
 Return `nothing` if no cell format is found. This will occur when a cell uses a built-in format.
 
-The function will always find any explicitly set custom format. It will also attempt to return 
-the format for built-in formats, too.
+The function will always find any explicitly set custom format. It will also attempt to return
+the format for built-in formats, too. Some built-in formats depend on the locale, such as the
+accounting formats 41 to 44: if the file doesn't define one of these, `format` is empty.
 
 # Examples:
 ```julia
@@ -59,14 +60,17 @@ function getFormat(wb::Workbook, cell_style::XML.Node)::Union{Nothing,CellFormat
         )
 
     else
-        # Built-in format — validate it falls in a known range
-        any(numfmtid_int ∈ r for r in BUILTIN_NUMFMT_RANGES) ||
-            throw(XLSXError("Expected a built-in format ID in ranges 0:22, 37:40, or 45:49. Got $numfmtid_int."))
-
-        if haskey(builtinFormats, string(numfmtid_int))
+        # Built-in format. Excel writes some of these into the file, such as the
+        # accounting formats 41-44, whose codes depend on the locale: the file's own
+        # definition comes first, as for `getText`. A locale-dependent id the file
+        # doesn't define (23-36, 41-44, 50-81) has no code XLSX.jl can know, so
+        # `format` has no "numFmt" entry for it.
+        cache = get_numFmt_cache(wb)
+        code = haskey(cache, numfmtid_int) ? cache[numfmtid_int] : get(builtinFormats, string(numfmtid_int), nothing)
+        if !isnothing(code)
             format_atts["numFmt"] = Dict(
                 "numFmtId"   => string(numfmtid_int),
-                "formatCode" => builtinFormats[string(numfmtid_int)]
+                "formatCode" => code
             )
         end
     end
@@ -170,17 +174,27 @@ function _setFormat(sh::Worksheet, cellref::CellRef; spec::FormatSpec)::Int
     (; format) = spec
     _require_writable(sh, "set number format")
 
-    wb   = get_workbook(sh)
     cell, allXfNodes = _format_target(sh, cellref, "format")
-
-    cell_style  = styles_cell_xf(allXfNodes, cell.style)
-    cell_format = getFormat(wb, cell_style)
 
     # No format kwarg — return existing format id, or 0 if none set
     if isnothing(format)
+        cell_format = getFormat(get_workbook(sh), styles_cell_xf(allXfNodes, cell.style))
         return isnothing(cell_format) ? 0 : cell_format.numFmtId
     end
 
+    # Worked out once for each starting style in the call (see `StyleMemo`).
+    new_formatid, newstyle = get!(spec.memo, cell.style) do
+        _restyle_format(sh, allXfNodes, cell.style, format)
+    end
+    _updatecell!(sh, cell; style=newstyle)
+
+    return new_formatid
+end
+
+# The numFmtId, and the style, that `setFormat` gives a cell of style `style`.
+function _restyle_format(sh::Worksheet, allXfNodes::Vector{XML.Node}, style::UInt32, format::String)::Tuple{Int,UInt32}
+    wb = get_workbook(sh)
+    getFormat(wb, styles_cell_xf(allXfNodes, style))   # throws, as before, for a format it can't read
     new_formatid = _format_id(wb, format)
 
     # numFmtId == 0 is the "General" default format — applyNumberFormat is redundant for it
@@ -188,10 +202,8 @@ function _setFormat(sh::Worksheet, cellref::CellRef; spec::FormatSpec)::Int
         (["numFmtId"],                    [string(new_formatid)]) :
         (["numFmtId", "applyNumberFormat"], [string(new_formatid), "1"])
 
-    newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), atts[1], atts[2]).id
-    _updatecell!(sh, cell; style=newstyle)
-
-    return new_formatid
+    newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(style), atts[1], atts[2]).id
+    return new_formatid, newstyle
 end
 
 """

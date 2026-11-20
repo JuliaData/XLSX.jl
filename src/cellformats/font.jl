@@ -80,7 +80,7 @@ function setFont end
 define_percell_spec_methods(:setFont, :_setFont, :FontSpec)
 
 function _setFont(sh::Worksheet, cellref::CellRef; spec::FontSpec)::Int
-    (; bold, italic, under, strike, size, color, name, vertAlign) = spec
+    (; under, size) = spec
     _require_writable(sh, "set font")
 
     # Validate before any work
@@ -89,12 +89,27 @@ function _setFont(sh::Worksheet, cellref::CellRef; spec::FontSpec)::Int
     !isnothing(size) && (size < 1 || size > 409) &&
         throw(XLSXError("Invalid size value: $size. Must be between 1 and 409."))
 
-    pfx = _styles_prefix(sh)
-
-    wb   = get_workbook(sh)
     cell, allXfNodes = _format_target(sh, cellref, "font")
+    # Worked out once for each starting style in the call (see `StyleMemo`). A string's
+    # rich-text runs are still changed cell by cell.
+    new_fontid, newstyle = get!(() -> _restyle_font(sh, allXfNodes, cell.style, spec), spec.memo, cell.style)
+    cell = _updatecell!(sh, cell; style=newstyle)
 
-    cell_style    = styles_cell_xf(allXfNodes, cell.style)
+    if cell.datatype == CT_STRING
+        v = update_sharedString_font(sh, cell, spec)
+        isnothing(v) || _updatecell!(sh, cell.ref; value=reinterpret(UInt64, Int64(v)))   # read again: it may have changed
+    end
+
+    return new_fontid
+end
+
+# The font id, and the style, that `setFont` gives a cell of style `style`.
+function _restyle_font(sh::Worksheet, allXfNodes::Vector{XML.Node}, style::UInt32, spec::FontSpec)::Tuple{Int,UInt32}
+    (; bold, italic, under, strike, size, color, name, vertAlign) = spec
+    pfx = _styles_prefix(sh)
+    wb  = get_workbook(sh)
+
+    cell_style    = styles_cell_xf(allXfNodes, style)
     cell_font     = getFont(wb, cell_style)
     old_font_atts = cell_font.font
 
@@ -131,15 +146,8 @@ function _setFont(sh::Worksheet, cellref::CellRef; spec::FontSpec)::Int
     font_node  = buildNode("font", new_font_atts, pfx)
     new_fontid = styles_add_cell_attribute(wb, font_node, "fonts")
 
-    newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["fontId", "applyFont"], [string(new_fontid), "1"]).id
-    cell = _updatecell!(sh, cell; style=newstyle)
-
-    if cell.datatype == CT_STRING
-        v = update_sharedString_font(sh, cell, spec)
-        isnothing(v) || _updatecell!(sh, cell.ref; value=reinterpret(UInt64, Int64(v)))   # read again: it may have changed
-    end
-
-    return new_fontid
+    newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(style), ["fontId", "applyFont"], [string(new_fontid), "1"]).id
+    return new_fontid, newstyle
 end
 
 """

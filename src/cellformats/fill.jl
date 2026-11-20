@@ -141,19 +141,28 @@ function setFill end
 define_percell_spec_methods(:setFill, :_setFill, :FillSpec)
 
 function _setFill(sh::Worksheet, cellref::CellRef; spec::FillSpec)::Int
-    (; pattern, fgColor, bgColor) = spec
+    (; pattern) = spec
     _require_writable(sh, "set fill")
 
     # Validate before any work
     !isnothing(pattern) && pattern ∉ VALID_FILL_PATTERNS &&
         throw(XLSXError("Invalid pattern: $pattern. Must be one of: $(join(VALID_FILL_PATTERNS, ", "))."))
 
+    cell, allXfNodes = _format_target(sh, cellref, "fill")
+    # Worked out once for each starting style in the call (see `StyleMemo`).
+    new_fillid, newstyle = get!(() -> _restyle_fill(sh, allXfNodes, cell.style, spec), spec.memo, cell.style)
+    _updatecell!(sh, cell; style=newstyle)
+
+    return new_fillid
+end
+
+# The fill id, and the style, that `setFill` gives a cell of style `style`.
+function _restyle_fill(sh::Worksheet, allXfNodes::Vector{XML.Node}, style::UInt32, spec::FillSpec)::Tuple{Int,UInt32}
+    (; pattern, fgColor, bgColor) = spec
     wb   = get_workbook(sh)
     pfx = _styles_prefix(sh)
 
-    cell, allXfNodes = _format_target(sh, cellref, "fill")
-
-    cell_style   = styles_cell_xf(allXfNodes, cell.style)
+    cell_style   = styles_cell_xf(allXfNodes, style)
     cell_fill    = getFill(wb, cell_style)
     old_fill_atts = cell_fill.fill["patternFill"]
 
@@ -182,10 +191,8 @@ function _setFill(sh::Worksheet, cellref::CellRef; spec::FillSpec)::Int
     fill_node  = buildNode("fill", new_fill_atts, pfx)
     new_fillid = styles_add_cell_attribute(wb, fill_node, "fills")
 
-    newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(cell.style), ["fillId", "applyFill"], [string(new_fillid), "1"]).id
-    _updatecell!(sh, cell; style=newstyle)
-
-    return new_fillid
+    newstyle   = update_template_xf(sh, allXfNodes, CellDataFormat(style), ["fillId", "applyFill"], [string(new_fillid), "1"]).id
+    return new_fillid, newstyle
 end
 
 """
