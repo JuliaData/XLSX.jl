@@ -1010,7 +1010,9 @@ function get_wb_ext_refs(xf::XLSXFile)
     i, j = get_idces(xroot, "workbook", "externalReferences")
     if !isnothing(j)
         for (i, ref) in enumerate(xml_elements(xroot[i][j]))
-            ext_refs[i] = ref["r:id"]
+            rid = get_prefixed_attr(ref, "id")
+            isnothing(rid) && throw(XLSXError("Malformed xl/workbook.xml: an externalReference has no relationship id (`r:id`)."))
+            ext_refs[i] = rid
         end
     end
     return ext_refs

@@ -172,7 +172,7 @@ function getHyperlinks(s::Worksheet)::Vector{HyperlinkInfo}
     sheet_path = _sheet_path(s)
     out = HyperlinkInfo[]
     for a in _hyperlink_attributes(xf, sheet_path)
-        rid = _prefixed_value(a, "id")
+        rid = get_prefixed_attr(a, "id")
         url = isnothing(rid) ? nothing : _external_rel_target(xf, sheet_path, rid)
         push!(out, HyperlinkInfo((s.name, get(a, "ref", ""), url, get(a, "location", nothing),
                                   get(a, "display", nothing), get(a, "tooltip", nothing))))
@@ -249,20 +249,6 @@ _hyperlink_range(ref::AbstractString)::CellRange =
 
 _str_or_nothing(x) = isnothing(x) ? nothing : String(x)
 
-# The value of the attribute in `a` whose local name is `key` and which has a
-# namespace prefix (`r:id`, whatever the prefix), or `nothing`.
-function _prefixed_value(a::AbstractDict, key::AbstractString)::Union{Nothing,String}
-    for (k, v) in a
-        occursin(':', k) && has_localname(k, key) && return v
-    end
-    return nothing
-end
-
-function _ensure_r_namespace!(sheet_root::XML.Node)
-    haskey(something(XML.attributes(sheet_root), Dict()), "xmlns:r") || (sheet_root["xmlns:r"] = NS_R)
-    return nothing
-end
-
 # The `<hyperlink>` elements of a sheet that is open for writing.
 function _hyperlink_nodes(xf::XLSXFile, sheet_path::String)::Vector{XML.Node}
     block = first_element_with_tag(xml_root_element(get_xml_data(xf, sheet_path)), "hyperlinks")
@@ -286,10 +272,10 @@ function _delete_hyperlink_node!(xf::XLSXFile, sheet_path::String, ref::String):
     kids = XML.children(block)
     i = findfirst(n -> XML.nodetype(n) == XML.Element && localname(n) == "hyperlink" && get_attr(n, "ref") == ref, kids)
     isnothing(i) && return false
-    rid = _prefixed_value(something(XML.attributes(kids[i]), Dict{String,String}()), "id")
+    rid = get_prefixed_attr(kids[i], "id")
     deleteat!(kids, i)
     if !isnothing(rid)
-        still_used = any(n -> _prefixed_value(something(XML.attributes(n), Dict{String,String}()), "id") == rid,
+        still_used = any(n -> get_prefixed_attr(n, "id") == rid,
                          elements_with_tag(block, "hyperlink"))
         still_used || _remove_sheet_rel!(xf, sheet_path, rid)
     end

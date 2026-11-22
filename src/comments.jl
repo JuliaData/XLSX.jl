@@ -443,9 +443,7 @@ function ensure_legacy_vml!(xf::XLSXFile, sheet_path::String)::String
                            tag="Default", key="Extension", val="vml", content_type=MIME_VML)
 
     sheet_root = xml_root_element(get_xml_data(xf, sheet_path))
-    if !haskey(something(XML.attributes(sheet_root), Dict()), "xmlns:r")
-        sheet_root["xmlns:r"] = NS_R
-    end
+    _ensure_r_namespace!(sheet_root)
     el = XML.Element(prefixed_tag(_root_prefix(sheet_root), "legacyDrawing"))
     el["r:id"] = rid
     insert!(XML.children(sheet_root), insert_index(sheet_root, "legacyDrawing", WORKSHEET_ORDER) + 1, el)

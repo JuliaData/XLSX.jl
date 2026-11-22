@@ -72,13 +72,26 @@ _attr(::Nothing, ::AbstractString) = nothing
 
 """Value of a *namespace-prefixed* attribute matched by local name (`r:id`, `x:id`, …).
 Unprefixed attributes are skipped deliberately: a bare `id` on `<c:chart>` or `embed`
-on `<a:blip>` is a different attribute, not the relationship reference."""
-function get_prefixed_attr(node::XML.Node, key::AbstractString)::Union{Nothing,String}
-    atts = XML.attributes(node)
+on `<a:blip>` is a different attribute, not the relationship reference.
+
+The prefix is a per-document choice: a relationship id may be written `r:id`,
+`relationships:id` or anything else bound to the relationships namespace (#507).
+Takes an element or its attributes (as `XML.attributes` gives them, or `nothing`)."""
+get_prefixed_attr(node::XML.Node, key::AbstractString)::Union{Nothing,String} =
+    get_prefixed_attr(XML.attributes(node), key)
+
+function get_prefixed_attr(atts, key::AbstractString)::Union{Nothing,String}
     isnothing(atts) && return nothing
     for (k, v) in atts
-        occursin(':', k) && has_localname(k, key) && return v
+        occursin(':', k) && !startswith(k, "xmlns:") && has_localname(k, key) && return String(v)
     end
+    return nothing
+end
+
+"""Declare the relationships namespace as `r` on `root` unless it is already
+declared there, before writing an `r:id` into the part it roots."""
+function _ensure_r_namespace!(root::XML.Node)
+    haskey(something(XML.attributes(root), Dict{String,String}()), "xmlns:r") || (root["xmlns:r"] = NS_R)
     return nothing
 end
 

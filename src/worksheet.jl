@@ -70,8 +70,10 @@ function Worksheet(xf::XLSXFile, sheet_element::XML.Node)
         throw(XLSXError("Malformed workbook: an entry in `<sheets>` is `$(localname(sheet_element))`, not `sheet`."))
     a = XML.attributes(sheet_element)
     sheetId = parse(Int, a["sheetId"])
-    relationship_id = a["r:id"]
     name = a["name"]
+    relationship_id = get_prefixed_attr(a, "id")   # `r:id`, under any prefix (#507)
+    isnothing(relationship_id) &&
+        throw(XLSXError("Malformed workbook: sheet `$name` has no relationship id (`r:id`)."))
     state = get(a, "state", "visible")
     visibility = state in ("hidden", "veryHidden") ? Symbol(state) : :visible
 
@@ -264,10 +266,8 @@ function get_worksheet_table_rids(xf::XLSXFile, ws::Worksheet)::Vector{String}
                 while XML.next!(c) !== nothing
                     XML.depth(c) <= 2 && break
                     if XML.depth(c) == 3 && XML.nodetype(c) == XML.Element && localname(c) == "tablePart"
-                        attrs = XML.attributes(c)
-                        if !isnothing(attrs) && haskey(attrs, "r:id")
-                            push!(r_ids, attrs["r:id"])
-                        end
+                        rid = get_prefixed_attr(XML.attributes(c), "id")
+                        isnothing(rid) || push!(r_ids, rid)
                     end
                 end
                 break  # tableParts is not repeated; done scanning
@@ -281,9 +281,8 @@ function get_worksheet_table_rids(xf::XLSXFile, ws::Worksheet)::Vector{String}
         if !isnothing(j)
             for tp in xml_elements(doc[i][j])
                 localname(tp) != "tablePart" && continue
-                attrs = XML.attributes(tp)
-                (isnothing(attrs) || !haskey(attrs, "r:id")) && continue
-                push!(r_ids, attrs["r:id"])
+                rid = get_prefixed_attr(tp, "id")
+                isnothing(rid) || push!(r_ids, rid)
             end
         end
     end
