@@ -353,7 +353,7 @@ function _sheet_uids(wb::Workbook)::Set{String}
         v = get(xf.data, get_relationship_target_by_id("xl", wb, s.relationship_id), nothing)
         isnothing(v) && continue
         root = v isa String ? xml_root_element(parse(v, XML.LazyNode)) : xml_root_element(v)
-        uid = get(XML.attributes(root), "xr:uid", nothing)
+        uid = get_prefixed_attr(XML.attributes(root), "uid")   # `xr:uid`, under any prefix
         isnothing(uid) || push!(uids, uppercase(uid))
     end
     return uids
@@ -383,8 +383,16 @@ function _register_sheet!(wb::Workbook, xdoc::XML.Node, name::AbstractString;
     sheetId = maximum((ws.sheetId for ws in wb.sheets); init = 0) + 1
 
     let root = xml_root_element(xdoc)
-        haskey(root, "xmlns:xr") || (root["xmlns:xr"] = "http://schemas.microsoft.com/office/spreadsheetml/2014/revision")
-        root["xr:uid"] = _unique_guid(wb.package.uuid_rng, _sheet_uids(wb))
+        # A copied sheet may already carry its uid under another prefix: replace that
+        # one, as a second attribute in the same namespace would make the XML invalid.
+        anames = String[first(p) for p in something(root.attributes, Pair{String,String}[])]
+        i    = findfirst(k -> occursin(':', k) && !startswith(k, "xmlns:") && has_localname(k, "uid"), anames)
+        key  = isnothing(i) ? nothing : anames[i]
+        if isnothing(key)
+            haskey(root, "xmlns:xr") || (root["xmlns:xr"] = "http://schemas.microsoft.com/office/spreadsheetml/2014/revision")
+            key = "xr:uid"
+        end
+        root[key] = _unique_guid(wb.package.uuid_rng, _sheet_uids(wb))
     end
 
     j = 1

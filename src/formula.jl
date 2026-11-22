@@ -753,16 +753,17 @@ function get_external_workbook_path(xf::XLSXFile, id::Int)
         haskey(pr_atts, "filename") && return pr_atts["filename"] # externalBookPr filename attribute
     end
 
-    if haskey(book_atts, "r:id")
-        target = external_link_target(xf, rel, book_atts["r:id"])
+    book_rid = get_prefixed_attr(book_atts, "id")   # `r:id`, under any prefix (#507)
+    if !isnothing(book_rid)
+        target = external_link_target(xf, rel, book_rid)
         isnothing(target) || return target
     end
 
-    k, l = get_idces(extXml[i], "externalBook", "xxl21:alternateUrls")
+    k, l = get_idces(extXml[i], "externalBook", "alternateUrls")
     if !isnothing(l)
-        atts = XML.attributes(extXml[i][k][l][1]) # prefer the first alternateUrls r:id if multiple
-        haskey(atts, "r:id") || throw(XLSXError("Malformed external reference in `$rel`: an alternateUrls entry has no `r:id`."))
-        target = external_link_target(xf, rel, atts["r:id"])
+        alt_rid = get_prefixed_attr(extXml[i][k][l][1], "id") # prefer the first alternateUrls r:id if multiple
+        isnothing(alt_rid) && throw(XLSXError("Malformed external reference in `$rel`: an alternateUrls entry has no `r:id`."))
+        target = external_link_target(xf, rel, alt_rid)
         isnothing(target) || return target
     end
 

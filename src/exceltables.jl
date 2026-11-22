@@ -129,7 +129,7 @@ function _find_table_part(sheet::Worksheet, name::AbstractString)::Tuple{String,
 
     rel_els = elements_with_tag(rels_root, "Relationship")
     for tp in elements_with_tag(tp_container, "tablePart")
-        rid = get_attr(tp, "r:id")
+        rid = something(get_prefixed_attr(tp, "id"), "")
         k = findfirst(r -> get_attr(r, "Id") == rid, rel_els)
         isnothing(k) && continue
         path = resolve_relative_target(sheet_dir, get_attr(rel_els[k], "Target"))
@@ -618,6 +618,7 @@ function _attach_table_part!(xf::XLSXFile, sheet::Worksheet, table_path::String)
     sheet_root = xml_root_element(sheet_doc)
     pfx   = get_prefix(sheet)
     pfx_c = pfx == "" ? "" : "$(pfx):"
+    _ensure_r_namespace!(sheet_root)   # the new <tablePart> is written with `r:id`
 
     tp_container_els = elements_with_tag(sheet_root, "tableParts")
     if isempty(tp_container_els)
@@ -762,7 +763,7 @@ function _deletetable!(t::Table)
     # remove <tablePart>, shrink/drop <tableParts>
     tp_container = elements_with_tag(sheet_root, "tableParts")[1]
     tp_children = XML.children(tp_container)
-    tp_idx = findfirst(tp -> XML.nodetype(tp) === XML.Element && get_attr(tp, "r:id") == target_rid, tp_children)
+    tp_idx = findfirst(tp -> XML.nodetype(tp) === XML.Element && get_prefixed_attr(tp, "id") == target_rid, tp_children)
     isnothing(tp_idx) && throw(XLSXError("Internal error: <tablePart> for `$name` not found."))
     deleteat!(tp_children, tp_idx)
 

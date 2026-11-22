@@ -316,11 +316,12 @@ function add_anchor!(
     end
 
     root_el = xml_root_element(xf.data[drawing_path])
-    push!(root_el, build_two_cell_anchor(
+    # An existing drawing may bind `xdr` and `a` to other prefixes: rename into its own.
+    push!(root_el, Charts._in_drawing_prefixes(build_two_cell_anchor(
         col - 1, row - 1,  # 0-based inclusive from
         col_to,  row_to,   # 0-based exclusive to
         _pic_node(img_rid, _next_shape_id(root_el)),
-    ))
+    ), root_el))
 
     return col, row, col_to, row_to
 end
@@ -359,9 +360,7 @@ const _AFTER_DRAWING = ("legacyDrawing", "legacyDrawingHF", "drawingHF", "pictur
 function ensure_drawing_element!(xf::XLSXFile, sheet_doc::XML.Node, sheet_path::String, rid::String)
     sheet_root = xml_root_element(sheet_doc)
     any(n -> localname(XML.tag(n)) == "drawing", xml_elements(sheet_root)) && return nothing
-    if !haskey(something(XML.attributes(sheet_root), Dict()), "xmlns:r")
-        sheet_root["xmlns:r"] = NS_R
-    end
+    _ensure_r_namespace!(sheet_root)
     pfx = get_prefix(sheet_path, xf)
     el  = XML.Element(prefixed_tag(pfx, "drawing"))
     el["r:id"] = rid
@@ -403,6 +402,8 @@ end
 
 function _pic_node(img_rid::String, shape_id::Int)::XML.Node
     blip = XML.Element("a:blip")
+    # Declared here, as Excel does: a drawing need not declare the namespace on its root.
+    blip["xmlns:r"] = NS_R
     blip["r:embed"] = img_rid
     return XML.Element("xdr:pic",
         XML.Element("xdr:nvPicPr",

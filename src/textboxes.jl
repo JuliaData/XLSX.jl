@@ -137,7 +137,7 @@ function _add_sp!(ws::Worksheet, ref, kind::Union{Nothing,Symbol}, text::Abstrac
         XML.Element("xdr:spPr", sppr_kids...),
         _sp_style(isnothing(kind)),
         body; var"macro"="", textlink="")
-    push!(root, build_two_cell_anchor(c0 - 1, r0 - 1, c1, r1, sp))
+    push!(root, Charts._in_drawing_prefixes(build_two_cell_anchor(c0 - 1, r0 - 1, c1, r1, sp), root))
     return (sheet = ws.name, name = String(name), from = string(rng.start), to = string(rng.stop))
 end
 

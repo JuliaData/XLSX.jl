@@ -205,5 +205,178 @@ end
         @test XLSX.get_prefixed_attr(blip, "embed") == "rId7"
         @test XLSX.get_prefixed_attr(blip, "cstate") === nothing   # unprefixed: skipped by design
         @test XLSX.get_prefixed_attr(blip, "id") === nothing
+        # The attribute collection itself, as the cursor paths have it
+        @test XLSX.get_prefixed_attr(XML.attributes(blip), "embed") == "rId7"
+        @test XLSX.get_prefixed_attr(Dict("relationships:id" => "rId3"), "id") == "rId3"
+        @test XLSX.get_prefixed_attr(nothing, "id") === nothing
+        # A namespace declaration is not an attribute: `xmlns:id` declares a prefix `id`
+        @test XLSX.get_prefixed_attr(Dict("xmlns:id" => XLSX.NS_R), "id") === nothing
     end
+end
+
+# The prefixes used in `xml` (on elements and attributes) that no enclosing element binds.
+function _unbound_prefixes(xml::AbstractString)
+    out = Set{String}()
+    function walk(n, scope)
+        XML.nodetype(n) == XML.Element || return
+        atts = something(XML.attributes(n), Dict{String,String}())
+        scope = union(scope, Set(k[7:end] for k in keys(atts) if startswith(k, "xmlns:")))
+        for name in Iterators.flatten(((XML.tag(n),), (k for k in keys(atts) if !startswith(k, "xmlns"))))
+            i = findfirst(':', name)
+            isnothing(i) && continue
+            p = name[1:prevind(name, i)]
+            p in scope || p == "xml" || push!(out, p)
+        end
+        foreach(c -> walk(c, scope), something(XML.children(n), []))
+    end
+    walk(XLSX.xml_root_element(parse(String(xml), XML.Node)), Set{String}())
+    return out
+end
+_zip_part(file, part) = String(zip_readentry(ZipReader(read(file)), part))
+
+# Each copy gets its own name, so that patch_xlsx_entry's output doesn't clash.
+function _patched(src, entry, f; as)
+    cp(src, as; force=true)
+    out = patch_xlsx_entry(as, entry, f)
+    rm(as)
+    return out
+end
+
+@testset "relationship prefix other than r (#507)" begin
+    NS_R = XLSX.NS_R
+    XLSX.writetable("plain507.xlsx", Any[[1, 2, 3], ["x", "y", "z"]], ["a", "b"]; overwrite=true)
+    relabel(s) = replace(s, " r:id=\"" => " xmlns:relationships=\"$NS_R\" relationships:id=\"")
+
+    @testset "workbook <sheet>: $(variant)" for variant in ("root keeps xmlns:r", "only relationships:")
+        drop_root = variant == "only relationships:"
+        f = _patched("plain507.xlsx", "xl/workbook.xml",
+                     s -> drop_root ? replace(relabel(s), " xmlns:r=\"$NS_R\"" => "") : relabel(s);
+                     as = drop_root ? "wb507b.xlsx" : "wb507a.xlsx")
+        wb_xml = _zip_part(f, "xl/workbook.xml")
+        @test occursin("relationships:id=", wb_xml)
+        @test occursin("xmlns:r=", wb_xml) == !drop_root
+
+        xf = XLSX.readxlsx(f)
+        @test XLSX.sheetnames(xf) == ["Sheet1"]
+        @test xf[1]["A2"] == 1
+        @test !XLSX.is_chartsheet(XLSX.get_workbook(xf), "Sheet1")
+        dt = XLSX.readtable(f, 1)
+        @test dt.column_labels == [:a, :b]
+        @test dt.data[2] == ["x", "y", "z"]
+
+        # Writing it back: the new <sheet> elements use `r:id`, so `r` must be bound.
+        xf = XLSX.openxlsx(f, mode="rw")
+        xf[1]["C1"] = "new"
+        XLSX.writexlsx("out507.xlsx", xf, overwrite=true)
+        @test isempty(_unbound_prefixes(_zip_part("out507.xlsx", "xl/workbook.xml")))
+        xf2 = XLSX.readxlsx("out507.xlsx")
+        @test XLSX.sheetnames(xf2) == ["Sheet1"]
+        @test xf2[1]["C1"] == "new"
+        @test xf2[1]["B4"] == "z"
+    end
+
+    @testset "<tablePart> under another prefix" begin
+        f = _patched(joinpath(data_directory, "two_tables.xlsx"), "xl/worksheets/sheet1.xml",
+                     s -> replace(s, "<tablePart r:id=" => "<tablePart xmlns:rel=\"$NS_R\" rel:id=");
+                     as = "tables507.xlsx")
+        @test occursin("rel:id=", _zip_part(f, "xl/worksheets/sheet1.xml"))
+        XLSX.openxlsx(f) do xf   # read-only: the cursor path
+            @test sort([t.name for t in XLSX.tables(xf["Sheet1"])]) == ["Age_height", "IO_Table"]
+            @test sort(XLSX.get_worksheet_table_rids(xf, xf["Sheet1"])) == ["rId1", "rId2"]
+        end
+        xf = XLSX.openxlsx(f, mode="rw")   # parsed tree
+        @test XLSX.table(xf["Sheet1"], "IO_Table").ref == XLSX.CellRange("A1:C8")
+        XLSX.deletetable!(xf["Sheet1"], "Age_height")
+        XLSX.writexlsx("tables507_out.xlsx", xf, overwrite=true)
+        XLSX.openxlsx("tables507_out.xlsx") do xf2
+            @test [t.name for t in XLSX.tables(xf2["Sheet1"])] == ["IO_Table"]
+        end
+    end
+
+    @testset "external link under other prefixes" begin
+        # The external book's `r:id`s and the `xxl21:` alternateUrls, renamed.
+        f1 = _patched(joinpath(data_directory, "linked-1.xlsx"), "xl/externalLinks/externalLink1.xml",
+                      s -> replace(s, "xmlns:r=" => "xmlns:rel=", " r:id=" => " rel:id=", "xxl21" => "x21");
+                      as = "linked507.xlsx")
+        f = _patched(f1, "xl/workbook.xml",
+                     s -> replace(s, "<externalReference r:id=" => "<externalReference xmlns:rel=\"$NS_R\" rel:id=");
+                     as = "linked507b.xlsx")
+        @test occursin("rel:id=", _zip_part(f, "xl/workbook.xml"))
+        @test occursin("<x21:alternateUrls>", _zip_part(f, "xl/externalLinks/externalLink1.xml"))
+        xf = XLSX.openxlsx(f, mode="rw")
+        @test XLSX.getFormula(xf[1], "A1") == "=[1]Sheet1!\$A\$1"
+        @test occursin("linked-2.xlsx]", XLSX.getFormula(xf[1], "A1"; get_external_refs=true))
+    end
+end
+
+@testset "writing into parts that bind namespaces differently" begin
+    NS_R = XLSX.NS_R
+    XLSX.writetable("plain_ns.xlsx", Any[[1, 2, 3], ["x", "y", "z"]], ["a", "b"]; overwrite=true)
+
+    @testset "addtable! to a sheet without xmlns:r" begin
+        f = _patched("plain_ns.xlsx", "xl/worksheets/sheet1.xml", s -> replace(s, " xmlns:r=\"$NS_R\"" => ""); as = "nor.xlsx")
+        @test !occursin("xmlns:r=", _zip_part(f, "xl/worksheets/sheet1.xml"))
+        xf = XLSX.openxlsx(f, mode="rw")
+        XLSX.addtable!(xf[1], XLSX.CellRange("A1:B4"); name="Table_507")
+        XLSX.writexlsx("nor_out.xlsx", xf, overwrite=true)
+        sheet_xml = _zip_part("nor_out.xlsx", "xl/worksheets/sheet1.xml")
+        @test occursin("<tablePart r:id=", sheet_xml)
+        @test isempty(_unbound_prefixes(sheet_xml))
+        XLSX.openxlsx("nor_out.xlsx") do xf2
+            @test [t.name for t in XLSX.tables(xf2[1])] == ["Table_507"]
+        end
+    end
+
+    @testset "addImage and addTextBox into a drawing with its own prefixes" begin
+        xf = XLSX.openxlsx("plain_ns.xlsx", mode="rw")
+        XLSX.addImage(xf[1], "D2", joinpath(data_directory, "track_start.jpg"))
+        XLSX.writexlsx("img_ns.xlsx", xf, overwrite=true)
+        # As another writer might: `d:` and `x:` for xdr and a, and `rel:` declared on the
+        # root for the relationship namespace, with no `r` anywhere.
+        f = _patched("img_ns.xlsx", "xl/drawings/drawing1.xml", s -> begin
+            s = replace(s, " xmlns:r=\"$NS_R\"" => "")
+            s = replace(s, "xdr:" => "d:", "xmlns:xdr=" => "xmlns:d=", "<a:" => "<x:", "</a:" => "</x:",
+                           "xmlns:a=" => "xmlns:x=", "r:embed=" => "rel:embed=")
+            replace(s, "<d:wsDr " => "<d:wsDr xmlns:rel=\"$NS_R\" "; count=1)
+        end; as = "img_ns2.xlsx")
+        d_xml = _zip_part(f, "xl/drawings/drawing1.xml")
+        @test !occursin("xdr:", d_xml) && !occursin("xmlns:r=", d_xml)
+        @test isempty(_unbound_prefixes(d_xml))
+
+        xf = XLSX.openxlsx(f, mode="rw")
+        XLSX.addImage(xf[1], "J2", joinpath(data_directory, "track_start.jpg"))
+        XLSX.addTextBox(xf[1], "B8:E12", "note")
+        XLSX.writexlsx("img_ns_out.xlsx", xf, overwrite=true)
+        d_out = _zip_part("img_ns_out.xlsx", "xl/drawings/drawing1.xml")
+        @test isempty(_unbound_prefixes(d_out))
+        @test !occursin("xdr:", d_out)   # the new anchors took the drawing's own prefixes
+        @test length(XLSX.getImages(XLSX.readxlsx("img_ns_out.xlsx")[1])) == 2
+    end
+
+    @testset "copysheet! keeps one uid under the sheet's own prefix" begin
+        NS_XR = "http://schemas.microsoft.com/office/spreadsheetml/2014/revision"
+        f = _patched("plain_ns.xlsx", "xl/worksheets/sheet1.xml",
+                     s -> replace(s, "xmlns:xr=\"$NS_XR\"" => "xmlns:rev=\"$NS_XR\"", " xr:uid=" => " rev:uid=",
+                                     "mc:Ignorable=\"x14ac xr " => "mc:Ignorable=\"x14ac rev ");
+                     as = "uid.xlsx")
+        xf = XLSX.openxlsx(f, mode="rw")
+        XLSX.copysheet!(xf[1], "Copy")
+        XLSX.writexlsx("uid_out.xlsx", xf, overwrite=true)
+        sheets = filter(n -> startswith(n, "xl/worksheets/sheet") && endswith(n, ".xml"), zip_names(ZipReader(read("uid_out.xlsx"))))
+        @test length(sheets) == 2
+        uids = String[]
+        for p in sheets
+            root = XLSX.xml_root_element(parse(_zip_part("uid_out.xlsx", p), XML.Node))
+            ks = [k for k in keys(XML.attributes(root)) if occursin(':', k) && !startswith(k, "xmlns") && endswith(k, ":uid")]
+            @test length(ks) == 1
+            push!(uids, XML.attributes(root)[only(ks)])
+        end
+        @test allunique(uids)
+        @test XLSX.sheetnames(XLSX.readxlsx("uid_out.xlsx")) == ["Sheet1", "Copy"]
+    end
+    for f in ("plain507.xlsx", "out507.xlsx", "tables507_out.xlsx", "plain_ns.xlsx", "nor_out.xlsx",
+              "img_ns.xlsx", "img_ns_out.xlsx", "uid_out.xlsx")
+        isfile(f) && rm(f)
+    end
+    foreach(f -> startswith(f, "patched_") && rm(f), readdir())
 end
