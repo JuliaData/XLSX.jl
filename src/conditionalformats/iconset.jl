@@ -51,6 +51,7 @@ function _iconset_keywords(allkws)
             throw(XLSXError("Invalid keyword argument: $k. Valid options are: $(join(("`$v`" for v in ICONSET_KEYWORDS), ", "))."))
     end
     iconset::Union{Nothing,String} = get(allkws, :iconset, "3TrafficLights")
+    iconset == "3TrafficLights1" && (iconset = "3TrafficLights") # the OOXML name for it
     reverse::Union{Nothing,String} = get(allkws, :reverse, nothing)
     showVal::Union{Nothing,String} = get(allkws, :showVal, nothing)
     min_type::Union{Nothing,String} = get(allkws, :min_type, nothing)

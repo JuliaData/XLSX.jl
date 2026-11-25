@@ -132,14 +132,16 @@ This can be exemplified by considering the `:cellIs` type. Like the other condit
 in this group, `:cellIs` needs an `operator` keyword to define the test to use to determine 
 whether or not to apply the formatting. Valid `operator` values for `:cellIs` are:
 
-- `greaterThan`     (cell >  `value`)
-- `greaterEqual`    (cell >= `value`)
-- `lessThan`        (cell <  `value`)
-- `lessEqual`       (cell <= `value`)
-- `equal`           (cell == `value`)
-- `notEqual`        (cell != `value`)
-- `between`         (cell between `value` and `value2`)
-- `notBetween`      (cell not between `value` and `value2`)
+- `greaterThan`        (cell >  `value`)
+- `greaterThanOrEqual` (cell >= `value`)
+- `lessThan`           (cell <  `value`)
+- `lessThanOrEqual`    (cell <= `value`)
+- `equal`              (cell == `value`)
+- `notEqual`           (cell != `value`)
+- `between`            (cell between `value` and `value2`)
+- `notBetween`         (cell not between `value` and `value2`)
+
+The older names `greaterEqual` and `lessEqual` are still accepted.
 
 Each of these needs the keyword `value` to be specified and, for `between` and `notBetween`, `value2` 
 must also be specified.

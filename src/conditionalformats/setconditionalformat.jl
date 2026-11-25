@@ -55,14 +55,16 @@ The keyword `operator` defines the comparison to use in the conditional formatti
 If the condition is met, the format is applied.
 Valid options are:
 
-- `greaterThan`     (cell >  `value`) (default)
-- `greaterEqual`    (cell >= `value`)
-- `lessThan`        (cell <  `value`)
-- `lessEqual`       (cell <= `value`)
-- `equal`           (cell == `value`)
-- `notEqual`        (cell != `value`)
-- `between`         (cell between `value` and `value2`)
-- `notBetween`      (cell not between `value` and `value2`)
+- `greaterThan`        (cell >  `value`) (default)
+- `greaterThanOrEqual` (cell >= `value`)
+- `lessThan`           (cell <  `value`)
+- `lessThanOrEqual`    (cell <= `value`)
+- `equal`              (cell == `value`)
+- `notEqual`           (cell != `value`)
+- `between`            (cell between `value` and `value2`)
+- `notBetween`         (cell not between `value` and `value2`)
+
+The older names `greaterEqual` and `lessEqual` are still accepted.
 
 If not specified (when required), `value` will be the arithmetic average of the 
 (non-missing) cell values in the range if values are numeric. If the cell values 

@@ -61,7 +61,10 @@ end
 
 _cf_prefix(ws::Worksheet) = (pfx = get_prefix(ws); pfx == "" ? pfx : pfx * ":")
 
-const CELLIS_OPERATORS = ("greaterThan", "greaterEqual", "lessThan", "lessEqual", "equal", "notEqual", "between", "notBetween")
+const CELLIS_OPERATORS = ("greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "equal", "notEqual", "between", "notBetween")
+# Older spellings XLSX.jl once documented; they aren't OOXML names, so they're
+# written as the names they stand for.
+const CELLIS_OPERATOR_ALIASES = Dict("greaterEqual" => "greaterThanOrEqual", "lessEqual" => "lessThanOrEqual")
 
 define_cf_address_methods(:setCfCellIs)
 function setCfCellIs(ws::Worksheet, rng::CfRange; allkws::Dict{Symbol,Any}=Dict{Symbol,Any}())::Int
@@ -71,7 +74,8 @@ function setCfCellIs(ws::Worksheet, rng::CfRange; allkws::Dict{Symbol,Any}=Dict{
 
     _check_cf_value("value", kw.value)
     _check_cf_value("value2", kw.value2)
-    !isnothing(kw.operator) && kw.operator ∉ CELLIS_OPERATORS &&
+    operator = get(CELLIS_OPERATOR_ALIASES, kw.operator, kw.operator)
+    !isnothing(operator) && operator ∉ CELLIS_OPERATORS &&
         throw(XLSXError("Invalid `operator`: $(kw.operator). Valid options are: $(join(("`$o`" for o in CELLIS_OPERATORS), ", "))"))
     dxid = _cf_rule_dx(ws, kw)
 
@@ -84,9 +88,9 @@ function setCfCellIs(ws::Worksheet, rng::CfRange; allkws::Dict{Symbol,Any}=Dict{
     end
 
     cfx = _cf_rule_element(ws, pfx, "cellIs", dxid, kw)
-    cfx["operator"] = kw.operator
+    cfx["operator"] = operator
     push!(cfx, XML.Element("$(pfx)formula", XML.Text(value)))
-    if !isnothing(kw.value2) && kw.operator ∈ ["between", "notBetween"]
+    if !isnothing(kw.value2) && operator ∈ ["between", "notBetween"]
         push!(cfx, XML.Element("$(pfx)formula", XML.Text(kw.value2)))
     end
 
