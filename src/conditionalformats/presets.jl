@@ -296,8 +296,9 @@ const iconsets::Dict{String,XML.Node} = Dict(    # Defines the 20 standard, buil
             XML.h.cfvo(type="percent", val="80"),
         )
     ),
+    # The OOXML name is `3TrafficLights1`; XLSX.jl calls it `3TrafficLights`.
     "3TrafficLights" => XML.h.cfRule(type="iconSet", priority="1",
-        XML.h.iconSet(iconSet="3TrafficLights",
+        XML.h.iconSet(iconSet="3TrafficLights1",
             XML.h.cfvo(type="percent", val="0"),
             XML.h.cfvo(type="percent", val="33"),
             XML.h.cfvo(type="percent", val="67"),
@@ -326,7 +327,7 @@ const iconsets::Dict{String,XML.Node} = Dict(    # Defines the 20 standard, buil
         )
     ),
     "4TrafficLights" => XML.h.cfRule(type="iconSet", priority="1",
-        XML.h.iconSet(iconSet="4TraficLights",
+        XML.h.iconSet(iconSet="4TrafficLights",
             XML.h.cfvo(type="percent", val="0"),
             XML.h.cfvo(type="percent", val="25"),
             XML.h.cfvo(type="percent", val="50"),

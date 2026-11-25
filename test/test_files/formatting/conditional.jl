@@ -2967,6 +2967,56 @@
             @test targets(f) == targets(XLSX.setCfCellIs)
         end
     end
+
+    # Excel won't open a file with a non-OOXML operator, and shows its default icon
+    # set for an unknown icon set name.
+    @testset "operators and icon sets are written with OOXML names" begin
+        function sheet_xml(xf)
+            f = "cf_ooxml_names.xlsx"
+            XLSX.writexlsx(f, xf; overwrite=true)
+            x = ZipArchives.zip_readentry(ZipArchives.ZipReader(read(f)), "xl/worksheets/sheet1.xml", String)
+            rm(f)
+            return x
+        end
+        attrs(x, name) = [m[1] for m in eachmatch(Regex("<(?:\\w+:)?(?:cfRule|iconSet) [^>]*\\b$name=\"([^\"]*)\""), x)]
+
+        # ST_ConditionalFormattingOperator, as used by cellIs
+        for (given, written) in (("greaterThan", "greaterThan"), ("greaterThanOrEqual", "greaterThanOrEqual"),
+                                 ("lessThan", "lessThan"), ("lessThanOrEqual", "lessThanOrEqual"),
+                                 ("equal", "equal"), ("notEqual", "notEqual"),
+                                 ("between", "between"), ("notBetween", "notBetween"),
+                                 ("greaterEqual", "greaterThanOrEqual"), ("lessEqual", "lessThanOrEqual"))
+            xf = XLSX.newxlsx(); s = xf[1]
+            s["A1:A5"] = collect(1:5)
+            XLSX.setConditionalFormat(s, "A1:A5", :cellIs; operator=given, value="2", value2="4")
+            @test attrs(sheet_xml(xf), "operator") == [written]
+            SAVE_FILES && save_outfile(xf)
+        end
+        xf = XLSX.newxlsx()
+        @test_throws XLSX.XLSXError XLSX.setConditionalFormat(xf[1], "A1:A5", :cellIs; operator="greaterOrEqual", value="2")
+
+        # ST_IconSetType
+        ooxml = ("3Arrows", "3ArrowsGray", "3Flags", "3TrafficLights1", "3TrafficLights2", "3Signs",
+                 "3Symbols", "3Symbols2", "4Arrows", "4ArrowsGray", "4RedToBlack", "4Rating",
+                 "4TrafficLights", "5Arrows", "5ArrowsGray", "5Rating", "5Quarters")
+        for name in sort!(collect(keys(XLSX.iconsets)))
+            name in XLSX.X14_ICONSETS && continue
+            xf = XLSX.newxlsx(); s = xf[1]
+            s["A1:A5"] = collect(1:5)
+            XLSX.setConditionalFormat(s, "A1:A5", :iconSet; iconset=name)
+            written = attrs(sheet_xml(xf), "iconSet")
+            @test length(written) == 1 && only(written) in ooxml
+            name == "3TrafficLights" || @test written == [name]
+        end
+        for given in (nothing, "3TrafficLights", "3TrafficLights1")
+            xf = XLSX.newxlsx(); s = xf[1]
+            s["A1:A5"] = collect(1:5)
+            isnothing(given) ? XLSX.setConditionalFormat(s, "A1:A5", :iconSet) :
+                               XLSX.setConditionalFormat(s, "A1:A5", :iconSet; iconset=given)
+            @test attrs(sheet_xml(xf), "iconSet") == ["3TrafficLights1"]
+            SAVE_FILES && save_outfile(xf)
+        end
+    end
 end
 
 @testset "dxf fonts and text rules" begin
